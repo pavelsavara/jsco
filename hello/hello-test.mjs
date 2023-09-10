@@ -3,8 +3,10 @@ import { instantiate } from "./target/js-jco/hello.js"
 const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
 let _fs;
 async function fetchCompile(url) {
-    // C:\Dev\jsco\hello\target\js-jco\hello.js
-    const self = import.meta.url.substring("file:///".length);
+    let self = import.meta.url.substring("file://".length);
+    if (self.indexOf(":") === 2) {
+        self = self.substring(1);
+    }
     const u2 = self.substring(0, self.lastIndexOf("/"))+"/target/js-jco/"+url;
     if (isNode) {
         _fs = _fs || await import('fs/promises');
