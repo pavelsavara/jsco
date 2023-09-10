@@ -1,0 +1,19 @@
+package hello:city
+
+interface city {
+    record city-info {
+        name: string,
+    }
+
+    send-message: func(message: string)
+}
+
+interface greeter {
+    use city.{city-info}
+    run: func(info: city-info)
+}
+
+world hello {
+    import city
+    export greeter
+}

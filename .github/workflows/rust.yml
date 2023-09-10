@@ -1,0 +1,56 @@
+name: rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up cargo cache
+      uses: Swatinem/rust-cache@v2.6.2
+      id: cache-rust
+    - name: Rust toolchain profile
+      run: rustup toolchain install stable --profile minimal --no-self-update
+    - name: Install wasm32 target
+      run: rustup target add wasm32-unknown-unknown
+    - name: Install cargo-component
+      run: cargo install --git https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8 --locked cargo-component
+    - name: Install wasm-tools
+      run: cargo install wasm-tools
+    - name: Install JCO
+      run: npm install @bytecodealliance/jco -g
+
+    - name: Build rust demo
+      working-directory: ./hello
+      run: npm run build:hello
+
+    - name: Export demo as .wat
+      working-directory: ./hello
+      run: npm run build:hello
+
+    - name: Export demo as .wat JCO javaScript
+      working-directory: ./hello
+      run: npm run build:hello-js
+
+    - name: WASM component artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: hello.${{github.sha}}.wasm
+        path: hello/target/wasm32-unknown-unknown/release/hello.wa*
+
+    - name: JCO component artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: hello.${{github.sha}}.wasm
+        path: hello/target/js-jco/**/*.*
+

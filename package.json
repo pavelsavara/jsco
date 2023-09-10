@@ -1,0 +1,63 @@
+{
+    "name": "jsco",
+    "version": "0.1.0",
+    "description": "browser polyfill for running WASM components",
+    "main": "index.js",
+    "type": "module",
+    "types": "index.d.ts",
+    "scripts": {
+        "build": "rollup -c",
+        "build:npm": "npm run build && cp package.json dist/ && cp README.md dist/ && cp LICENSE dist/",
+        "build:npmw": "set Configuration=Release&& set ContinuousIntegrationBuild=true&& npm run build && copy package.json dist && copy README.md dist && copy LICENSE dist",
+        "build:hello": "cd hello && cargo component build --release --target wasm32-unknown-unknown",
+        "build:hello-js": "cd hello && jco transpile --instantiation --no-wasi-shim -b 0 --out-dir target/js-jco target/wasm32-unknown-unknown/release/hello.wasm",
+        "build:hello-js2": "cd hello && jco transpile -b 0 --out-dir target/js-jco2 target/wasm32-unknown-unknown/release/hello.wasm",
+        "build:hello-wat": "cd hello && wasm-tools print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
+        "lint": "eslint --no-color \"./**/*.ts\"",
+        "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
+        "format": "eslint --fix \"./**/*.ts\"",
+        "test:ci": "jest",
+        "test:unix": "NODE_OPTIONS=--experimental-vm-modules && jest --watch",
+        "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/pavelsavara/jsco.git"
+    },
+    "keywords": [
+        "WASM",
+        "WIT",
+        "WASI",
+        "Component"
+    ],
+    "author": "Pavel Savara <pavel.savara@gmail.com>",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/pavelsavara/jsco/issues"
+    },
+    "homepage": "https://github.com/pavelsavara/jsco#readme",
+    "devDependencies": {
+        "@bytecodealliance/jco": "^0.11.1",
+        "@rollup/plugin-eslint": "^9.0.4",
+        "@rollup/plugin-node-resolve": "^15.2.1",
+        "@rollup/plugin-terser": "^0.4.3",
+        "@rollup/plugin-typescript": "^11.1.3",
+        "@rollup/plugin-virtual": "^3.0.1",
+        "@swc/core": "^1.3.83",
+        "@swc/jest": "^0.2.29",
+        "@types/jest": "^29.5.4",
+        "@typescript-eslint/eslint-plugin": "^6.6.0",
+        "@typescript-eslint/parser": "^6.6.0",
+        "eslint": "^8.48.0",
+        "git-commit-info": "^2.0.2",
+        "jest": "^29.6.4",
+        "rollup": "^3.29.0",
+        "rollup-plugin-dts": "^6.0.1",
+        "rollup-plugin-swc": "^0.2.1",
+        "terser": "^5.19.4",
+        "typescript": "^5.2.2"
+    },
+    "dependencies": {
+        "@thi.ng/leb128": "^3.0.34"
+    }
+}

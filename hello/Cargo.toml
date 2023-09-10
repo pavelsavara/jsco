@@ -1,0 +1,24 @@
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2021"
+authors = ["pavel.savara@gmail.com"]
+
+[dependencies]
+cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component", rev = "e57d1d14" }
+wee_alloc = { version = "0.4.5" }
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "hello:city"
+
+[package.metadata.component.target]
+path = "wit"
+
+[package.metadata.component.dependencies]
+
+[profile.release]
+lto = true
+opt-level = 's'

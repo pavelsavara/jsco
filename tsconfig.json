@@ -1,0 +1,31 @@
+{
+    "compilerOptions": {
+        "noImplicitAny": true,
+        "noEmitOnError": true,
+        "removeComments": false,
+        "module": "ES2022",
+        "sourceMap": true,
+        "target": "ES2022",
+        "moduleResolution": "Node",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true,
+        "outDir": "./dist",
+        "strict": true,
+        "lib": [
+            "esnext",
+            "dom"
+        ],
+        "types": [
+            "node",
+            "jest"
+        ],
+        "rootDirs": [
+            "."
+        ]
+    },
+    "include": [
+        "src/**/*",
+        "src/.types.d.ts"
+    ]
+}
