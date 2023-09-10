@@ -16,6 +16,7 @@
         "lint": "eslint --no-color \"./**/*.ts\"",
         "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
         "format": "eslint --fix \"./**/*.ts\"",
+        "test:jco": "node ./hello/hello-test.mjs",
         "test:ci": "jest",
         "test:unix": "NODE_OPTIONS=--experimental-vm-modules && jest --watch",
         "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch"

@@ -29,7 +29,7 @@ describe("parser test", () => {
                     tag: "section-export",
                     name: {
                         tag: "name-regid",
-                        name: "hello:city/greeter@0.1.0"
+                        name: "hello:city/greeter"
                     },
                     sortidx: 5,
                     kind: "func"

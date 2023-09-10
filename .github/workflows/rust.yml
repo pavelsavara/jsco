@@ -54,3 +54,6 @@ jobs:
         name: hello.${{github.sha}}.wasm
         path: hello/target/js-jco/**/*.*
 
+    - name: Sanity test that JCO can run hello component
+      working-directory: ./hello
+      run: npm run test:jco

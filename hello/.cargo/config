@@ -1,2 +1,3 @@
 [target.wasm32-unknown-unknown]
-rustflags = ["-Clink-arg=-zstack-size=16","-Clink-arg=--initial-memory=1048576","-Clink-arg=--max-memory=1048576"]
+rustflags = ["-Clink-arg=-zstack-size=16384","-Clink-arg=--max-memory=655360"]
+# TODO "-Clink-arg=--initial-memory=655360"
