@@ -42,6 +42,10 @@ jobs:
       working-directory: ./hello
       run: npm run build:hello-js
 
+    - name: Sanity test that JCO can run hello component
+      working-directory: ./hello
+      run: npm run test:jco
+
     - name: WASM component artifact
       uses: actions/upload-artifact@v3
       with:
@@ -53,7 +57,3 @@ jobs:
       with:
         name: hello.${{github.sha}}.wasm
         path: hello/target/js-jco/**/*.*
-
-    - name: Sanity test that JCO can run hello component
-      working-directory: ./hello
-      run: npm run test:jco
