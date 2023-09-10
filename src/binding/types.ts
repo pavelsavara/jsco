@@ -52,7 +52,7 @@ export type BindingContext = {
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
     getMemory: () => WebAssembly.Memory;
-    getView: () => DataView;//TODO from , to
+    getView: (ptr: AbiPointer, len: AbiSize) => DataView;
     alloc: (newSize: AbiSize, align: AbiSize) => AbiPointer;
     realloc: (oldPtr: AbiPointer, oldSize: AbiSize, align: AbiSize, newSize: AbiSize) => AbiPointer;
     readI32: (ptr: AbiPointer) => number;
@@ -62,8 +62,5 @@ export type BindingContext = {
 export type FnLoweringToJs = (ctx: BindingContext, abiExport: AbiFunction) => JsFunction;
 export type FnLiftingFromJs = (ctx: BindingContext, jsFunction: JsFunction) => AbiFunction;
 
-export type LoweringToJs = (ctx: BindingContext, srcPointer: AbiPointer) => JsValue;
-export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue, tgtPointer: AbiPointer) => AbiPointer;
-
-export type WasmInstantiate = (module: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>;
-export type ComponentFactory = (imports?: WebAssembly.Imports, wasmInstantiate?: WasmInstantiate) => Promise<JsExports>
+export type LoweringToJs = (ctx: BindingContext, srcPointer: AbiPointer, ...args: any) => JsValue;
+export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue) => any[];

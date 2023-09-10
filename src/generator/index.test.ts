@@ -3,10 +3,6 @@ import { generateTypeScript } from "./index";
 
 describe("typescript generator test", () => {
     test("generator is not implemented", async () => {
-        try{
-            await generateTypeScript({} as any);
-        }catch (e) {
-            expect(e).toBeInstanceOf(Error);
-        }
+        expect(async () => await generateTypeScript({} as any)).rejects.toThrowError("Not implemented");
     });
 });

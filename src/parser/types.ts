@@ -1,5 +1,3 @@
-import { AbiSize } from "../binding/types";
-
 export type WITType =
     | WITTypeRecord
     | WITTypeString
@@ -7,8 +5,6 @@ export type WITType =
 
 export type WITBaseType = {
     tag: string
-    totalSize: AbiSize
-    alignment: AbiSize
 }
 
 export type WITTypeRecord = WITBaseType & {
@@ -102,11 +98,10 @@ export type WITModel = {
     other: WITSection[]
 }
 
-export type WebAssemblyCompileStreaming = (source: Response | PromiseLike<Response>) => Promise<WebAssembly.Module>;
 
 export type ParserContext = {
     otherSectionData: boolean
-    compileStreaming: WebAssemblyCompileStreaming
+    compileStreaming: typeof WebAssembly.compileStreaming
     processCustomSection?: (section: WITSectionCustom) => WITSectionCustom
 }
 

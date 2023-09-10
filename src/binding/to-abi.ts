@@ -17,7 +17,7 @@ export function createLifting(typeModel: WITType): LiftingFromJs {
             case "record":
                 return createRecordLifting(typeModel);
             case "string":
-                return createStringLifting(typeModel);
+                return createStringLifting();
             case "i32":
             default:
                 throw new Error("Not implemented");
@@ -41,7 +41,8 @@ function createRecordLifting(recordModel: WITTypeRecord): LiftingFromJs {
         const lifting = createLifting(member.type);
         liftingMembers.push(lifting);
     }
-
+    throw new Error("Not implemented");
+    /*
     return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: AbiPointer): AbiPointer => {
 
         // TODO in which cases ABI expects folding into parent record ?
@@ -64,18 +65,16 @@ function createRecordLifting(recordModel: WITTypeRecord): LiftingFromJs {
             ctx.writeI32(tgtPointer, res);
         }
 
-        return res;
-    };
+        return [res, recordModel.totalSize];
+    };*/
 }
 
-function createStringLifting(stringModel: WITTypeString): LiftingFromJs {
-    return (ctx: BindingContext, srcJsString: JsString, tgtPointer: AbiPointer): AbiPointer => {
-        // TODO tgtPointer
+function createStringLifting(): LiftingFromJs {
+    return (ctx: BindingContext, srcJsString: JsString): any[] => {
         let str = srcJsString as string;
         if (typeof str !== "string") throw new TypeError("expected a string");
         if (str.length === 0) {
-            //TODO utf8EncodedLen = 0;
-            return 0 as AbiPointer;
+            return [0, 0];
         }
         let allocLen: AbiSize = 0 as any;
         let ptr: AbiPointer = 0 as any;
@@ -93,7 +92,6 @@ function createStringLifting(stringModel: WITTypeString): LiftingFromJs {
         }
         if (allocLen > writtenTotal)
             ptr = ctx.realloc(ptr, allocLen, 1 as any, writtenTotal as any);
-        //utf8EncodedLen = writtenTotal;
-        return ptr;
+        return [ptr, writtenTotal];
     };
 }
