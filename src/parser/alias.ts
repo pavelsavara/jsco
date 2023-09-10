@@ -1,6 +1,6 @@
 import { SyncSource } from "../utils/streaming";
-import { ComponentExternalKind, ParserContext, WITName, WITSectionAlias, WITSectionExport } from "./types";
-import { readName, readU32 } from "./values";
+import { ParserContext, WITSectionAlias } from "./types";
+import { readU32 } from "./values";
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
 // https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#import-and-export-definitions

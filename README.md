@@ -54,6 +54,7 @@
 
 ## Contribute
 - install rust
+- `cargo install wasm-tools`
 - install nodejs + npm
 - `npm install`
 - `npm run build`
