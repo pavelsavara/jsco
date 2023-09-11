@@ -8,6 +8,9 @@ authors = ["pavel.savara@gmail.com"]
 cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4", version = "0.1.0" }
 wee_alloc = { version = "0.4.5" }
 
+[dev-dependencies]
+cargo-component = { git = "https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4", version = "0.1.0" }
+
 [lib]
 crate-type = ["cdylib"]
 
