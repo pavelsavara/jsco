@@ -30,11 +30,10 @@ jobs:
         cache-targets: true
         workspaces: "hello"
 
-#    - run: npm run setup:rust
-#      working-directory: ./hello
-#
-    - name: Install JCO
+    - run: npm run setup:rust
       working-directory: ./hello
+
+    - name: Install JCO
       run: npm install
 
     - name: Build rust demo
@@ -43,7 +42,7 @@ jobs:
 
     - name: Export demo as .wat
       working-directory: ./hello
-      run: npm run build:hello
+      run: npm run build:hello-wat
 
     - name: Export demo as .wat JCO javaScript
       working-directory: ./hello
