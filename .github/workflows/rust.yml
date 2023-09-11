@@ -20,6 +20,9 @@ jobs:
     - name: Set up cargo cache
       uses: Swatinem/rust-cache@v2.6.2
       id: cache-rust
+      with:
+        cache-all-crates: true
+        cache-targets: true
 
     - name: Install Rust tools
       run: npm run setup:rust
