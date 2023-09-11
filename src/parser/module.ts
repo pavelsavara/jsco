@@ -1,5 +1,5 @@
-import { Source } from "../utils/streaming";
-import { ParserContext, WITSectionModule } from "./types";
+import { Source } from '../utils/streaming';
+import { ParserContext, WITSectionModule } from './types';
 
 export async function parseModule(
     ctx: ParserContext,
@@ -7,7 +7,7 @@ export async function parseModule(
     size: number,
 ): Promise<WITSectionModule> {
     const res: WITSectionModule = {
-        tag: "section-module",
+        tag: 'section-module',
     };
 
     if (ctx.compileStreaming) {
@@ -43,15 +43,15 @@ function toWasmResponse(
         }
     };
     const rs = new ReadableStream({
-        type: "bytes", pull,
+        type: 'bytes', pull,
     });
     const headers = new Headers();
-    headers.append("Content-Type", "application/wasm");
-    headers.append("Content-Length", "" + size);
+    headers.append('Content-Type', 'application/wasm');
+    headers.append('Content-Length', '' + size);
     const response = new Response(rs, {
         headers,
         status: 200,
-        statusText: "OK",
+        statusText: 'OK',
     });
 
     return response;

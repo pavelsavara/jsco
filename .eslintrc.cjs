@@ -41,7 +41,7 @@ module.exports = {
         "comma-spacing": ["error"],
         "quotes": [
             "error",
-            "double"
+            "single"
         ],
         "semi": [
             "error",

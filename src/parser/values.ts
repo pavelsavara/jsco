@@ -1,7 +1,7 @@
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
-import * as leb from "@thi.ng/leb128";
-import { SyncSource, Source } from "../utils/streaming";
+import * as leb from '@thi.ng/leb128';
+import { SyncSource, Source } from '../utils/streaming';
 
 const textDecoder = new TextDecoder();
 

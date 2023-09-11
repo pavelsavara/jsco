@@ -27,7 +27,7 @@ export function newSource(items: ArrayLike<number>): Source & Closeable;
 export function newSource(items: ReadableStream): Source & Closeable;
 export function newSource(items: ArrayLike<number> | ReadableStream,): Source & Closeable;
 export function newSource(items: ArrayLike<number> | ReadableStream,): Source & Closeable {
-    if ("getReader" in items) {
+    if ('getReader' in items) {
         return new StreamSource(items);
     } else {
         return new ArraySource(items);
@@ -51,11 +51,11 @@ class StreamSource {
         return this.total;
     }
 
-    async fill(need: number): Promise<"EOF" | Uint8Array> {
+    async fill(need: number): Promise<'EOF' | Uint8Array> {
         if (this.buf === null || this.buf.length - this.bpos < 1) {
             const result = await this.reader.read();
             if (result.done) {
-                return "EOF";
+                return 'EOF';
             }
             this.buf = result.value;
             this.bpos = 0;
@@ -89,11 +89,11 @@ class StreamSource {
     read(eof: true): Promise<number | null>;
     async read(eof?: true): Promise<number | null> {
         const maybebuf = await this.fill(1);
-        if (maybebuf === "EOF") {
+        if (maybebuf === 'EOF') {
             if (eof === true) {
                 return null;
             } else {
-                throw new Error("unexpected EOF.");
+                throw new Error('unexpected EOF.');
             }
         }
         return maybebuf[0];
@@ -104,8 +104,8 @@ class StreamSource {
         let rest = n;
         while (rest > 0) {
             const maybebuf = await this.fill(rest);
-            if (maybebuf === "EOF") {
-                throw new Error("unexpected EOF.");
+            if (maybebuf === 'EOF') {
+                throw new Error('unexpected EOF.');
             }
             r.set(maybebuf, r.length - rest);
             rest -= maybebuf.length;
@@ -115,13 +115,13 @@ class StreamSource {
 
     async skip(n: number): Promise<void> {
         if (n < 0) {
-            throw new Error("illegal argument.");
+            throw new Error('illegal argument.');
         }
         let rest = n;
         while (rest > 0) {
             const maybebuf = await this.fill(rest);
-            if (maybebuf === "EOF") {
-                throw new Error("unexpected EOF.");
+            if (maybebuf === 'EOF') {
+                throw new Error('unexpected EOF.');
             }
             rest -= maybebuf.length;
         }
@@ -172,7 +172,7 @@ class ArraySource {
                 if (eof) {
                     return Promise.resolve(null);
                 } else {
-                    throw new Error("unexpected EOF.");
+                    throw new Error('unexpected EOF.');
                 }
             }
             const r = this.items[this._pos];
@@ -189,10 +189,10 @@ class ArraySource {
                 return Promise.resolve(Uint8Array.from([]));
             }
             if (n < 1) {
-                throw new Error("illegal argument.");
+                throw new Error('illegal argument.');
             }
             if (this.items.length - this._pos < n) {
-                throw new Error("unexpected EOF.");
+                throw new Error('unexpected EOF.');
             }
             const r = this.items.subarray(this._pos, this._pos + n);
             this._pos += n;
@@ -208,10 +208,10 @@ class ArraySource {
                 return Promise.resolve();
             }
             if (n < 1) {
-                throw new Error("illegal argument.");
+                throw new Error('illegal argument.');
             }
             if (this.items.length - this._pos < n) {
-                throw new Error("unexpected EOF.");
+                throw new Error('unexpected EOF.');
             }
             this._pos += n;
             return Promise.resolve();
@@ -240,7 +240,7 @@ class SubSource {
 
     constructor(delegate: Source, limit: number) {
         if (limit < 0) {
-            throw new Error("illegal argument.");
+            throw new Error('illegal argument.');
         }
         this.delegate = delegate;
         this.rest = limit;
@@ -299,7 +299,7 @@ class SubSource {
 
     checkLimit(needs: number) {
         if (this.rest < needs) {
-            throw new Error("limit reached.");
+            throw new Error('limit reached.');
         }
     }
 }
@@ -328,7 +328,7 @@ class SyncArraySource implements SyncSource {
             if (eof) {
                 null;
             } else {
-                throw new Error("unexpected EOF.");
+                throw new Error('unexpected EOF.');
             }
         }
         const r = this.items[this._pos];
@@ -341,10 +341,10 @@ class SyncArraySource implements SyncSource {
             return Uint8Array.from([]);
         }
         if (n < 1) {
-            throw new Error("illegal argument.");
+            throw new Error('illegal argument.');
         }
         if (this.items.length - this._pos < n) {
-            throw new Error("unexpected EOF.");
+            throw new Error('unexpected EOF.');
         }
         const r = this.items.subarray(this._pos, this._pos + n);
         this._pos += n;
@@ -356,10 +356,10 @@ class SyncArraySource implements SyncSource {
             return;
         }
         if (n < 1) {
-            throw new Error("illegal argument.");
+            throw new Error('illegal argument.');
         }
         if (this.items.length - this._pos < n) {
-            throw new Error("unexpected EOF.");
+            throw new Error('unexpected EOF.');
         }
         this._pos += n;
     }
@@ -367,5 +367,5 @@ class SyncArraySource implements SyncSource {
 
 
 export function bufferToHex(data: Uint8Array) {
-    return data.reduce((t, x) => t + " " + x.toString(16).padStart(2, "0"), "");
+    return data.reduce((t, x) => t + ' ' + x.toString(16).padStart(2, '0'), '');
 }

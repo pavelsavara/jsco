@@ -1,5 +1,5 @@
-import * as jco from "@bytecodealliance/jco";
-import { WITModel, parse } from ".";
+import * as jco from '@bytecodealliance/jco';
+import { WITModel, parse } from '.';
 // import { jest } from "@jest/globals";
 
 export function expectModelToEqual(actualModel: WITModel, expectedModel: Partial<WITModel>) {
@@ -8,7 +8,7 @@ export function expectModelToEqual(actualModel: WITModel, expectedModel: Partial
     expectedModel.componentExports = expectedModel.componentExports || [];
     expectedModel.componentImports = expectedModel.componentImports || [];
     expectedModel.aliases = expectedModel.aliases || [];
-    expectedModel.tag = expectedModel.tag || "model";
+    expectedModel.tag = expectedModel.tag || 'model';
     expect(actualModel).toEqual(expectedModel);
 }
 

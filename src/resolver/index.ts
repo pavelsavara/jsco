@@ -1,8 +1,8 @@
-import { createLifting, createLowering } from "../binding";
-import { js, abi } from "./hello";
-import { ComponentExports, ComponentFactory, ComponentFactoryInput, ComponentFactoryOptions, ComponentImports, Tcabi_realloc } from "./types";
-import { WITModel, parse } from "../parser";
-import { AbiPointer, AbiSize, BindingContext } from "../binding/types";
+import { createLifting, createLowering } from '../binding';
+import { js, abi } from './hello';
+import { ComponentExports, ComponentFactory, ComponentFactoryInput, ComponentFactoryOptions, ComponentImports, Tcabi_realloc } from './types';
+import { WITModel, parse } from '../parser';
+import { AbiPointer, AbiSize, BindingContext } from '../binding/types';
 
 export async function createComponent<JSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -10,7 +10,7 @@ export async function createComponent<JSExports>(
     options?: ComponentFactoryOptions
 ) {
     let input = modelOrComponentOrUrl as any;
-    if (typeof input !== "object" || input.tag !== "model") {
+    if (typeof input !== 'object' || input.tag !== 'model') {
         input = await parse(input);
     }
     return createComponentFactory<JSExports>(input)(imports, options);
@@ -46,16 +46,16 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
         };
 
         const componentImports = (imports ? imports : {}) as {
-            "hello:city/city": js.Imports,
+            'hello:city/city': js.Imports,
         };
 
-        const { sendMessage } = componentImports["hello:city/city"];
+        const { sendMessage } = componentImports['hello:city/city'];
         const stringToJs = createLowering({
-            tag: "string",
+            tag: 'string',
         });
 
         const stringFromJs = createLifting({
-            tag: "string",
+            tag: 'string',
         });
 
         function sendMessageFromAbi(ptr: AbiPointer, len: AbiPointer) {
@@ -67,7 +67,7 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
 
         function runToAbi(info: js.CityInfo) {
             const args = stringFromJs(ctx, info.name);
-            exports0["hello:city/greeter#run"](args[0], args[1]);
+            exports0['hello:city/greeter#run'](args[0], args[1]);
         }
 
         const module0: WebAssembly.Module = await witModel.modules[0].module!;
@@ -77,8 +77,8 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
         const exports1 = (await wasmInstantiate(module1)).exports as abi.module1Exports;
 
         const imports0: abi.module0Imports = {
-            "hello:city/city": {
-                "send-message": exports1["0"],
+            'hello:city/city': {
+                'send-message': exports1['0'],
             },
         };
         const exports0 = (await wasmInstantiate(module0, imports0)).exports as abi.module0Exports;
@@ -87,9 +87,9 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
         const memory0 = exports0.memory as WebAssembly.Memory;
 
         const imports2: abi.module2Imports = {
-            "": {
+            '': {
                 $imports: exports1.$imports,
-                "0": sendMessageFromAbi,
+                '0': sendMessageFromAbi,
             },
         };
 
@@ -101,7 +101,7 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
 
         return {
             greeter: greeter0_1_0,
-            "hello:city/greeter": greeter0_1_0
+            'hello:city/greeter': greeter0_1_0
         } as any;
     };
 }
