@@ -19,10 +19,10 @@ jobs:
 
     - name: Install latest stable
       uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: rustc, rustfmt, rust-std, cargo
+      with:
+        toolchain: stable
+        override: true
+        components: rustc, rustfmt, rust-std, cargo
 
     - uses: Swatinem/rust-cache@v2.6.2
       with:
