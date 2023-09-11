@@ -33,9 +33,6 @@ jobs:
     - name: Install JCO
       run: npm install
 
-    - name: Install cargo components
-      run: npm run setup:rust:ci
-
     - name: Build rust demo
       run: npm run build:hello
 

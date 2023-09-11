@@ -9,7 +9,7 @@
         "build": "rollup -c",
         "build:npm": "npm run build && cp package.json dist/ && cp README.md dist/ && cp LICENSE dist/",
         "build:npmw": "set Configuration=Release&& set ContinuousIntegrationBuild=true&& npm run build && copy package.json dist && copy README.md dist && copy LICENSE dist",
-        "build:hello": "cd hello && cargo component build --release --target wasm32-unknown-unknown",
+        "build:hello": "cd hello && cargo build --release --target wasm32-unknown-unknown",
         "build:hello-js": "cd hello && jco transpile --instantiation --no-wasi-shim -b 0 --out-dir target/js-jco target/wasm32-unknown-unknown/release/hello.wasm",
         "build:hello-js2": "cd hello && jco transpile -b 0 --out-dir target/js-jco2 target/wasm32-unknown-unknown/release/hello.wasm",
         "build:hello-wat": "cd hello && jco print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
