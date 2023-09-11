@@ -7,7 +7,6 @@ import { parseSectionCustom, skipSection } from './otherSection';
 import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async } from './values';
-import { parseSectionAlias } from './alias';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00, 0x01, 0x00];
@@ -52,20 +51,22 @@ async function parseWIT(src: Source & Closeable): Promise<WITModel> {
             }
             // TODO: process all sections into model
             switch (section.tag) {
-                case 'section-module':
+                case 'ComponentModule':
                     model.modules.push(section);
                     break;
-                case 'section-export':
+                case 'ComponentExport':
                     model.componentExports.push(section);
                     break;
-                case 'section-import':
+                case 'ComponentImport':
                     model.componentImports.push(section);
                     break;
-                case 'section-alias':
+                case 'ComponentAliasOuter':
+                case 'ComponentAliasCoreInstanceExport':
+                case 'ComponentAliasInstanceExport':
                     model.aliases.push(section);
                     break;
-                case 'section-skipped':
-                case 'section-custom':
+                case 'SkippedSection':
+                case 'CustomSection':
                     model.other.push(section);
                     break;
                 default:

@@ -1,8 +1,9 @@
-import { WITType, WITTypeFunction, WITTypeRecord, WITTypeString } from '../parser/types';
+import { FuncType } from '../model/core';
+import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { memoize } from './cache';
 import { LoweringToJs, BindingContext, FnLoweringToJs, AbiFunction, AbiPointer, JsFunction, AbiSize } from './types';
 
-export function createExportLowering(exportModel: WITTypeFunction): FnLoweringToJs {
+export function createExportLowering(exportModel: FuncType): FnLoweringToJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, abiExport: AbiFunction): JsFunction => {
             // TODO
@@ -11,14 +12,16 @@ export function createExportLowering(exportModel: WITTypeFunction): FnLoweringTo
     });
 }
 
-export function createLowering(typeModel: WITType): LoweringToJs {
+export function createLowering(typeModel: ComponentValType): LoweringToJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
-            case 'record':
-                return createRecordLowering(typeModel);
-            case 'string':
-                return createStringLowering();
-            case 'i32':
+            case 'ComponentValTypePrimitive':
+                switch (typeModel.value) {
+                    case PrimitiveValType.String:
+                        return createStringLowering();
+                    default:
+                        throw new Error('Not implemented');
+                }
             default:
                 throw new Error('Not implemented');
         }
@@ -33,7 +36,7 @@ function createStringLowering(): LoweringToJs {
 }
 
 
-function createRecordLowering(recordModel: WITTypeRecord): LoweringToJs {
+function createRecordLowering(recordModel: ComponentDefinedTypeRecord): LoweringToJs {
     // receives pointer to record in component model layout
     return (ctx: BindingContext, pointer: AbiPointer) => {
         // return JS record

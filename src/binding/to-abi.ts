@@ -1,8 +1,9 @@
-import { WITType, WITTypeFunction, WITTypeRecord, WITTypeString } from '../parser/types';
+import { FuncType } from '../model/core';
+import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { memoize } from './cache';
-import { LiftingFromJs, BindingContext, AbiPointer, JsRecord, FnLiftingFromJs, JsFunction, AbiFunction, JsString, AbiSize } from './types';
+import { LiftingFromJs, BindingContext, AbiPointer, FnLiftingFromJs, JsFunction, AbiFunction, JsString, AbiSize } from './types';
 
-export function createImportLifting(exportModel: WITTypeFunction): FnLiftingFromJs {
+export function createImportLifting(exportModel: FuncType): FnLiftingFromJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, jsImport: JsFunction): AbiFunction => {
             // TODO
@@ -11,14 +12,16 @@ export function createImportLifting(exportModel: WITTypeFunction): FnLiftingFrom
     });
 }
 
-export function createLifting(typeModel: WITType): LiftingFromJs {
+export function createLifting(typeModel: ComponentValType): LiftingFromJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
-            case 'record':
-                return createRecordLifting(typeModel);
-            case 'string':
-                return createStringLifting();
-            case 'i32':
+            case 'ComponentValTypePrimitive':
+                switch (typeModel.value) {
+                    case PrimitiveValType.String:
+                        return createStringLifting();
+                    default:
+                        throw new Error('Not implemented');
+                }
             default:
                 throw new Error('Not implemented');
         }
@@ -35,11 +38,13 @@ lift wraps a core function (of type core:functype) to produce a component functi
 lower wraps a component function (of type functype) to produce a core function (of type core:functype) that can be imported and called from Core WebAssembly code inside the current component.
 */
 
-function createRecordLifting(recordModel: WITTypeRecord): LiftingFromJs {
-    const liftingMembers: LiftingFromJs[] = [];
+function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFromJs {
+    const liftingMembers: Map<string, LiftingFromJs> = new Map();
     for (const member of recordModel.members) {
+
+        //member.name
         const lifting = createLifting(member.type);
-        liftingMembers.push(lifting);
+        liftingMembers.set(member.name, lifting);
     }
     throw new Error('Not implemented');
     /*

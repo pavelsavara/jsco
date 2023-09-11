@@ -23,16 +23,11 @@ test('parse method produces model', async () => {
 
     // TODO: make more/all sections to match `../../hello/wat/hello.wat` file
     expectModelToEqual(model, {
-        componentExports: [
-            {
-                tag: 'section-export',
-                name: {
-                    tag: 'name-regid',
-                    name: 'hello:city/greeter'
-                },
-                sortidx: 5,
-                kind: 'func'
-            }
-        ],
+        componentExports: [{
+            tag: 'ComponentExport',
+            name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
+            index: 5,
+            kind: 'func'
+        }]
     });
 });
