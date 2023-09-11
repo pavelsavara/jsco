@@ -1,13 +1,13 @@
-import type { WITModel, ParserContext, WITSection } from "./types";
+import type { WITModel, ParserContext, WITSection } from './types';
 export type { WITModel };
 
-import { fetchLike, getBodyIfResponse } from "../utils/fetch-like";
-import { SyncSource, bufferToHex, Closeable, Source, newSource } from "../utils/streaming";
-import { parseSectionCustom, skipSection } from "./otherSection";
-import { parseSectionExport } from "./export";
-import { parseModule } from "./module";
-import { readU32Async } from "./values";
-import { parseSectionAlias } from "./alias";
+import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
+import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';
+import { parseSectionCustom, skipSection } from './otherSection';
+import { parseSectionExport } from './export';
+import { parseModule } from './module';
+import { readU32Async } from './values';
+import { parseSectionAlias } from './alias';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00, 0x01, 0x00];
@@ -20,7 +20,7 @@ export async function parse(componentOrUrl:
     | PromiseLike<Response>
 ): Promise<WITModel> {
     let input = componentOrUrl as any;
-    if (typeof componentOrUrl === "string") {
+    if (typeof componentOrUrl === 'string') {
         input = fetchLike(componentOrUrl);
     }
     input = await getBodyIfResponse(input);
@@ -30,7 +30,7 @@ export async function parse(componentOrUrl:
 
 async function parseWIT(src: Source & Closeable): Promise<WITModel> {
     const model: WITModel = {
-        tag: "model",
+        tag: 'model',
         componentExports: [],
         componentImports: [],
         modules: [],
@@ -52,20 +52,20 @@ async function parseWIT(src: Source & Closeable): Promise<WITModel> {
             }
             // TODO: process all sections into model
             switch (section.tag) {
-                case "section-module":
+                case 'section-module':
                     model.modules.push(section);
                     break;
-                case "section-export":
+                case 'section-export':
                     model.componentExports.push(section);
                     break;
-                case "section-import":
+                case 'section-import':
                     model.componentImports.push(section);
                     break;
-                case "section-alias":
+                case 'section-alias':
                     model.aliases.push(section);
                     break;
-                case "section-skipped":
-                case "section-custom":
+                case 'section-skipped':
+                case 'section-custom':
                     model.other.push(section);
                     break;
                 default:
@@ -87,7 +87,7 @@ async function checkHeader(src: Source): Promise<void> {
     const ok = magic.every((v, i) => v === WIT_MAGIC[i]) &&
         version.every((v, i) => v === WIT_VERSION[i]);
     if (!ok) {
-        throw new Error("unexpected magic or version.");
+        throw new Error('unexpected magic or version.');
     }
 }
 
@@ -133,7 +133,7 @@ export async function parseSection(ctx: ParserContext, src: Source): Promise<WIT
         throw new Error(`invalid size after reading section ${type}: \n`
             + `actual position: ${absoluteActual} vs. expected position ${absoluteExpected}, remaining ${remainig} \n`
             + `section: ${JSON.stringify(section)}\n`
-            + "remaining: " + hex);
+            + 'remaining: ' + hex);
     }
 
     return section;

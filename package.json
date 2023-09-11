@@ -14,6 +14,7 @@
         "build:hello-js2": "cd hello && jco transpile -b 0 --out-dir target/js-jco2 target/wasm32-unknown-unknown/release/hello.wasm",
         "build:hello-wat": "cd hello && jco print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
         "lint": "eslint --no-color \"./**/*.ts\"",
+        "lint:fix": "eslint --fix \"./**/*.ts\"",
         "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
         "format": "eslint --fix \"./**/*.ts\"",
         "setup:rust": "npm run setup:rust:rustup && npm run setup:rust:cargo",

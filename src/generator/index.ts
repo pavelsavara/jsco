@@ -1,4 +1,4 @@
-import { WITModel } from "../parser";
+import { WITModel } from '../parser';
 
 export function generateTypeScript(model: WITModel): string {
     // todo implement for:
@@ -6,5 +6,5 @@ export function generateTypeScript(model: WITModel): string {
     // records
     // import functions
     // export functions
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
 }

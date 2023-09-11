@@ -1,10 +1,17 @@
-import { expectModelToEqualWat } from "./jest-utils";
+import { expectModelToEqualWat } from './jest-utils';
 
-describe("export", () => {
+describe('export', () => {
 
-    test("parse export", async () => {
-        await expectModelToEqualWat("(alias export 0 \"city-info\" (type (;3;)))", {
-
+    test('parse export', async () => {
+        await expectModelToEqualWat('(export (;2;) (interface "hello:city/greeter") (instance 1))', {
+            componentExports: [
+                {
+                    tag: 'section-export',
+                    name: { tag: 'name-regid', name: 'hello:city/greeter' },
+                    sortidx: 5,
+                    kind: 'func'
+                }
+            ]
         });
     });
 });

@@ -1,6 +1,6 @@
-import { SyncSource } from "../utils/streaming";
-import { ParserContext, WITSectionCustom, WITSectionSkipped } from "./types";
-import { readName } from "./values";
+import { SyncSource } from '../utils/streaming';
+import { ParserContext, WITSectionCustom, WITSectionSkipped } from './types';
+import { readName } from './values';
 
 export function parseSectionCustom(
     ctx: ParserContext,
@@ -12,7 +12,7 @@ export function parseSectionCustom(
     const nameSize = src.pos - start;
     const data = src.readExact(size - nameSize);
     const section: WITSectionCustom = {
-        tag: "section-custom",
+        tag: 'section-custom',
         name,
         data: ctx.otherSectionData ? data : undefined,
     };
@@ -30,7 +30,7 @@ export function skipSection(
 ): WITSectionSkipped {
     const data = src.readExact(size);
     const section: WITSectionSkipped = {
-        tag: "section-skipped",
+        tag: 'section-skipped',
         type,
         data: ctx.otherSectionData ? data : undefined,
     };

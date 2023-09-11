@@ -1,12 +1,12 @@
-import { WITType, WITTypeFunction, WITTypeRecord, WITTypeString } from "../parser/types";
-import { memoize } from "./cache";
-import { LiftingFromJs, BindingContext, AbiPointer, JsRecord, FnLiftingFromJs, JsFunction, AbiFunction, JsString, AbiSize } from "./types";
+import { WITType, WITTypeFunction, WITTypeRecord, WITTypeString } from '../parser/types';
+import { memoize } from './cache';
+import { LiftingFromJs, BindingContext, AbiPointer, JsRecord, FnLiftingFromJs, JsFunction, AbiFunction, JsString, AbiSize } from './types';
 
 export function createImportLifting(exportModel: WITTypeFunction): FnLiftingFromJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, jsImport: JsFunction): AbiFunction => {
             // TODO
-            throw new Error("Not implemented");
+            throw new Error('Not implemented');
         };
     });
 }
@@ -14,13 +14,13 @@ export function createImportLifting(exportModel: WITTypeFunction): FnLiftingFrom
 export function createLifting(typeModel: WITType): LiftingFromJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
-            case "record":
+            case 'record':
                 return createRecordLifting(typeModel);
-            case "string":
+            case 'string':
                 return createStringLifting();
-            case "i32":
+            case 'i32':
             default:
-                throw new Error("Not implemented");
+                throw new Error('Not implemented');
         }
     });
 }
@@ -41,7 +41,7 @@ function createRecordLifting(recordModel: WITTypeRecord): LiftingFromJs {
         const lifting = createLifting(member.type);
         liftingMembers.push(lifting);
     }
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
     /*
     return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: AbiPointer): AbiPointer => {
 
@@ -72,7 +72,7 @@ function createRecordLifting(recordModel: WITTypeRecord): LiftingFromJs {
 function createStringLifting(): LiftingFromJs {
     return (ctx: BindingContext, srcJsString: JsString): any[] => {
         let str = srcJsString as string;
-        if (typeof str !== "string") throw new TypeError("expected a string");
+        if (typeof str !== 'string') throw new TypeError('expected a string');
         if (str.length === 0) {
             return [0, 0];
         }

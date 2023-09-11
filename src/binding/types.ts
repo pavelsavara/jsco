@@ -4,47 +4,47 @@ export type JsValue =
     | JsString
 
 export type JsRecord = any & {
-    _brand: "js-record"
+    _brand: 'js-record'
 };
 
 export type JsI32 = number & {
-    _brand: "js-i32"
+    _brand: 'js-i32'
 };
 
 export type JsString = string & {
-    _brand: "js-string"
+    _brand: 'js-string'
 };
 
 export type JsFunction = Function & {
-    _brand: "js-function"
+    _brand: 'js-function'
 };
 
 export type JsImports = { [key: string]: JsFunction } & {
-    _brand: "js-imports"
+    _brand: 'js-imports'
 };
 
 export type JsExports = { [key: string]: JsFunction } & {
-    _brand: "js-exports"
+    _brand: 'js-exports'
 };
 
 export type AbiSize = number & {
-    _brand: "abi-size"
+    _brand: 'abi-size'
 };
 
 export type AbiImports = { [key: string]: AbiFunction } & {
-    _brand: "abi-imports"
+    _brand: 'abi-imports'
 };
 
 export type AbiExports = { [key: string]: AbiFunction } & {
-    _brand: "abi-exports"
+    _brand: 'abi-exports'
 };
 
 export type AbiPointer = number & {
-    _brand: "abi-pointer"
+    _brand: 'abi-pointer'
 };
 
 export type AbiFunction = Function & {
-    _brand: "abi-function"
+    _brand: 'abi-function'
 };
 
 
