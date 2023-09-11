@@ -5,7 +5,9 @@ edition = "2021"
 authors = ["pavel.savara@gmail.com"]
 
 [dependencies]
-cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component", rev = "e57d1d14" }
+cargo-component = { git = "https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4", version = "0.1.0" }
+cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4", version = "0.1.0" }
+wasm-tools = "1.0.40"
 wee_alloc = { version = "0.4.5" }
 
 [lib]
@@ -22,3 +24,6 @@ path = "wit"
 [profile.release]
 lto = true
 opt-level = 's'
+
+[build]
+incremental = true

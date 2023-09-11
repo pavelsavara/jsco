@@ -31,25 +31,20 @@ jobs:
         workspaces: "hello"
 
     - run: npm run setup:rust
-      working-directory: ./hello
 
     - name: Install JCO
       run: npm install
 
     - name: Build rust demo
-      working-directory: ./hello
       run: npm run build:hello
 
     - name: Export demo as .wat
-      working-directory: ./hello
       run: npm run build:hello-wat
 
     - name: Export demo as .wat JCO javaScript
-      working-directory: ./hello
       run: npm run build:hello-js
 
     - name: Sanity test that JCO can run hello component
-      working-directory: ./hello
       run: npm run test:jco
 
     - name: WASM component artifact
