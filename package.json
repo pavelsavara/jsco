@@ -12,17 +12,14 @@
         "build:hello": "cd hello && cargo component build --release --target wasm32-unknown-unknown",
         "build:hello-js": "cd hello && jco transpile --instantiation --no-wasi-shim -b 0 --out-dir target/js-jco target/wasm32-unknown-unknown/release/hello.wasm",
         "build:hello-js2": "cd hello && jco transpile -b 0 --out-dir target/js-jco2 target/wasm32-unknown-unknown/release/hello.wasm",
-        "build:hello-wat": "cd hello && wasm-tools print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
+        "build:hello-wat": "cd hello && jco print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
         "lint": "eslint --no-color \"./**/*.ts\"",
         "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
         "format": "eslint --fix \"./**/*.ts\"",
         "test:jco": "node ./hello/hello-test.mjs",
         "test:ci": "jest",
         "test:unix": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-        "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
-        "setup:rust": "npm run setup:rust:rustup && npm run setup:rust:cargo",
-        "setup:rust:rustup": "cd hello && rustup toolchain install stable --profile default --no-self-update && rustup target add wasm32-unknown-unknown && rustup target add wasm32-wasi",
-        "setup:rust:cargo": "cd hello && cargo install wasm-tools@1.0.40 --locked wasm-tools && cargo install --git https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4 --locked cargo-component"
+        "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch"
     },
 
     "repository": {

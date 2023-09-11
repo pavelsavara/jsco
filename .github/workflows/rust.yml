@@ -30,8 +30,6 @@ jobs:
         cache-targets: true
         workspaces: "hello"
 
-    - run: npm run setup:rust
-
     - name: Install JCO
       run: npm install
 
