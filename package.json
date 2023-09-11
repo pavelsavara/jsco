@@ -21,7 +21,7 @@
         "test:unix": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
         "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
         "setup:rust": "npm run setup:rust:rustup && npm run setup:rust:cargo",
-        "setup:rust:rustup": "rustup toolchain install stable --profile minimal --no-self-update && rustup target add wasm32-unknown-unknown && rustup target add wasm32-wasi",
+        "setup:rust:rustup": "rustup toolchain install stable --profile default --no-self-update && rustup target add wasm32-unknown-unknown && rustup target add wasm32-wasi",
         "setup:rust:cargo": "cargo install --git https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8 --locked cargo-component"
     },
     "repository": {
