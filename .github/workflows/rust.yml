@@ -21,12 +21,9 @@ jobs:
       uses: Swatinem/rust-cache@v2.6.2
       id: cache-rust
 
-    - name: Rust toolchain profile
-      run: rustup toolchain install stable --profile minimal --no-self-update
-    - name: Install wasm32 target
-      run: rustup target add wasm32-unknown-unknown
-    - name: Install cargo-component
-      run: cargo install --git https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8 --locked cargo-component
+    - name: Install Rust tools
+      run: npm run setup:rust
+
     - name: Install JCO
       run: npm install @bytecodealliance/jco -g
 

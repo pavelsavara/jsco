@@ -18,7 +18,7 @@
 - hello world demo [wit](hello\wit\hello.wit) [wat](hello\wat\hello.wat)
 - this is just small attempt in limited time. It may grow into something larger ...
 - binding for `string` and `i32`, `record` as stretch goal.
-- minimal JS API for this polyfill: 
+- minimal JS API for this polyfill:
     - `async function parse(url: string): Promise<Model>`
     - `async function instantiate(model: Model, imports: Imports): Promise<Exports>`
 
@@ -53,12 +53,13 @@
 - for now we have dependency on JCO, so that we could learn from it. It will go away later.
 
 ## Contribute
-- install rust
-- `cargo install wasm-tools`
-- install nodejs + npm
+- install [rust](https://www.rust-lang.org/tools/install)
+- install [nodejs + npm](https://nodejs.org/en/download)
 - `npm install`
+- `npm run setup:rust`
 - `npm run build`
-- `npm run build:hello && npm run build:hello-wat`
-- `npm run test`
+- `npm run build:hello && npm run build:hello-wat && npm run build:hello-js`
+- `npm run test:jco`
+- `npm run test:win` or `npm run test:unix`
 - see "scripts" in package.json
 - use eslint plugin to VS code, with format on save
