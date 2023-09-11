@@ -1,13 +1,13 @@
 import { Source } from '../utils/streaming';
-import { ParserContext, WITSectionModule } from './types';
+import { ParserContext, ComponentModule } from './types';
 
 export async function parseModule(
     ctx: ParserContext,
     src: Source,
     size: number,
-): Promise<WITSectionModule> {
-    const res: WITSectionModule = {
-        tag: 'section-module',
+): Promise<ComponentModule> {
+    const res: ComponentModule = {
+        tag: 'ComponentModule',
     };
 
     if (ctx.compileStreaming) {

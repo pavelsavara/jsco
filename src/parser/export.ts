@@ -1,5 +1,7 @@
 import { SyncSource } from '../utils/streaming';
-import { ComponentExternalKind, ParserContext, WITName, WITSectionExport } from './types';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
+import { ComponentExternName, ComponentExternNameInterface, ComponentExternNameKebab } from '../model/imports';
+import { ParserContext } from './types';
 import { readName, readU32 } from './values';
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
@@ -7,38 +9,39 @@ import { readName, readU32 } from './values';
 export function parseSectionExport(
     ctx: ParserContext,
     src: SyncSource,
-): WITSectionExport {
-    const name: WITName = (() => {
+): ComponentExport {
+    const name: ComponentExternName = (() => {
         const b1 = readU32(src);
         switch (b1) {
             case 0x00: return {
-                tag: 'name-name',
+                tag: 'ComponentExternNameKebab',
                 name: readName(src),
-            };
+            } as ComponentExternNameKebab;
             case 0x01:
                 return (() => {
                     const b2 = readU32(src);
                     switch (b2) {
                         case 0x01:
                             return {
-                                tag: 'name-regid',
+                                tag: 'ComponentExternNameInterface',
                                 name: readName(src),
-                            };
+                            } as ComponentExternNameInterface;
                         default: throw new Error(`unknown export name type.${b2}`);
                     }
                 })();
             default: throw new Error(`unknown export name type.${b1}`);
         }
     })();
-    const sortidx = readU32(src);
+    const index = readU32(src);
     const kind = parseComponentExternalKind(src);
-    const unknown = readU32(src);// TODO: what is this?
+    const ty = readU32(src);// TODO: what is this?
 
-    const section: WITSectionExport = {
-        tag: 'section-export',
+    const section: ComponentExport = {
+        tag: 'ComponentExport',
         name,
-        sortidx,
+        index,
         kind,
+        ty: undefined, //TODO
     };
     return section;
 }

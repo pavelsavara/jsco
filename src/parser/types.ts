@@ -1,100 +1,39 @@
-export type WITType =
-    | WITTypeRecord
-    | WITTypeString
-    | WITTypeI32
-
-export type WITBaseType = {
-    tag: string
-}
-
-export type WITTypeRecord = WITBaseType & {
-    tag: 'record'
-    name: string
-    members: { name: string, type: WITType }[]
-}
-
-export type WITTypeFunction = {
-    tag: 'function'
-    name?: string
-    parameters: { name: string, type: WITType }[]
-    returnType: WITType
-}
-
-export type WITTypeString = WITBaseType & {
-    tag: 'string'
-}
-
-export type WITTypeI32 = WITBaseType & {
-    tag: 'i32'
-}
-
-export type WITTypeI64 = WITBaseType & {
-    tag: 'i64'
-}
+import { ComponentAlias } from '../model/aliases';
+import { ComponentExport } from '../model/exports';
+import { ComponentImport } from '../model/imports';
 
 export type WITSection =
-    | WITSectionCustom
-    | WITSectionSkipped
-    | WITSectionModule
-    | WITSectionExport
-    | WITSectionImport
-    | WITSectionAlias
+    | CustomSection
+    | SkippedSection
+    | ComponentModule
+    | ComponentImport
+    | ComponentExport
+    | ComponentAlias
 
-export type WITSectionModule = {
-    tag: 'section-module'
+export type ComponentModule = {
+    tag: 'ComponentModule'
     data?: Uint8Array
     module?: Promise<WebAssembly.Module>
 }
 
-export type WITSectionCustom = {
-    tag: 'section-custom'
+export type CustomSection = {
+    tag: 'CustomSection'
     name: string
     data?: Uint8Array
 }
 
-export type WITName =
-    | WITNameName
-    | WITNameRegId
-    ;
-
-export type WITNameName = {
-    tag: 'name-name'
-    name: string
-}
-
-export type WITNameRegId = {
-    tag: 'name-regid'
-    name: string
-}
-
-export type WITSectionExport = {
-    tag: 'section-export'
-    name: WITName
-    sortidx: number
-    kind: ComponentExternalKind
-}
-
-export type WITSectionImport = {
-    tag: 'section-import'
-}
-
-export type WITSectionAlias = {
-    tag: 'section-alias'
-}
-
-export type WITSectionSkipped = {
-    tag: 'section-skipped'
+export type SkippedSection = {
+    tag: 'SkippedSection'
     type: number
     data?: Uint8Array
 }
 
 export type WITModel = {
     tag: 'model'
-    typesByName: Map<string, WITType>
-    componentExports: WITSectionExport[]
-    componentImports: WITSectionImport[]
-    modules: WITSectionModule[]
-    aliases: WITSectionAlias[]
+    componentExports: ComponentExport[]
+    componentImports: ComponentImport[]
+    modules: ComponentModule[]
+    aliases: ComponentAlias[]
     other: WITSection[]
 }
 
@@ -102,7 +41,6 @@ export type WITModel = {
 export type ParserContext = {
     otherSectionData: boolean
     compileStreaming: typeof WebAssembly.compileStreaming
-    processCustomSection?: (section: WITSectionCustom) => WITSectionCustom
+    processCustomSection?: (section: CustomSection) => CustomSection
 }
 
-export type ComponentExternalKind = 'module' | 'func' | 'value' | 'type' | 'instance' | 'component';

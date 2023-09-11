@@ -1,0 +1,1 @@
+adopted from https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser/src/readers/component under Apache-2.0 license

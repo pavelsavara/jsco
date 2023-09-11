@@ -3,6 +3,7 @@ import { js, abi } from './hello';
 import { ComponentExports, ComponentFactory, ComponentFactoryInput, ComponentFactoryOptions, ComponentImports, Tcabi_realloc } from './types';
 import { WITModel, parse } from '../parser';
 import { AbiPointer, AbiSize, BindingContext } from '../binding/types';
+import { PrimitiveValType } from '../model/types';
 
 export async function createComponent<JSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -51,11 +52,13 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
 
         const { sendMessage } = componentImports['hello:city/city'];
         const stringToJs = createLowering({
-            tag: 'string',
+            tag: 'ComponentValTypePrimitive',
+            value: PrimitiveValType.String,
         });
 
         const stringFromJs = createLifting({
-            tag: 'string',
+            tag: 'ComponentValTypePrimitive',
+            value: PrimitiveValType.String,
         });
 
         function sendMessageFromAbi(ptr: AbiPointer, len: AbiPointer) {
