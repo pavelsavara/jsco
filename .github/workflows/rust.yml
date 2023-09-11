@@ -17,16 +17,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set up cargo cache
-      uses: Swatinem/rust-cache@v2.6.2
-      id: cache-rust
+    - run: npm run setup:rust
+      working-directory: ./hello
+
+    - uses: Swatinem/rust-cache@v2.6.2
       with:
         cache-all-crates: true
         cache-targets: true
         workspaces: "hello"
-
-    - name: Install Rust tools
-      run: npm run setup:rust
 
     - name: Install JCO
       run: npm install @bytecodealliance/jco -g
