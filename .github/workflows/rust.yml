@@ -17,8 +17,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - run: npm run setup:rust
-      working-directory: ./hello
+    - name: Install latest stable
+      uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustc, rustfmt, rust-std, cargo
 
     - uses: Swatinem/rust-cache@v2.6.2
       with:
@@ -26,8 +30,12 @@ jobs:
         cache-targets: true
         workspaces: "hello"
 
+#    - run: npm run setup:rust
+#      working-directory: ./hello
+#
     - name: Install JCO
-      run: npm install @bytecodealliance/jco -g
+      working-directory: ./hello
+      run: npm install
 
     - name: Build rust demo
       working-directory: ./hello
