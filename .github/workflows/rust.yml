@@ -30,37 +30,29 @@ jobs:
         cache-targets: true
         workspaces: "hello"
 
-#    - run: npm run setup:rust
-#      working-directory: ./hello
-#
     - name: Install JCO
-      working-directory: ./hello
       run: npm install
 
     - name: Build rust demo
-      working-directory: ./hello
       run: npm run build:hello
 
     - name: Export demo as .wat
-      working-directory: ./hello
-      run: npm run build:hello
+      run: npm run build:hello-wat
 
     - name: Export demo as .wat JCO javaScript
-      working-directory: ./hello
       run: npm run build:hello-js
 
     - name: Sanity test that JCO can run hello component
-      working-directory: ./hello
       run: npm run test:jco
 
     - name: WASM component artifact
       uses: actions/upload-artifact@v3
       with:
-        name: hello.${{github.sha}}.wasm
+        name: hello.${{github.sha}}
         path: hello/target/wasm32-unknown-unknown/release/hello.wa*
 
     - name: JCO component artifact
       uses: actions/upload-artifact@v3
       with:
-        name: hello.${{github.sha}}.wasm
+        name: hello-jco.${{github.sha}}
         path: hello/target/js-jco/**/*.*
