@@ -48,11 +48,11 @@ jobs:
     - name: WASM component artifact
       uses: actions/upload-artifact@v3
       with:
-        name: hello.${{github.sha}}.wasm
+        name: hello.${{github.sha}}
         path: hello/target/wasm32-unknown-unknown/release/hello.wa*
 
     - name: JCO component artifact
       uses: actions/upload-artifact@v3
       with:
-        name: hello.${{github.sha}}.wasm
+        name: hello-jco.${{github.sha}}
         path: hello/target/js-jco/**/*.*
