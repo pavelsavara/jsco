@@ -23,6 +23,7 @@ jobs:
       with:
         cache-all-crates: true
         cache-targets: true
+        workspaces: "hello"
 
     - name: Install Rust tools
       run: npm run setup:rust
