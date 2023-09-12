@@ -29,25 +29,43 @@ export type ComponentTypeRef =
 /// The reference is to a core module type.
 ///
 /// The index is expected to be core type index to a core module type.
-export type ComponentTypeRefModule = { value: u32 }
+export type ComponentTypeRefModule = {
+    tag: 'ComponentTypeRefModule',
+    value: u32
+}
 /// The reference is to a function type.
 ///
 /// The index is expected to be a type index to a function type.
-export type ComponentTypeRefFunc = { value: u32 }
+export type ComponentTypeRefFunc = {
+    tag: 'ComponentTypeRefFunc'
+    value: u32
+}
 /// The reference is to a value type.
-export type ComponentTypeRefValue = { value: ComponentValType }
+export type ComponentTypeRefValue = {
+    tag: 'ComponentTypeRefValue',
+    value: ComponentValType
+}
 /// The reference is to a bounded type.
 ///
 /// The index is expected to be a type index.
-export type ComponentTypeRefType = { value: TypeBounds }
+export type ComponentTypeRefType = {
+    tag: 'ComponentTypeRefType'
+    value: TypeBounds
+}
 /// The reference is to an instance type.
 ///
 /// The index is a type index to an instance type.
-export type ComponentTypeRefInstance = { value: u32 }
+export type ComponentTypeRefInstance = {
+    tag: 'ComponentTypeRefInstance'
+    value: u32
+}
 /// The reference is to a component type.
 ///
 /// The index is a type index to a component type.
-export type ComponentTypeRefComponent = { value: u32 }
+export type ComponentTypeRefComponent = {
+    tag: 'ComponentTypeRefComponent'
+    value: u32
+}
 
 /// Represents an import in a WebAssembly component
 export type ComponentImport = {

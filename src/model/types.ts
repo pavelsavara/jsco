@@ -140,7 +140,7 @@ export type ComponentTypeComponent = {
 /// The type is an instance type.
 export type ComponentTypeInstance = {
     tag: 'ComponentTypeInstance'
-    value: InstanceTypeDeclaration[]
+    declarations: InstanceTypeDeclaration[]
 }
 
 /// The type is a fresh new resource type.
@@ -183,6 +183,7 @@ export type ComponentTypeDeclarationAlias = {
 
 /// The component type declaration is for an export.
 export type ComponentTypeDeclarationExport = {
+    tag: 'ComponentTypeDeclarationExport'
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.

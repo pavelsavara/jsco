@@ -12,6 +12,7 @@ export function expectModelToEqual(actualModel: WITModel, expectedModel: Partial
     expectedModel.cannon = expectedModel.cannon || [];
     expectedModel.type = expectedModel.type || [];
     expectedModel.tag = expectedModel.tag || 'model';
+    expectedModel.component = expectedModel.component || [];
     expect(actualModel).toEqual(expectedModel);
 }
 

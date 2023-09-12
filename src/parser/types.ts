@@ -43,8 +43,11 @@ export type WITModel = {
     aliases: ComponentAlias[]
     instances: Instance[]
     cannon: CanonicalFunction[]
-    type: ComponentType[]
     other: WITSection[]
+
+    // this is the same thing ?
+    type: ComponentType[]
+    component: ComponentType[]
 }
 
 export type ParserContext = {

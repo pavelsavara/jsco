@@ -131,6 +131,7 @@ export function produceModel(sections: WITSection[]): WITModel {
         type: [],
         aliases: [],
         cannon: [],
+        component: [],
     };
 
     for (const section of sections) {
