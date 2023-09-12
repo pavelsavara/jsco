@@ -1,7 +1,7 @@
 import { parse } from './index';
 import { expectPartialModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/hello';
-import { ComponentModule } from './types';
+import { CoreModule } from './types';
 
 describe('hello', () => {
 
@@ -9,7 +9,7 @@ describe('hello', () => {
         // build it with `npm run build:hello`
         const actualModel = await parse('./hello/wasm/hello.wasm');
 
-        const moduleSections: ComponentModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as ComponentModule[];
+        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as CoreModule[];
 
 
         expect(moduleSections.length).toBe(3);
