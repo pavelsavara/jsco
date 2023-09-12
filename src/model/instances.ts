@@ -36,7 +36,7 @@ export type CoreInstanceInstantiate = {
 /// The instance is a from exporting local items.
 export type CoreInstanceFromExports = {
     tag: ModelTag.CoreInstanceFromExports,
-    value: Export[],
+    exports: Export[],
 }
 
 /// Represents an argument to instantiating a WebAssembly component.
@@ -66,5 +66,5 @@ export type ComponentInstanceInstantiate = {
 /// The instance is a from exporting local items.
 export type ComponentInstanceFromExports = {
     tag: ModelTag.ComponentInstanceFromExports,
-    value: ComponentExport[]
+    exports: ComponentExport[]
 }

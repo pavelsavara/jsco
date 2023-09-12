@@ -65,13 +65,11 @@ export const componentType: ComponentTypeInstance = {
             tag: ModelTag.InstanceTypeDeclarationType,
             value: {
                 tag: ModelTag.ComponentTypeFunc,
-                value: {
-                    params: [
-                    ],
-                    results: {
-                        tag: ModelTag.ComponentFuncResultNamed,
-                        value: []//void
-                    }
+                params: [
+                ],
+                results: {
+                    tag: ModelTag.ComponentFuncResultNamed,
+                    value: []//void
                 }
             }
         },
@@ -104,7 +102,7 @@ export const componentImport: ComponentImport = {
 // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
 export const coreInstance0: CoreInstanceFromExports = {
     tag: ModelTag.CoreInstanceFromExports,
-    value: [],
+    exports: [],
 };
 
 export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
@@ -116,7 +114,7 @@ export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
 
 export const coreInstance1: CoreInstanceFromExports = {
     tag: ModelTag.CoreInstanceFromExports,
-    value: [
+    exports: [
         {
             name: 'send-message',
             kind: ExternalKind.Func,
@@ -181,7 +179,7 @@ export const canonicalFunc2: CanonicalFunctionLower = {
 
 export const coreInstance3: CoreInstanceFromExports = {
     tag: ModelTag.CoreInstanceFromExports,
-    value: [
+    exports: [
         {
             name: '$imports',
             kind: ExternalKind.Table,
@@ -219,18 +217,18 @@ export const aliasExport1: ComponentAliasInstanceExport = {
 
 export const typeFunction2: ComponentTypeFunc = {
     tag: ModelTag.ComponentTypeFunc,
-    value: {
-        params: [
-            [
-                'info',
-                {
-                    tag: ModelTag.ComponentValTypeType,
-                    value: 1
-                }
-            ]
-        ],
-        results: undefined as any, // no info about the result
-    }
+
+    params: [
+        {
+            name: 'info',
+            type: {
+                tag: ModelTag.ComponentValTypeType,
+                value: 1
+            }
+        }
+    ],
+    results: undefined as any, // no info about the result
+
 };
 
 export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
@@ -261,7 +259,7 @@ export const canonicalFunc1: CanonicalFunctionLift = {
 
 export const component: ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent,
-    value: [
+    declarations: [
         {
             tag: ModelTag.ComponentTypeDeclarationType,
             value: {
@@ -296,77 +294,65 @@ export const component: ComponentTypeComponent = {
             },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationImport,
-            value: {
-                tag: ModelTag.ComponentImport,
-                name: {
-                    tag: ModelTag.ComponentExternNameKebab,
-                    name: 'import-type-city-info'
-                },
-                ty: {
-                    tag: ModelTag.ComponentTypeRefType,
-                    value:
-                    {
-                        tag: ModelTag.TypeBoundsEq,
-                        value: 0
-                    }
-                },
-            }
+            tag: ModelTag.ComponentImport,
+            name: {
+                tag: ModelTag.ComponentExternNameKebab,
+                name: 'import-type-city-info'
+            },
+            ty: {
+                tag: ModelTag.ComponentTypeRefType,
+                value:
+                {
+                    tag: ModelTag.TypeBoundsEq,
+                    value: 0
+                }
+            },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationImport,
-            value: {
-                tag: ModelTag.ComponentImport,
-                name: {
-                    tag: ModelTag.ComponentExternNameKebab,
-                    name: 'import-type-city-info0'
-                },
-                ty: {
-                    tag: ModelTag.ComponentTypeRefType,
-                    value:
-                    {
-                        tag: ModelTag.TypeBoundsEq,
-                        value: 1
-                    }
-                },
-            }
+            tag: ModelTag.ComponentImport,
+            name: {
+                tag: ModelTag.ComponentExternNameKebab,
+                name: 'import-type-city-info0'
+            },
+            ty: {
+                tag: ModelTag.ComponentTypeRefType,
+                value:
+                {
+                    tag: ModelTag.TypeBoundsEq,
+                    value: 1
+                }
+            },
         },
         {
             tag: ModelTag.ComponentTypeDeclarationType,
             value: {
                 tag: ModelTag.ComponentTypeFunc,
-                value:
-                {
-                    params: [
-                        [
-                            'info',
-                            {
-                                tag: ModelTag.ComponentValTypeType,
-                                value: 2
-                            }
-                        ]
-                    ],
-                    results:
+                params: [
                     {
-                        tag: ModelTag.ComponentFuncResultUnnamed,
-                        value: undefined as any, // there is no info about the results
-                    },
-                }
+                        name: 'info',
+                        type: {
+                            tag: ModelTag.ComponentValTypeType,
+                            value: 2
+                        }
+                    }
+                ],
+                results:
+                {
+                    tag: ModelTag.ComponentFuncResultUnnamed,
+                    value: undefined as any, // there is no info about the results
+                },
             },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationImport,
-            value: {
-                tag: ModelTag.ComponentImport,
-                name: {
-                    tag: ModelTag.ComponentExternNameKebab,
-                    name: 'import-func-run'
-                },
-                ty: {
-                    tag: ModelTag.ComponentTypeRefFunc,
-                    value: 3
-                },
-            }
+            tag: ModelTag.ComponentImport,
+            name: {
+                tag: ModelTag.ComponentExternNameKebab,
+                name: 'import-func-run'
+            },
+            ty: {
+                tag: ModelTag.ComponentTypeRefFunc,
+                value: 3
+            },
         },
         {
             tag: ModelTag.ComponentTypeDeclarationExport,
@@ -386,23 +372,20 @@ export const component: ComponentTypeComponent = {
             tag: ModelTag.ComponentTypeDeclarationType,
             value: {
                 tag: ModelTag.ComponentTypeFunc,
-                value:
-                {
-                    params: [
-                        [
-                            'info',
-                            {
-                                tag: ModelTag.ComponentValTypeType,
-                                value: 4
-                            }
-                        ]
-                    ],
-                    results:
+                params: [
                     {
-                        tag: ModelTag.ComponentFuncResultNamed,
-                        value: [] // void
-                    },
-                }
+                        name: 'info',
+                        type: {
+                            tag: ModelTag.ComponentValTypeType,
+                            value: 4
+                        }
+                    }
+                ],
+                results:
+                {
+                    tag: ModelTag.ComponentFuncResultNamed,
+                    value: [] // void
+                },
             },
         },
         {

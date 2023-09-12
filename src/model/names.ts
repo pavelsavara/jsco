@@ -25,51 +25,51 @@ export type ComponentNameComponent = {
 }
 export type ComponentNameCoreFuncs = {
     tag: ModelTag.ComponentNameCoreFuncs,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreGlobals = {
     tag: ModelTag.ComponentNameCoreGlobals,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreMemories = {
     tag: ModelTag.ComponentNameCoreMemories,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreTables = {
     tag: ModelTag.ComponentNameCoreTables,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreModules = {
     tag: ModelTag.ComponentNameCoreModules,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreInstances = {
     tag: ModelTag.ComponentNameCoreInstances,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameCoreTypes = {
     tag: ModelTag.ComponentNameCoreTypes,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameTypes = {
     tag: ModelTag.ComponentNameTypes,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameInstances = {
     tag: ModelTag.ComponentNameInstances,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameComponents = {
     tag: ModelTag.ComponentNameComponents,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameFuncs = {
     tag: ModelTag.ComponentNameFuncs,
-    value: NameMap,
+    names: NameMap,
 }
 export type ComponentNameValues = {
     tag: ModelTag.ComponentNameValues,
-    value: NameMap,
+    names: NameMap,
 }
 
 /// An unknown [name subsection](https://webassembly.github.io/spec/core/appendix/custom.html#subsections).

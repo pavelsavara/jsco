@@ -36,21 +36,18 @@ export type TypeRefFunc = {
     value: u32
 }
 /// The type is a table.
-export type TypeRefTable = {
+export type TypeRefTable = TableType & {
     tag: ModelTag.TypeRefTable
-    value: TableType
 }
 
 /// The type is a memory.
-export type TypeRefMemory = {
+export type TypeRefMemory = MemoryType & {
     tag: ModelTag.TypeRefMemory
-    value: MemoryType
 }
 
 /// The type is a global.
-export type TypeRefGlobal = {
+export type TypeRefGlobal = GlobalType & {
     tag: ModelTag.TypeRefGlobal
-    value: GlobalType
 }
 
 /// The type is a tag.
@@ -188,21 +185,18 @@ export type StructuralType =
 
 
 /// The type is for a function.
-export type StructuralTypeFunc = {
+export type StructuralTypeFunc = FuncType & {
     tag: ModelTag.StructuralTypeFunc
-    value: FuncType
 }
 
 /// The type is for an array.
-export type StructuralTypeArray = {
+export type StructuralTypeArray = ArrayType & {
     tag: ModelTag.StructuralTypeArray
-    value: ArrayType
 }
 
 /// The type is for a struct.
-export type StructuralTypeStruct = {
+export type StructuralTypeStruct = StructType & {
     tag: ModelTag.StructuralTypeStruct
-    value: StructType
 }
 
 /// Represents a table's type.
@@ -248,7 +242,7 @@ export type StorageTypeI16 = {
 /// The storage type is a value type.
 export type StorageTypeVal = {
     tag: ModelTag.StorageTypeVal
-    value: ValType
+    type: ValType
 }
 
 /// Represents a type of an array in a WebAssembly module.
