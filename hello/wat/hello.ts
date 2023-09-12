@@ -2,6 +2,7 @@ import { WITSection } from '../../src/parser/types'
 import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
 import { InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
 import { ComponentTypeComponent, PrimitiveValType } from '../../src/model/types'
+import { ComponentAliasInstanceExport } from '../../src/model/aliases'
 
 // (export (;2;) (interface "hello:city/greeter") (instance 1))
 const componentExport: ComponentExport = {
@@ -14,15 +15,6 @@ const componentExport: ComponentExport = {
     index: 1,
     ty: undefined
 }
-
-/*
-  (instance (;1;) (instantiate 0
-      (with "import-func-run" (func 1))
-      (with "import-type-city-info" (type 3))
-      (with "import-type-city-info0" (type 1))
-    )
-  )
-*/
 
 export const instance: InstanceInstantiate = {
     tag: 'InstanceInstantiate',
@@ -116,8 +108,8 @@ export const component: ComponentTypeComponent =
                         [
                             "info",
                             {
-                                tag: 'ComponentValTypePrimitive',
-                                value: PrimitiveValType.S32 // no guarantee that 2 is int32
+                                tag: 'ComponentValTypeType',
+                                value: 2
                             }
                         ]
                     ],
@@ -162,8 +154,8 @@ export const component: ComponentTypeComponent =
                         [
                             "info",
                             {
-                                tag: 'ComponentValTypePrimitive',
-                                value: PrimitiveValType.S32 // no guarantee that 4 is int32
+                                tag: 'ComponentValTypeType',
+                                value: 4
                             }
                         ]
                     ],
@@ -183,11 +175,23 @@ export const component: ComponentTypeComponent =
             ty: {
                 value: 0 // what about (func (type 5))?
             },
-        },        
+        },
     ]
 }
 
+export const aliasExport3: ComponentAliasInstanceExport =
+{
+    tag: 'ComponentAliasInstanceExport',
+    /// The alias kind.
+    kind: ComponentExternalKind.Type,
+    /// The instance index.
+    instance_index: 0,
+    /// The export name.
+    name: "city-info",
+}
+
 export const model: WITSection[] = [
+    aliasExport3,
     component,
     instance, // TODO: re-check where type/func info should be saved
     componentExport
