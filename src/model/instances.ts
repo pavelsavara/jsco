@@ -1,5 +1,6 @@
 import { Export, u32 } from './core';
 import { ComponentExport, ComponentExternalKind } from './exports';
+import { ModelTag } from './tags';
 
 /// Represents the kind of an instantiation argument for a core instance.
 export const enum InstantiationArgKind {
@@ -25,7 +26,7 @@ export type Instance =
 
 /// The instance is from instantiating a WebAssembly module.
 export type InstanceInstantiate = {
-    tag: 'InstanceInstantiate',
+    tag: ModelTag.InstanceInstantiate,
     /// The module index.
     module_index: u32,
     /// The module's instantiation arguments.
@@ -34,7 +35,7 @@ export type InstanceInstantiate = {
 
 /// The instance is a from exporting local items.
 export type InstanceFromExports = {
-    tag: 'InstanceFromExports',
+    tag: ModelTag.InstanceFromExports,
     value: Export[],
 }
 
@@ -55,7 +56,7 @@ export type ComponentInstance =
 
 /// The instance is from instantiating a WebAssembly component.
 export type ComponentInstanceInstantiate = {
-    tag: 'ComponentInstanceInstantiate',
+    tag: ModelTag.ComponentInstanceInstantiate,
     /// The component index.
     component_index: u32,
     /// The component's instantiation arguments.
@@ -64,6 +65,6 @@ export type ComponentInstanceInstantiate = {
 
 /// The instance is a from exporting local items.
 export type ComponentInstanceFromExports = {
-    tag: 'ComponentInstanceFromExports',
+    tag: ModelTag.ComponentInstanceFromExports,
     value: ComponentExport[]
 }

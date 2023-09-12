@@ -1,5 +1,6 @@
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
+import { ModelTag } from './tags';
 
 /// Represents the kind of an outer alias in a WebAssembly component.
 export type ComponentOuterAliasKind =
@@ -20,7 +21,7 @@ export type ComponentAlias =
 
 /// The alias is to an export of a component instance.
 export type ComponentAliasInstanceExport = {
-    tag: 'ComponentAliasInstanceExport',
+    tag: ModelTag.ComponentAliasInstanceExport,
     /// The alias kind.
     kind: ComponentExternalKind,
     /// The instance index.
@@ -31,7 +32,7 @@ export type ComponentAliasInstanceExport = {
 
 /// The alias is to an export of a module instance.
 export type ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     /// The alias kind.
     kind: ExternalKind,
     /// The instance index.
@@ -42,7 +43,7 @@ export type ComponentAliasCoreInstanceExport = {
 
 /// The alias is to an outer item.
 export type ComponentAliasOuter = {
-    tag: 'ComponentAliasOuter',
+    tag: ModelTag.ComponentAliasOuter,
     /// The alias kind.
     kind: ComponentOuterAliasKind,
     /// The outward count, starting at zero for the current component.

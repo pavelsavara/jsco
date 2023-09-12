@@ -1,5 +1,6 @@
 import * as jco from '@bytecodealliance/jco';
 import { WITModel, parse } from '.';
+import { ModelTag } from '../model/tags';
 // import { jest } from "@jest/globals";
 
 export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel) {

@@ -28,4 +28,3 @@ describe('hello', () => {
         expectPartialModelToEqual(actualModel, expectedModel);
     });
 });
-

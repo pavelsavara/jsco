@@ -2,6 +2,7 @@ import { SyncSource } from '../utils/streaming';
 import { ComponentAlias, ComponentAliasCoreInstanceExport } from '../model/aliases';
 import { ParserContext } from './types';
 import { readU32, readExternalKind } from './values';
+import { ModelTag } from '../model/tags';
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
 // https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#alias-definitions
@@ -13,7 +14,7 @@ export function parseSectionAlias(
     const target = parseAliasTarget(src);
 
     const section: ComponentAliasCoreInstanceExport = {
-        tag: 'ComponentAliasCoreInstanceExport',
+        tag: ModelTag.ComponentAliasCoreInstanceExport,
         kind: sort,
         instance_index: 0,
         name: '',

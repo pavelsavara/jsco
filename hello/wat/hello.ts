@@ -10,35 +10,36 @@ import { CanonicalFunctionLift, CanonicalFunctionLower } from "../../src/model/c
 import { ExternalKind } from '../../src/model/core'
 import { ComponentImport } from '../../src/model/imports'
 import { WITModelByType } from '../../src/resolver/types'
+import { ModelTag } from '../../src/model/tags'
 
 export const componentType: ComponentTypeInstance = {
-    tag: 'ComponentTypeInstance',
+    tag: ModelTag.ComponentTypeInstance,
     declarations: [
         {
-            tag: 'InstanceTypeDeclarationType',
+            tag: ModelTag.InstanceTypeDeclarationType,
             value: {
-                tag: 'ComponentTypeDefined',
+                tag: ModelTag.ComponentTypeDefined,
                 value: {
-                    tag: 'ComponentDefinedTypeRecord',
+                    tag: ModelTag.ComponentDefinedTypeRecord,
                     members: [
                         {
                             name: "name",
                             type: {
-                                tag: 'ComponentValTypePrimitive',
+                                tag: ModelTag.ComponentValTypePrimitive,
                                 value: PrimitiveValType.String
                             },
                         },
                         {
                             name: "head-count",
                             type: {
-                                tag: 'ComponentValTypePrimitive',
+                                tag: ModelTag.ComponentValTypePrimitive,
                                 value: PrimitiveValType.U32
                             },
                         },
                         {
                             name: "budget",
                             type: {
-                                tag: 'ComponentValTypePrimitive',
+                                tag: ModelTag.ComponentValTypePrimitive,
                                 value: PrimitiveValType.S64
                             },
                         }
@@ -47,41 +48,41 @@ export const componentType: ComponentTypeInstance = {
             }
         },
         {
-            tag: 'InstanceTypeDeclarationExport',
+            tag: ModelTag.InstanceTypeDeclarationExport,
             name: {
-                tag: 'ComponentExternNameKebab',
+                tag: ModelTag.ComponentExternNameKebab,
                 name: "city-info"
             },
             ty: {
-                tag: 'ComponentTypeRefType',
+                tag: ModelTag.ComponentTypeRefType,
                 value: {
-                    tag: 'TypeBoundsEq',
+                    tag: ModelTag.TypeBoundsEq,
                     value: 0
                 }
             }
         },
         {
-            tag: 'InstanceTypeDeclarationType',
+            tag: ModelTag.InstanceTypeDeclarationType,
             value: {
-                tag: 'ComponentTypeFunc',
+                tag: ModelTag.ComponentTypeFunc,
                 value: {
                     params: [
                     ],
                     results: {
-                        tag: 'ComponentFuncResultNamed',
+                        tag: ModelTag.ComponentFuncResultNamed,
                         value: []//void
                     }
                 }
             }
         },
         {
-            tag: 'InstanceTypeDeclarationExport',
+            tag: ModelTag.InstanceTypeDeclarationExport,
             name: {
-                tag: 'ComponentExternNameKebab',
+                tag: ModelTag.ComponentExternNameKebab,
                 name: "send-message"
             },
             ty: {
-                tag: 'ComponentTypeRefFunc',
+                tag: ModelTag.ComponentTypeRefFunc,
                 value: 2
             }
         }
@@ -89,32 +90,32 @@ export const componentType: ComponentTypeInstance = {
 }
 
 export const componentImport: ComponentImport = {
-    tag: 'ComponentImport',
+    tag: ModelTag.ComponentImport,
     name: {
-        tag: 'ComponentExternNameInterface',
+        tag: ModelTag.ComponentExternNameInterface,
         name: "hello:city/city"
     },
     ty: {
-        tag: 'ComponentTypeRefInstance',
+        tag: ModelTag.ComponentTypeRefInstance,
         value: 0
     },
 }
 
 // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
 export const coreInstance0: InstanceFromExports = {
-    tag: 'InstanceFromExports',
+    tag: ModelTag.InstanceFromExports,
     value: [],
 }
 
 export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
     instance_index: 0,
     name: "0",
 }
 
 export const coreInstance1: InstanceFromExports = {
-    tag: 'InstanceFromExports',
+    tag: ModelTag.InstanceFromExports,
     value: [
         {
             name: "send-message",
@@ -125,7 +126,7 @@ export const coreInstance1: InstanceFromExports = {
 }
 
 export const coreInstance2: InstanceInstantiate = {
-    tag: 'InstanceInstantiate',
+    tag: ModelTag.InstanceInstantiate,
     module_index: 0,
     args: [
         {
@@ -137,49 +138,49 @@ export const coreInstance2: InstanceInstantiate = {
 }
 
 export const aliasCoreExportMemory0: ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Memory,
     instance_index: 2,
     name: "cabi_realloc",
 }
 
 export const aliasCoreExportFunc1: ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
     instance_index: 2,
     name: "cabi_realloc",
 }
 
 export const aliasCoreExportTable0: ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Table,
     instance_index: 0,
     name: "$imports",
 }
 
 export const aliasExport0: ComponentAliasInstanceExport = {
-    tag: 'ComponentAliasInstanceExport',
+    tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
     instance_index: 0,
     name: "send-message",
 }
 
 export const canonicalFunc2: CanonicalFunctionLower = {
-    tag: 'CanonicalFunctionLower',
+    tag: ModelTag.CanonicalFunctionLower,
     func_index: 0,
     options: [
         {
-            tag: 'CanonicalOptionUTF8'
+            tag: ModelTag.CanonicalOptionUTF8
         },
         {
-            tag: 'CanonicalOptionMemory',
+            tag: ModelTag.CanonicalOptionMemory,
             value: 0
         }
     ],
 }
 
 export const coreInstance3: InstanceFromExports = {
-    tag: 'InstanceFromExports',
+    tag: ModelTag.InstanceFromExports,
     value: [
         {
             name: "$imports",
@@ -195,7 +196,7 @@ export const coreInstance3: InstanceFromExports = {
 }
 
 export const coreInstance4: InstanceInstantiate = {
-    tag: 'InstanceInstantiate',
+    tag: ModelTag.InstanceInstantiate,
     module_index: 2,
     args: [
         {
@@ -207,7 +208,7 @@ export const coreInstance4: InstanceInstantiate = {
 }
 
 export const aliasExport1: ComponentAliasInstanceExport = {
-    tag: 'ComponentAliasInstanceExport',
+    tag: ModelTag.ComponentAliasInstanceExport,
     /// The alias kind.
     kind: ComponentExternalKind.Type,
     /// The instance index.
@@ -217,13 +218,13 @@ export const aliasExport1: ComponentAliasInstanceExport = {
 }
 
 export const typeFunction2: ComponentTypeFunc = {
-    tag: 'ComponentTypeFunc',
+    tag: ModelTag.ComponentTypeFunc,
     value: {
         params: [
             [
                 "info",
                 {
-                    tag: 'ComponentValTypeType',
+                    tag: ModelTag.ComponentValTypeType,
                     value: 1
                 }
             ]
@@ -233,60 +234,60 @@ export const typeFunction2: ComponentTypeFunc = {
 }
 
 export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
-    tag: 'ComponentAliasCoreInstanceExport',
+    tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
     instance_index: 2,
     name: "hello:city/greeter#run",
 }
 
 export const canonicalFunc1: CanonicalFunctionLift = {
-    tag: 'CanonicalFunctionLift',
+    tag: ModelTag.CanonicalFunctionLift,
     core_func_index: 3,
     type_index: 2,
     options: [
         {
-            tag: 'CanonicalOptionUTF8'
+            tag: ModelTag.CanonicalOptionUTF8
         },
         {
-            tag: 'CanonicalOptionRealloc',
+            tag: ModelTag.CanonicalOptionRealloc,
             value: 1
         },
         {
-            tag: 'CanonicalOptionMemory',
+            tag: ModelTag.CanonicalOptionMemory,
             value: 0
         }
     ],
 }
 
 export const component: ComponentTypeComponent = {
-    tag: 'ComponentTypeComponent',
+    tag: ModelTag.ComponentTypeComponent,
     value: [
         {
-            tag: 'ComponentTypeDeclarationType',
+            tag: ModelTag.ComponentTypeDeclarationType,
             value: {
-                tag: 'ComponentTypeDefined',
+                tag: ModelTag.ComponentTypeDefined,
                 value: {
-                    tag: 'ComponentDefinedTypeRecord',
+                    tag: ModelTag.ComponentDefinedTypeRecord,
                     members:
                         [
                             {
                                 name: "name",
                                 type: {
-                                    tag: 'ComponentValTypePrimitive',
+                                    tag: ModelTag.ComponentValTypePrimitive,
                                     value: PrimitiveValType.String
                                 }
                             },
                             {
                                 name: "head-count",
                                 type: {
-                                    tag: 'ComponentValTypePrimitive',
+                                    tag: ModelTag.ComponentValTypePrimitive,
                                     value: PrimitiveValType.U32
                                 }
                             },
                             {
                                 name: "budget",
                                 type: {
-                                    tag: 'ComponentValTypePrimitive',
+                                    tag: ModelTag.ComponentValTypePrimitive,
                                     value: PrimitiveValType.S64
                                 }
                             }
@@ -295,124 +296,124 @@ export const component: ComponentTypeComponent = {
             },
         },
         {
-            tag: 'ComponentTypeDeclarationImport',
+            tag: ModelTag.ComponentTypeDeclarationImport,
             value: {
-                tag: 'ComponentImport',
+                tag: ModelTag.ComponentImport,
                 name: {
-                    tag: 'ComponentExternNameKebab',
+                    tag: ModelTag.ComponentExternNameKebab,
                     name: "import-type-city-info"
                 },
                 ty: {
-                    tag: 'ComponentTypeRefType',
+                    tag: ModelTag.ComponentTypeRefType,
                     value:
                     {
-                        tag: 'TypeBoundsEq',
+                        tag: ModelTag.TypeBoundsEq,
                         value: 0
                     }
                 },
             }
         },
         {
-            tag: 'ComponentTypeDeclarationImport',
+            tag: ModelTag.ComponentTypeDeclarationImport,
             value: {
-                tag: 'ComponentImport',
+                tag: ModelTag.ComponentImport,
                 name: {
-                    tag: 'ComponentExternNameKebab',
+                    tag: ModelTag.ComponentExternNameKebab,
                     name: "import-type-city-info0"
                 },
                 ty: {
-                    tag: 'ComponentTypeRefType',
+                    tag: ModelTag.ComponentTypeRefType,
                     value:
                     {
-                        tag: 'TypeBoundsEq',
+                        tag: ModelTag.TypeBoundsEq,
                         value: 1
                     }
                 },
             }
         },
         {
-            tag: 'ComponentTypeDeclarationType',
+            tag: ModelTag.ComponentTypeDeclarationType,
             value: {
-                tag: 'ComponentTypeFunc',
+                tag: ModelTag.ComponentTypeFunc,
                 value:
                 {
                     params: [
                         [
                             "info",
                             {
-                                tag: 'ComponentValTypeType',
+                                tag: ModelTag.ComponentValTypeType,
                                 value: 2
                             }
                         ]
                     ],
                     results:
                     {
-                        tag: 'ComponentFuncResultUnnamed',
+                        tag: ModelTag.ComponentFuncResultUnnamed,
                         value: undefined as any, // there is no info about the results
                     },
                 }
             },
         },
         {
-            tag: 'ComponentTypeDeclarationImport',
+            tag: ModelTag.ComponentTypeDeclarationImport,
             value: {
-                tag: 'ComponentImport',
+                tag: ModelTag.ComponentImport,
                 name: {
-                    tag: 'ComponentExternNameKebab',
+                    tag: ModelTag.ComponentExternNameKebab,
                     name: "import-func-run"
                 },
                 ty: {
-                    tag: 'ComponentTypeRefFunc',
+                    tag: ModelTag.ComponentTypeRefFunc,
                     value: 3
                 },
             }
         },
         {
-            tag: 'ComponentTypeDeclarationExport',
+            tag: ModelTag.ComponentTypeDeclarationExport,
             name: {
-                tag: 'ComponentExternNameKebab',
+                tag: ModelTag.ComponentExternNameKebab,
                 name: "city-info"
             },
             ty: {
-                tag: 'ComponentTypeRefType',
+                tag: ModelTag.ComponentTypeRefType,
                 value: {
-                    tag: 'TypeBoundsEq',
+                    tag: ModelTag.TypeBoundsEq,
                     value: 1 // you sure? Here we don't have eq
                 }
             },
         },
         {
-            tag: 'ComponentTypeDeclarationType',
+            tag: ModelTag.ComponentTypeDeclarationType,
             value: {
-                tag: 'ComponentTypeFunc',
+                tag: ModelTag.ComponentTypeFunc,
                 value:
                 {
                     params: [
                         [
                             "info",
                             {
-                                tag: 'ComponentValTypeType',
+                                tag: ModelTag.ComponentValTypeType,
                                 value: 4
                             }
                         ]
                     ],
                     results:
                     {
-                        tag: 'ComponentFuncResultNamed',
+                        tag: ModelTag.ComponentFuncResultNamed,
                         value: [] // void
                     },
                 }
             },
         },
         {
-            tag: 'ComponentTypeDeclarationExport',
+            tag: ModelTag.ComponentTypeDeclarationExport,
             // what about (func 0)?
             name: {
-                tag: 'ComponentExternNameKebab',
+                tag: ModelTag.ComponentExternNameKebab,
                 name: "run"
             },
             ty: {
-                tag: 'ComponentTypeRefFunc',
+                tag: ModelTag.ComponentTypeRefFunc,
                 value: 5
             },
         },
@@ -421,7 +422,7 @@ export const component: ComponentTypeComponent = {
 
 // TODO: re-check where type/func info should be saved
 export const componentInstance: InstanceInstantiate = {
-    tag: 'InstanceInstantiate',
+    tag: ModelTag.InstanceInstantiate,
     module_index: 0,
     args: [
         {
@@ -446,15 +447,15 @@ export const componentInstance: InstanceInstantiate = {
 }
 
 export const componentExport: ComponentExport = {
-    tag: 'ComponentExport',
-    name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
+    tag: ModelTag.ComponentExport,
+    name: { tag: ModelTag.ComponentExternNameInterface, name: 'hello:city/greeter' },
     kind: ComponentExternalKind.Instance,
     index: 1,
     ty: undefined
 }
 
 export const aliasExportType3: ComponentAliasInstanceExport = {
-    tag: 'ComponentAliasInstanceExport',
+    tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
     instance_index: 0,
     name: "city-info",

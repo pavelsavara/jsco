@@ -1,13 +1,14 @@
 import { ComponentAlias } from './aliases';
 import { FuncType, Import, SubType, TypeRef, ValType, u32 } from './core';
 import { ComponentExternName, ComponentImport, ComponentTypeRef } from './imports';
+import { ModelTag } from './tags';
 
 /// Represents the kind of an outer core alias in a WebAssembly component.
 export type OuterAliasKind =
     | OuterAliasKindType
 
 export type OuterAliasKindType = {
-    tag: 'OuterAliasKindType'
+    tag: ModelTag.OuterAliasKindType
 }
 
 /// Represents a core type in a WebAssembly component.
@@ -18,12 +19,12 @@ export type CoreType =
 
 /// The type is for a core function.
 export type CoreTypeFunc = {
-    tag: 'CoreTypeFunc'
+    tag: ModelTag.CoreTypeFunc
     value: FuncType
 }
 /// The type is for a core module.
 export type CoreTypeModule = {
-    tag: 'CoreTypeModule'
+    tag: ModelTag.CoreTypeModule
     value: ModuleTypeDeclaration[]
 }
 
@@ -36,7 +37,7 @@ export type ModuleTypeDeclaration =
 
 /// The module type definition is for a type.
 export type ModuleTypeDeclarationType = {
-    tag: 'ModuleTypeDeclarationType'
+    tag: ModelTag.ModuleTypeDeclarationType
     value: SubType,
 }
 
@@ -70,13 +71,13 @@ export type ComponentValType =
 
 /// The value type is a primitive type.
 export type ComponentValTypePrimitive = {
-    tag: 'ComponentValTypePrimitive'
+    tag: ModelTag.ComponentValTypePrimitive
     value: PrimitiveValType
 }
 
 /// The value type is a reference to a defined type.
 export type ComponentValTypeType = {
-    tag: 'ComponentValTypeType'
+    tag: ModelTag.ComponentValTypeType
     value: u32
 }
 
@@ -121,31 +122,31 @@ export type ComponentType =
 
 /// The type is a component defined type.
 export type ComponentTypeDefined = {
-    tag: 'ComponentTypeDefined'
+    tag: ModelTag.ComponentTypeDefined
     value: ComponentDefinedType
 }
 
 /// The type is a function type.
 export type ComponentTypeFunc = {
-    tag: 'ComponentTypeFunc'
+    tag: ModelTag.ComponentTypeFunc
     value: ComponentFuncType
 }
 
 /// The type is a component type.
 export type ComponentTypeComponent = {
-    tag: 'ComponentTypeComponent'
+    tag: ModelTag.ComponentTypeComponent
     value: ComponentTypeDeclaration[]
 }
 
 /// The type is an instance type.
 export type ComponentTypeInstance = {
-    tag: 'ComponentTypeInstance'
+    tag: ModelTag.ComponentTypeInstance
     declarations: InstanceTypeDeclaration[]
 }
 
 /// The type is a fresh new resource type.
 export type ComponentTypeResource = {
-    tag: 'ComponentTypeResource'
+    tag: ModelTag.ComponentTypeResource
     /// The representation of this resource type in core WebAssembly.
     rep: ValType,
     /// An optionally-specified destructor to use for when this resource is
@@ -165,25 +166,25 @@ export type ComponentTypeDeclaration =
 
 /// The component type declaration is for a core type.
 export type ComponentTypeDeclarationCoreType = {
-    tag: 'ComponentTypeDeclarationCoreType'
+    tag: ModelTag.ComponentTypeDeclarationCoreType
     value: CoreType,
 }
 
 /// The component type declaration is for a type.
 export type ComponentTypeDeclarationType = {
-    tag: 'ComponentTypeDeclarationType'
+    tag: ModelTag.ComponentTypeDeclarationType
     value: ComponentType,
 }
 
 /// The component type declaration is for an alias.
 export type ComponentTypeDeclarationAlias = {
-    tag: 'ComponentTypeDeclarationAlias'
+    tag: ModelTag.ComponentTypeDeclarationAlias
     value: ComponentAlias,
 }
 
 /// The component type declaration is for an export.
 export type ComponentTypeDeclarationExport = {
-    tag: 'ComponentTypeDeclarationExport'
+    tag: ModelTag.ComponentTypeDeclarationExport
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.
@@ -192,7 +193,7 @@ export type ComponentTypeDeclarationExport = {
 
 /// The component type declaration is for an import.
 export type ComponentTypeDeclarationImport = {
-    tag: 'ComponentTypeDeclarationImport'
+    tag: ModelTag.ComponentTypeDeclarationImport
     value: ComponentImport,
 }
 
@@ -206,25 +207,25 @@ export type InstanceTypeDeclaration =
 
 /// The component type declaration is for a core type.
 export type InstanceTypeDeclarationCoreType = {
-    tag: 'InstanceTypeDeclarationCoreType',
+    tag: ModelTag.InstanceTypeDeclarationCoreType,
     value: CoreType,
 }
 
 /// The instance type declaration is for a type.
 export type InstanceTypeDeclarationType = {
-    tag: 'InstanceTypeDeclarationType',
+    tag: ModelTag.InstanceTypeDeclarationType,
     value: ComponentType,
 }
 
 /// The instance type declaration is for an alias.
 export type InstanceTypeDeclarationAlias = {
-    tag: 'InstanceTypeDeclarationAlias',
+    tag: ModelTag.InstanceTypeDeclarationAlias,
     value: ComponentAlias,
 }
 
 /// The instance type declaration is for an export.
 export type InstanceTypeDeclarationExport = {
-    tag: 'InstanceTypeDeclarationExport'
+    tag: ModelTag.InstanceTypeDeclarationExport
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.
@@ -240,13 +241,13 @@ export type ComponentFuncResult =
 
 /// The function returns a singular, unnamed type.
 export type ComponentFuncResultUnnamed = {
-    tag: 'ComponentFuncResultUnnamed',
+    tag: ModelTag.ComponentFuncResultUnnamed,
     value: ComponentValType,
 }
 
 /// The function returns zero or more named types.
 export type ComponentFuncResultNamed = {
-    tag: 'ComponentFuncResultNamed',
+    tag: ModelTag.ComponentFuncResultNamed,
     value: [string, ComponentValType][]
 }
 
@@ -284,53 +285,54 @@ export type ComponentDefinedType =
 
 /// The type is one of the primitive value types.
 export type ComponentDefinedTypePrimitive = {
-    tag: 'ComponentDefinedTypePrimitive',
+    tag: ModelTag.ComponentDefinedTypePrimitive,
     value: PrimitiveValType,
 }
 
 /// The type is a record with the given fields.
 export type ComponentDefinedTypeRecord = {
-    tag: 'ComponentDefinedTypeRecord',
+    tag: ModelTag.ComponentDefinedTypeRecord,
     members: { name: string, type: ComponentValType }[],
 }
 
 /// The type is a variant with the given cases.
 export type ComponentDefinedTypeVariant = {
-    tag: 'ComponentDefinedTypeVariant',
+    tag: ModelTag.ComponentDefinedTypeVariant,
     variants: VariantCase[],
 }
 
 /// The type is a list of the given value type.
 export type ComponentDefinedTypeList = {
-    tag: 'ComponentDefinedTypeList',
+    tag: ModelTag.ComponentDefinedTypeList,
     value: ComponentValType,
 }
 
 /// The type is a tuple of the given value types.
 export type ComponentDefinedTypeTuple = {
-    tag: 'ComponentDefinedTypeTuple',
+    tag: ModelTag.ComponentDefinedTypeTuple,
     members: ComponentValType[],
 }
 
 /// The type is flags with the given names.
 export type ComponentDefinedTypeFlags = {
-    tag: 'ComponentDefinedTypeFlags',
+    tag: ModelTag.ComponentDefinedTypeFlags,
     members: string[],
 }
 /// The type is an enum with the given tags.
 export type ComponentDefinedTypeEnum = {
-    tag: 'ComponentDefinedTypeEnum',
+    tag: ModelTag.ComponentDefinedTypeEnum,
     members: string[],
 }
 
 /// The type is an option of the given value type.
 export type ComponentDefinedTypeOption = {
-    tag: 'ComponentDefinedTypeOption',
+    tag: ModelTag.ComponentDefinedTypeOption,
     value: ComponentValType,
 }
 
 /// The type is a result type.
 export type ComponentDefinedTypeResult = {
+    tag: ModelTag.ComponentDefinedTypeResult,
     /// The type returned for success.
     ok?: ComponentValType,
     /// The type returned for failure.
@@ -339,12 +341,12 @@ export type ComponentDefinedTypeResult = {
 
 /// An owned handle to a resource.
 export type ComponentDefinedTypeOwn = {
-    tag: 'ComponentDefinedTypeOwn',
+    tag: ModelTag.ComponentDefinedTypeOwn,
     value: u32,
 }
 
 /// A borrowed handle to a resource.
 export type ComponentDefinedTypeBorrow = {
-    tag: 'ComponentDefinedTypeBorrow',
+    tag: ModelTag.ComponentDefinedTypeBorrow,
     value: u32,
 }
