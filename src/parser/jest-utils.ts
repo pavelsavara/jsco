@@ -8,6 +8,9 @@ export function expectModelToEqual(actualModel: WITModel, expectedModel: Partial
     expectedModel.componentExports = expectedModel.componentExports || [];
     expectedModel.componentImports = expectedModel.componentImports || [];
     expectedModel.aliases = expectedModel.aliases || [];
+    expectedModel.instances = expectedModel.instances || [];
+    expectedModel.cannon = expectedModel.cannon || [];
+    expectedModel.type = expectedModel.type || [];
     expectedModel.tag = expectedModel.tag || 'model';
     expect(actualModel).toEqual(expectedModel);
 }

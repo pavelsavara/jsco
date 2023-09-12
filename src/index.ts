@@ -4,7 +4,7 @@
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 
-export type { WITModel } from './parser';
+export { WITModel } from './parser';
 export { parse } from './parser';
 export { createComponent, createComponentFactory } from './resolver';
 export { createLifting, createLowering } from './binding';

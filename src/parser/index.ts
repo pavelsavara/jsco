@@ -28,18 +28,12 @@ export async function parse(
     }
     input = await getBodyIfResponse(input);
     const src = newSource(input);
-    return parseWIT(src, options);
+    const sections = await parseWIT(src, options);
+    const model = produceModel(sections);
+    return model;
 }
 
-async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promise<WITModel> {
-    const model: WITModel = {
-        tag: 'model',
-        componentExports: [],
-        componentImports: [],
-        modules: [],
-        other: [],
-        aliases: [],
-    } as any;
+async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promise<WITSection[]> {
     try {
         await checkPreamble(src);
 
@@ -49,37 +43,16 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
             processCustomSection: options?.processCustomSection ?? undefined,
         };
 
+        const sections: WITSection[] = [];
         for (; ;) {
             const section = await parseSection(ctx, src);
             if (section === null) {
                 break;
             }
-            // TODO: process all sections into model
-            switch (section.tag) {
-                case 'ComponentModule':
-                    model.modules.push(section);
-                    break;
-                case 'ComponentExport':
-                    model.componentExports.push(section);
-                    break;
-                case 'ComponentImport':
-                    model.componentImports.push(section);
-                    break;
-                case 'ComponentAliasOuter':
-                case 'ComponentAliasCoreInstanceExport':
-                case 'ComponentAliasInstanceExport':
-                    model.aliases.push(section);
-                    break;
-                case 'SkippedSection':
-                case 'CustomSection':
-                    model.other.push(section);
-                    break;
-                default:
-                    throw new Error(`unexpected section tag: ${(section as any).tag}`);
-            }
+            sections.push(section);
         }
 
-        return model;
+        return sections;
     }
     finally {
         src.close();
@@ -99,7 +72,7 @@ async function checkPreamble(src: Source): Promise<void> {
     }
 }
 
-export async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection | null> {
+async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection | null> {
     const type = await src.read(true); // byte will be enough for type
     if (type === null) {
         return null;
@@ -147,3 +120,62 @@ export async function parseSection(ctx: ParserContext, src: Source): Promise<WIT
     return section;
 }
 
+export function produceModel(sections: WITSection[]): WITModel {
+    const model: WITModel = {
+        tag: 'model',
+        componentExports: [],
+        componentImports: [],
+        instances: [],
+        modules: [],
+        other: [],
+        type: [],
+        aliases: [],
+        cannon: [],
+    };
+
+    for (const section of sections) {
+        // TODO: process all sections into model
+        switch (section.tag) {
+            case 'ComponentModule':
+                model.modules.push(section);
+                break;
+            case 'ComponentExport':
+                model.componentExports.push(section);
+                break;
+            case 'ComponentImport':
+                model.componentImports.push(section);
+                break;
+            case 'ComponentAliasOuter':
+            case 'ComponentAliasCoreInstanceExport':
+            case 'ComponentAliasInstanceExport':
+                model.aliases.push(section);
+                break;
+            case 'InstanceFromExports':
+            case 'InstanceInstantiate':
+                model.instances.push(section);
+                break;
+            case 'ComponentTypeFunc':
+            case 'ComponentTypeComponent':
+            case 'ComponentTypeDefined':
+            case 'ComponentTypeInstance':
+            case 'ComponentTypeResource':
+                model.type.push(section);
+                break;
+            case 'CanonicalFunctionLower':
+            case 'CanonicalFunctionLift':
+            case 'CanonicalFunctionResourceDrop':
+            case 'CanonicalFunctionResourceNew':
+            case 'CanonicalFunctionResourceRep':
+                model.cannon.push(section);
+                break;
+            case 'SkippedSection':
+            case 'CustomSection':
+                model.other.push(section);
+                break;
+            default:
+                throw new Error(`unexpected section tag: ${(section as any).tag}`);
+        }
+    }
+
+    return model;
+}

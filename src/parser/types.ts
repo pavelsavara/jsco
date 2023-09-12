@@ -41,6 +41,9 @@ export type WITModel = {
     componentImports: ComponentImport[]
     modules: ComponentModule[]
     aliases: ComponentAlias[]
+    instances: Instance[]
+    cannon: CanonicalFunction[]
+    type: ComponentType[]
     other: WITSection[]
 }
 

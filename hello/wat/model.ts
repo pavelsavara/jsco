@@ -1,3 +1,6 @@
+// this is a model written by hand, so that we can test the parser and resolver early on
+// it should match ./hello.wat (delta mistakes)
+
 import { WITSection } from '../../src/parser/types'
 import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
 import { InstanceFromExports, InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
@@ -6,8 +9,9 @@ import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '
 import { CanonicalFunctionLift, CanonicalFunctionLower } from "../../src/model/canonicals"
 import { ExternalKind } from '../../src/model/core'
 import { ComponentImport } from '../../src/model/imports'
+import { produceModel } from '../../src/parser'
 
-const componentExport: ComponentExport = {
+export const componentExport: ComponentExport = {
     tag: 'ComponentExport',
     name: {
         tag: 'ComponentExternNameInterface',
@@ -43,7 +47,7 @@ export const instance: InstanceInstantiate = {
     ]
 }
 
-export const component: ComponentTypeComponent =  {
+export const component: ComponentTypeComponent = {
     tag: 'ComponentTypeComponent',
     value: [
         {
@@ -53,29 +57,29 @@ export const component: ComponentTypeComponent =  {
                 value: {
                     tag: 'ComponentDefinedTypeRecord',
                     members:
-                    [
-                        {
-                            name: "name",
-                            type: {
-                                tag: 'ComponentValTypePrimitive',
-                                value: PrimitiveValType.String
+                        [
+                            {
+                                name: "name",
+                                type: {
+                                    tag: 'ComponentValTypePrimitive',
+                                    value: PrimitiveValType.String
+                                }
+                            },
+                            {
+                                name: "head-count",
+                                type: {
+                                    tag: 'ComponentValTypePrimitive',
+                                    value: PrimitiveValType.U32
+                                }
+                            },
+                            {
+                                name: "budget",
+                                type: {
+                                    tag: 'ComponentValTypePrimitive',
+                                    value: PrimitiveValType.S64
+                                }
                             }
-                        },
-                        {
-                            name: "head-count",
-                            type: {
-                                tag: 'ComponentValTypePrimitive',
-                                value: PrimitiveValType.U32
-                            }
-                        },
-                        {
-                            name: "budget",
-                            type: {
-                                tag: 'ComponentValTypePrimitive',
-                                value: PrimitiveValType.S64
-                            }
-                        }
-                    ]
+                        ]
                 }
             },
         },
@@ -88,7 +92,7 @@ export const component: ComponentTypeComponent =  {
                     name: "import-type-city-info"
                 },
                 ty: {
-                    value: 
+                    value:
                     {
                         tag: 'TypeBoundsEq',
                         value: 0
@@ -105,7 +109,7 @@ export const component: ComponentTypeComponent =  {
                     name: "import-type-city-info0"
                 },
                 ty: {
-                    value: 
+                    value:
                     {
                         tag: 'TypeBoundsEq',
                         value: 1
@@ -131,7 +135,7 @@ export const component: ComponentTypeComponent =  {
                     results:
                     {
                         tag: 'ComponentFuncResultUnnamed',
-                        value: undefined, // there is no info about the results
+                        value: undefined as any, // there is no info about the results
                     },
                 }
             },
@@ -231,15 +235,15 @@ export const typeFunction2: ComponentTypeFunc = {
     tag: 'ComponentTypeFunc',
     value: {
         params: [
-                [
-                    "info",
-                    {
-                        tag: 'ComponentValTypeType',
-                        value: 1
-                    }
-                ]
-            ],
-        results: undefined, // no info about the result
+            [
+                "info",
+                {
+                    tag: 'ComponentValTypeType',
+                    value: 1
+                }
+            ]
+        ],
+        results: undefined as any, // no info about the result
     }
 }
 
@@ -352,6 +356,7 @@ export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
     instance_index: 0,
     name: "0",
 }
+
 export const coreInstance0: InstanceFromExports = {
     tag: 'InstanceFromExports',
     value: [],
@@ -366,7 +371,7 @@ export const componentImport: ComponentImport = {
     ty: { value: 0 },
 }
 
-export const model: WITSection[] = [
+export const sections: WITSection[] = [
     componentImport,
     coreInstance0, // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
     aliasCoreExportFunc0,
@@ -388,3 +393,5 @@ export const model: WITSection[] = [
     instance, // TODO: re-check where type/func info should be saved
     componentExport
 ]
+
+export const expectedModel = produceModel(sections);

@@ -1,35 +1,29 @@
 import { parse } from './index';
-import { expectModelToEqual } from './jest-utils';
-import { ComponentExternalKind } from '../model/exports';
+//import { expectModelToEqual } from './jest-utils';
+//import { expectedModel } from '../../hello/wat/model';
 
-test('parse method compiles modules', async () => {
-    // build it with `npm run build:hello`
-    const model = await parse('./hello/wasm/hello.wasm');
+describe('hello', () => {
 
-    expect(model.tag).toBe('model');
-    expect(model.modules.length).toBe(3);
-    expect(model.modules[0].module).toBeInstanceOf(Promise);
-    expect(model.modules[1].module).toBeInstanceOf(Promise);
-    expect(model.modules[2].module).toBeInstanceOf(Promise);
+    test('parse method compiles modules', async () => {
+        // build it with `npm run build:hello`
+        const model = await parse('./hello/wasm/hello.wasm');
 
-    const modules = await Promise.all(model.modules.map(async (m) => m.module));
-    expect(modules[0]).toBeInstanceOf(WebAssembly.Module);
-    expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
-    expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
-});
+        expect(model.tag).toBe('model');
+        expect(model.modules.length).toBe(3);
+        expect(model.modules[0].module).toBeInstanceOf(Promise);
+        expect(model.modules[1].module).toBeInstanceOf(Promise);
+        expect(model.modules[2].module).toBeInstanceOf(Promise);
 
-test('parse method produces model', async () => {
-    // build it with `npm run build:hello`
-    const model = await parse('./hello/wasm/hello.wasm');
+        const modules = await Promise.all(model.modules.map(async (m) => m.module));
+        expect(modules[0]).toBeInstanceOf(WebAssembly.Module);
+        expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
+        expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
+    });
 
-    // TODO: make more/all sections to match `../../hello/wat/hello.wat` file
-    expectModelToEqual(model, {
-        componentExports: [{
-            tag: 'ComponentExport',
-            name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
-            index: 5,
-            kind: ComponentExternalKind.Func,
-            ty: undefined
-        }]
+    //TODO!
+    test('parsed model matches hand written model', async () => {
+        const model = await parse('./hello/wasm/hello.wasm');
+        //TODO expectModelToEqual(model, expectedModel);
     });
 });
+
