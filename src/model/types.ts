@@ -145,6 +145,7 @@ export type ComponentTypeInstance = {
 
 /// The type is a fresh new resource type.
 export type ComponentTypeResource = {
+    tag: 'ComponentTypeResource'
     /// The representation of this resource type in core WebAssembly.
     rep: ValType,
     /// An optionally-specified destructor to use for when this resource is
@@ -222,6 +223,7 @@ export type InstanceTypeDeclarationAlias = {
 
 /// The instance type declaration is for an export.
 export type InstanceTypeDeclarationExport = {
+    tag: 'InstanceTypeDeclarationExport'
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.

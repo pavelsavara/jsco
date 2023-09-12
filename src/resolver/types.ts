@@ -5,22 +5,13 @@ export type ComponentFactoryOptions = {
     wasmInstantiate?: typeof WebAssembly.instantiate
 }
 
-type ComponentImportInterface = {
-    [key: string]: Function
-}
+export type JsInterface = Record<string, Function>;
+export type JsInterfaceCollection = Record<string, JsInterface>;
 
-type ComponentImportInterfacesByName = {
-    [key: string]: ComponentImportInterface
-}
+export type JsExports<TJSExports extends JsInterfaceCollection> = TJSExports
+export type JsImports = JsInterfaceCollection
 
-export type ComponentImports =
-    | ComponentImportInterfacesByName
-
-export type ComponentExports<JSExports> =
-    JSExports
-    & { [key: string]: JSExports }
-
-export type ComponentFactory<JSExports> = (imports?: ComponentImports, options?: ComponentFactoryOptions) => Promise<ComponentExports<JSExports>>
+export type ComponentFactory<TJSExports extends JsInterfaceCollection> = (imports?: JsImports, options?: ComponentFactoryOptions) => Promise<JsExports<TJSExports>>
 
 export type ComponentFactoryInput = WITModel
     | string
