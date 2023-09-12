@@ -1,7 +1,9 @@
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
 import * as leb from '@thi.ng/leb128';
+import { ExternalKind } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
+import { ComponentExternalKind } from '../model/exports';
 
 const textDecoder = new TextDecoder();
 
@@ -33,6 +35,34 @@ export function readName(source: SyncSource): string {
     const length = readU32(source);
     const content = source.readExact(length);
     return textDecoder.decode(content) as any;
+}
+
+export function readExternalKind(src: SyncSource): ExternalKind {
+    throw new Error('not yet implemented');
+}
+
+export function readComponentExternalKind(src: SyncSource): ComponentExternalKind {
+    const k1 = readU32(src);
+    let k2;
+    const kind: ComponentExternalKind = (() => {
+        switch (k1) {
+            case 0x00:
+                k2 = readU32(src);
+                switch (k2) {
+                    case 0x11: return ComponentExternalKind.Module;
+                    default:
+                        throw new Error(`unknown export 2 type. ${k2}`);
+                }
+            case 0x01: return ComponentExternalKind.Func;
+            case 0x02: return ComponentExternalKind.Value;
+            case 0x03: return ComponentExternalKind.Type;
+            case 0x04: return ComponentExternalKind.Component;
+            case 0x05: return ComponentExternalKind.Instance;
+            default:
+                throw new Error(`unknown export type. ${k1}`);
+        }
+    })();
+    return kind;
 }
 
 async function readIntegerAsync<R extends number>(

@@ -1,5 +1,6 @@
 import { parse } from './index';
 import { expectModelToEqual } from './jest-utils';
+import { ComponentExternalKind } from '../model/exports';
 
 test('parse method compiles modules', async () => {
     // build it with `npm run build:hello`
@@ -27,7 +28,8 @@ test('parse method produces model', async () => {
             tag: 'ComponentExport',
             name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
             index: 5,
-            kind: 'func'
+            kind: ComponentExternalKind.Func,
+            ty: undefined
         }]
     });
 });
