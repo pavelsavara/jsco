@@ -3,6 +3,7 @@ import { ComponentExport } from '../model/exports';
 import { ComponentExternName, ComponentExternNameInterface, ComponentExternNameKebab } from '../model/imports';
 import { ParserContext } from './types';
 import { readName, readU32, readComponentExternalKind } from './values';
+import { ModelTag } from '../model/tags';
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
 // https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#import-and-export-definitions
@@ -14,7 +15,7 @@ export function parseSectionExport(
         const b1 = readU32(src);
         switch (b1) {
             case 0x00: return {
-                tag: 'ComponentExternNameKebab',
+                tag: ModelTag.ComponentExternNameKebab,
                 name: readName(src),
             } as ComponentExternNameKebab;
             case 0x01:
@@ -23,7 +24,7 @@ export function parseSectionExport(
                     switch (b2) {
                         case 0x01:
                             return {
-                                tag: 'ComponentExternNameInterface',
+                                tag: ModelTag.ComponentExternNameInterface,
                                 name: readName(src),
                             } as ComponentExternNameInterface;
                         default: throw new Error(`unknown export name type.${b2}`);
@@ -46,7 +47,7 @@ export function parseSectionExport(
     }
 
     const section: ComponentExport = {
-        tag: 'ComponentExport',
+        tag: ModelTag.ComponentExport,
         name,
         index,
         kind,

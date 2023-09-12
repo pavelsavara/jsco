@@ -3,6 +3,7 @@ export type u64 = number;
 export type u8 = number;
 export type usize = number;
 export type RefType = number;
+import { ModelTag } from './tags';
 
 /// External types as defined https://webassembly.github.io/spec/core/syntax/types.html#external-types.
 export const enum ExternalKind {
@@ -31,24 +32,24 @@ export type TypeRef =
 ///
 /// The value is an index into the type section.
 export type TypeRefFunc = {
-    tag: 'TypeRefFunc'
+    tag: ModelTag.TypeRefFunc
     value: u32
 }
 /// The type is a table.
 export type TypeRefTable = {
-    tag: 'TypeRefTable'
+    tag: ModelTag.TypeRefTable
     value: TableType
 }
 
 /// The type is a memory.
 export type TypeRefMemory = {
-    tag: 'TypeRefMemory'
+    tag: ModelTag.TypeRefMemory
     value: MemoryType
 }
 
 /// The type is a global.
 export type TypeRefGlobal = {
-    tag: 'TypeRefGlobal'
+    tag: ModelTag.TypeRefGlobal
     value: GlobalType
 }
 
@@ -58,7 +59,7 @@ export type TypeRefGlobal = {
 ///
 /// The value is an index in the types index space.
 export type TypeRefTag = {
-    tag: 'TypeRefTag'
+    tag: ModelTag.TypeRefTag
     value: u32
 }
 
@@ -102,32 +103,32 @@ export type ValType =
 
 /// The value type is i32.
 export type ValTypeI32 = {
-    tag: 'ValTypeI32'
+    tag: ModelTag.ValTypeI32
 }
 
 /// The value type is i64.
 export type ValTypeI64 = {
-    tag: 'ValTypeI64'
+    tag: ModelTag.ValTypeI64
 }
 
 /// The value type is f32.
 export type ValTypeF32 = {
-    tag: 'ValTypeF32'
+    tag: ModelTag.ValTypeF32
 }
 
 /// The value type is f64.
 export type ValTypeF64 = {
-    tag: 'ValTypeF64'
+    tag: ModelTag.ValTypeF64
 }
 
 /// The value type is v128.
 export type ValTypeV128 = {
-    tag: 'ValTypeV128'
+    tag: ModelTag.ValTypeV128
 }
 
 /// The value type is a reference.
 export type ValTypeRef = {
-    tag: 'ValTypeRef'
+    tag: ModelTag.ValTypeRef
     value: RefType
 }
 
@@ -188,19 +189,19 @@ export type StructuralType =
 
 /// The type is for a function.
 export type StructuralTypeFunc = {
-    tag: 'StructuralTypeFunc'
+    tag: ModelTag.StructuralTypeFunc
     value: FuncType
 }
 
 /// The type is for an array.
 export type StructuralTypeArray = {
-    tag: 'StructuralTypeArray'
+    tag: ModelTag.StructuralTypeArray
     value: ArrayType
 }
 
 /// The type is for a struct.
 export type StructuralTypeStruct = {
-    tag: 'StructuralTypeStruct'
+    tag: ModelTag.StructuralTypeStruct
     value: StructType
 }
 
@@ -236,17 +237,17 @@ export type StorageType =
 
 /// The storage type is i8.
 export type StorageTypeI8 = {
-    tag: 'StorageTypeI8'
+    tag: ModelTag.StorageTypeI8
 }
 
 /// The storage type is i16.
 export type StorageTypeI16 = {
-    tag: 'StorageTypeI16'
+    tag: ModelTag.StorageTypeI16
 }
 
 /// The storage type is a value type.
 export type StorageTypeVal = {
-    tag: 'StorageTypeVal'
+    tag: ModelTag.StorageTypeVal
     value: ValType
 }
 

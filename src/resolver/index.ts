@@ -1,10 +1,11 @@
 import { createLifting, createLowering } from '../binding';
-import { js, abi } from '../../hello/ts';
+import { js, abi } from '../../tests/hello-component';
 import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, JsExports, JsInterfaceCollection, ComponentFactory, WITModelByType } from './types';
 import { WITModel, parse } from '../parser';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
 import { PrimitiveValType } from '../model/types';
 import { ParserOptions } from '../parser/types';
+import { ModelTag } from '../model/tags';
 
 export async function createComponent<TJSExports extends JsInterfaceCollection>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -61,22 +62,22 @@ export function createComponentFactory<TJSExports extends JsInterfaceCollection>
 
         const { sendMessage } = componentImports['hello:city/city'];
         const stringToJs = createLowering({
-            tag: 'ComponentValTypePrimitive',
+            tag: ModelTag.ComponentValTypePrimitive,
             value: PrimitiveValType.String,
         });
 
         const stringFromJs = createLifting({
-            tag: 'ComponentValTypePrimitive',
+            tag: ModelTag.ComponentValTypePrimitive,
             value: PrimitiveValType.String,
         });
 
         const numberToUint32 = createLifting({
-            tag: 'ComponentValTypePrimitive',
+            tag: ModelTag.ComponentValTypePrimitive,
             value: PrimitiveValType.U32,
         });
 
         const bigIntToInt64 = createLifting({
-            tag: 'ComponentValTypePrimitive',
+            tag: ModelTag.ComponentValTypePrimitive,
             value: PrimitiveValType.S64,
         });
 

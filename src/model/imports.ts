@@ -1,5 +1,6 @@
 import { u32 } from './core';
 import { ComponentValType } from './types';
+import { ModelTag } from './tags';
 
 /// Represents the type bounds for imports and exports.
 export type TypeBounds =
@@ -8,13 +9,13 @@ export type TypeBounds =
 
 /// The type is bounded by equality.
 export type TypeBoundsEq = {
-    tag: 'TypeBoundsEq'
+    tag: ModelTag.TypeBoundsEq
     value: u32
 }
 
 /// A fresh resource type,
 export type TypeBoundsSubResource = {
-    tag: 'TypeBoundsSubResource'
+    tag: ModelTag.TypeBoundsSubResource
 }
 
 /// Represents a reference to a component type.
@@ -30,46 +31,46 @@ export type ComponentTypeRef =
 ///
 /// The index is expected to be core type index to a core module type.
 export type ComponentTypeRefModule = {
-    tag: 'ComponentTypeRefModule',
+    tag: ModelTag.ComponentTypeRefModule,
     value: u32
 }
 /// The reference is to a function type.
 ///
 /// The index is expected to be a type index to a function type.
 export type ComponentTypeRefFunc = {
-    tag: 'ComponentTypeRefFunc'
+    tag: ModelTag.ComponentTypeRefFunc
     value: u32
 }
 /// The reference is to a value type.
 export type ComponentTypeRefValue = {
-    tag: 'ComponentTypeRefValue',
+    tag: ModelTag.ComponentTypeRefValue,
     value: ComponentValType
 }
 /// The reference is to a bounded type.
 ///
 /// The index is expected to be a type index.
 export type ComponentTypeRefType = {
-    tag: 'ComponentTypeRefType'
+    tag: ModelTag.ComponentTypeRefType
     value: TypeBounds
 }
 /// The reference is to an instance type.
 ///
 /// The index is a type index to an instance type.
 export type ComponentTypeRefInstance = {
-    tag: 'ComponentTypeRefInstance'
+    tag: ModelTag.ComponentTypeRefInstance
     value: u32
 }
 /// The reference is to a component type.
 ///
 /// The index is a type index to a component type.
 export type ComponentTypeRefComponent = {
-    tag: 'ComponentTypeRefComponent'
+    tag: ModelTag.ComponentTypeRefComponent
     value: u32
 }
 
 /// Represents an import in a WebAssembly component
 export type ComponentImport = {
-    tag: 'ComponentImport',
+    tag: ModelTag.ComponentImport,
     /// The name of the imported item.
     name: ComponentExternName,
     /// The type reference for the import.
@@ -83,11 +84,11 @@ export type ComponentExternName =
 
 
 export type ComponentExternNameKebab = {
-    tag: 'ComponentExternNameKebab'
+    tag: ModelTag.ComponentExternNameKebab
     name: string
 }
 
 export type ComponentExternNameInterface = {
-    tag: 'ComponentExternNameInterface'
+    tag: ModelTag.ComponentExternNameInterface
     name: string
 }

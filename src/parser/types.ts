@@ -3,6 +3,7 @@ import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { Instance } from '../model/instances';
+import { ModelTag } from '../model/tags';
 import { ComponentType, InstanceTypeDeclaration } from '../model/types';
 
 export type WITSection =
@@ -18,19 +19,19 @@ export type WITSection =
     | InstanceTypeDeclaration
 
 export type ComponentModule = {
-    tag: 'ComponentModule'
+    tag: ModelTag.ComponentModule
     data?: Uint8Array
     module?: Promise<WebAssembly.Module>
 }
 
 export type CustomSection = {
-    tag: 'CustomSection'
+    tag: ModelTag.CustomSection
     name: string
     data?: Uint8Array
 }
 
 export type SkippedSection = {
-    tag: 'SkippedSection'
+    tag: ModelTag.SkippedSection
     type: number
     data?: Uint8Array
 }

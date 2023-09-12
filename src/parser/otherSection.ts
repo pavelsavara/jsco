@@ -1,3 +1,4 @@
+import { ModelTag } from '../model/tags';
 import { SyncSource } from '../utils/streaming';
 import { ParserContext, CustomSection, SkippedSection } from './types';
 import { readName } from './values';
@@ -12,7 +13,7 @@ export function parseSectionCustom(
     const nameSize = src.pos - start;
     const data = src.readExact(size - nameSize);
     const section: CustomSection = {
-        tag: 'CustomSection',
+        tag: ModelTag.CustomSection,
         name,
         data: ctx.otherSectionData ? data : undefined,
     };
@@ -30,7 +31,7 @@ export function skipSection(
 ): SkippedSection {
     const data = src.readExact(size);
     const section: SkippedSection = {
-        tag: 'SkippedSection',
+        tag: ModelTag.SkippedSection,
         type,
         data: ctx.otherSectionData ? data : undefined,
     };

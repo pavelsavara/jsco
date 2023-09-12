@@ -1,4 +1,5 @@
 import { NameMap, u8 } from './core';
+import { ModelTag } from './tags';
 
 /// Represents a name read from the names custom section.
 export type ComponentName =
@@ -23,51 +24,51 @@ export type ComponentNameComponent = {
     name_range: any // TODO type
 }
 export type ComponentNameCoreFuncs = {
-    tag: 'ComponentNameCoreFuncs',
+    tag: ModelTag.ComponentNameCoreFuncs,
     value: NameMap,
 }
 export type ComponentNameCoreGlobals = {
-    tag: 'ComponentNameCoreGlobals',
+    tag: ModelTag.ComponentNameCoreGlobals,
     value: NameMap,
 }
 export type ComponentNameCoreMemories = {
-    tag: 'ComponentNameCoreMemories',
+    tag: ModelTag.ComponentNameCoreMemories,
     value: NameMap,
 }
 export type ComponentNameCoreTables = {
-    tag: 'ComponentNameCoreTables',
+    tag: ModelTag.ComponentNameCoreTables,
     value: NameMap,
 }
 export type ComponentNameCoreModules = {
-    tag: 'ComponentNameCoreModules',
+    tag: ModelTag.ComponentNameCoreModules,
     value: NameMap,
 }
 export type ComponentNameCoreInstances = {
-    tag: 'ComponentNameCoreInstances',
+    tag: ModelTag.ComponentNameCoreInstances,
     value: NameMap,
 }
 export type ComponentNameCoreTypes = {
-    tag: 'ComponentNameCoreTypes',
+    tag: ModelTag.ComponentNameCoreTypes,
     value: NameMap,
 }
 export type ComponentNameTypes = {
-    tag: 'ComponentNameTypes',
+    tag: ModelTag.ComponentNameTypes,
     value: NameMap,
 }
 export type ComponentNameInstances = {
-    tag: 'ComponentNameInstances',
+    tag: ModelTag.ComponentNameInstances,
     value: NameMap,
 }
 export type ComponentNameComponents = {
-    tag: 'ComponentNameComponents',
+    tag: ModelTag.ComponentNameComponents,
     value: NameMap,
 }
 export type ComponentNameFuncs = {
-    tag: 'ComponentNameFuncs',
+    tag: ModelTag.ComponentNameFuncs,
     value: NameMap,
 }
 export type ComponentNameValues = {
-    tag: 'ComponentNameValues',
+    tag: ModelTag.ComponentNameValues,
     value: NameMap,
 }
 

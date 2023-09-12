@@ -1,4 +1,4 @@
-import { AbiPointer, Tcabi_realloc } from '../../src/binding/types'
+import { AbiPointer, Tcabi_realloc } from '../src/binding/types';
 
 declare module js {
     export type CityInfo = {
