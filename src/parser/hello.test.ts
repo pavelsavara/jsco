@@ -1,5 +1,5 @@
 import { parse } from './index';
-import { expectModelToEqual } from './jest-utils';
+import { expectModelToEqual, expectPartialModelToEqual } from './jest-utils';
 import { expectedModel } from '../../hello/wat/hello';
 import { ComponentModule } from './types';
 
@@ -23,10 +23,9 @@ describe('hello', () => {
         expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
     });
 
-    //TODO!
     test('parsed model matches hand written model', async () => {
         const actualModel = await parse('./hello/wasm/hello.wasm');
-        //expectModelToEqual(actualModel, expectedModel);
+        expectPartialModelToEqual(actualModel, expectedModel);
     });
 });
 

@@ -7,6 +7,15 @@ export function expectModelToEqual(actualModel: WITModel, expectedModel: WITMode
     expect(noModules).toEqual(expectedModel);
 }
 
+// only match those section types which exist in both models
+export function expectPartialModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
+    const noModules = actualModel.filter((section) => section.tag !== 'ComponentModule' && section.tag !== 'SkippedSection' && section.tag !== 'CustomSection');
+    const includeTypes = noModules.map((section) => section.tag);
+    expectedModel = expectedModel.filter((section) => includeTypes.includes(section.tag));
+
+    expect(noModules).toEqual(expectedModel);
+}
+
 export function jcoCompileWat(wat: string): Promise<Uint8Array> {
     return jco.parse(wat);
 }

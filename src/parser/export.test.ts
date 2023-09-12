@@ -6,8 +6,8 @@ describe('export', () => {
         await expectModelToEqualWat('(export (;2;) (interface "hello:city/greeter") (instance 1))', [{
             tag: 'ComponentExport',
             name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
-            index: 5,
-            kind: ComponentExternalKind.Func,
+            kind: ComponentExternalKind.Instance,
+            index: 1,
             ty: undefined
         }]);
     });

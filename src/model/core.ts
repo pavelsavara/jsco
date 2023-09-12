@@ -5,17 +5,17 @@ export type usize = number;
 export type RefType = number;
 
 /// External types as defined https://webassembly.github.io/spec/core/syntax/types.html#external-types.
-export enum ExternalKind {
+export const enum ExternalKind {
     /// The external kind is a function.
-    Func,
+    Func = 'func',
     /// The external kind if a table.
-    Table,
+    Table = 'table',
     /// The external kind is a memory.
-    Memory,
+    Memory = 'memory',
     /// The external kind is a global.
-    Global,
+    Global = 'global',
     /// The external kind is a tag.
-    Tag,
+    Tag = 'tag',
 }
 
 /// Represents a reference to a type definition in a WebAssembly module.

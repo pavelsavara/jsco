@@ -447,10 +447,7 @@ export const componentInstance: InstanceInstantiate = {
 
 export const componentExport: ComponentExport = {
     tag: 'ComponentExport',
-    name: {
-        tag: 'ComponentExternNameInterface',
-        name: 'hello:city/greeter',
-    },
+    name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
     kind: ComponentExternalKind.Instance,
     index: 1,
     ty: undefined
