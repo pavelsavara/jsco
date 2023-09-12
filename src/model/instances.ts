@@ -2,12 +2,9 @@ import { Export, u32 } from './core';
 import { ComponentExport, ComponentExternalKind } from './exports';
 
 /// Represents the kind of an instantiation argument for a core instance.
-export type InstantiationArgKind =
-    | InstantiationArgKindInstance
-
-/// The instantiation argument is a core instance.
-export type InstantiationArgKindInstance = {
-    tag: 'InstantiationArgKindInstance',
+export const enum InstantiationArgKind {
+    /// The instantiation argument is a core instance.
+    Instance = 'instance',
 }
 
 /// Represents an argument to instantiating a WebAssembly module.

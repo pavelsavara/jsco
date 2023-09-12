@@ -33,8 +33,8 @@ export function parseSectionExport(
         }
     })();
 
-    const index = readU32(src);
     const kind = readComponentExternalKind(src);
+    const index = readU32(src);
 
     // Check for optional external type description
     const b3 = readU32(src);

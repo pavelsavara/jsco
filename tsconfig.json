@@ -21,11 +21,16 @@
             "jest"
         ],
         "rootDirs": [
-            "."
+            "src"
         ]
     },
     "include": [
         "src/**/*",
-        "src/.types.d.ts"
+        "src/.types.d.ts",
+        "hello/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
     ]
 }

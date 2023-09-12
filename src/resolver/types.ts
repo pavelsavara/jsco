@@ -1,26 +1,24 @@
+import { ComponentAlias } from '../model/aliases';
+import { CanonicalFunction } from '../model/canonicals';
+import { ComponentExport } from '../model/exports';
+import { ComponentImport } from '../model/imports';
+import { Instance } from '../model/instances';
+import { ComponentType } from '../model/types';
 import { WITModel } from '../parser';
+import { ComponentModule, WITSection } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
     wasmInstantiate?: typeof WebAssembly.instantiate
 }
 
-type ComponentImportInterface = {
-    [key: string]: Function
-}
+export type JsInterface = Record<string, Function>;
+export type JsInterfaceCollection = Record<string, JsInterface>;
 
-type ComponentImportInterfacesByName = {
-    [key: string]: ComponentImportInterface
-}
+export type JsExports<TJSExports extends JsInterfaceCollection> = TJSExports
+export type JsImports = JsInterfaceCollection
 
-export type ComponentImports =
-    | ComponentImportInterfacesByName
-
-export type ComponentExports<JSExports> =
-    JSExports
-    & { [key: string]: JSExports }
-
-export type ComponentFactory<JSExports> = (imports?: ComponentImports, options?: ComponentFactoryOptions) => Promise<ComponentExports<JSExports>>
+export type ComponentFactory<TJSExports extends JsInterfaceCollection> = (imports?: JsImports, options?: ComponentFactoryOptions) => Promise<JsExports<TJSExports>>
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -28,3 +26,18 @@ export type ComponentFactoryInput = WITModel
     | ReadableStream<Uint8Array>
     | Response
     | PromiseLike<Response>
+
+
+export type WITModelByType = {
+    componentExports: ComponentExport[]
+    componentImports: ComponentImport[]
+    modules: ComponentModule[]
+    aliases: ComponentAlias[]
+    instances: Instance[]
+    cannon: CanonicalFunction[]
+    other: WITSection[]
+
+    // this is the same thing ?
+    type: ComponentType[]
+    component: ComponentType[]
+}

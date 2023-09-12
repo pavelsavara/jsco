@@ -1,14 +1,21 @@
 import { ComponentAlias } from '../model/aliases';
+import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
+import { Instance } from '../model/instances';
+import { ComponentType, InstanceTypeDeclaration } from '../model/types';
 
 export type WITSection =
     | CustomSection
     | SkippedSection
     | ComponentModule
+    | Instance
     | ComponentImport
     | ComponentExport
     | ComponentAlias
+    | CanonicalFunction
+    | ComponentType
+    | InstanceTypeDeclaration
 
 export type ComponentModule = {
     tag: 'ComponentModule'
@@ -28,14 +35,7 @@ export type SkippedSection = {
     data?: Uint8Array
 }
 
-export type WITModel = {
-    tag: 'model'
-    componentExports: ComponentExport[]
-    componentImports: ComponentImport[]
-    modules: ComponentModule[]
-    aliases: ComponentAlias[]
-    other: WITSection[]
-}
+export type WITModel = WITSection[];
 
 export type ParserContext = {
     otherSectionData: boolean

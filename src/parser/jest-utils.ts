@@ -2,26 +2,30 @@ import * as jco from '@bytecodealliance/jco';
 import { WITModel, parse } from '.';
 // import { jest } from "@jest/globals";
 
-export function expectModelToEqual(actualModel: WITModel, expectedModel: Partial<WITModel>) {
-    delete (actualModel as any).modules; // don't care about modules in this test
-    delete (actualModel as any).other; // don't care about other in this test
-    expectedModel.componentExports = expectedModel.componentExports || [];
-    expectedModel.componentImports = expectedModel.componentImports || [];
-    expectedModel.aliases = expectedModel.aliases || [];
-    expectedModel.tag = expectedModel.tag || 'model';
-    expect(actualModel).toEqual(expectedModel);
+export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
+    const noModules = actualModel.filter((section) => section.tag !== 'ComponentModule' && section.tag !== 'SkippedSection');
+    expect(noModules).toEqual(expectedModel);
+}
+
+// only match those section types which exist in both models
+export function expectPartialModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
+    const noModules = actualModel.filter((section) => section.tag !== 'ComponentModule' && section.tag !== 'SkippedSection' && section.tag !== 'CustomSection');
+    const includeTypes = noModules.map((section) => section.tag);
+    expectedModel = expectedModel.filter((section) => includeTypes.includes(section.tag));
+
+    expect(noModules).toEqual(expectedModel);
 }
 
 export function jcoCompileWat(wat: string): Promise<Uint8Array> {
     return jco.parse(wat);
 }
 
-export async function expectModelToEqualWat(watSections: string, expectedModel: Partial<WITModel>) {
+export async function expectModelToEqualWat(watSections: string, expectedModel: WITModel) {
     const wasmBuffer = await jcoCompileWat(`(component ${watSections})`);
     expectModelToEqualWasm(wasmBuffer, expectedModel);
 }
 
-export async function expectModelToEqualWasm(wasmBuffer: Uint8Array, expectedModel: Partial<WITModel>) {
+export async function expectModelToEqualWasm(wasmBuffer: Uint8Array, expectedModel: WITModel) {
     const model = await parse(wasmBuffer);
     expectModelToEqual(model, expectedModel);
 }

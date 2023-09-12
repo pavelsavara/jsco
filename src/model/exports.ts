@@ -2,19 +2,19 @@ import { u32 } from './core';
 import { ComponentExternName, ComponentTypeRef } from './imports';
 
 /// Represents the kind of an external items of a WebAssembly component.
-export enum ComponentExternalKind {
+export const enum ComponentExternalKind {
     /// The external kind is a core module.
-    Module,
+    Module = 'module',
     /// The external kind is a function.
-    Func,
+    Func = 'func',
     /// The external kind is a value.
-    Value,
+    Value = 'value',
     /// The external kind is a type.
-    Type,
+    Type = 'type',
     /// The external kind is an instance.
-    Instance,
+    Instance = 'instance',
     /// The external kind is a component.
-    Component,
+    Component = 'component',
 }
 
 /// Represents an export in a WebAssembly component.

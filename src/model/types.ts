@@ -81,33 +81,33 @@ export type ComponentValTypeType = {
 }
 
 /// Represents a primitive value type.
-export enum PrimitiveValType {
+export const enum PrimitiveValType {
     /// The type is a boolean.
-    Bool,
+    Bool = 'bool',
     /// The type is a signed 8-bit integer.
-    S8,
+    S8 = 's8',
     /// The type is an unsigned 8-bit integer.
-    U8,
+    U8 = 'u8',
     /// The type is a signed 16-bit integer.
-    S16,
+    S16 = 's16',
     /// The type is an unsigned 16-bit integer.
-    U16,
+    U16 = 'u16',
     /// The type is a signed 32-bit integer.
-    S32,
+    S32 = 's32',
     /// The type is an unsigned 32-bit integer.
-    U32,
+    U32 = 'u32',
     /// The type is a signed 64-bit integer.
-    S64,
+    S64 = 's64',
     /// The type is an unsigned 64-bit integer.
-    U64,
+    U64 = 'u64',
     /// The type is a 32-bit floating point number.
-    Float32,
+    Float32 = 'f32',
     /// The type is a 64-bit floating point number.
-    Float64,
+    Float64 = 'f64',
     /// The type is a Unicode character.
-    Char,
+    Char = 'char',
     /// The type is a string.
-    String,
+    String = 'string',
 }
 
 /// Represents a type in a WebAssembly component.
@@ -140,11 +140,12 @@ export type ComponentTypeComponent = {
 /// The type is an instance type.
 export type ComponentTypeInstance = {
     tag: 'ComponentTypeInstance'
-    value: InstanceTypeDeclaration[]
+    declarations: InstanceTypeDeclaration[]
 }
 
 /// The type is a fresh new resource type.
 export type ComponentTypeResource = {
+    tag: 'ComponentTypeResource'
     /// The representation of this resource type in core WebAssembly.
     rep: ValType,
     /// An optionally-specified destructor to use for when this resource is
@@ -182,6 +183,7 @@ export type ComponentTypeDeclarationAlias = {
 
 /// The component type declaration is for an export.
 export type ComponentTypeDeclarationExport = {
+    tag: 'ComponentTypeDeclarationExport'
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.
@@ -222,6 +224,7 @@ export type InstanceTypeDeclarationAlias = {
 
 /// The instance type declaration is for an export.
 export type InstanceTypeDeclarationExport = {
+    tag: 'InstanceTypeDeclarationExport'
     /// The name of the export.
     name: ComponentExternName,
     /// The type reference for the export.
