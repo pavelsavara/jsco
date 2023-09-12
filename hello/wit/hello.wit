@@ -3,6 +3,8 @@ package hello:city
 interface city {
     record city-info {
         name: string,
+        head-count: u32,
+        budget: s64,
     }
 
     send-message: func(message: string)

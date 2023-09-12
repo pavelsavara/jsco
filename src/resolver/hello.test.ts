@@ -1,4 +1,4 @@
-import { js } from './hello';
+import { js } from '../../hello/ts';
 import { createComponent } from './index';
 
 test('parse method compiles modules', async () => {
@@ -13,9 +13,11 @@ test('parse method compiles modules', async () => {
     const component = await createComponent<js.NamedExports>('./hello/wasm/hello.wasm', imports);
 
     component['hello:city/greeter'].run({
-        name: 'Prague'
+        name: 'Prague',
+        headCount: 1_000_000,
+        budget: BigInt(200_000_000),
     });
 
-    expect(actualMessage).toBe('Hello Prague from rust!');
+    expect(actualMessage).toBe('Welcome in Prague, we invite you for a drink!');
 
 });

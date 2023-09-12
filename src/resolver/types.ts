@@ -1,10 +1,7 @@
-import { AbiPointer, AbiSize } from '../binding/types';
 import { WITModel } from '../parser';
 
-// TODO is this correct signature ?
-export type Tcabi_realloc = (oldPtr: AbiPointer, oldSize: AbiSize, align: AbiSize, newSize: AbiSize) => AbiPointer;
-
 export type ComponentFactoryOptions = {
+    useNumberForInt64?: boolean
     wasmInstantiate?: typeof WebAssembly.instantiate
 }
 
@@ -16,14 +13,8 @@ type ComponentImportInterfacesByName = {
     [key: string]: ComponentImportInterface
 }
 
-type AbiImportInterfacesByName = {
-    abi: { [key: string]: ComponentImportInterface }
-}
-
 export type ComponentImports =
-    | ComponentImportInterface
     | ComponentImportInterfacesByName
-    | AbiImportInterfacesByName
 
 export type ComponentExports<JSExports> =
     JSExports

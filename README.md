@@ -29,25 +29,10 @@
 ## Why
 - as a hackathon week project: https://hackbox.microsoft.com/hackathons/hackathon2023/project/32678
 - to learn more about WASM component model
-- because JCO is too large
+- to provide host which could do the binding in the browser
+- JCO is great, really. But it is too large to use in the browser as dynamic host.
 - because independent implementation will help the WASM/WIT/WASI to make progress
 - browsers currently don't implement WASM component model host
-
-## Inspiration
-- https://github.com/bytecodealliance/jco
-- https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/transpile_bindgen.rs
-- https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-parser
-- https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wit-component/src/decoding.rs
-- https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/types.rs
-- https://github.com/bytecodealliance/jco/blob/main/src/cmd/transpile.js
-- https://github.com/yskszk63/stream-wasm-parser
-- https://github.com/WebAssembly/component-model/blob/main/design/mvp/canonical-abi/definitions.py
-
-## Documentation
-- https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
-- https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md
-- https://github.com/WebAssembly/module-linking/blob/main/proposals/module-linking/Explainer.md
-- https://www.fermyon.com/blog/webassembly-component-model
 
 ## Notes
 - for now we have dependency on JCO, so that we could learn from it. It will go away later.
