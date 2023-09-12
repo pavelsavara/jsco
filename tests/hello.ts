@@ -3,7 +3,7 @@
 
 import { WITSection } from '../src/parser/types';
 import { ComponentExport, ComponentExternalKind } from '../src/model/exports';
-import { InstanceFromExports, InstanceInstantiate, InstantiationArgKind } from '../src/model/instances';
+import { ComponentInstanceInstantiate, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArgKind } from '../src/model/instances';
 import { ComponentTypeComponent, ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../src/model/types';
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../src/model/aliases';
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
@@ -102,8 +102,8 @@ export const componentImport: ComponentImport = {
 };
 
 // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
-export const coreInstance0: InstanceFromExports = {
-    tag: ModelTag.InstanceFromExports,
+export const coreInstance0: CoreInstanceFromExports = {
+    tag: ModelTag.CoreInstanceFromExports,
     value: [],
 };
 
@@ -114,8 +114,8 @@ export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
     name: '0',
 };
 
-export const coreInstance1: InstanceFromExports = {
-    tag: ModelTag.InstanceFromExports,
+export const coreInstance1: CoreInstanceFromExports = {
+    tag: ModelTag.CoreInstanceFromExports,
     value: [
         {
             name: 'send-message',
@@ -125,8 +125,8 @@ export const coreInstance1: InstanceFromExports = {
     ],
 };
 
-export const coreInstance2: InstanceInstantiate = {
-    tag: ModelTag.InstanceInstantiate,
+export const coreInstance2: CoreInstanceInstantiate = {
+    tag: ModelTag.CoreInstanceInstantiate,
     module_index: 0,
     args: [
         {
@@ -179,8 +179,8 @@ export const canonicalFunc2: CanonicalFunctionLower = {
     ],
 };
 
-export const coreInstance3: InstanceFromExports = {
-    tag: ModelTag.InstanceFromExports,
+export const coreInstance3: CoreInstanceFromExports = {
+    tag: ModelTag.CoreInstanceFromExports,
     value: [
         {
             name: '$imports',
@@ -195,8 +195,8 @@ export const coreInstance3: InstanceFromExports = {
     ]
 };
 
-export const coreInstance4: InstanceInstantiate = {
-    tag: ModelTag.InstanceInstantiate,
+export const coreInstance4: CoreInstanceInstantiate = {
+    tag: ModelTag.CoreInstanceInstantiate,
     module_index: 2,
     args: [
         {
@@ -421,27 +421,24 @@ export const component: ComponentTypeComponent = {
 };
 
 // TODO: re-check where type/func info should be saved
-export const componentInstance: InstanceInstantiate = {
-    tag: ModelTag.InstanceInstantiate,
-    module_index: 0,
+export const componentInstance: ComponentInstanceInstantiate = {
+    tag: ModelTag.ComponentInstanceInstantiate,
+    component_index: 0,
     args: [
         {
             name: 'import-func-run',
-            kind: InstantiationArgKind.Instance,
+            kind: ComponentExternalKind.Func,
             index: 1,
-            // func ?????
         },
         {
             name: 'import-type-city-info',
-            kind: InstantiationArgKind.Instance,
+            kind: ComponentExternalKind.Type,
             index: 3,
-            // type ?????
         },
         {
             name: 'import-type-city-info0',
-            kind: InstantiationArgKind.Instance,
+            kind: ComponentExternalKind.Type,
             index: 1,
-            // type ?????
         }
     ]
 };
@@ -488,7 +485,8 @@ export const expectedModel: WITSection[] = [
 export const expectedModelByType: WITModelByType = {
     componentExports: [componentExport],
     componentImports: [componentImport],
-    instances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4, componentInstance],
+    coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
+    instances: [componentInstance],
     modules: [],
     other: [],
     type: [componentType, typeFunction2],

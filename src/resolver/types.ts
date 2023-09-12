@@ -2,10 +2,10 @@ import { ComponentAlias } from '../model/aliases';
 import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { Instance } from '../model/instances';
+import { ComponentInstance, Instance } from '../model/instances';
 import { ComponentType } from '../model/types';
 import { WITModel } from '../parser';
-import { ComponentModule, WITSection } from '../parser/types';
+import { CoreModule, WITSection } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -31,9 +31,10 @@ export type ComponentFactoryInput = WITModel
 export type WITModelByType = {
     componentExports: ComponentExport[]
     componentImports: ComponentImport[]
-    modules: ComponentModule[]
+    modules: CoreModule[]
     aliases: ComponentAlias[]
-    instances: Instance[]
+    coreInstances: Instance[]
+    instances: ComponentInstance[]
     cannon: CanonicalFunction[]
     other: WITSection[]
 

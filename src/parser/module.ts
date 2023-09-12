@@ -1,14 +1,14 @@
 import { ModelTag } from '../model/tags';
 import { Source } from '../utils/streaming';
-import { ParserContext, ComponentModule } from './types';
+import { ParserContext, CoreModule } from './types';
 
 export async function parseModule(
     ctx: ParserContext,
     src: Source,
     size: number,
-): Promise<ComponentModule> {
-    const res: ComponentModule = {
-        tag: ModelTag.ComponentModule,
+): Promise<CoreModule> {
+    const res: CoreModule = {
+        tag: ModelTag.CoreModule,
     };
 
     if (ctx.compileStreaming) {
