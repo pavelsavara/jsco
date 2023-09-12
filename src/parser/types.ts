@@ -35,20 +35,7 @@ export type SkippedSection = {
     data?: Uint8Array
 }
 
-export type WITModel = {
-    tag: 'model'
-    componentExports: ComponentExport[]
-    componentImports: ComponentImport[]
-    modules: ComponentModule[]
-    aliases: ComponentAlias[]
-    instances: Instance[]
-    cannon: CanonicalFunction[]
-    other: WITSection[]
-
-    // this is the same thing ?
-    type: ComponentType[]
-    component: ComponentType[]
-}
+export type WITModel = WITSection[];
 
 export type ParserContext = {
     otherSectionData: boolean

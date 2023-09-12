@@ -1,14 +1,15 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { WITModel, WITSection } from '../../src/parser/types'
+import { WITSection } from '../../src/parser/types'
 import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
 import { InstanceFromExports, InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
-import { ComponentType, ComponentTypeComponent, ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../../src/model/types'
+import { ComponentTypeComponent, ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../../src/model/types'
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../../src/model/aliases'
 import { CanonicalFunctionLift, CanonicalFunctionLower } from "../../src/model/canonicals"
 import { ExternalKind } from '../../src/model/core'
 import { ComponentImport } from '../../src/model/imports'
+import { WITModelByType } from '../../src/resolver/types'
 
 export const componentType: ComponentTypeInstance = {
     tag: 'ComponentTypeInstance',
@@ -462,7 +463,7 @@ export const aliasExportType3: ComponentAliasInstanceExport = {
     name: "city-info",
 }
 
-export const sections: WITSection[] = [
+export const expectedModel: WITSection[] = [
     componentType,
     componentImport,
     coreInstance0,
@@ -486,8 +487,7 @@ export const sections: WITSection[] = [
     componentExport
 ]
 
-export const expectedModel: WITModel = {
-    tag: 'model',
+export const expectedModelByType: WITModelByType = {
     componentExports: [componentExport],
     componentImports: [componentImport],
     instances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4, componentInstance],

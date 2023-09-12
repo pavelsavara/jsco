@@ -1,27 +1,27 @@
-import { defineConfig } from "rollup";
-import typescript from "@rollup/plugin-typescript";
-import { nodeResolve } from "@rollup/plugin-node-resolve";
-import terser from "@rollup/plugin-terser";
-import virtual from "@rollup/plugin-virtual";
-import * as path from "path";
-import dts from "rollup-plugin-dts";
-import gitCommitInfo from "git-commit-info";
+import { defineConfig } from 'rollup';
+import typescript from '@rollup/plugin-typescript';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
+import terser from '@rollup/plugin-terser';
+import virtual from '@rollup/plugin-virtual';
+import * as path from 'path';
+import dts from 'rollup-plugin-dts';
+import gitCommitInfo from 'git-commit-info';
 
-const configuration = process.env.Configuration ?? "Debug";
-const isDebug = configuration !== "Release";
-const isContinuousIntegrationBuild = process.env.ContinuousIntegrationBuild === "true" ? true : false;
+const configuration = process.env.Configuration ?? 'Debug';
+const isDebug = configuration !== 'Release';
+const isContinuousIntegrationBuild = process.env.ContinuousIntegrationBuild === 'true' ? true : false;
 let gitHash = (() => {
     try {
         const gitInfo = gitCommitInfo();
         return gitInfo.hash;
     } catch (e) {
-        return "unknown";
+        return 'unknown';
     }
 })();
 
 const constants = {
-    "env:configuration": `export default "${configuration}"`,
-    "env:gitHash": `export default "${gitHash}"`,
+    'env:configuration': `export default "${configuration}"`,
+    'env:gitHash': `export default "${gitHash}"`,
 };
 const plugins = isDebug ? [] : [terser({
     compress: {
@@ -29,15 +29,15 @@ const plugins = isDebug ? [] : [terser({
     },
     mangle: {},
 })];
-const banner = "//! Pavel Savara licenses this file to you under the MIT license.\n";
-const externalDependencies = ["module", "fs", "gitHash"];
+const banner = '//! Pavel Savara licenses this file to you under the MIT license.\n';
+const externalDependencies = ['module', 'fs', 'gitHash'];
 const jsco = {
     treeshake: !isDebug,
-    input: "./src/index.ts",
+    input: './src/index.ts',
     output: [
         {
-            format: "es",
-            file: "dist/index.js",
+            format: 'es',
+            file: 'dist/index.js',
             banner,
             plugins,
             sourcemap: true,
@@ -48,17 +48,17 @@ const jsco = {
     plugins: [
         virtual(constants),
         nodeResolve({
-            extensions: [".ts"],
+            extensions: ['.ts'],
         }),
         typescript()
     ]
 };
 const jscoTypes = {
-    input: "./src/index.ts",
+    input: './src/index.ts',
     output: [
         {
-            format: "es",
-            file: "dist/index.d.ts",
+            format: 'es',
+            file: 'dist/index.d.ts',
             banner: banner,
         }
     ],
@@ -81,7 +81,7 @@ function sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
                 path.dirname(sourcemapPath),
                 relativeSourcePath
             );
-            res = `file:///${sourcePath.replace(/\\/g, "/")}`;
+            res = `file:///${sourcePath.replace(/\\/g, '/')}`;
         } else {
             relativeSourcePath = relativeSourcePath.substring(12);
             res = `https://raw.githubusercontent.com/pavelsavara/jsco/${gitHash}/${relativeSourcePath}`;

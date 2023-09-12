@@ -1,14 +1,14 @@
 export default {
-    "roots": [
-        "<rootDir>/src"
+    'roots': [
+        '<rootDir>/src'
     ],
-    "testMatch": [
-        "**/?(*.)+(spec|test).+(ts|js)"
+    'testMatch': [
+        '**/?(*.)+(spec|test).+(ts|js)'
     ],
-    "transform": {
+    'transform': {
     //"^.+\\.(ts|tsx)$": "esbuild-jest"
-        "^.+\\.(ts|tsx)$": ["@swc/jest"],
+        '^.+\\.(ts|tsx)$': ['@swc/jest'],
     //"^.+\\.(ts|tsx)$": "ts-jest"
     },
-    extensionsToTreatAsEsm: [".ts"],
+    extensionsToTreatAsEsm: ['.ts'],
 };

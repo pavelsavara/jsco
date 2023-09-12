@@ -29,8 +29,7 @@ export async function parse(
     input = await getBodyIfResponse(input);
     const src = newSource(input);
     const sections = await parseWIT(src, options);
-    const model = produceModel(sections);
-    return model;
+    return sections;
 }
 
 async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promise<WITSection[]> {
@@ -118,65 +117,4 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     }
 
     return section;
-}
-
-export function produceModel(sections: WITSection[]): WITModel {
-    const model: WITModel = {
-        tag: 'model',
-        componentExports: [],
-        componentImports: [],
-        instances: [],
-        modules: [],
-        other: [],
-        type: [],
-        aliases: [],
-        cannon: [],
-        component: [],
-    };
-
-    for (const section of sections) {
-        // TODO: process all sections into model
-        switch (section.tag) {
-            case 'ComponentModule':
-                model.modules.push(section);
-                break;
-            case 'ComponentExport':
-                model.componentExports.push(section);
-                break;
-            case 'ComponentImport':
-                model.componentImports.push(section);
-                break;
-            case 'ComponentAliasOuter':
-            case 'ComponentAliasCoreInstanceExport':
-            case 'ComponentAliasInstanceExport':
-                model.aliases.push(section);
-                break;
-            case 'InstanceFromExports':
-            case 'InstanceInstantiate':
-                model.instances.push(section);
-                break;
-            case 'ComponentTypeFunc':
-            case 'ComponentTypeComponent':
-            case 'ComponentTypeDefined':
-            case 'ComponentTypeInstance':
-            case 'ComponentTypeResource':
-                model.type.push(section);
-                break;
-            case 'CanonicalFunctionLower':
-            case 'CanonicalFunctionLift':
-            case 'CanonicalFunctionResourceDrop':
-            case 'CanonicalFunctionResourceNew':
-            case 'CanonicalFunctionResourceRep':
-                model.cannon.push(section);
-                break;
-            case 'SkippedSection':
-            case 'CustomSection':
-                model.other.push(section);
-                break;
-            default:
-                throw new Error(`unexpected section tag: ${(section as any).tag}`);
-        }
-    }
-
-    return model;
 }
