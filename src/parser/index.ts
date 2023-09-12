@@ -88,15 +88,14 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             ///
             case 0: return parseSectionCustom(ctx, sub!, size);
             case 1: return parseModule(ctx, asyncSub!, size);
+            case 6: return parseSectionAlias(ctx, sub!);
             case 11: return parseSectionExport(ctx, sub!);
-            //case 6: return parseSectionAlias(ctx, sub!);
 
             //TODO: to implement
             case 2: // core instance
             case 3: // core type
             case 4: // component
             case 5: // instance
-            case 6: // alias
             case 7: // type
             case 8: // canon
             case 10: // import
@@ -105,14 +104,14 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
                 throw new Error(`unknown section: ${type}`);
         }
     })();
-    if (sub && sub.remainig !== 0) {
+    if (sub && sub.remaining !== 0) {
         const absoluteActual = start + sub.pos;
         const absoluteExpected = start + size;
-        const remaining = sub.remainig;
+        const remaining = sub.remaining;
         const data = sub.readExact(remaining);
         const hex = bufferToHex(data);
         throw new Error(`invalid size after reading section ${type}: \n`
-            + `actual position: ${absoluteActual} vs. expected position ${absoluteExpected}, remaining ${remaining}\n`
+            + `actual position: 0x${absoluteActual.toString(16)} vs. expected position 0x${absoluteExpected.toString(16)}, remaining ${remaining}\n`
             + `section: ${JSON.stringify(section)}\n`
             + 'remaining: ' + hex);
     }

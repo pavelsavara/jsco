@@ -4,6 +4,7 @@ import * as leb from '@thi.ng/leb128';
 import { ExternalKind } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
 import { ComponentExternalKind } from '../model/exports';
+import { ComponentOuterAliasKind } from '../model/aliases';
 
 const textDecoder = new TextDecoder();
 
@@ -37,32 +38,59 @@ export function readName(source: SyncSource): string {
     return textDecoder.decode(content) as any;
 }
 
-export function readExternalKind(src: SyncSource): ExternalKind {
-    throw new Error('not yet implemented');
+export function parseAsExternalKind(k1: number, k2: number): ExternalKind {
+    if (k2 !== -1)
+        throw new Error(`Invalid external kind 2. ${k2}`);
+    switch (k1) {
+        case 0x00: return ExternalKind.Func;
+        case 0x01: return ExternalKind.Table;
+        case 0x02: return ExternalKind.Memory;
+        case 0x03: return ExternalKind.Global;
+        case 0x04: return ExternalKind.Tag;
+        default:
+            throw new Error(`unknown external kind. ${k1}`);
+    }
 }
 
 export function readComponentExternalKind(src: SyncSource): ComponentExternalKind {
     const k1 = readU32(src);
-    let k2;
-    const kind: ComponentExternalKind = (() => {
-        switch (k1) {
-            case 0x00:
-                k2 = readU32(src);
-                switch (k2) {
-                    case 0x11: return ComponentExternalKind.Module;
-                    default:
-                        throw new Error(`unknown export 2 type. ${k2}`);
-                }
-            case 0x01: return ComponentExternalKind.Func;
-            case 0x02: return ComponentExternalKind.Value;
-            case 0x03: return ComponentExternalKind.Type;
-            case 0x04: return ComponentExternalKind.Component;
-            case 0x05: return ComponentExternalKind.Instance;
-            default:
-                throw new Error(`unknown export type. ${k1}`);
-        }
-    })();
-    return kind;
+    return (k1 == 0x00)
+        ? parseAsComponentExternalKind(k1, readU32(src))
+        : parseAsComponentExternalKind(k1, -1);
+}
+
+export function parseAsComponentExternalKind(k1: number, k2: number): ComponentExternalKind {
+    switch (k1) {
+        case 0x00:
+            switch (k2) {
+                case 0x11: return ComponentExternalKind.Module;
+                default:
+                    throw new Error(`unknown component external kind 2. ${k2}`);
+            }
+        case 0x01: return ComponentExternalKind.Func;
+        case 0x02: return ComponentExternalKind.Value;
+        case 0x03: return ComponentExternalKind.Type;
+        case 0x04: return ComponentExternalKind.Component;
+        case 0x05: return ComponentExternalKind.Instance;
+        default:
+            throw new Error(`unknown component external kind. ${k1}`);
+    }
+}
+
+export function parseAsComponentOuterAliasKind(k1: number, k2: number): ComponentOuterAliasKind {
+    switch (k1) {
+        case 0x00:
+            switch (k2) {
+                case 0x10: return ComponentOuterAliasKind.CoreType;
+                case 0x11: return ComponentOuterAliasKind.CoreModule;
+                default:
+                    throw new Error(`unknown outer alias kind 2. ${k2}`);
+            }
+        case 0x03: return ComponentOuterAliasKind.Type;
+        case 0x04: return ComponentOuterAliasKind.Component;
+        default:
+            throw new Error(`unknown outer alias kind. ${k1}`);
+    }
 }
 
 async function readIntegerAsync<R extends number>(
