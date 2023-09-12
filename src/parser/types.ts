@@ -2,6 +2,7 @@ import { ComponentAlias } from '../model/aliases';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { Instance } from '../model/instances';
+import { ComponentTypeComponent } from '../model/types';
 
 export type WITSection =
     | CustomSection
@@ -11,6 +12,7 @@ export type WITSection =
     | ComponentImport
     | ComponentExport
     | ComponentAlias
+    | ComponentTypeComponent
 
 export type ComponentModule = {
     tag: 'ComponentModule'
