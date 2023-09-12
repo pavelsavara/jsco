@@ -1,10 +1,11 @@
 import { WITSection } from '../../src/parser/types'
 import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
 import { InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
-import { ComponentTypeComponent, PrimitiveValType } from '../../src/model/types'
-import { ComponentAliasInstanceExport } from '../../src/model/aliases'
+import { ComponentTypeComponent, ComponentTypeFunc, PrimitiveValType } from '../../src/model/types'
+import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../../src/model/aliases'
+import { CanonicalFunctionLift } from "../../src/model/canonicals"
+import { ExternalKind } from '../../src/model/core'
 
-// (export (;2;) (interface "hello:city/greeter") (instance 1))
 const componentExport: ComponentExport = {
     tag: 'ComponentExport',
     name: {
@@ -204,7 +205,53 @@ export const aliasExport3: ComponentAliasInstanceExport =
     name: "city-info",
 }
 
+export const canonicalFunc1: CanonicalFunctionLift =
+{
+    tag: 'CanonicalFunctionLift',
+    core_func_index: 3,
+    type_index: 2,
+    options: [
+        {
+            tag: 'CanonicalOptionUTF8'
+        },
+        {
+            tag: 'CanonicalOptionRealloc',
+            value: 1
+        },
+        {
+            tag: 'CanonicalOptionMemory',
+            value: 0
+        }
+    ],
+}
+
+export const aliasCoreExport3: ComponentAliasCoreInstanceExport = {
+    tag: 'ComponentAliasCoreInstanceExport',
+    kind: ExternalKind.Func,
+    instance_index: 2,
+    name: "hello:city/greeter#run",
+}
+
+export const typeFunction2: ComponentTypeFunc = {
+    tag: 'ComponentTypeFunc',
+    value: {
+        params: [
+                [
+                    "info",
+                    {
+                        tag: 'ComponentValTypeType',
+                        value: 1
+                    }
+                ]
+            ],
+        results: undefined, // no info about the result
+    }
+}
+
 export const model: WITSection[] = [
+    typeFunction2,
+    aliasCoreExport3,
+    canonicalFunc1,
     aliasExport3,
     component,
     instance, // TODO: re-check where type/func info should be saved
