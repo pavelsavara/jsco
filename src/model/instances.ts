@@ -20,13 +20,13 @@ export type InstantiationArg = {
 
 /// Represents an instance of a WebAssembly module.
 export type Instance =
-    | InstanceInstantiate
-    | InstanceFromExports
+    | CoreInstanceInstantiate
+    | CoreInstanceFromExports
 
 
 /// The instance is from instantiating a WebAssembly module.
-export type InstanceInstantiate = {
-    tag: ModelTag.InstanceInstantiate,
+export type CoreInstanceInstantiate = {
+    tag: ModelTag.CoreInstanceInstantiate,
     /// The module index.
     module_index: u32,
     /// The module's instantiation arguments.
@@ -34,8 +34,8 @@ export type InstanceInstantiate = {
 }
 
 /// The instance is a from exporting local items.
-export type InstanceFromExports = {
-    tag: ModelTag.InstanceFromExports,
+export type CoreInstanceFromExports = {
+    tag: ModelTag.CoreInstanceFromExports,
     value: Export[],
 }
 

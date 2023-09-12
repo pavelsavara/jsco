@@ -2,24 +2,24 @@ import { ComponentAlias } from '../model/aliases';
 import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { Instance } from '../model/instances';
+import { ComponentInstance, Instance as CoreInstance } from '../model/instances';
 import { ModelTag } from '../model/tags';
-import { ComponentType, InstanceTypeDeclaration } from '../model/types';
+import { ComponentType } from '../model/types';
 
 export type WITSection =
     | CustomSection
     | SkippedSection
-    | ComponentModule
-    | Instance
+    | CoreModule
+    | ComponentInstance
+    | CoreInstance
     | ComponentImport
     | ComponentExport
     | ComponentAlias
     | CanonicalFunction
     | ComponentType
-    | InstanceTypeDeclaration
 
-export type ComponentModule = {
-    tag: ModelTag.ComponentModule
+export type CoreModule = {
+    tag: ModelTag.CoreModule
     data?: Uint8Array
     module?: Promise<WebAssembly.Module>
 }

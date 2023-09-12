@@ -138,6 +138,7 @@ export function produceModel(sections: WITModel): WITModelByType {
         componentExports: [],
         componentImports: [],
         instances: [],
+        coreInstances: [],
         modules: [],
         other: [],
         type: [],
@@ -163,8 +164,8 @@ export function produceModel(sections: WITModel): WITModelByType {
             case 'ComponentAliasInstanceExport':
                 model.aliases.push(section);
                 break;
-            case 'InstanceFromExports':
-            case 'InstanceInstantiate':
+            case 'ComponentInstanceFromExports':
+            case 'ComponentInstanceInstantiate':
                 model.instances.push(section);
                 break;
             case 'ComponentTypeFunc':
