@@ -7,9 +7,11 @@ import { parseSectionCustom, skipSection } from './otherSection';
 import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async } from './values';
+import { parseSectionAlias } from './alias';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
-export const WIT_VERSION = [0x0D, 0x00, 0x01, 0x00];
+export const WIT_VERSION = [0x0D, 0x00];
+export const WIT_LAYER = [0x01, 0x00];
 
 export async function parse(componentOrUrl:
     | string
@@ -37,7 +39,7 @@ async function parseWIT(src: Source & Closeable): Promise<WITModel> {
         aliases: [],
     } as any;
     try {
-        await checkHeader(src);
+        await checkPreamble(src);
 
         const ctx: ParserContext = {
             compileStreaming: WebAssembly.compileStreaming, // configurable ?
@@ -81,14 +83,16 @@ async function parseWIT(src: Source & Closeable): Promise<WITModel> {
     }
 }
 
-async function checkHeader(src: Source): Promise<void> {
+async function checkPreamble(src: Source): Promise<void> {
     const magic = await src.readExact(WIT_MAGIC.length);
     const version = await src.readExact(WIT_VERSION.length);
+    const layer = await src.readExact(WIT_LAYER.length);
 
-    const ok = magic.every((v, i) => v === WIT_MAGIC[i]) &&
-        version.every((v, i) => v === WIT_VERSION[i]);
+    const ok = magic.every((v, i) => v === WIT_MAGIC[i])
+        && version.every((v, i) => v === WIT_VERSION[i])
+        && layer.every((v, i) => v === WIT_LAYER[i]);
     if (!ok) {
-        throw new Error('unexpected magic or version.');
+        throw new Error('unexpected magic, version or layer.');
     }
 }
 
@@ -111,7 +115,7 @@ export async function parseSection(ctx: ParserContext, src: Source): Promise<WIT
             case 11: return parseSectionExport(ctx, sub!);
             //case 6: return parseSectionAlias(ctx, sub!);
 
-            //TODO: to implement    
+            //TODO: to implement
             case 2: // core instance
             case 3: // core type
             case 4: // component
@@ -128,11 +132,11 @@ export async function parseSection(ctx: ParserContext, src: Source): Promise<WIT
     if (sub && sub.remainig !== 0) {
         const absoluteActual = start + sub.pos;
         const absoluteExpected = start + size;
-        const remainig = sub.remainig;
-        const data = sub.readExact(remainig);
+        const remaining = sub.remainig;
+        const data = sub.readExact(remaining);
         const hex = bufferToHex(data);
         throw new Error(`invalid size after reading section ${type}: \n`
-            + `actual position: ${absoluteActual} vs. expected position ${absoluteExpected}, remaining ${remainig} \n`
+            + `actual position: ${absoluteActual} vs. expected position ${absoluteExpected}, remaining ${remaining}\n`
             + `section: ${JSON.stringify(section)}\n`
             + 'remaining: ' + hex);
     }

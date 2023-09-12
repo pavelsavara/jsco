@@ -1,4 +1,5 @@
 import { expectModelToEqualWat } from './jest-utils';
+import { ComponentExternalKind } from '../model/exports';
 
 describe('export', () => {
 
@@ -8,7 +9,8 @@ describe('export', () => {
                 tag: 'ComponentExport',
                 name: { tag: 'ComponentExternNameInterface', name: 'hello:city/greeter' },
                 index: 5,
-                kind: 'func'
+                kind: ComponentExternalKind.Func,
+                ty: undefined
             }]
         });
     });
