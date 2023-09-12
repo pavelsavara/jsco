@@ -27,7 +27,9 @@
     "include": [
         "src/**/*",
         "src/.types.d.ts",
-        "hello/**/*.ts"
+        "hello/**/*.ts", 
+        "tests/hello.ts", 
+        "tests/hello-component.d.ts"
     ],
     "exclude": [
         "node_modules",

@@ -1,6 +1,6 @@
 import { parse } from './index';
-import { expectModelToEqual, expectPartialModelToEqual } from './jest-utils';
-import { expectedModel } from '../../hello/wat/hello';
+import { expectPartialModelToEqual } from './jest-utils';
+import { expectedModel } from '../../tests/hello';
 import { ComponentModule } from './types';
 
 describe('hello', () => {

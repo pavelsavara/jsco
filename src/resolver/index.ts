@@ -1,5 +1,5 @@
 import { createLifting, createLowering } from '../binding';
-import { js, abi } from '../../hello/ts';
+import { js, abi } from '../../tests/hello-component';
 import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, JsExports, JsInterfaceCollection, ComponentFactory, WITModelByType } from './types';
 import { WITModel, parse } from '../parser';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';

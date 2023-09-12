@@ -1,4 +1,4 @@
-import { js } from '../../hello/ts';
+import { js } from '../../tests/hello-component';
 import { createComponent } from './index';
 
 test('parse method compiles modules', async () => {

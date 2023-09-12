@@ -1,4 +1,4 @@
-import { aliasExportType3 } from '../../hello/wat/hello';
+import { aliasExportType3 } from '../../tests/hello';
 import { expectModelToEqualWat } from './jest-utils';
 
 describe('export', () => {
