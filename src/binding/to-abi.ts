@@ -1,11 +1,11 @@
 import { FuncType } from '../model/core';
 import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { memoize } from './cache';
-import { LiftingFromJs, BindingContext, AbiPointer, FnLiftingFromJs, JsFunction, AbiFunction, JsString, AbiSize } from './types';
+import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
 export function createImportLifting(exportModel: FuncType): FnLiftingFromJs {
     return memoize(exportModel, () => {
-        return (ctx: BindingContext, jsImport: JsFunction): AbiFunction => {
+        return (ctx: BindingContext, jsImport: JsFunction): WasmFunction => {
             // TODO
             throw new Error('Not implemented');
         };
@@ -19,24 +19,21 @@ export function createLifting(typeModel: ComponentValType): LiftingFromJs {
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
                         return createStringLifting();
+                    case PrimitiveValType.U32:
+                        return createU32Lifting();
+                    case PrimitiveValType.S64:
+                        return createS64Lifting();
                     default:
                         throw new Error('Not implemented');
                 }
+            case 'ComponentValTypeType':
+                //TODO resolve typeModel.value
+                throw new Error('Not implemented');
             default:
                 throw new Error('Not implemented');
         }
     });
 }
-
-/* 
-See https://github.com/WebAssembly/component-model/blob/main/design/mvp/canonical-abi/definitions.py for alignment rules
-
-See https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md
-
-From https://github.com/WebAssembly/component-model/blob/main/design/mvp/Explainer.md
-lift wraps a core function (of type core:functype) to produce a component function (of type functype) that can be passed to other components.
-lower wraps a component function (of type functype) to produce a core function (of type core:functype) that can be imported and called from Core WebAssembly code inside the current component.
-*/
 
 function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFromJs {
     const liftingMembers: Map<string, LiftingFromJs> = new Map();
@@ -48,7 +45,7 @@ function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFr
     }
     throw new Error('Not implemented');
     /*
-    return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: AbiPointer): AbiPointer => {
+    return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: Pointer): Pointer => {
 
         // TODO in which cases ABI expects folding into parent record ?
         const res = ctx.alloc(recordModel.totalSize, recordModel.alignment);
@@ -62,7 +59,7 @@ function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFr
             // TODO is this correct math ?
             pos += alignment - 1;
             pos -= pos % alignment;
-            lifting(ctx, jsValue, pos as AbiPointer);
+            lifting(ctx, jsValue, pos as Pointer);
             pos += member.type.totalSize as any;
         }
         // write pointer to parent in component model layout
@@ -74,23 +71,40 @@ function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFr
     };*/
 }
 
+function createU32Lifting(): LiftingFromJs {
+    return (_: BindingContext, srcJsValue: JsValue): WasmValue[] => {
+        const num = srcJsValue as number;
+        return [num >>> 0];
+    };
+}
+
+function createS64Lifting(): LiftingFromJs {
+    return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
+        const num = srcJsValue as bigint;
+        if (ctx.useNumberForInt64) {
+            return [Number(BigInt.asIntN(52, num))];
+        } else {
+            return [Number(BigInt.asIntN(52, num))];
+        }
+    };
+}
+
 function createStringLifting(): LiftingFromJs {
-    return (ctx: BindingContext, srcJsString: JsString): any[] => {
-        let str = srcJsString as string;
+    return (ctx: BindingContext, srcJsValue: JsValue): any[] => {
+        let str = srcJsValue as string;
         if (typeof str !== 'string') throw new TypeError('expected a string');
         if (str.length === 0) {
             return [0, 0];
         }
-        let allocLen: AbiSize = 0 as any;
-        let ptr: AbiPointer = 0 as any;
+        let allocLen: WasmSize = 0 as any;
+        let ptr: WasmPointer = 0 as any;
         let writtenTotal = 0;
         while (str.length > 0) {
             ptr = ctx.realloc(ptr, allocLen, 1 as any, allocLen + str.length as any);
             allocLen += str.length as any;
             const { read, written } = ctx.utf8Encoder.encodeInto(
                 str,
-                // TODO us ctx.view
-                new Uint8Array(ctx.getMemory().buffer, ptr + writtenTotal, allocLen - writtenTotal),
+                ctx.getViewU8(ptr + writtenTotal, allocLen - writtenTotal)
             );
             writtenTotal += written;
             str = str.slice(read);
