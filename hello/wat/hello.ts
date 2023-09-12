@@ -59,6 +59,20 @@ export const component: ComponentTypeComponent =
                                 tag: 'ComponentValTypePrimitive',
                                 value: PrimitiveValType.String
                             }
+                        },
+                        {
+                            name: "head-count",
+                            type: {
+                                tag: 'ComponentValTypePrimitive',
+                                value: PrimitiveValType.U32
+                            }
+                        },
+                        {
+                            name: "budget",
+                            type: {
+                                tag: 'ComponentValTypePrimitive',
+                                value: PrimitiveValType.S64
+                            }
                         }
                     ]
                 }
