@@ -5,6 +5,7 @@ import { ComponentTypeComponent, ComponentTypeFunc, PrimitiveValType } from '../
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../../src/model/aliases'
 import { CanonicalFunctionLift, CanonicalFunctionLower } from "../../src/model/canonicals"
 import { ExternalKind } from '../../src/model/core'
+import { ComponentImport } from '../../src/model/imports'
 
 const componentExport: ComponentExport = {
     tag: 'ComponentExport',
@@ -356,7 +357,17 @@ export const coreInstance0: InstanceFromExports = {
     value: [],
 }
 
+export const componentImport: ComponentImport = {
+    tag: 'ComponentImport',
+    name: {
+        tag: 'ComponentExternNameInterface',
+        name: "hello:city/city"
+    },
+    ty: { value: 0 },
+}
+
 export const model: WITSection[] = [
+    componentImport,
     coreInstance0, // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
     aliasCoreExportFunc0,
     coreInstance1,
