@@ -1,9 +1,9 @@
 import { ComponentAlias } from '../model/aliases';
-import { CanonicalFunctionLift } from '../model/canonicals';
+import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { Instance } from '../model/instances';
-import { ComponentTypeComponent, ComponentTypeFunc } from '../model/types';
+import { ComponentType, InstanceTypeDeclaration } from '../model/types';
 
 export type WITSection =
     | CustomSection
@@ -13,9 +13,9 @@ export type WITSection =
     | ComponentImport
     | ComponentExport
     | ComponentAlias
-    | ComponentTypeComponent
-    | CanonicalFunctionLift
-    | ComponentTypeFunc
+    | CanonicalFunction
+    | ComponentType
+    | InstanceTypeDeclaration
 
 export type ComponentModule = {
     tag: 'ComponentModule'

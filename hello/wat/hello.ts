@@ -1,6 +1,6 @@
 import { WITSection } from '../../src/parser/types'
 import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
-import { InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
+import { InstanceFromExports, InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
 import { ComponentTypeComponent, ComponentTypeFunc, PrimitiveValType } from '../../src/model/types'
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../../src/model/aliases'
 import { CanonicalFunctionLift } from "../../src/model/canonicals"
@@ -248,7 +248,48 @@ export const typeFunction2: ComponentTypeFunc = {
     }
 }
 
+export const aliasExport1: ComponentAliasInstanceExport =
+{
+    tag: 'ComponentAliasInstanceExport',
+    /// The alias kind.
+    kind: ComponentExternalKind.Type,
+    /// The instance index.
+    instance_index: 0,
+    /// The export name.
+    name: "city-info",
+}
+export const coreInstance4: InstanceInstantiate = {
+    tag: 'InstanceInstantiate',
+    module_index: 2,
+    args: [
+        {
+            name: "",
+            kind: InstantiationArgKind.Instance,
+            index: 3,
+        },
+    ],
+}
+
+export const coreInstance3: InstanceFromExports = {
+    tag: 'InstanceFromExports',
+    value: [
+        {
+            name: "$imports",
+            kind: ExternalKind.Table,
+            index: 0,
+        },
+        {
+            name: "0",
+            kind: ExternalKind.Func,
+            index: 2,
+        }
+    ]
+}
+
 export const model: WITSection[] = [
+    coreInstance3,
+    coreInstance4,
+    aliasExport1,
     typeFunction2,
     aliasCoreExport3,
     canonicalFunc1,
