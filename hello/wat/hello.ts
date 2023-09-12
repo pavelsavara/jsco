@@ -3,7 +3,7 @@ import { ComponentExport, ComponentExternalKind } from '../../src/model/exports'
 import { InstanceFromExports, InstanceInstantiate, InstantiationArgKind } from '../../src/model/instances'
 import { ComponentTypeComponent, ComponentTypeFunc, PrimitiveValType } from '../../src/model/types'
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../../src/model/aliases'
-import { CanonicalFunctionLift } from "../../src/model/canonicals"
+import { CanonicalFunctionLift, CanonicalFunctionLower } from "../../src/model/canonicals"
 import { ExternalKind } from '../../src/model/core'
 
 const componentExport: ComponentExport = {
@@ -42,8 +42,7 @@ export const instance: InstanceInstantiate = {
     ]
 }
 
-export const component: ComponentTypeComponent = 
-{
+export const component: ComponentTypeComponent =  {
     tag: 'ComponentTypeComponent',
     value: [
         {
@@ -194,19 +193,14 @@ export const component: ComponentTypeComponent =
     ]
 }
 
-export const aliasExport3: ComponentAliasInstanceExport =
-{
+export const aliasExportType3: ComponentAliasInstanceExport = {
     tag: 'ComponentAliasInstanceExport',
-    /// The alias kind.
     kind: ComponentExternalKind.Type,
-    /// The instance index.
     instance_index: 0,
-    /// The export name.
     name: "city-info",
 }
 
-export const canonicalFunc1: CanonicalFunctionLift =
-{
+export const canonicalFunc1: CanonicalFunctionLift = {
     tag: 'CanonicalFunctionLift',
     core_func_index: 3,
     type_index: 2,
@@ -225,7 +219,7 @@ export const canonicalFunc1: CanonicalFunctionLift =
     ],
 }
 
-export const aliasCoreExport3: ComponentAliasCoreInstanceExport = {
+export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
     tag: 'ComponentAliasCoreInstanceExport',
     kind: ExternalKind.Func,
     instance_index: 2,
@@ -248,8 +242,7 @@ export const typeFunction2: ComponentTypeFunc = {
     }
 }
 
-export const aliasExport1: ComponentAliasInstanceExport =
-{
+export const aliasExport1: ComponentAliasInstanceExport = {
     tag: 'ComponentAliasInstanceExport',
     /// The alias kind.
     kind: ComponentExternalKind.Type,
@@ -258,6 +251,7 @@ export const aliasExport1: ComponentAliasInstanceExport =
     /// The export name.
     name: "city-info",
 }
+
 export const coreInstance4: InstanceInstantiate = {
     tag: 'InstanceInstantiate',
     module_index: 2,
@@ -286,14 +280,99 @@ export const coreInstance3: InstanceFromExports = {
     ]
 }
 
+export const canonicalFunc2: CanonicalFunctionLower = {
+    tag: 'CanonicalFunctionLower',
+    func_index: 0,
+    options: [
+        {
+            tag: 'CanonicalOptionUTF8'
+        },
+        {
+            tag: 'CanonicalOptionMemory',
+            value: 0
+        }
+    ],
+}
+
+export const aliasExport0: ComponentAliasInstanceExport = {
+    tag: 'ComponentAliasInstanceExport',
+    kind: ComponentExternalKind.Func,
+    instance_index: 0,
+    name: "send-message",
+}
+
+export const aliasCoreExportTable0: ComponentAliasCoreInstanceExport = {
+    tag: 'ComponentAliasCoreInstanceExport',
+    kind: ExternalKind.Table,
+    instance_index: 0,
+    name: "$imports",
+}
+
+export const aliasCoreExportFunc1: ComponentAliasCoreInstanceExport = {
+    tag: 'ComponentAliasCoreInstanceExport',
+    kind: ExternalKind.Func,
+    instance_index: 2,
+    name: "cabi_realloc",
+}
+
+export const aliasCoreExportMemory0: ComponentAliasCoreInstanceExport = {
+    tag: 'ComponentAliasCoreInstanceExport',
+    kind: ExternalKind.Memory,
+    instance_index: 2,
+    name: "cabi_realloc",
+}
+
+export const coreInstance2: InstanceInstantiate = {
+    tag: 'InstanceInstantiate',
+    module_index: 0,
+    args: [
+        {
+            name: "hello:city/city",
+            kind: InstantiationArgKind.Instance,
+            index: 1,
+        },
+    ],
+}
+
+export const coreInstance1: InstanceFromExports = {
+    tag: 'InstanceFromExports',
+    value: [
+        {
+            name: "send-message",
+            kind: ExternalKind.Func,
+            index: 0,
+        },
+    ],
+}
+
+export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
+    tag: 'ComponentAliasCoreInstanceExport',
+    kind: ExternalKind.Func,
+    instance_index: 0,
+    name: "0",
+}
+export const coreInstance0: InstanceFromExports = {
+    tag: 'InstanceFromExports',
+    value: [],
+}
+
 export const model: WITSection[] = [
+    coreInstance0, // TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
+    aliasCoreExportFunc0,
+    coreInstance1,
+    coreInstance2,
+    aliasCoreExportMemory0,
+    aliasCoreExportFunc1,
+    aliasCoreExportTable0,
+    aliasExport0,
+    canonicalFunc2,
     coreInstance3,
     coreInstance4,
     aliasExport1,
     typeFunction2,
-    aliasCoreExport3,
+    aliasCoreExportFunc3,
     canonicalFunc1,
-    aliasExport3,
+    aliasExportType3,
     component,
     instance, // TODO: re-check where type/func info should be saved
     componentExport
