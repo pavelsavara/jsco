@@ -1,11 +1,13 @@
 import { ComponentAlias } from '../model/aliases';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
+import { Instance } from '../model/instances';
 
 export type WITSection =
     | CustomSection
     | SkippedSection
     | ComponentModule
+    | Instance
     | ComponentImport
     | ComponentExport
     | ComponentAlias
