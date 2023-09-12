@@ -15,11 +15,12 @@ async function fetchCompile(url) {
     return fetch(u2).then(WebAssembly.compileStreaming);
 }
 
-let sendMessageHit;
+const expectdMessage="Welcome in Prague, we invite you for a drink!";
+let actualMessage;
 const imports = {
     'hello:city/city': {
         sendMessage: (message) => {
-            sendMessageHit = message;
+            actualMessage = message;
             console.log(message);
         }
     }
@@ -27,9 +28,11 @@ const imports = {
 const component = await instantiate(fetchCompile, imports, WebAssembly.instantiate);
 const exports = component['greeter'];
 exports.run({
-    name: "Prague"
+    name: "Prague",
+    headCount: 1000000,
+    budget: BigInt(200000000)
 });
 
-if (sendMessageHit !== "Hello Prague from rust!") {
-    throw new Error("sendMessageHit is " + sendMessageHit);
+if (actualMessage !== expectdMessage) {
+    throw new Error(`sendMessage: expected "${expectdMessage}" actual "${actualMessage}"`);
 }

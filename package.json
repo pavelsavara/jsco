@@ -12,7 +12,7 @@
         "build:hello": "cd hello && cargo component build --release --target wasm32-unknown-unknown",
         "build:hello-js": "cd hello && jco transpile --instantiation --no-wasi-shim -b 0 --out-dir target/js-jco target/wasm32-unknown-unknown/release/hello.wasm",
         "build:hello-js2": "cd hello && jco transpile -b 0 --out-dir target/js-jco2 target/wasm32-unknown-unknown/release/hello.wasm",
-        "build:hello-wat": "cd hello && jco print target/wasm32-unknown-unknown/release/hello.wasm -o target/wasm32-unknown-unknown/release/hello.wat",
+        "build:hello-wat": "cd hello && jco print target/wasm32-unknown-unknown/release/hello.wasm -o wat/hello.wat",
         "lint": "eslint --no-color \"./**/*.ts\"",
         "lint:fix": "eslint --fix \"./**/*.ts\"",
         "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",

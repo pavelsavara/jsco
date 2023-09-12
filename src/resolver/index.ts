@@ -1,18 +1,19 @@
 import { createLifting, createLowering } from '../binding';
-import { js, abi } from './hello';
-import { ComponentExports, ComponentFactory, ComponentFactoryInput, ComponentFactoryOptions, ComponentImports, Tcabi_realloc } from './types';
+import { js, abi } from '../../hello/ts';
+import { ComponentExports, ComponentFactory, ComponentFactoryInput, ComponentFactoryOptions, ComponentImports } from './types';
 import { WITModel, parse } from '../parser';
-import { AbiPointer, AbiSize, BindingContext } from '../binding/types';
+import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
 import { PrimitiveValType } from '../model/types';
+import { ParserOptions } from '../parser/types';
 
 export async function createComponent<JSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
     imports?: ComponentImports,
-    options?: ComponentFactoryOptions
+    options?: ComponentFactoryOptions & ParserOptions
 ) {
     let input = modelOrComponentOrUrl as any;
     if (typeof input !== 'object' || input.tag !== 'model') {
-        input = await parse(input);
+        input = await parse(input, options ?? {});
     }
     return createComponentFactory<JSExports>(input)(imports, options);
 }
@@ -25,23 +26,30 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
             return new DataView(memory0.buffer, pointer, len);
         }
 
+        function getViewU8(pointer?: number, len?: number) {
+            return new Uint8Array(memory0.buffer, pointer, len);
+        }
+        options = options ?? {};
+
         const ctx: BindingContext = {
+            useNumberForInt64: (options.useNumberForInt64 === false) ? false : true,
             utf8Decoder: new TextDecoder(),
             utf8Encoder: new TextEncoder(),
             getView,
+            getViewU8,
             getMemory: () => {
                 return memory0;
             },
             realloc(oldPtr, oldSize, align, newSize) {
                 return cabi_realloc(oldPtr, oldSize, align, newSize);
             },
-            alloc: (newSize: AbiSize, align: AbiSize) => {
+            alloc: (newSize: WasmSize, align: WasmSize) => {
                 return cabi_realloc(0 as any, 0 as any, align, newSize);
             },
-            readI32: (ptr: AbiPointer) => {
+            readI32: (ptr: WasmPointer) => {
                 return getView().getInt32(ptr);
             },
-            writeI32: (ptr: AbiPointer, value: number) => {
+            writeI32: (ptr: WasmPointer, value: number) => {
                 return getView().setInt32(ptr, value);
             }
         };
@@ -61,16 +69,30 @@ export function createComponentFactory<JSExports>(witModel: WITModel): Component
             value: PrimitiveValType.String,
         });
 
-        function sendMessageFromAbi(ptr: AbiPointer, len: AbiPointer) {
+        const numberToUint32 = createLifting({
+            tag: 'ComponentValTypePrimitive',
+            value: PrimitiveValType.U32,
+        });
+
+        const bigIntToInt64 = createLifting({
+            tag: 'ComponentValTypePrimitive',
+            value: PrimitiveValType.S64,
+        });
+
+        function sendMessageFromAbi(ptr: WasmPointer, len: WasmPointer) {
             const ptr0 = ptr;
             const len0 = len;
             const result0 = stringToJs(ctx, ptr0, len0);
-            sendMessage(result0);
+            sendMessage(result0 as any);
         }
 
         function runToAbi(info: js.CityInfo) {
-            const args = stringFromJs(ctx, info.name);
-            exports0['hello:city/greeter#run'](args[0], args[1]);
+            const args = [
+                ...stringFromJs(ctx, info.name),
+                numberToUint32(ctx, info.headCount),
+                bigIntToInt64(ctx, info.budget),
+            ];
+            exports0['hello:city/greeter#run'].apply(null, args as any);
         }
 
         const module0: WebAssembly.Module = await witModel.modules[0].module!;

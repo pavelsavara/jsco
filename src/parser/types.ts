@@ -39,10 +39,14 @@ export type WITModel = {
     other: WITSection[]
 }
 
-
 export type ParserContext = {
     otherSectionData: boolean
     compileStreaming: typeof WebAssembly.compileStreaming
     processCustomSection?: (section: CustomSection) => CustomSection
 }
 
+export type ParserOptions = {
+    otherSectionData?: boolean
+    compileStreaming?: typeof WebAssembly.compileStreaming
+    processCustomSection?: (section: CustomSection) => CustomSection
+}

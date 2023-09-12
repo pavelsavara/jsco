@@ -1,4 +1,4 @@
-import type { WITModel, ParserContext, WITSection } from './types';
+import type { WITModel, ParserContext, WITSection, ParserOptions } from './types';
 export type { WITModel };
 
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
@@ -13,12 +13,14 @@ export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
 export const WIT_LAYER = [0x01, 0x00];
 
-export async function parse(componentOrUrl:
-    | string
-    | ArrayLike<number>
-    | ReadableStream<Uint8Array>
-    | Response
-    | PromiseLike<Response>
+export async function parse(
+    componentOrUrl:
+        | string
+        | ArrayLike<number>
+        | ReadableStream<Uint8Array>
+        | Response
+        | PromiseLike<Response>,
+    options?: ParserOptions
 ): Promise<WITModel> {
     let input = componentOrUrl as any;
     if (typeof componentOrUrl === 'string') {
@@ -26,10 +28,10 @@ export async function parse(componentOrUrl:
     }
     input = await getBodyIfResponse(input);
     const src = newSource(input);
-    return parseWIT(src);
+    return parseWIT(src, options);
 }
 
-async function parseWIT(src: Source & Closeable): Promise<WITModel> {
+async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promise<WITModel> {
     const model: WITModel = {
         tag: 'model',
         componentExports: [],
@@ -42,10 +44,11 @@ async function parseWIT(src: Source & Closeable): Promise<WITModel> {
         await checkPreamble(src);
 
         const ctx: ParserContext = {
-            compileStreaming: WebAssembly.compileStreaming, // configurable ?
-            processCustomSection: undefined,
-            otherSectionData: false,
+            otherSectionData: options?.otherSectionData ?? false,
+            compileStreaming: options?.compileStreaming ?? WebAssembly.compileStreaming,
+            processCustomSection: options?.processCustomSection ?? undefined,
         };
+
         for (; ;) {
             const section = await parseSection(ctx, src);
             if (section === null) {
