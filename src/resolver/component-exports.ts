@@ -3,20 +3,20 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentExternName } from '../model/imports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
-import { ResolverContext, JsInterfaceCollection, ImplComponentExportFactory, ImplComponentInstanceFactory } from './types';
+import { ResolverContext, JsInterfaceCollection, ImplComponentExport, ImplComponentInstance } from './types';
 
-export function prepareComponentExports(rctx: ResolverContext): ImplComponentExportFactory[] {
-    function createComponentExport(componentInstanceFactory: ImplComponentInstanceFactory, resolvedName: string, ctx: BindingContext): JsInterfaceCollection {
+export function prepareComponentExports(rctx: ResolverContext): ImplComponentExport[] {
+    function createComponentExport(componentInstanceFactory: ImplComponentInstance, resolvedName: string, ctx: BindingContext): JsInterfaceCollection {
         const ifc = componentInstanceFactory(ctx);
         const namedInterface: JsInterfaceCollection = {};
         namedInterface[resolvedName] = ifc;
         return namedInterface;
     }
 
-    const factories: ImplComponentExportFactory[] = [];
+    const factories: ImplComponentExport[] = [];
     for (const section of rctx.componentExports) {
         jsco_assert(section.tag === ModelTag.ComponentExport, () => `expected ComponentExport, got ${section.tag}`);
-        let factory: ImplComponentExportFactory;
+        let factory: ImplComponentExport;
 
         const name: ComponentExternName = section.name;
         let resolvedName: string;
@@ -31,7 +31,7 @@ export function prepareComponentExports(rctx: ResolverContext): ImplComponentExp
 
         switch (section.kind) {
             case ComponentExternalKind.Instance: {
-                const componentInstanceFactory: ImplComponentInstanceFactory = rctx.prepareComponentInstance(section.index);
+                const componentInstanceFactory: ImplComponentInstance = rctx.prepareComponentInstance(section.index);
                 factory = (ctx) => createComponentExport(componentInstanceFactory, resolvedName, ctx);
                 factories.push(factory);
                 break;

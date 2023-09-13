@@ -1,6 +1,6 @@
 import { FuncType } from '../model/core';
 import { ModelTag } from '../model/tags';
-import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
 import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
@@ -39,7 +39,7 @@ export function createLifting(rctx: ResolverContext, typeModel: ComponentValType
     });
 }
 
-function createRecordLifting(rctx: ResolverContext, recordModel: ComponentDefinedTypeRecord): LiftingFromJs {
+function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDefinedRecord): LiftingFromJs {
     const liftingMembers: Map<string, LiftingFromJs> = new Map();
     for (const member of recordModel.members) {
 

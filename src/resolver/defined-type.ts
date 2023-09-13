@@ -1,23 +1,36 @@
 import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
-import { jsco_assert } from '../utils/assert';
-import { ResolverContext, ImplDefinedTypeFactory } from './types';
+import { ImplComponentTypeDefined, ResolverContext } from './types';
 
-export function prepareDefinedType(rctx: ResolverContext, definedIndex: number): ImplDefinedTypeFactory {
+export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): ImplComponentTypeDefined {
     function createDefinedType(index: number, ctx: BindingContext): any {
         console.log('createDefinedType', index, section);
         return undefined;
     }
 
-    const section = rctx.definedType[definedIndex];
-    jsco_assert(section.tag === ModelTag.ComponentTypeDefined, () => `expected ComponentTypeDefined, got ${section.tag}`);
+    const section = rctx.componentTypeDefined[definedIndex];
+    switch (section.tag) {
+        case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedEnum:
+        case ModelTag.ComponentTypeDefinedFlags:
+        case ModelTag.ComponentTypeDefinedList:
+        case ModelTag.ComponentTypeDefinedOption:
+        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedPrimitive:
+        case ModelTag.ComponentTypeDefinedRecord:
+        case ModelTag.ComponentTypeDefinedResult:
+        case ModelTag.ComponentTypeDefinedTuple:
+        case ModelTag.ComponentTypeDefinedVariant:
+        default:
+            throw new Error(`${section.tag} not implemented`);
+    }
     console.log('prepareDefinedType', definedIndex, section);
-    const factory: ImplDefinedTypeFactory = cacheFactory(rctx, definedIndex, () => (ctx) => createDefinedType(definedIndex, ctx));
+    const factory: ImplComponentTypeDefined = cacheFactory(rctx, definedIndex, () => (ctx) => createDefinedType(definedIndex, ctx));
     return factory;
 }
 
-function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => ImplDefinedTypeFactory): ImplDefinedTypeFactory {
-    const cache = rctx.definedTypeFactories;
+function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => ImplComponentTypeDefined): ImplComponentTypeDefined {
+    const cache = rctx.implComponentTypeDefined;
     if (cache[cacheIndex] !== undefined) {
         return cache[cacheIndex];
     }

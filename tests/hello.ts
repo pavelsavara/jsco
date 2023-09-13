@@ -18,33 +18,30 @@ export const componentType: ComponentTypeInstance = {
         {
             tag: ModelTag.InstanceTypeDeclarationType,
             value: {
-                tag: ModelTag.ComponentTypeDefined,
-                value: {
-                    tag: ModelTag.ComponentDefinedTypeRecord,
-                    members: [
-                        {
-                            name: 'name',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.String
-                            },
+                tag: ModelTag.ComponentTypeDefinedRecord,
+                members: [
+                    {
+                        name: 'name',
+                        type: {
+                            tag: ModelTag.ComponentValTypePrimitive,
+                            value: PrimitiveValType.String
                         },
-                        {
-                            name: 'head-count',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.U32
-                            },
+                    },
+                    {
+                        name: 'head-count',
+                        type: {
+                            tag: ModelTag.ComponentValTypePrimitive,
+                            value: PrimitiveValType.U32
                         },
-                        {
-                            name: 'budget',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.S64
-                            },
-                        }
-                    ]
-                }
+                    },
+                    {
+                        name: 'budget',
+                        type: {
+                            tag: ModelTag.ComponentValTypePrimitive,
+                            value: PrimitiveValType.S64
+                        },
+                    }
+                ]
             }
         },
         {
@@ -269,34 +266,32 @@ export const component: ComponentTypeComponent = {
         {
             tag: ModelTag.ComponentTypeDeclarationType,
             value: {
-                tag: ModelTag.ComponentTypeDefined,
-                value: {
-                    tag: ModelTag.ComponentDefinedTypeRecord,
-                    members:
-                        [
-                            {
-                                name: 'name',
-                                type: {
-                                    tag: ModelTag.ComponentValTypePrimitive,
-                                    value: PrimitiveValType.String
-                                }
-                            },
-                            {
-                                name: 'head-count',
-                                type: {
-                                    tag: ModelTag.ComponentValTypePrimitive,
-                                    value: PrimitiveValType.U32
-                                }
-                            },
-                            {
-                                name: 'budget',
-                                type: {
-                                    tag: ModelTag.ComponentValTypePrimitive,
-                                    value: PrimitiveValType.S64
-                                }
+                tag: ModelTag.ComponentTypeDefinedRecord,
+                members:
+                    [
+                        {
+                            name: 'name',
+                            type: {
+                                tag: ModelTag.ComponentValTypePrimitive,
+                                value: PrimitiveValType.String
                             }
-                        ]
-                }
+                        },
+                        {
+                            name: 'head-count',
+                            type: {
+                                tag: ModelTag.ComponentValTypePrimitive,
+                                value: PrimitiveValType.U32
+                            }
+                        },
+                        {
+                            name: 'budget',
+                            type: {
+                                tag: ModelTag.ComponentValTypePrimitive,
+                                value: PrimitiveValType.S64
+                            }
+                        }
+                    ]
+
             },
         },
         {
@@ -465,15 +460,14 @@ export const expectedModel: WITSection[] = [
 ];
 
 export const expectedModelByType: Partial<ResolverContext> = {
+    modules: [], other: [],
     componentExports: [componentExport],
     componentImports: [componentImport],
     coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
     componentInstances: [componentInstance],
-    modules: [],
-    other: [],
-    instanceType: [componentType],
-    functionType: [typeFunction2],
     aliases: [aliasCoreExportFunc0, aliasCoreExportMemory0, aliasCoreExportFunc1, aliasCoreExportTable0, aliasExport0, aliasExport1, aliasCoreExportFunc3, aliasExportType3],
     cannon: [canonicalFunc2, canonicalFunc1],
-    componentType: [component],
+    componentTypeInstance: [componentType],
+    componentTypeFunc: [typeFunction2],
+    componentTypeComponent: [component],
 };

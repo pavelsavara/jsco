@@ -8,7 +8,7 @@ export function prepareXXX(rctx: ResolverContext, XXXIndex: number): ImplXXXFact
         const ifc: JsInterface = {} as any;
         // TODO: this is very fake!
         ifc['run'] = () => {
-            const fakeMessage = 'Welcome in Prague, we invite you for a drink!';
+            const fakeMessage = 'Welcome toPrague, we invite you for a drink!';
             ctx.imports['hello:city/city'].sendMessage(fakeMessage);
         };
         return ifc;

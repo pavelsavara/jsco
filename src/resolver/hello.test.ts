@@ -20,5 +20,5 @@ test('parse method compiles modules', async () => {
         budget: BigInt(200_000_000),
     });
 
-    expect(actualMessage).toBe('Welcome in Prague, we invite you for a drink!');
+    expect(actualMessage).toBe('Welcome toPrague, we invite you for a drink!');
 });
