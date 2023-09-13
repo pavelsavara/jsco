@@ -1,3 +1,4 @@
+import { expectedModel } from '../../tests/hello';
 import { js } from '../../tests/hello-component';
 import { createComponent } from './index';
 
@@ -10,14 +11,14 @@ test('parse method compiles modules', async () => {
             }
         }
     };
-    const component = await createComponent<js.NamedExports>('./hello/wasm/hello.wasm', imports);
+    //TODO const wasm = './hello/wasm/hello.wasm';
+    const component = await createComponent<js.NamedExports>(expectedModel, imports);
 
-    component['hello:city/greeter'].run({
+    component.exports['hello:city/greeter'].run({
         name: 'Prague',
         headCount: 1_000_000,
         budget: BigInt(200_000_000),
     });
 
     expect(actualMessage).toBe('Welcome in Prague, we invite you for a drink!');
-
 });
