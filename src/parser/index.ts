@@ -99,7 +99,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             //TODO: to implement
             case 2: // core instance
             case 3: // core type - we don't have it in the sample
-            case 4: // componentType
+            case 4: // type
             case 5: // instance
             case 8: // canon
                 return skipSection(ctx, sub!, type, size); // this is all TODO

@@ -10,7 +10,7 @@ export function parseSectionType(
 ): ComponentType[] {
     const sections: ComponentType[] = [];
     const count = readU32(src); // 1
-    console.log(`parseSectionType: ${count}`);
+    console.log(`parseSectionType: count=${count}`);
     for (let i = 0; i < count; i++) {
         const section: ComponentType = readComponentType(src);
         sections.push(section);
