@@ -18,14 +18,13 @@ export type CoreType =
 
 
 /// The type is for a core function.
-export type CoreTypeFunc = {
+export type CoreTypeFunc = FuncType & {
     tag: ModelTag.CoreTypeFunc
-    value: FuncType
 }
 /// The type is for a core module.
 export type CoreTypeModule = {
     tag: ModelTag.CoreTypeModule
-    value: ModuleTypeDeclaration[]
+    declarations: ModuleTypeDeclaration[]
 }
 
 /// Represents a module type declaration in a WebAssembly component.
@@ -36,9 +35,8 @@ export type ModuleTypeDeclaration =
     | ModuleTypeDeclarationImport
 
 /// The module type definition is for a type.
-export type ModuleTypeDeclarationType = {
+export type ModuleTypeDeclarationType = SubType & {
     tag: ModelTag.ModuleTypeDeclarationType
-    value: SubType,
 }
 
 /// The module type definition is for an export.
@@ -60,8 +58,8 @@ export type ModuleTypeDeclarationOuterAlias = {
 }
 
 /// The module type definition is for an import.
-export type ModuleTypeDeclarationImport = {
-    value: Import,
+export type ModuleTypeDeclarationImport = Import & {
+    tag: ModelTag.ModuleTypeDeclarationImport
 }
 
 /// Represents a value type in a WebAssembly component.
@@ -127,15 +125,14 @@ export type ComponentTypeDefined = {
 }
 
 /// The type is a function type.
-export type ComponentTypeFunc = {
+export type ComponentTypeFunc = ComponentFuncType & {
     tag: ModelTag.ComponentTypeFunc
-    value: ComponentFuncType
 }
 
 /// The type is a component type.
 export type ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent
-    value: ComponentTypeDeclaration[]
+    declarations: ComponentTypeDeclaration[]
 }
 
 /// The type is an instance type.
@@ -192,9 +189,7 @@ export type ComponentTypeDeclarationExport = {
 }
 
 /// The component type declaration is for an import.
-export type ComponentTypeDeclarationImport = {
-    tag: ModelTag.ComponentTypeDeclarationImport
-    value: ComponentImport,
+export type ComponentTypeDeclarationImport = ComponentImport & {
 }
 
 
@@ -245,16 +240,21 @@ export type ComponentFuncResultUnnamed = {
     value: ComponentValType,
 }
 
+export type NamedValue = {
+    name: string,
+    type: ComponentValType
+}
+
 /// The function returns zero or more named types.
 export type ComponentFuncResultNamed = {
     tag: ModelTag.ComponentFuncResultNamed,
-    value: [string, ComponentValType][]
+    value: NamedValue[]
 }
 
 /// Represents a type of a function in a WebAssembly component.
 export type ComponentFuncType = {
     /// The function parameters.
-    params: [string, ComponentValType][],
+    params: NamedValue[],
     /// The function result.
     results: ComponentFuncResult,
 }
