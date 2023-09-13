@@ -13,16 +13,22 @@ export function parseSectionAlias(
     const count = readU32(src);
     const aliases: ComponentAlias[] = [];
     for (let i = 0; i < count; i++) {
-        // We don't know what type of alias it is yet, so just read the sort bytes
-        const b1 = readU32(src);
-        const b2 = (b1 === 0) ? readU32(src) : undefined;
-        const alias = parseAliasTarget(src, b1, b2);
+        const alias = parseAlias(src);
         aliases.push(alias);
     }
     return aliases;
 }
 
-function parseAliasTarget(src: SyncSource, b1: number, b2?: number,) {
+export function parseAlias(
+    src: SyncSource,
+): ComponentAlias {
+    // We don't know what type of alias it is yet, so just read the sort bytes
+    const b1 = readU32(src);
+    const b2 = (b1 === 0) ? readU32(src) : undefined;
+    return parseAliasTarget(src, b1, b2);
+}
+
+function parseAliasTarget(src: SyncSource, b1: number, b2?: number) {
     const k1 = readU32(src);
     switch (k1) {
         case 0x00:

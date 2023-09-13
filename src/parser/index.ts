@@ -9,6 +9,7 @@ import { parseModule } from './module';
 import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
+import { parseSectionType } from './type';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -91,8 +92,9 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 0: return parseSectionCustom(ctx, sub!, size);
             case 1: return parseModule(ctx, asyncSub!, size);
             case 6: return parseSectionAlias(ctx, sub!);
-            case 11: return parseSectionExport(ctx, sub!);
+            //case 7: return parseSectionType(ctx, sub!);
             case 10: return parseSectionImport(ctx, sub!);
+            case 11: return parseSectionExport(ctx, sub!);
 
             //TODO: to implement
             case 2: // core instance
