@@ -6,7 +6,7 @@ export async function parseModule(
     ctx: ParserContext,
     src: Source,
     size: number,
-): Promise<CoreModule> {
+): Promise<CoreModule[]> {
     const res: CoreModule = {
         tag: ModelTag.CoreModule,
     };
@@ -23,7 +23,7 @@ export async function parseModule(
         const data = await src.readExact(size);
         res.data = data;
     }
-    return res;
+    return [res];
 }
 
 function toWasmResponse(

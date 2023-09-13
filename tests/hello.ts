@@ -139,7 +139,7 @@ export const aliasCoreExportMemory0: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Memory,
     instance_index: 2,
-    name: 'cabi_realloc',
+    name: 'memory',
 };
 
 export const aliasCoreExportFunc1: ComponentAliasCoreInstanceExport = {

@@ -3,15 +3,16 @@ import { ComponentExternalKind } from './exports';
 import { ModelTag } from './tags';
 
 /// Represents the kind of an outer alias in a WebAssembly component.
-export type ComponentOuterAliasKind =
-    /// The alias is to a core module.
-    | 'CoreModule'
-    /// The alias is to a core type.
-    | 'CoreType'
-    /// The alias is to a component type.
-    | 'Type'
-    /// The alias is to a component.
-    | 'Component'
+export const enum ComponentOuterAliasKind {
+    /// The alias is to an outer core module.
+    CoreModule = 'coremodule',
+    /// The alias is to an outer core type.
+    CoreType = 'coretype',
+    /// The alias is to an outer type.
+    Type = 'type',
+    /// The alias is to an outer component.
+    Component = 'component',
+}
 
 /// Represents an alias in a WebAssembly component.
 export type ComponentAlias =
