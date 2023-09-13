@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
 import * as leb from '@thi.ng/leb128';
@@ -7,7 +8,7 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentValType, InstanceTypeDeclaration, PrimitiveValType } from '../model/types';
 
 const textDecoder = new TextDecoder();
 
@@ -78,6 +79,56 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
     }
 }
 
+export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDeclaration[]
+{
+    const count = readU32(src); // 4
+    console.log(`readInstanceTypeDeclarations: count=${count}`);
+    const declarations: InstanceTypeDeclaration[] = [];
+    for(let i = 0; i < count; i++)
+    {
+        const type = src.read(); // read_u8
+        let declaration: any;
+        switch (type)
+        {
+            case 0:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationCoreType,
+                    value: undefined, // CoreType
+                };
+                break;
+            }
+            case 1: // i=0, i=2
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationType, // this
+                    value: readU32(src) // should be readComponentType(src), but it has 114, then 3 that do not make sense
+                };
+                break;
+            }
+            case 2:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationAlias,
+                    value: undefined, // ComponentAlias
+                };
+                break;
+            }
+            case 4: // i=1
+            {
+                declaration = { // 110, 97, 109 is probably on 1st iter
+                    tag: ModelTag.InstanceTypeDeclarationExport, // this
+                    name: readName(src), // ComponentExternName
+                    ty: readComponentTypeRef(src) // in rust it's only reader.read()
+                };
+                break;
+            }
+        }
+        declarations.push(declaration);
+    }
+    return declarations;
+}
+
 export function readComponentExternName(src: SyncSource): ComponentExternName {
     const type = readU32(src);
 
@@ -92,6 +143,60 @@ export function readComponentExternName(src: SyncSource): ComponentExternName {
         };
         default:
             throw new Error(`unknown ComponentExternName. ${type}`);
+    }
+}
+
+export function readDestructor(src: SyncSource) : number | undefined
+{
+    const type = src.read(); // read_u8
+    switch (type)
+    {
+        case 0: return undefined;
+        case 1: return readU32(src);
+        default: throw new Error('Invalid leading byte in resource destructor');
+    }
+}
+
+export function readComponentType(src: SyncSource) : any
+{
+    const type = src.read(); // 66
+    console.log(`readComponentType: ${type}`);
+    switch (type)
+    {
+        case 63: {
+            return {
+                tag: ModelTag.ComponentTypeResource,
+                rep: readU32(src),
+                dtor: readDestructor(src)
+            };
+        }
+        case 64: {
+            return {
+                tag: ModelTag.ComponentTypeFunc,
+                params: undefined, // NamedValue[], read_iter
+                results: undefined, //readComponentFunctionResult(),
+            };
+        }
+        case 65: {
+            return {
+                tag: ModelTag.ComponentTypeComponent,
+                declarations: undefined, // ComponentTypeDeclaration[], read_iter
+            };
+        }
+        case 66: {
+            return {
+                tag: ModelTag.ComponentTypeInstance,
+                declarations:  readInstanceTypeDeclarations(src),
+            };
+        }
+        case 67: {
+            return {
+                tag: ModelTag.ComponentTypeDefined,
+                value: undefined, // ComponentDefinedType
+            };
+        }
+        default:
+            throw new Error('Unrecognized type in readComponentType.');
     }
 }
 

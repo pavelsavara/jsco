@@ -9,6 +9,7 @@ import { parseModule } from './module';
 import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
+import { parseSectionType } from './type';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -93,13 +94,13 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 6: return parseSectionAlias(ctx, sub!);
             case 11: return parseSectionExport(ctx, sub!);
             case 10: return parseSectionImport(ctx, sub!);
+            case 7: return parseSectionType(ctx, sub!); // ComponentType
 
             //TODO: to implement
             case 2: // core instance
             case 3: // core type - we don't have it in the sample
-            case 4: // component
+            case 4: // componentType
             case 5: // instance
-            case 7: // type
             case 8: // canon
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
