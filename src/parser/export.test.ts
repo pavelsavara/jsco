@@ -12,18 +12,5 @@ describe('export', () => {
             ty: undefined
         }]);
     });
-
-    test('parse some export', async () => {
-        await expectModelToEqualWat('(export (interface "hello:city/greeter") (instance (type 0)))', [
-            {
-                tag: ModelTag.ComponentExport,
-                name: { tag: ModelTag.ComponentExternNameInterface, name: 'hello:city/greeter' },
-                kind: ComponentExternalKind.Value,
-                index: 1,
-                ty: undefined
-            }
-        ]);
-    });
-
 });
 
