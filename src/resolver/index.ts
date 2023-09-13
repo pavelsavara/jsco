@@ -19,11 +19,11 @@ export async function createComponent<TJSExports>(
 
 export function createComponentFactory<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): ComponentFactory<TJSExports> {
     const rctx: ResolverContext = produceResolverContext(model, options ?? {});
-    rctx.prepareComponentExports();
+    const factories = rctx.prepareComponentExports();
     return (imports?: JsImports): WasmComponent<TJSExports> => {
         const ctx = rctx.bindingContextFactory(imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
-        for (const factory of rctx.componentExportFactories) {
+        for (const factory of factories) {
             const ifc = factory(ctx);
             Object.assign(exports, ifc);
         }
