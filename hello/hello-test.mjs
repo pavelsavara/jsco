@@ -15,7 +15,7 @@ async function fetchCompile(url) {
     return fetch(u2).then(WebAssembly.compileStreaming);
 }
 
-const expectdMessage="Welcome in Prague, we invite you for a drink!";
+const expectdMessage="Welcome to Prague, we invite you for a drink!";
 let actualMessage;
 const imports = {
     'hello:city/city': {

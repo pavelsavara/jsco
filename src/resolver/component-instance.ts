@@ -11,7 +11,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         const ifc: JsInterface = {} as any;
         // TODO: this is very fake!
         ifc['run'] = () => {
-            const fakeMessage = 'Welcome toPrague, we invite you for a drink!';
+            const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
             ctx.imports['hello:city/city'].sendMessage(fakeMessage);
         };
         return ifc;
