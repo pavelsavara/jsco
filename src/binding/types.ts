@@ -1,5 +1,7 @@
+import { JsImports } from '../resolver/types';
+
 export type WasmPointer = number;
-export type WasmNumber = number;
+export type WasmNumber = number | bigint;
 export type WasmSize = number;
 export type WasmFunction = Function;
 export type WasmValue = WasmPointer | WasmSize | WasmNumber;
@@ -10,7 +12,8 @@ export type JsNumber = number | bigint;
 export type JsValue = JsNumber | JsString | JsBoolean;
 
 export type BindingContext = {
-    useNumberForInt64: boolean; // TODO
+    imports: JsImports
+    initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
     getMemory: () => WebAssembly.Memory;
@@ -20,12 +23,13 @@ export type BindingContext = {
     realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
     readI32: (ptr: WasmPointer) => number;
     writeI32: (ptr: WasmPointer, value: number) => void;
+    abort: () => void;
 }
 
 export type FnLoweringToJs = (ctx: BindingContext, abiExport: WasmFunction) => Function;
 export type FnLiftingFromJs = (ctx: BindingContext, jsFunction: JsFunction) => WasmFunction;
 
-export type LoweringToJs = (ctx: BindingContext, srcPointer: WasmPointer, ...args: WasmValue[]) => JsValue;
+export type LoweringToJs = (ctx: BindingContext, ...args: WasmValue[]) => JsValue;
 export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue) => WasmValue[];
 
 // TODO is this correct signature ?

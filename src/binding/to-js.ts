@@ -1,9 +1,11 @@
 import { FuncType } from '../model/core';
+import { ModelTag } from '../model/tags';
 import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
-import { LoweringToJs, BindingContext, FnLoweringToJs, WasmFunction, WasmPointer, JsFunction, WasmSize } from './types';
+import { LoweringToJs, BindingContext, FnLoweringToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
-export function createExportLowering(exportModel: FuncType): FnLoweringToJs {
+export function createExportLowering(rctx: ResolverContext, exportModel: FuncType): FnLoweringToJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, abiExport: WasmFunction): JsFunction => {
             // TODO
@@ -12,13 +14,13 @@ export function createExportLowering(exportModel: FuncType): FnLoweringToJs {
     });
 }
 
-export function createLowering(typeModel: ComponentValType): LoweringToJs {
+export function createLowering(rctx: ResolverContext, typeModel: ComponentValType): LoweringToJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
-            case 'ComponentValTypePrimitive':
+            case ModelTag.ComponentValTypePrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
-                        return createStringLowering();
+                        return createStringLowering(rctx);
                     default:
                         throw new Error('Not implemented');
                 }
@@ -28,17 +30,18 @@ export function createLowering(typeModel: ComponentValType): LoweringToJs {
     });
 }
 
-function createStringLowering(): LoweringToJs {
-    return (ctx: BindingContext, pointer: WasmPointer, len: WasmSize) => {
+function createStringLowering(rctx: ResolverContext): LoweringToJs {
+    return (ctx: BindingContext, ...args: WasmValue[]) => {
+        const pointer = args[0] as WasmPointer;
+        const len = args[1] as WasmSize;
         const view = ctx.getView(pointer, len);
         return ctx.utf8Decoder.decode(view);
     };
 }
 
-
 function createRecordLowering(recordModel: ComponentDefinedTypeRecord): LoweringToJs {
     // receives pointer to record in component model layout
-    return (ctx: BindingContext, pointer: WasmPointer) => {
+    return (ctx: BindingContext, ...args: WasmValue[]) => {
         // return JS record
         throw new Error('Not implemented');
         /* return {

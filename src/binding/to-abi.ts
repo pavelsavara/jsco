@@ -1,9 +1,11 @@
 import { FuncType } from '../model/core';
+import { ModelTag } from '../model/tags';
 import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
 import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
-export function createImportLifting(exportModel: FuncType): FnLiftingFromJs {
+export function createImportLifting(rctx: ResolverContext, exportModel: FuncType): FnLiftingFromJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, jsImport: JsFunction): WasmFunction => {
             // TODO
@@ -12,21 +14,23 @@ export function createImportLifting(exportModel: FuncType): FnLiftingFromJs {
     });
 }
 
-export function createLifting(typeModel: ComponentValType): LiftingFromJs {
+export function createLifting(rctx: ResolverContext, typeModel: ComponentValType): LiftingFromJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
-            case 'ComponentValTypePrimitive':
+            case ModelTag.ComponentValTypePrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
                         return createStringLifting();
                     case PrimitiveValType.U32:
                         return createU32Lifting();
                     case PrimitiveValType.S64:
-                        return createS64Lifting();
+                        return rctx.usesNumberForInt64
+                            ? createS64LiftingNumber()
+                            : createS64LiftingBigInt();
                     default:
                         throw new Error('Not implemented');
                 }
-            case 'ComponentValTypeType':
+            case ModelTag.ComponentValTypeType:
                 //TODO resolve typeModel.value
                 throw new Error('Not implemented');
             default:
@@ -35,12 +39,12 @@ export function createLifting(typeModel: ComponentValType): LiftingFromJs {
     });
 }
 
-function createRecordLifting(recordModel: ComponentDefinedTypeRecord): LiftingFromJs {
+function createRecordLifting(rctx: ResolverContext, recordModel: ComponentDefinedTypeRecord): LiftingFromJs {
     const liftingMembers: Map<string, LiftingFromJs> = new Map();
     for (const member of recordModel.members) {
 
         //member.name
-        const lifting = createLifting(member.type);
+        const lifting = createLifting(rctx, member.type);
         liftingMembers.set(member.name, lifting);
     }
     throw new Error('Not implemented');
@@ -78,14 +82,17 @@ function createU32Lifting(): LiftingFromJs {
     };
 }
 
-function createS64Lifting(): LiftingFromJs {
+function createS64LiftingNumber(): LiftingFromJs {
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const num = srcJsValue as bigint;
-        if (ctx.useNumberForInt64) {
-            return [Number(BigInt.asIntN(52, num))];
-        } else {
-            return [Number(BigInt.asIntN(52, num))];
-        }
+        return [Number(BigInt.asIntN(52, num))];
+    };
+}
+
+function createS64LiftingBigInt(): LiftingFromJs {
+    return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
+        const num = srcJsValue as bigint;
+        return [BigInt.asIntN(52, num)];
     };
 }
 

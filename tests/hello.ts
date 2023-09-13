@@ -9,7 +9,7 @@ import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
 import { ExternalKind } from '../src/model/core';
 import { ComponentImport } from '../src/model/imports';
-import { WITModelByType } from '../src/resolver/types';
+import { ResolverContext } from '../src/resolver/types';
 import { ModelTag } from '../src/model/tags';
 
 export const componentType: ComponentTypeInstance = {
@@ -217,7 +217,6 @@ export const aliasExport1: ComponentAliasInstanceExport = {
 
 export const typeFunction2: ComponentTypeFunc = {
     tag: ModelTag.ComponentTypeFunc,
-
     params: [
         {
             name: 'info',
@@ -465,11 +464,11 @@ export const expectedModel: WITSection[] = [
     componentExport
 ];
 
-export const expectedModelByType: WITModelByType = {
+export const expectedModelByType: Partial<ResolverContext> = {
     componentExports: [componentExport],
     componentImports: [componentImport],
     coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
-    instances: [componentInstance],
+    componentInstances: [componentInstance],
     modules: [],
     other: [],
     type: [componentType, typeFunction2],
