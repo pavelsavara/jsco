@@ -3,10 +3,9 @@ import { ComponentFactoryOptions, JsImports, ResolverContext } from './types';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
 import { prepareComponentExports } from './component-exports';
 import { prepareComponentInstance } from './component-instance';
-import { prepareFunctionType } from './function-type';
-import { prepareComponentType } from './component-type';
+import { prepareComponentTypeComponent } from './component-type-component';
 import { ModelTag } from '../model/tags';
-import { prepareDefinedType } from './defined-type';
+import { prepareComponentTypeDefined } from './component-type-defined';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     function bindingContextFactory(imports: JsImports): BindingContext {
@@ -64,26 +63,25 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         componentImports: [],
         modules: [],
         other: [],
-        functionType: [], functionTypeFactories: [],
-        componentType: [], componentTypeFactories: [],
-        definedType: [], definedTypeFactories: [],
-        instanceType: [], instanceTypeFactories: [],
-        resourceType: [], resourceTypeFactories: [],
+        componentTypeComponent: [], implComponentTypeComponent: [],
+        componentTypeDefined: [], implComponentTypeDefined: [],
+        componentTypeInstance: [], implComponentTypeInstance: [],
+        componentTypeResource: [], implComponentTypeResource: [],
+        componentTypeFunc: [], implComponentTypeFunc: [],
 
         aliases: [],
         cannon: [],
 
-        coreInstances: [], coreInstanceFactories: [],
-        componentInstances: [dummyOnIndexZero], componentInstanceFactories: [],
+        coreInstances: [], implCoreInstance: [],
+        componentInstances: [dummyOnIndexZero], implComponentInstance: [],
         componentExports: [],
 
 
         bindingContextFactory,
         prepareComponentExports: () => prepareComponentExports(rctx),
         prepareComponentInstance: (componentIndex: number) => prepareComponentInstance(rctx, componentIndex),
-        prepareFunctionType: (componentIndex: number) => prepareFunctionType(rctx, componentIndex),
-        prepareComponentType: (componentIndex: number) => prepareComponentType(rctx, componentIndex),
-        prepareDefinedType: (componentIndex: number) => prepareDefinedType(rctx, componentIndex),
+        prepareImplComponentTypeComponent: (componentIndex: number) => prepareComponentTypeComponent(rctx, componentIndex),
+        prepareImplComponentTypeDefined: (componentIndex: number) => prepareComponentTypeDefined(rctx, componentIndex),
     };
 
     for (const section of sections) {
@@ -112,19 +110,29 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
-                rctx.functionType.push(section);
+                rctx.componentTypeFunc.push(section);
                 break;
             case ModelTag.ComponentTypeComponent:
-                rctx.componentType.push(section);
+                rctx.componentTypeComponent.push(section);
                 break;
-            case ModelTag.ComponentTypeDefined:
-                rctx.definedType.push(section);
+            case ModelTag.ComponentTypeDefinedBorrow:
+            case ModelTag.ComponentTypeDefinedEnum:
+            case ModelTag.ComponentTypeDefinedFlags:
+            case ModelTag.ComponentTypeDefinedList:
+            case ModelTag.ComponentTypeDefinedOption:
+            case ModelTag.ComponentTypeDefinedOwn:
+            case ModelTag.ComponentTypeDefinedPrimitive:
+            case ModelTag.ComponentTypeDefinedRecord:
+            case ModelTag.ComponentTypeDefinedResult:
+            case ModelTag.ComponentTypeDefinedTuple:
+            case ModelTag.ComponentTypeDefinedVariant:
+                rctx.componentTypeDefined.push(section);
                 break;
             case ModelTag.ComponentTypeInstance:
-                rctx.instanceType.push(section);
+                rctx.componentTypeInstance.push(section);
                 break;
             case ModelTag.ComponentTypeResource:
-                rctx.resourceType.push(section);
+                rctx.componentTypeResource.push(section);
                 break;
             case ModelTag.CanonicalFunctionLower:
             case ModelTag.CanonicalFunctionLift:

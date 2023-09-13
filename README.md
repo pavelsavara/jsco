@@ -15,7 +15,7 @@
 - just JS (no rust dependency), TypeScript, RollupJS
 
 ### Scope
-- hello world demo [wit](hello\wit\hello.wit) [wat](hello\wat\hello.wat)
+- hello world demo [wit](hello/wit/hello.wit) [wat](hello/wat/hello.wat)
 - this is just small attempt in limited time. It may grow into something larger ...
 - binding for `string` and `i32`, `record` as stretch goal.
 - minimal JS API for this polyfill:

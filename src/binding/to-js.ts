@@ -1,6 +1,6 @@
 import { FuncType } from '../model/core';
 import { ModelTag } from '../model/tags';
-import { ComponentDefinedTypeRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
 import { LoweringToJs, BindingContext, FnLoweringToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
@@ -39,7 +39,7 @@ function createStringLowering(rctx: ResolverContext): LoweringToJs {
     };
 }
 
-function createRecordLowering(recordModel: ComponentDefinedTypeRecord): LoweringToJs {
+function createRecordLowering(recordModel: ComponentTypeDefinedRecord): LoweringToJs {
     // receives pointer to record in component model layout
     return (ctx: BindingContext, ...args: WasmValue[]) => {
         // return JS record

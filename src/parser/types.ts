@@ -2,7 +2,7 @@ import { ComponentAlias } from '../model/aliases';
 import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { ComponentInstance, Instance as CoreInstance } from '../model/instances';
+import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
 import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
 
