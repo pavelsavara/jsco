@@ -1,9 +1,12 @@
 import { WITModel } from '../parser';
 import { ComponentFactoryOptions, JsImports, ResolverContext } from './types';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
-import { prepareComponentExports } from './exports';
-import { prepareComponentInstance } from './instance';
+import { prepareComponentExports } from './component-exports';
+import { prepareComponentInstance } from './component-instance';
+import { prepareFunctionType } from './function-type';
+import { prepareComponentType } from './component-type';
 import { ModelTag } from '../model/tags';
+import { prepareDefinedType } from './defined-type';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     function bindingContextFactory(imports: JsImports): BindingContext {
@@ -61,10 +64,14 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         componentImports: [],
         modules: [],
         other: [],
-        type: [],
+        functionType: [], functionTypeFactories: [],
+        componentType: [], componentTypeFactories: [],
+        definedType: [], definedTypeFactories: [],
+        instanceType: [], instanceTypeFactories: [],
+        resourceType: [], resourceTypeFactories: [],
+
         aliases: [],
         cannon: [],
-        component: [],
 
         coreInstances: [], coreInstanceFactories: [],
         componentInstances: [dummyOnIndexZero], componentInstanceFactories: [],
@@ -74,6 +81,9 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         bindingContextFactory,
         prepareComponentExports: () => prepareComponentExports(rctx),
         prepareComponentInstance: (componentIndex: number) => prepareComponentInstance(rctx, componentIndex),
+        prepareFunctionType: (componentIndex: number) => prepareFunctionType(rctx, componentIndex),
+        prepareComponentType: (componentIndex: number) => prepareComponentType(rctx, componentIndex),
+        prepareDefinedType: (componentIndex: number) => prepareDefinedType(rctx, componentIndex),
     };
 
     for (const section of sections) {
@@ -102,11 +112,19 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
+                rctx.functionType.push(section);
+                break;
             case ModelTag.ComponentTypeComponent:
+                rctx.componentType.push(section);
+                break;
             case ModelTag.ComponentTypeDefined:
+                rctx.definedType.push(section);
+                break;
             case ModelTag.ComponentTypeInstance:
+                rctx.instanceType.push(section);
+                break;
             case ModelTag.ComponentTypeResource:
-                rctx.type.push(section);
+                rctx.resourceType.push(section);
                 break;
             case ModelTag.CanonicalFunctionLower:
             case ModelTag.CanonicalFunctionLift:

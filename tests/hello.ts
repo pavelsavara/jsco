@@ -471,8 +471,9 @@ export const expectedModelByType: Partial<ResolverContext> = {
     componentInstances: [componentInstance],
     modules: [],
     other: [],
-    type: [componentType, typeFunction2],
+    instanceType: [componentType],
+    functionType: [typeFunction2],
     aliases: [aliasCoreExportFunc0, aliasCoreExportMemory0, aliasCoreExportFunc1, aliasCoreExportTable0, aliasExport0, aliasExport1, aliasCoreExportFunc3, aliasExportType3],
     cannon: [canonicalFunc2, canonicalFunc1],
-    component: [component],
+    componentType: [component],
 };

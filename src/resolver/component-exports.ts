@@ -2,19 +2,21 @@ import { BindingContext } from '../binding/types';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentExternName } from '../model/imports';
 import { ModelTag } from '../model/tags';
-import { ResolverContext, JsInterfaceCollection, ExportFactory, InstanceFactory } from './types';
+import { jsco_assert } from '../utils/assert';
+import { ResolverContext, JsInterfaceCollection, ImplComponentExportFactory, ImplComponentInstanceFactory } from './types';
 
-export function prepareComponentExports(rctx: ResolverContext): ExportFactory[] {
-    function createComponentExport(componentInstanceFactory: InstanceFactory, resolvedName: string, ctx: BindingContext): JsInterfaceCollection {
+export function prepareComponentExports(rctx: ResolverContext): ImplComponentExportFactory[] {
+    function createComponentExport(componentInstanceFactory: ImplComponentInstanceFactory, resolvedName: string, ctx: BindingContext): JsInterfaceCollection {
         const ifc = componentInstanceFactory(ctx);
         const namedInterface: JsInterfaceCollection = {};
         namedInterface[resolvedName] = ifc;
         return namedInterface;
     }
 
-    const factories: ExportFactory[] = [];
+    const factories: ImplComponentExportFactory[] = [];
     for (const section of rctx.componentExports) {
-        let factory: ExportFactory;
+        jsco_assert(section.tag === ModelTag.ComponentExport, () => `expected ComponentExport, got ${section.tag}`);
+        let factory: ImplComponentExportFactory;
 
         const name: ComponentExternName = section.name;
         let resolvedName: string;
@@ -29,7 +31,7 @@ export function prepareComponentExports(rctx: ResolverContext): ExportFactory[] 
 
         switch (section.kind) {
             case ComponentExternalKind.Instance: {
-                const componentInstanceFactory: InstanceFactory = rctx.prepareComponentInstance(section.index);
+                const componentInstanceFactory: ImplComponentInstanceFactory = rctx.prepareComponentInstance(section.index);
                 factory = (ctx) => createComponentExport(componentInstanceFactory, resolvedName, ctx);
                 factories.push(factory);
                 break;

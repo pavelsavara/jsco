@@ -4,7 +4,7 @@ import { CanonicalFunction } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, Instance as CoreInstance } from '../model/instances';
-import { ComponentType } from '../model/types';
+import { ComponentType, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, WITSection } from '../parser/types';
 
@@ -25,9 +25,15 @@ export type JsImports = JsInterfaceCollection
 
 export type ComponentFactory<TJSExports> = (imports?: JsImports) => WasmComponent<TJSExports>
 
-export type ComponentFactoryImpl = () => WasmComponent<any>
-export type ExportFactory = (ctx: BindingContext) => JsInterfaceCollection
-export type InstanceFactory = (ctx: BindingContext) => JsInterface
+export type WasmComponentFactory = () => WasmComponent<any>
+export type ImplComponentExportFactory = (ctx: BindingContext) => JsInterfaceCollection
+export type ImplComponentInstanceFactory = (ctx: BindingContext) => JsInterface
+export type ImplCoreInstanceFactory = (ctx: BindingContext) => WebAssembly.Instance
+export type ImplComponentTypeFactory = (ctx: BindingContext) => any
+export type ImplFunctionTypeFactory = (ctx: BindingContext) => any
+export type ImplDefinedTypeFactory = (ctx: BindingContext) => any
+export type ImplInstanceTypeFactory = (ctx: BindingContext) => any
+export type ImplResourceTypeFactory = (ctx: BindingContext) => any
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -46,16 +52,22 @@ export type ResolverContext = {
     cannon: CanonicalFunction[]
     other: WITSection[]
 
-    componentExports: ComponentExport[]
-    componentInstances: ComponentInstance[], componentInstanceFactories: InstanceFactory[]
-    coreInstances: CoreInstance[], coreInstanceFactories: Function[]
+    coreInstances: CoreInstance[], coreInstanceFactories: ImplCoreInstanceFactory[]
 
+    definedType: ComponentTypeDefined[], definedTypeFactories: ImplDefinedTypeFactory[]
+    functionType: ComponentTypeFunc[], functionTypeFactories: ImplFunctionTypeFactory[]
+    componentType: ComponentTypeComponent[], componentTypeFactories: ImplComponentTypeFactory[]
+    instanceType: ComponentTypeInstance[], instanceTypeFactories: ImplInstanceTypeFactory[]
+    resourceType: ComponentTypeResource[], resourceTypeFactories: ImplResourceTypeFactory[]
+    componentInstances: ComponentInstance[], componentInstanceFactories: ImplComponentInstanceFactory[]
+    componentExports: ComponentExport[]
 
     // this is the same thing ?
-    type: ComponentType[]
-    component: ComponentType[]
     bindingContextFactory: (imports: JsImports) => BindingContext
 
-    prepareComponentExports: () => ExportFactory[]
-    prepareComponentInstance: (componentInstanceIndex: number) => InstanceFactory
+    prepareComponentExports: () => ImplComponentExportFactory[]
+    prepareComponentInstance: (componentInstanceIndex: number) => ImplComponentInstanceFactory
+    prepareComponentType: (componentInstanceIndex: number) => ImplComponentTypeFactory
+    prepareDefinedType: (componentInstanceIndex: number) => ImplDefinedTypeFactory
+    prepareFunctionType: (functionIndex: number) => ImplFunctionTypeFactory
 }

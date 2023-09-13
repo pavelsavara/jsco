@@ -1,0 +1,42 @@
+import { BindingContext } from '../binding/types';
+import { ModelTag } from '../model/tags';
+import { ResolverContext, JsInterface, ImplXXXFactory } from './types';
+
+export function prepareXXX(rctx: ResolverContext, XXXIndex: number): ImplXXXFactory {
+    function createXXX(index: number, section: XXX, ctx: BindingContext): JsInterface {
+        console.log('createXXX', index, section);
+        const ifc: JsInterface = {} as any;
+        // TODO: this is very fake!
+        ifc['run'] = () => {
+            const fakeMessage = 'Welcome in Prague, we invite you for a drink!';
+            ctx.imports['hello:city/city'].sendMessage(fakeMessage);
+        };
+        return ifc;
+    }
+
+    let factory: ImplXXXFactory;
+    const section = rctx.XXXs[XXXIndex];
+    switch (section.tag) {
+        case ModelTag.XXXInstantiate:
+            factory = cacheFactory(rctx, XXXIndex, () => (ctx) => createXXX(XXXIndex, section, ctx));
+            rctx.XXXFactories[XXXIndex] = factory;
+            for (const arg of section.args) {
+                //TODO rctx.prepareXXX(section.exports);
+            }
+            break;
+        case ModelTag.XXXFromExports:
+        default:
+            throw new Error(`${section.tag} not implemented`);
+    }
+    return factory;
+}
+
+function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => ImplXXXFactory): ImplXXXFactory {
+    const cache = rctx.XXXFactories;
+    if (cache[cacheIndex] !== undefined) {
+        return cache[cacheIndex];
+    }
+    const factory = ff();
+    cache[cacheIndex] = factory;
+    return factory;
+}
