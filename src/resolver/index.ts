@@ -1,7 +1,8 @@
 import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, ComponentFactory, ResolverContext, JsExports, WasmComponent } from './types';
 import { WITModel, parse } from '../parser';
 import { ParserOptions } from '../parser/types';
-import { produceResolverContext } from './context';
+import { bindingContextFactory, produceResolverContext } from './context';
+import { prepareComponentExports } from './component-exports';
 
 export async function createComponent<TJSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -19,9 +20,9 @@ export async function createComponent<TJSExports>(
 
 export function createComponentFactory<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): ComponentFactory<TJSExports> {
     const rctx: ResolverContext = produceResolverContext(model, options ?? {});
-    const factories = rctx.prepareComponentExports();
+    const factories = prepareComponentExports(rctx);
     return (imports?: JsImports): WasmComponent<TJSExports> => {
-        const ctx = rctx.bindingContextFactory(imports ?? {});
+        const ctx = bindingContextFactory(rctx, imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
         for (const factory of factories) {
             const ifc = factory(ctx);

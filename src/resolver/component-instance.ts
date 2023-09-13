@@ -1,12 +1,12 @@
 import { BindingContext } from '../binding/types';
-import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { prepareComponentTypeComponent } from './component-type-component';
+import { cacheFactory } from './context';
 import { ResolverContext, JsInterface, ImplComponentInstance } from './types';
 
 export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): ImplComponentInstance {
     //console.log('prepareComponentInstance', componentInstanceIndex);
-    function createComponentInstance(index: number, componentType: any, ctx: BindingContext): JsInterface {
+    function createComponentInstance(ctx: BindingContext, index: number, componentType: any): JsInterface {
         //console.log('createComponentInstance', index, section);
         const ifc: JsInterface = {} as any;
         // TODO: this is very fake!
@@ -23,12 +23,6 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         case ModelTag.ComponentInstanceInstantiate: {
             section.component_index;
             const typeFactory = prepareComponentTypeComponent(rctx, section.component_index);
-
-            factory = cacheFactory(rctx, componentInstanceIndex, () => (ctx) => {
-                const componentType = typeFactory(ctx);
-                return createComponentInstance(componentInstanceIndex, componentType, ctx);
-            });
-            rctx.implComponentInstance[componentInstanceIndex] = factory;
             for (const arg of section.args) {
                 /*
                 switch (arg.kind) {
@@ -45,6 +39,10 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         throw new Error(`"${arg.kind}" not implemented`);
                 }*/
             }
+            factory = cacheFactory(rctx.implComponentInstance, componentInstanceIndex, () => (ctx) => {
+                const componentType = typeFactory(ctx);
+                return createComponentInstance(ctx, componentInstanceIndex, componentType);
+            });
             break;
         }
         case ModelTag.ComponentInstanceFromExports:
@@ -54,12 +52,3 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
     return factory;
 }
 
-function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => ImplComponentInstance): ImplComponentInstance {
-    const cache = rctx.implComponentInstance;
-    if (cache[cacheIndex] !== undefined) {
-        return cache[cacheIndex];
-    }
-    const factory = ff();
-    cache[cacheIndex] = factory;
-    return factory;
-}

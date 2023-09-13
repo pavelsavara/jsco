@@ -60,14 +60,4 @@ export type ResolverContext = {
     componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
     componentTypeFunc: ComponentTypeFunc[], implComponentTypeFunc: ImplComponentTypeFunc[]
     componentTypeComponent: ComponentTypeComponent[], implComponentTypeComponent: ImplComponentTypeComponent[]
-
-    bindingContextFactory: (imports: JsImports) => BindingContext
-    prepareComponentExports: () => ImplComponentExport[]
-    prepareComponentInstance: (componentInstanceIndex: number) => ImplComponentInstance
-    prepareImplComponentTypeDefined: (componentInstanceIndex: number) => ImplComponentTypeDefined
-    prepareImplComponentTypeComponent: (componentInstanceIndex: number) => ImplComponentTypeComponent
-
-    //prepareImplComponentTypeInstance: (componentInstanceIndex: number) => ImplComponentTypeInstance
-    //prepareImplComponentTypeResource: (componentInstanceIndex: number) => ImplComponentTypeResource
-    //prepareImplComponentTypeFunc: (componentInstanceIndex: number) => ImplComponentTypeFunc
 }
