@@ -46,7 +46,7 @@ export type ResolverContext = {
     cannon: CanonicalFunction[]
     other: WITSection[]
 
-    componentExports: ComponentExport[], componentExportFactories: ExportFactory[]
+    componentExports: ComponentExport[]
     componentInstances: ComponentInstance[], componentInstanceFactories: InstanceFactory[]
     coreInstances: CoreInstance[], coreInstanceFactories: Function[]
 
@@ -56,6 +56,6 @@ export type ResolverContext = {
     component: ComponentType[]
     bindingContextFactory: (imports: JsImports) => BindingContext
 
-    prepareComponentExports: () => void
-    prepareComponentInstance: (componentInstanceIndex: number) => void
+    prepareComponentExports: () => ExportFactory[]
+    prepareComponentInstance: (componentInstanceIndex: number) => InstanceFactory
 }

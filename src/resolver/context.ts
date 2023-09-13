@@ -68,7 +68,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
         coreInstances: [], coreInstanceFactories: [],
         componentInstances: [dummyOnIndexZero], componentInstanceFactories: [],
-        componentExports: [], componentExportFactories: [],
+        componentExports: [],
 
 
         bindingContextFactory,
@@ -123,9 +123,6 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 throw new Error(`unexpected section tag: ${(section as any).tag}`);
         }
     }
-
-    rctx.componentInstanceFactories.length = rctx.componentInstances.length;
-    rctx.componentExportFactories.length = rctx.componentExports.length;
 
     return rctx;
 }

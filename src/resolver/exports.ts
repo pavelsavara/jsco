@@ -1,40 +1,42 @@
 import { BindingContext } from '../binding/types';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
+import { ComponentExternalKind } from '../model/exports';
 import { ComponentExternName } from '../model/imports';
 import { ModelTag } from '../model/tags';
-import { ResolverContext, JsInterface, JsInterfaceCollection } from './types';
+import { ResolverContext, JsInterfaceCollection, ExportFactory, InstanceFactory } from './types';
 
-export function prepareComponentExports(rctx: ResolverContext) {
-    function createComponentExport(index: number, section: ComponentExport, ctx: BindingContext): JsInterfaceCollection {
-        let ifc: JsInterface = undefined as any;
-        switch (section.kind) {
-            case ComponentExternalKind.Instance:
-                ifc = rctx.componentInstanceFactories[section.index](ctx);
-                break;
-            default:
-                throw new Error(`${section.kind} not implemented`);
-        }
-        const name: ComponentExternName = section.name;
+export function prepareComponentExports(rctx: ResolverContext): ExportFactory[] {
+    function createComponentExport(componentInstanceFactory: InstanceFactory, resolvedName: string, ctx: BindingContext): JsInterfaceCollection {
+        const ifc = componentInstanceFactory(ctx);
         const namedInterface: JsInterfaceCollection = {};
+        namedInterface[resolvedName] = ifc;
+        return namedInterface;
+    }
+
+    const factories: ExportFactory[] = [];
+    for (const section of rctx.componentExports) {
+        let factory: ExportFactory;
+
+        const name: ComponentExternName = section.name;
+        let resolvedName: string;
         switch (name.tag) {
             case ModelTag.ComponentExternNameInterface:
-                namedInterface[name.name] = ifc;
+                resolvedName = name.name;
                 break;
             case ModelTag.ComponentExternNameKebab:
             default:
                 throw new Error(`${name.tag} not implemented`);
         }
-        return namedInterface;
-    }
 
-    for (const [index, section] of rctx.componentExports.entries()) {
         switch (section.kind) {
-            case ComponentExternalKind.Instance:
-                rctx.componentExportFactories[index] = (ctx) => createComponentExport(index, section, ctx);
-                rctx.prepareComponentInstance(section.index);
+            case ComponentExternalKind.Instance: {
+                const componentInstanceFactory: InstanceFactory = rctx.prepareComponentInstance(section.index);
+                factory = (ctx) => createComponentExport(componentInstanceFactory, resolvedName, ctx);
+                factories.push(factory);
                 break;
+            }
             default:
                 throw new Error(`${section.kind} not implemented`);
         }
     }
+    return factories;
 }

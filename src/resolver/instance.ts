@@ -1,10 +1,11 @@
 import { BindingContext } from '../binding/types';
 import { ComponentInstance } from '../model/instances';
 import { ModelTag } from '../model/tags';
-import { ResolverContext, JsInterface } from './types';
+import { ResolverContext, JsInterface, InstanceFactory } from './types';
 
-export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): void {
+export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): InstanceFactory {
     function createComponentInstance(index: number, section: ComponentInstance, ctx: BindingContext): JsInterface {
+        console.log('createComponentInstance', index, section);
         const ifc: JsInterface = {} as any;
         // TODO: this is very fake!
         ifc['run'] = () => {
@@ -14,10 +15,12 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         return ifc;
     }
 
+    let factory: InstanceFactory;
     const section = rctx.componentInstances[componentInstanceIndex];
     switch (section.tag) {
         case ModelTag.ComponentInstanceInstantiate:
-            rctx.componentInstanceFactories[componentInstanceIndex] = (ctx) => createComponentInstance(componentInstanceIndex, section, ctx);
+            factory = cacheFactory(rctx, componentInstanceIndex, () => (ctx) => createComponentInstance(componentInstanceIndex, section, ctx));
+            rctx.componentInstanceFactories[componentInstanceIndex] = factory;
             for (const arg of section.args) {
                 //TODO rctx.prepareComponentInstance(section.exports);
             }
@@ -26,4 +29,15 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         default:
             throw new Error(`${section.tag} not implemented`);
     }
+    return factory;
+}
+
+function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => InstanceFactory): InstanceFactory {
+    const cache = rctx.componentInstanceFactories;
+    if (cache[cacheIndex] !== undefined) {
+        return cache[cacheIndex];
+    }
+    const factory = ff();
+    cache[cacheIndex] = factory;
+    return factory;
 }
