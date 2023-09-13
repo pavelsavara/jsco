@@ -10,7 +10,7 @@ import { ModelTag } from '../model/tags';
 export function parseSectionExport(
     ctx: ParserContext,
     src: SyncSource,
-): ComponentExport {
+): ComponentExport[] {
     const name: ComponentExternName = (() => {
         const b1 = readU32(src);
         switch (b1) {
@@ -53,5 +53,5 @@ export function parseSectionExport(
         kind,
         ty: undefined //TODO
     };
-    return section;
+    return [section];
 }

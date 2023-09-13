@@ -17,7 +17,7 @@ export interface Source {
 
 export interface SyncSource {
     get pos(): number;
-    get remainig(): number;
+    get remaining(): number;
     read(): number;
     read(eof: true): number | null;
     readExact(n: number): Uint8Array;
@@ -317,7 +317,7 @@ class SyncArraySource implements SyncSource {
         return this._pos;
     }
 
-    get remainig(): number {
+    get remaining(): number {
         return this.items.length - this._pos;
     }
 
