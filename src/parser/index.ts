@@ -8,7 +8,7 @@ import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
-import { ModelTag } from '../model/tags';
+import { parseSectionImport } from './import';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -92,15 +92,15 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 1: return parseModule(ctx, asyncSub!, size);
             case 6: return parseSectionAlias(ctx, sub!);
             case 11: return parseSectionExport(ctx, sub!);
+            case 10: return parseSectionImport(ctx, sub!);
 
             //TODO: to implement
             case 2: // core instance
-            case 3: // core type
+            case 3: // core type - we don't have it in the sample
             case 4: // component
             case 5: // instance
             case 7: // type
             case 8: // canon
-            case 10: // import
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
