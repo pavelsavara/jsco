@@ -257,6 +257,13 @@ export const canonicalFunc1: CanonicalFunctionLift = {
     ],
 };
 
+export const aliasExportType3: ComponentAliasInstanceExport = {
+    tag: ModelTag.ComponentAliasInstanceExport,
+    kind: ComponentExternalKind.Type,
+    instance_index: 0,
+    name: 'city-info',
+};
+
 export const component: ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent,
     declarations: [
@@ -432,13 +439,6 @@ export const componentExport: ComponentExport = {
     kind: ComponentExternalKind.Instance,
     index: 1,
     ty: undefined
-};
-
-export const aliasExportType3: ComponentAliasInstanceExport = {
-    tag: ModelTag.ComponentAliasInstanceExport,
-    kind: ComponentExternalKind.Type,
-    instance_index: 0,
-    name: 'city-info',
 };
 
 export const expectedModel: WITSection[] = [

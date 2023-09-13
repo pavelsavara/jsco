@@ -5,6 +5,9 @@ import { ExternalKind } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
+import { ModelTag } from '../model/tags';
+import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
+import { ComponentValType, PrimitiveValType } from '../model/types';
 
 const textDecoder = new TextDecoder();
 
@@ -72,6 +75,105 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
         case 0x05: return ComponentExternalKind.Instance;
         default:
             throw new Error(`unknown component external kind. ${k1}`);
+    }
+}
+
+export function readComponentExternName(src: SyncSource): ComponentExternName {
+    const type = readU32(src);
+
+    switch (type) {
+        case 0x00: return {
+            tag: ModelTag.ComponentExternNameKebab,
+            name: readName(src),
+        };
+        case 0x01: return {
+            tag: ModelTag.ComponentExternNameInterface,
+            name: readName(src),
+        };
+        default:
+            throw new Error(`unknown ComponentExternName. ${type}`);
+    }
+}
+
+export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
+    const type = readU32(src);
+    switch (type) {
+        // wrong case 0x00: return undefined;
+        case 0x00: return {
+            tag: ModelTag.ComponentTypeRefModule,
+            value: readU32(src),
+        };
+        case 0x01: return {
+            tag: ModelTag.ComponentTypeRefFunc,
+            value: readU32(src),
+        };
+        case 0x02: return {
+            tag: ModelTag.ComponentTypeRefValue,
+            value: readComponentValType(src),
+        };
+        case 0x03: return {
+            tag: ModelTag.ComponentTypeRefType,
+            value: readTypeBounds(src),
+        };
+        case 0x04: return {
+            tag: ModelTag.ComponentTypeRefInstance,
+            value: readU32(src),
+        };
+        case 0x05: return {
+            tag: ModelTag.ComponentTypeRefComponent,
+            value: readU32(src),
+        };
+        default:
+            throw new Error(`unknown ComponentExternName. ${type}`);
+    }
+}
+
+export function readComponentValType(src: SyncSource): ComponentValType {
+    const b = readU32(src);
+    switch (b) {
+        case 0x00: return {
+            tag: ModelTag.ComponentValTypeType,
+            value: readU32(src), // TODO should be 33 bits signed
+        };
+        default: return {
+            tag: ModelTag.ComponentValTypePrimitive,
+            value: parsePrimitiveValType(src),
+        };
+    }
+}
+
+export function readTypeBounds(src: SyncSource): TypeBounds {
+    const b = readU32(src);
+    switch (b) {
+        case 0x00: return {
+            tag: ModelTag.TypeBoundsEq,
+            value: readU32(src),
+        };
+        case 0x01: return {
+            tag: ModelTag.TypeBoundsSubResource,
+        };
+        default:
+            throw new Error(`unknown type bounds. ${b}`);
+    }
+}
+
+export function parsePrimitiveValType(src: SyncSource): PrimitiveValType {
+    const b = src.read();
+    switch (b) {
+        case 0x7f: return PrimitiveValType.Bool;
+        case 0x7e: return PrimitiveValType.S8;
+        case 0x7d: return PrimitiveValType.U8;
+        case 0x7c: return PrimitiveValType.S16;
+        case 0x7b: return PrimitiveValType.U16;
+        case 0x7a: return PrimitiveValType.S32;
+        case 0x79: return PrimitiveValType.U32;
+        case 0x78: return PrimitiveValType.S64;
+        case 0x77: return PrimitiveValType.U64;
+        case 0x76: return PrimitiveValType.Float32;
+        case 0x75: return PrimitiveValType.Float64;
+        case 0x74: return PrimitiveValType.Char;
+        case 0x73: return PrimitiveValType.String;
+        default: throw new Error(`unknown primitive val type. ${b}`);
     }
 }
 
