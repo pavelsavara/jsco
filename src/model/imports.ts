@@ -74,7 +74,7 @@ export type ComponentImport = {
     /// The name of the imported item.
     name: ComponentExternName,
     /// The type reference for the import.
-    ty: ComponentTypeRef | undefined,
+    ty: ComponentTypeRef,
 }
 
 /// Represents an export in a WebAssembly component.
