@@ -7,20 +7,20 @@ export function parseSectionCustom(
     ctx: ParserContext,
     src: SyncSource,
     size: number,
-): CustomSection {
+): CustomSection[] {
     const start = src.pos;
     const name = readName(src);
     const nameSize = src.pos - start;
     const data = src.readExact(size - nameSize);
-    const section: CustomSection = {
+    let section: CustomSection = {
         tag: ModelTag.CustomSection,
         name,
         data: ctx.otherSectionData ? data : undefined,
     };
     if (ctx.processCustomSection) {
-        return ctx.processCustomSection(section);
+        section = ctx.processCustomSection(section);
     }
-    return section;
+    return [section];
 }
 
 export function skipSection(
@@ -28,12 +28,12 @@ export function skipSection(
     src: SyncSource,
     type: number,
     size: number,
-): SkippedSection {
+): SkippedSection[] {
     const data = src.readExact(size);
     const section: SkippedSection = {
         tag: ModelTag.SkippedSection,
         type,
         data: ctx.otherSectionData ? data : undefined,
     };
-    return section;
+    return [section];
 }

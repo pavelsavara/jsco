@@ -38,9 +38,7 @@ export function readName(source: SyncSource): string {
     return textDecoder.decode(content) as any;
 }
 
-export function parseAsExternalKind(k1: number, k2: number): ExternalKind {
-    if (k2 !== -1)
-        throw new Error(`Invalid external kind 2. ${k2}`);
+export function parseAsExternalKind(k1: number): ExternalKind {
     switch (k1) {
         case 0x00: return ExternalKind.Func;
         case 0x01: return ExternalKind.Table;
@@ -56,10 +54,10 @@ export function readComponentExternalKind(src: SyncSource): ComponentExternalKin
     const k1 = readU32(src);
     return (k1 == 0x00)
         ? parseAsComponentExternalKind(k1, readU32(src))
-        : parseAsComponentExternalKind(k1, -1);
+        : parseAsComponentExternalKind(k1);
 }
 
-export function parseAsComponentExternalKind(k1: number, k2: number): ComponentExternalKind {
+export function parseAsComponentExternalKind(k1: number, k2?: number): ComponentExternalKind {
     switch (k1) {
         case 0x00:
             switch (k2) {
@@ -77,7 +75,7 @@ export function parseAsComponentExternalKind(k1: number, k2: number): ComponentE
     }
 }
 
-export function parseAsComponentOuterAliasKind(k1: number, k2: number): ComponentOuterAliasKind {
+export function parseAsComponentOuterAliasKind(k1: number, k2?: number): ComponentOuterAliasKind {
     switch (k1) {
         case 0x00:
             switch (k2) {

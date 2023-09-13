@@ -43,16 +43,18 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
             processCustomSection: options?.processCustomSection ?? undefined,
         };
 
-        const sections: WITSection[] = [];
+        const model: WITSection[] = [];
         for (; ;) {
-            const section = await parseSection(ctx, src);
-            if (section === null) {
+            const sections = await parseSection(ctx, src);
+            if (sections === null) {
                 break;
             }
-            sections.push(section);
+            for (const s of sections) {
+                model.push(s);
+            }
         }
 
-        return sections;
+        return model;
     }
     finally {
         src.close();
@@ -72,7 +74,7 @@ async function checkPreamble(src: Source): Promise<void> {
     }
 }
 
-async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection | null> {
+async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection[] | null> {
     const type = await src.read(true); // byte will be enough for type
     if (type === null) {
         return null;
@@ -81,7 +83,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     const start = src.pos;
     const asyncSub: Source | undefined = type == 1 ? src.subSource(size) : undefined; // if this is module, we need to stream it
     const sub: SyncSource | undefined = type != 1 ? await src.subSyncSource(size) : undefined; // otherwise it's not worth all the async overhead
-    const section = await (() => {
+    const sections = await (() => {
         switch (type) {
             ///
             /// https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#component-definitions
@@ -112,9 +114,9 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
         const hex = bufferToHex(data);
         throw new Error(`invalid size after reading section ${type}: \n`
             + `actual position: 0x${absoluteActual.toString(16)} vs. expected position 0x${absoluteExpected.toString(16)}, remaining ${remaining}\n`
-            + `section: ${JSON.stringify(section)}\n`
+            + `section: ${JSON.stringify(sections)}\n`
             + 'remaining: ' + hex);
     }
 
-    return section;
+    return sections;
 }
