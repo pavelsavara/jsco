@@ -5,7 +5,7 @@ import { prepareComponentExports } from './component-exports';
 import { prepareComponentInstance } from './component-instance';
 import { prepareComponentTypeComponent } from './component-type-component';
 import { ModelTag } from '../model/tags';
-import { prepareComponentTypeDefined } from './defined-type';
+import { prepareComponentTypeDefined } from './component-type-defined';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     function bindingContextFactory(imports: JsImports): BindingContext {
