@@ -23,7 +23,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 switch (arg.kind) {
                     case ComponentExternalKind.Func:
                         //prepareFunctionType(arg.index);
-                        console.log('ComponentExternalKind.Func', arg);
+                        //console.log('ComponentExternalKind.Func', arg);
                         break;
                     case ComponentExternalKind.Component:
                         //prepareComponentType(arg.index);

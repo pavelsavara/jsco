@@ -1,8 +1,9 @@
-import { expectedModel, resolveTree, expectedContext } from '../../tests/hello';
+import { expectedModel } from '../../tests/hello';
+import { resolveTree, expectedContext } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
-import { writeToFile } from '../../tests/utils';
 import { produceResolverContext } from './context';
 import { createComponent } from './index';
+// import { writeToFile } from '../../tests/utils';
 
 describe('export', () => {
     test('parse method compiles modules', async () => {
