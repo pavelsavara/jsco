@@ -32,8 +32,8 @@ describe('export', () => {
         actualContext.other = [];
         actualContext.modules = [];
 
-        writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
-        writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
+        // writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
+        // writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
 
         expect(actualContext).toEqual(expectedContext);
     });

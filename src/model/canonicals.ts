@@ -50,7 +50,7 @@ export type CanonicalOptionPostReturn = {
 
 /// Represents a canonical function in a WebAssembly component.
 export type CanonicalFunction =
-    | CanonicalFunctionLift // TODO this is component function
+    | CanonicalFunctionLift // this is component function
     | CanonicalFunctionLower // this is core function
     | CanonicalFunctionResourceNew
     | CanonicalFunctionResourceDrop
