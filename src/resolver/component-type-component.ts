@@ -1,6 +1,7 @@
 import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
+import { prepareComponentTypeFunction } from './component-type-function';
 import { cacheFactory } from './context';
 import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
@@ -8,7 +9,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
     const section = rctx.indexes.componentTypes[componentIndex];
     return cacheFactory<ImplComponentTypeComponent>(rctx, section, async () => {
         async function createComponentType(ctx: BindingContext, args: any[], exports: string[]): Promise<JsInterface> {
-            console.log('createComponentType', section.tag, args);
+            // console.log('createComponentType', section.tag, args);
             const ifc: JsInterface = {} as any;
 
             // TODO: this is very fake!
@@ -31,19 +32,19 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         for (const declaration of section.declarations) {
             switch (declaration.tag) {
                 case ModelTag.ComponentTypeDeclarationType:
-                    //console.log('ComponentTypeDeclarationType', declaration);
+                    //console.log('TODO ComponentTypeDeclarationType', declaration);
                     break;
                 case ModelTag.ComponentImport:
                     //console.log('ComponentImport', declaration);
                     break;
                 case ModelTag.ComponentTypeDeclarationExport:
                     switch (declaration.ty.tag) {
-                        case ModelTag.ComponentTypeRefType:
-                            console.log('prepareComponentType declaration', declaration);
-                            break;
-                        case ModelTag.ComponentTypeRefFunc:
+                        case ModelTag.ComponentTypeRefFunc: {
                             exports.push(declaration.name.name);
-                            //rctx.prepareFunctionType(declaration.ty.value);
+                            break;
+                        }
+                        case ModelTag.ComponentTypeRefType:
+                            //console.log('TODO ComponentTypeRefType declaration', declaration);
                             break;
                         default:
                             throw new Error(`${declaration.ty.tag} not implemented`);

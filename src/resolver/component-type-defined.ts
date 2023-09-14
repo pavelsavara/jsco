@@ -18,7 +18,7 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
             case ModelTag.ComponentAliasInstanceExport: {
                 switch (section.kind) {
                     case ComponentExternalKind.Type: {
-                        console.log('ComponentTypeDefined', section);
+                        //console.log('TODO ComponentTypeDefined', section);
                         const componentInstance = await prepareComponentInstance(rctx, section.instance_index);
                         break;
                     }

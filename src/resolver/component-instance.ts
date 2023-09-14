@@ -53,14 +53,12 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         const arg = await argFactory(ctx);
                         args.push(arg);
                     }
-                    console.log('createComponentInstance', section, argFactories.length);
+                    //console.log('createComponentInstance', section, argFactories.length);
                     const componentType = await typeFactory(ctx, args);
                     return createComponentInstance(ctx, componentType);
                 };
             }
             case ModelTag.ComponentInstanceFromExports: {
-                console.log('ComponentInstanceFromExports', section);
-
                 const exportFactories: ({ name: string, factory: ImplComponentFunction })[] = [];
                 for (const exp of section.exports) {
                     switch (exp.kind) {
@@ -101,11 +99,11 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 for (const declaration of section.declarations) {
                     switch (declaration.tag) {
                         case ModelTag.InstanceTypeDeclarationType: {
-                            console.log('ComponentTypeInstance', declaration);
+                            // console.log('TODO ComponentTypeInstance', declaration);
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationExport: {
-                            console.log('ComponentTypeInstance', declaration);
+                            // console.log('TODO ComponentTypeInstance', declaration);
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationCoreType:

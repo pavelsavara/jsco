@@ -6,16 +6,13 @@ import { ResolverContext, JsInterface, ImplComponentTypeFunction } from './types
 export function prepareComponentTypeFunction(rctx: ResolverContext, componentTypeFunctionIndex: number): Promise<ImplComponentTypeFunction> {
     const section = rctx.indexes.componentTypes[componentTypeFunctionIndex];
     return cacheFactory<ImplComponentTypeFunction>(rctx, section, async () => {
-        //console.log('prepareComponentTypeFunction', componentTypeFunctionIndex);
-        async function createComponentTypeFunction(ctx: BindingContext): Promise<JsInterface> {
-            //console.log('createComponentTypeFunction');
-            return {};
-        }
-
         switch (section.tag) {
             case ModelTag.ComponentTypeFunc:
-                //console.log('prepareComponentTypeFunction', section.tag);
-                return (ctx) => createComponentTypeFunction(ctx);
+                return (ctx) => {
+                    return {
+                        TODO: 'ComponentTypeFunc'
+                    } as any;
+                };
             default:
                 throw new Error(`${section.tag} not implemented`);
         }
