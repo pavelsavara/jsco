@@ -15,7 +15,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
         componentExports: [],
         componentImports: [],
-        componentFunctions: [], // this is 2 phase
+        componentFunctions: [],
         componentInstances: [],
         componentTypes: [], // this is 2 phase
         componentTypeResource: [],
@@ -34,7 +34,6 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
     };
 
-    //const componentFunctionDefinitions: (ComponentTypeFunc)[] = [];
     const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
 
     for (const section of sections) {
@@ -101,7 +100,6 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 break;
             case ModelTag.ComponentTypeComponent:
                 componentTypeDefinitions.push(section);//append later
-                //rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:

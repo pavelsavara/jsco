@@ -9,12 +9,7 @@ import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
 import { ExternalKind } from '../src/model/core';
 import { ComponentImport } from '../src/model/imports';
-import { ResolverContext } from '../src/resolver/types';
 import { ModelTag } from '../src/model/tags';
-import { createLifting, createLowering } from '../src/binding';
-import { js, wasm } from './hello-component';
-import { BindingContext, Tcabi_realloc, WasmPointer } from '../src/binding/types';
-import { jsco_assert } from '../src/utils/assert';
 
 export const componentTypeInstance0: ComponentTypeInstance = {
     tag: ModelTag.ComponentTypeInstance,
@@ -107,10 +102,10 @@ export const componentImport0: ComponentImport = {
     },
 };
 
-// TODO: why is (instantiate 1) empty? We cannot put anything into value, right?
-export const coreInstance0: CoreInstanceFromExports = {
-    tag: ModelTag.CoreInstanceFromExports,
-    exports: [],
+export const coreInstance0: CoreInstanceInstantiate = {
+    tag: ModelTag.CoreInstanceInstantiate,
+    module_index: 1,
+    args: [],
 };
 
 export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
@@ -469,126 +464,3 @@ export const expectedModel: WITSection[] = [
     componentInstance1,
     componentExport0
 ];
-
-export const expectedContext: Partial<ResolverContext> = {
-    usesNumberForInt64: false,
-    modules: [], other: [],
-
-    componentExports: [componentExport0],
-    componentImports: [componentImport0],
-    componentFunctions: [aliasExport0, canonicalFuncLift1],
-    componentInstances: [componentTypeInstance0, componentInstance1],
-    componentTypes: [componentTypeComponent0, aliasExportType1, componentTypeFunc2, aliasExportType3],
-    componentTypeResource: [],
-
-    coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
-    coreFunctions: [aliasCoreExportFunc0, aliasCoreExportFunc1, canonicalFuncLower2, aliasCoreExportFunc3],
-    coreMemories: [aliasCoreExportMemory0],
-    coreTables: [aliasCoreExportTable0],
-    coreGlobals: [],
-
-    implComponentInstance: [],
-    implComponentTypes: [],
-    implComponentTypeFunc: [],
-    implComponentTypeResource: [],
-    implCoreInstance: [],
-
-};
-
-
-export function resolveTree() {
-    const model: ResolverContext = expectedContext as ResolverContext;
-    jsco_assert(componentExport0 === model.componentExports[0], 'aww, snap! 1');
-    jsco_assert(componentExport0.kind === ComponentExternalKind.Instance, 'aww, snap! 2');
-    //jsco_assert(componentExport.ty!.tag === ModelTag.ComponentExternNameInterface, 'aww, snap!');
-
-    const componentInstanceIndex = componentExport0.index;// because 1 based
-    jsco_assert(componentInstance1 === model.componentInstances[componentInstanceIndex], 'aww, snap! 3');
-    const componentIndex = componentInstance1.component_index;
-    jsco_assert(componentTypeComponent0 === model.componentTypes[componentIndex], 'aww, snap! 4');
-
-    const runArgIndex = componentInstance1.args[0].index;// import-func-run
-    jsco_assert(canonicalFuncLift1 === model.componentFunctions[runArgIndex], 'aww, snap! 5');
-
-    //const instantiateComponent: Function = undefined as any;
-    //instantiateComponent()
-}
-
-export async function resolveJCO(imports: any) {
-    const rctx: ResolverContext = undefined as any;
-    const ctx: BindingContext = undefined as any;
-    const wasmInstantiate = WebAssembly.instantiate;
-
-    const componentImports = (imports ? imports : {}) as {
-        'hello:city/city': js.Imports,
-    };
-
-    const { sendMessage } = componentImports['hello:city/city'];
-    const stringToJs = createLowering(rctx, {
-        tag: ModelTag.ComponentValTypePrimitive,
-        value: PrimitiveValType.String,
-    });
-
-    const stringFromJs = createLifting(rctx, {
-        tag: ModelTag.ComponentValTypePrimitive,
-        value: PrimitiveValType.String,
-    });
-
-    const numberToUint32 = createLifting(rctx, {
-        tag: ModelTag.ComponentValTypePrimitive,
-        value: PrimitiveValType.U32,
-    });
-
-    const bigIntToInt64 = createLifting(rctx, {
-        tag: ModelTag.ComponentValTypePrimitive,
-        value: PrimitiveValType.S64,
-    });
-
-    function sendMessageFromAbi(ptr: WasmPointer, len: WasmPointer) {
-        const ptr0 = ptr;
-        const len0 = len;
-        const result0 = stringToJs(ctx, ptr0, len0);
-        sendMessage(result0 as any);
-    }
-
-    const module0: WebAssembly.Module = await rctx.modules[0].module!;
-    const module1: WebAssembly.Module = await rctx.modules[1].module!;
-    const module2: WebAssembly.Module = await rctx.modules[2].module!;
-
-    const exports1 = (await wasmInstantiate(module1)).exports as wasm.module1Exports;
-
-    const imports0: wasm.module0Imports = {
-        'hello:city/city': {
-            'send-message': exports1['0'],
-        },
-    };
-    const exports0 = (await wasmInstantiate(module0, imports0)).exports as wasm.module0Exports;
-
-    const cabi_realloc: Tcabi_realloc = exports0.cabi_realloc;
-    const memory0 = exports0.memory as WebAssembly.Memory;
-    ctx.initialize(memory0, cabi_realloc);
-
-    const imports2: wasm.module2Imports = {
-        '': {
-            $imports: exports1.$imports,
-            '0': sendMessageFromAbi,
-        },
-    };
-
-    await wasmInstantiate(module2, imports2);
-
-    function runToAbi(info: js.CityInfo) {
-        const args = [
-            ...stringFromJs(ctx, info.name),
-            numberToUint32(ctx, info.headCount),
-            bigIntToInt64(ctx, info.budget),
-        ];
-        exports0['hello:city/greeter#run'].apply(null, args as any);
-    }
-
-    const greeter0_1_0: js.Exports = {
-        run: runToAbi,
-    };
-
-    return greeter0_1_0;
-}
