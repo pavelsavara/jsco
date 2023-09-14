@@ -8,7 +8,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
     const section = rctx.indexes.componentTypes[componentIndex];
     return cacheFactory<ImplComponentTypeComponent>(rctx, section, async () => {
         async function createComponentType(ctx: BindingContext, args: any[], exports: string[]): Promise<JsInterface> {
-            //console.log('createComponentType', section, args);
+            console.log('createComponentType', section.tag, args);
             const ifc: JsInterface = {} as any;
 
             // TODO: this is very fake!
@@ -39,7 +39,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                 case ModelTag.ComponentTypeDeclarationExport:
                     switch (declaration.ty.tag) {
                         case ModelTag.ComponentTypeRefType:
-                            // TODO console.log('prepareComponentType declaration', declaration);
+                            console.log('prepareComponentType declaration', declaration);
                             break;
                         case ModelTag.ComponentTypeRefFunc:
                             exports.push(declaration.name.name);
