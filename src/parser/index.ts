@@ -1,4 +1,4 @@
-import type { WITModel, ComponentSection, ParserContext, WITSection, ParserOptions } from './types';
+import type { WITModel, ParserContext, WITSection, ParserOptions } from './types';
 export type { WITModel };
 
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
@@ -10,6 +10,7 @@ import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
+import { ComponentTypeComponent, ComponentTypeDeclaration } from '../model/types';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
@@ -106,6 +107,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
 
             //TODO: to implement
             case 3: // core type - we don't have it in the sample
+            case 9: // start
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
@@ -130,13 +132,28 @@ async function parseSectionComponent(
     ctx: ParserContext,
     src: Source,
     size: number
-): Promise<ComponentSection[]> {
-    // Type:
-    // https://github.com/bytecodealliance/wasm-tools/blob/49753602683a539b66d0a65ffa11acb402f148bb/crates/wasmparser/src/parser.rs#L228-L246
-    // Usage:
-    // https://github.com/bytecodealliance/wasm-tools/blob/49753602683a539b66d0a65ffa11acb402f148bb/crates/wasmparser/src/parser.rs#L673-L695
+): Promise<ComponentTypeComponent[]> {
+    const bytes = await src.readExact(size);
+    const src2 = newSource(bytes);
+
+    await checkPreamble(src2);
+    const model: ComponentTypeDeclaration[] = [];
+    for (; ;) {
+        const sections = await parseSection(ctx, src2);
+        if (sections === null) {
+            break;
+        }
+        for (const s of sections) {
+            switch (s.tag) {
+                default:
+                    console.log(JSON.stringify(s));
+                    //throw new Error(`Unexpected section ${s.tag}`);
+                    break;
+            }
+        }
+    }
     return [{
-        tag: ModelTag.ComponentSection,
-        value: await src.readExact(size)
+        tag: ModelTag.ComponentTypeComponent,
+        declarations: model
     }];
 }
