@@ -471,13 +471,14 @@ export const expectedModel: WITSection[] = [
 ];
 
 export const expectedContext: Partial<ResolverContext> = {
-    modules: [], other: [], usesNumberForInt64: false,
+    usesNumberForInt64: false,
+    modules: [], other: [],
+
     componentExports: [componentExport0],
     componentImports: [componentImport0],
-    componentFunctions: [aliasExport0, canonicalFuncLift1, componentTypeFunc2],
-    componentTypeComponents: [componentTypeComponent0],
+    componentFunctions: [aliasExport0, canonicalFuncLift1],
     componentInstances: [componentTypeInstance0, componentInstance1],
-    componentTypes: [0 as any, aliasExportType1, 2 as any, aliasExportType3],
+    componentTypes: [componentTypeComponent0, aliasExportType1, componentTypeFunc2, aliasExportType3],
     componentTypeResource: [],
 
     coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
@@ -487,7 +488,6 @@ export const expectedContext: Partial<ResolverContext> = {
     coreGlobals: [],
 
     implComponentInstance: [],
-    implComponentTypeComponent: [],
     implComponentTypes: [],
     implComponentTypeFunc: [],
     implComponentTypeResource: [],
@@ -505,7 +505,7 @@ export function resolveTree() {
     const componentInstanceIndex = componentExport0.index;// because 1 based
     jsco_assert(componentInstance1 === model.componentInstances[componentInstanceIndex], 'aww, snap! 3');
     const componentIndex = componentInstance1.component_index;
-    jsco_assert(componentTypeComponent0 === model.componentTypeComponents[componentIndex], 'aww, snap! 4');
+    jsco_assert(componentTypeComponent0 === model.componentTypes[componentIndex], 'aww, snap! 4');
 
     const runArgIndex = componentInstance1.args[0].index;// import-func-run
     jsco_assert(canonicalFuncLift1 === model.componentFunctions[runArgIndex], 'aww, snap! 5');

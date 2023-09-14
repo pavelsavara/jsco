@@ -4,28 +4,38 @@ import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding
 import { ModelTag } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
+import { ComponentTypeComponent } from '../model/types';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
 
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        componentImports: [],
         modules: [],
         other: [],
-        componentTypeComponents: [], implComponentTypeComponent: [],
-        componentTypes: [], implComponentTypes: [],
-        componentTypeResource: [], implComponentTypeResource: [],
-        componentFunctions: [], implComponentTypeFunc: [],
-        componentInstances: [], implComponentInstance: [],
-        componentExports: [],
 
-        coreGlobals: [],
+        componentExports: [],
+        componentImports: [],
+        componentFunctions: [], // this is 2 phase
+        componentInstances: [],
+        componentTypes: [], // this is 2 phase
+        componentTypeResource: [],
+
+        coreInstances: [],
         coreFunctions: [],
         coreMemories: [],
         coreTables: [],
-        coreInstances: [], implCoreInstance: [],
+        coreGlobals: [],
+
+        implComponentInstance: [],
+        implComponentTypes: [],
+        implComponentTypeFunc: [],
+        implComponentTypeResource: [],
+        implCoreInstance: [],
 
     };
+
+    //const componentFunctionDefinitions: (ComponentTypeFunc)[] = [];
+    const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
 
     for (const section of sections) {
         // TODO: process all sections into model
@@ -87,10 +97,11 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
-                rctx.componentFunctions.push(section);
+                rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeComponent:
-                rctx.componentTypeComponents.push(section);
+                componentTypeDefinitions.push(section);//append later
+                //rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:
@@ -132,6 +143,10 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 throw new Error(`unexpected section tag: ${(section as any).tag}`);
         }
     }
+
+    // indexed with imports first and then function definitions next
+    // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
+    rctx.componentTypes = [...componentTypeDefinitions, ...rctx.componentTypes];
 
     return rctx;
 }

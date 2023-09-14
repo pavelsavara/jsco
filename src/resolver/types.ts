@@ -1,10 +1,10 @@
 import { BindingContext } from '../binding/types';
-import { ComponentAlias, ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
-import { CanonicalFunction, CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
+import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
+import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
-import { ComponentType, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
+import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, WITSection } from '../parser/types';
 
@@ -52,7 +52,6 @@ export type ResolverContext = {
 
     coreInstances: CoreInstance[], implCoreInstance: ImplCoreInstance[]
     coreFunctions: (ComponentAliasCoreInstanceExport | CanonicalFunctionLower)[]
-    componentTypes: (ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
     coreMemories: (ComponentAliasCoreInstanceExport)[]
     coreGlobals: (ComponentAliasCoreInstanceExport)[]
     coreTables: (ComponentAliasCoreInstanceExport)[]
@@ -60,6 +59,6 @@ export type ResolverContext = {
     componentExports: ComponentExport[]
     componentInstances: (ComponentInstance | ComponentTypeInstance)[], implComponentInstance: ImplComponentInstance[]
     componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
-    componentFunctions: (ComponentAliasInstanceExport | ComponentTypeFunc | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
-    componentTypeComponents: ComponentTypeComponent[], implComponentTypeComponent: ImplComponentTypeComponent[]
+    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
+    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
 }

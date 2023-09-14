@@ -1,5 +1,6 @@
 import { expectedModel, resolveTree, expectedContext } from '../../tests/hello';
 import { js } from '../../tests/hello-component';
+import { writeToFile } from '../../tests/utils';
 import { produceResolverContext } from './context';
 import { createComponent } from './index';
 
@@ -30,6 +31,9 @@ describe('export', () => {
         // we don't test it here
         actualContext.other = [];
         actualContext.modules = [];
+
+        writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
+        writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
 
         expect(actualContext).toEqual(expectedContext);
     });

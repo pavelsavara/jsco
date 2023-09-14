@@ -23,7 +23,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         return ifc;
     }
 
-    const section = rctx.componentTypeComponents[componentIndex];
+    const section = rctx.componentTypes[componentIndex];
     ///console.log('prepareComponentType', section);
     jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
     const exports: string[] = [];
@@ -53,7 +53,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         }
     }
 
-    const factory: ImplComponentTypeComponent = cacheFactory(rctx.implComponentTypeComponent, componentIndex, () => (ctx) => {
+    const factory: ImplComponentTypeComponent = cacheFactory(rctx.implComponentTypes, componentIndex, () => (ctx) => {
         return createComponentType(ctx, exports);
     });
     return factory;
