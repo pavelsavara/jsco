@@ -8,6 +8,7 @@ import { ComponentOuterAliasKind } from '../model/aliases';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
 import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType } from '../model/types';
+import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
 
 const textDecoder = new TextDecoder();
 
@@ -255,8 +256,88 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
                 members: members,
             };
         }
-        default:
-            throw new Error('Unrecognized type in readComponentTypeDefined.');
+        default: throw new Error(`Unrecognized type in readComponentTypeDefined: ${type}`);
+    }
+}
+
+export function readCanonicalFunction(src: SyncSource): CanonicalFunction{
+    const type = src.read();
+    switch (type)
+    {
+        case 0x00: {
+            const controlByte = src.read();
+            if (controlByte != 0x00)
+                throw new Error(`Unrecognized byte for CanonicalFunctionLift in readCanonicalFunction: ${controlByte}`);
+            return {
+                tag: ModelTag.CanonicalFunctionLift,
+                core_func_index: readU32(src),
+                options: readCanonicalOptions(src),
+                type_index: readU32(src),
+            };
+        }
+        case 0x01: {
+            const controlByte = src.read();
+            if (controlByte != 0x00)
+                throw new Error(`Unrecognized byte for CanonicalFunctionLower in readCanonicalFunction: ${controlByte}`);
+            return {
+                tag: ModelTag.CanonicalFunctionLower, // here
+                func_index: readU32(src),
+                options: readCanonicalOptions(src),
+            };
+        }
+        case 0x02: return {
+            tag: ModelTag.CanonicalFunctionResourceNew,
+            resource: readU32(src),
+        };
+        case 0x03: return {
+            tag: ModelTag.CanonicalFunctionResourceDrop,
+            resource: readU32(src),
+        };
+        case 0x04: return {
+            tag: ModelTag.CanonicalFunctionResourceRep,
+            resource: readU32(src),
+        };
+        default: throw new Error(`Unrecognized type in readCanonicalFunction: ${type}`);
+    }
+}
+
+export function readCanonicalOptions(src: SyncSource): CanonicalOption[]{
+    
+    const optionsCount = readU32(src);
+    const options = [];
+    for (let i=0; i<optionsCount; i++)
+    {
+        options.push(readCanonicalOption(src));
+    }
+    return options;
+}
+
+export function readCanonicalOption(src: SyncSource): CanonicalOption{
+    const type = src.read();
+    switch (type)
+    {
+        case 0x00: return {
+            tag: ModelTag.CanonicalOptionUTF8,
+        };
+        case 0x01: return {
+            tag: ModelTag.CanonicalOptionUTF16,
+        };
+        case 0x02: return {
+            tag: ModelTag.CanonicalOptionCompactUTF16,
+        };
+        case 0x03: return {
+            tag: ModelTag.CanonicalOptionMemory,
+            value: readU32(src),
+        };
+        case 0x04: return {
+            tag: ModelTag.CanonicalOptionRealloc,
+            value: readU32(src),
+        };
+        case 0x05: return {
+            tag: ModelTag.CanonicalOptionPostReturn,
+            value: readU32(src),
+        };
+        default: throw new Error(`Unrecognized type in readCanonicalOption = ${type}.`);
     }
 }
 
