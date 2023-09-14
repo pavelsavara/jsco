@@ -231,7 +231,7 @@ export type ComponentFuncResult =
 /// The function returns a singular, unnamed type.
 export type ComponentFuncResultUnnamed = {
     tag: ModelTag.ComponentFuncResultUnnamed,
-    value: ComponentValType,
+    value: ComponentValType | undefined,
 }
 
 export type NamedValue = {

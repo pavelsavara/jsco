@@ -29,14 +29,6 @@ export function readU32(source: SyncSource): number {
         leb.decodeULEB128,
     );
 }
-export function readS32(source: SyncSource): number {
-    return readInteger(
-        source,
-        0X8000_0000,
-        0X7FFF_FFFF,
-        leb.decodeULEB128,
-    );
-}
 
 export async function readNameAsync(source: SyncSource): Promise<string> {
     const length = await readU32(source);
@@ -358,28 +350,35 @@ export function readNamedValues(src: SyncSource): NamedValue[]{
     return values;
 }
 
-export function readComponentFuncResult(src: SyncSource) : ComponentFuncResult
+export function readComponentFuncResult(src: SyncSource) : ComponentFuncResult | undefined
 {
-    const type = src.read();
-    logInVerboseMode(`readComponentFuncResult: type=${type}`);
-    switch(type)
+    try
     {
-        case 0x00:
-            return {
-                tag: ModelTag.ComponentFuncResultUnnamed,
-                value: readComponentValType(src),
-            };
-        case 0x01:
-            return {
-                tag: ModelTag.ComponentFuncResultNamed,
-                value: readNamedValues(src),
-            };
-        default: throw new Error(`unknown ComponentFuncResult type: ${type}`);
+        const type = src.read();
+        logInVerboseMode(`readComponentFuncResult: type=${type}`);
+        switch(type)
+        {
+            case 0x00:
+                return {
+                    tag: ModelTag.ComponentFuncResultUnnamed,
+                    value: readComponentValType(src),
+                };
+            case 0x01:
+                return {
+                    tag: ModelTag.ComponentFuncResultNamed,
+                    value: readNamedValues(src),
+                };
+            default: throw new Error(`unknown ComponentFuncResult type: ${type}`);
+        }
+    }
+    catch
+    {
+        return undefined;
     }
 }
 
 export function readComponentValType(src: SyncSource): ComponentValType {
-    const b = readU32(src);
+    const b = src.read();
     logInVerboseMode(`readComponentValType: b=${b}`);
     if (0x73 <= b && b <= 0x7f)
     {
@@ -388,7 +387,7 @@ export function readComponentValType(src: SyncSource): ComponentValType {
             value: parsePrimitiveValType(b),
         };
     }
-    const val = readS32(src);
+    const val = readU32(src); // should be signed 33
     logInVerboseMode(`readComponentValType: val=${val}`);
     return {
         tag: ModelTag.ComponentValTypeType,
