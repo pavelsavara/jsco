@@ -11,7 +11,6 @@ export function parseSectionCanon(
     const canonFunctions: CanonicalFunction[] = [];
     const count = readU32(src);
     for (let i = 0; i < count; i++) {
-        console.log(`parseSectionCannon: count=${count}`);
         const canonicalFun: CanonicalFunction = readCanonicalFunction(src);
         canonFunctions.push(canonicalFun);
     }

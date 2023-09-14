@@ -1,7 +1,7 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { WITSection } from '../src/parser/types';
+import { CoreModule, WITSection } from '../src/parser/types';
 import { ComponentExport, ComponentExternalKind } from '../src/model/exports';
 import { ComponentInstanceInstantiate, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArgKind } from '../src/model/instances';
 import { ComponentTypeComponent, ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../src/model/types';
@@ -100,6 +100,21 @@ export const componentImport0: ComponentImport = {
         tag: ModelTag.ComponentTypeRefComponent,
         value: 0
     },
+};
+
+export const coreModule0: CoreModule = {
+    tag: ModelTag.CoreModule,
+    data: 'M0' as any,
+};
+
+export const coreModule1: CoreModule = {
+    tag: ModelTag.CoreModule,
+    data: 'M1' as any,
+};
+
+export const coreModule2: CoreModule = {
+    tag: ModelTag.CoreModule,
+    data: 'M1' as any,
 };
 
 export const coreInstance0: CoreInstanceInstantiate = {
@@ -444,6 +459,9 @@ export const componentExport0: ComponentExport = {
 export const expectedModel: WITSection[] = [
     componentTypeInstance0,
     componentImport0,
+    coreModule0,
+    coreModule1,
+    coreModule2,
     coreInstance0,
     aliasCoreExportFunc0,
     coreInstance1,

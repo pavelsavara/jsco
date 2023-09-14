@@ -47,7 +47,7 @@ export type ResolverContext = {
 
     usesNumberForInt64: boolean
     componentImports: ComponentImport[]
-    modules: CoreModule[]
+    coreModules: CoreModule[]
     other: WITSection[]
 
     coreInstances: CoreInstance[], implCoreInstance: ImplCoreInstance[]
