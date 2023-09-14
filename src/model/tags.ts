@@ -4,6 +4,7 @@ export const enum ModelTag {
     /// sections
     CustomSection = 'CustomSection',
     CoreModule = 'ComponentModule',
+    ComponentSection = 'ComponentSection',
     SkippedSection = 'SkippedSection',
     ComponentStartFunction = 'ComponentStartFunction',
     ComponentImport = 'ComponentImport',

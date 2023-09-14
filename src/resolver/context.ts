@@ -128,6 +128,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
             case ModelTag.SkippedSection:
             case ModelTag.CustomSection:
+            case ModelTag.ComponentSection:
                 //drop
                 break;
             case ModelTag.ComponentAliasOuter:

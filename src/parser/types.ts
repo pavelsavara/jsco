@@ -16,7 +16,8 @@ export type WITSection = { selfSortIndex?: number } & (
     | ComponentExport
     | ComponentAlias
     | CanonicalFunction
-    | ComponentType)
+    | ComponentType
+    | ComponentSection)
 
 export type CoreModule = {
     tag: ModelTag.CoreModule
@@ -35,8 +36,12 @@ export type SkippedSection = {
     type: number
     data?: Uint8Array
 }
-
 export type WITModel = WITSection[];
+
+export type ComponentSection = {
+    tag: ModelTag.ComponentSection
+    value: Uint8Array;
+}
 
 export type ParserContext = {
     otherSectionData: boolean
