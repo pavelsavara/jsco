@@ -4,13 +4,13 @@ import { cacheFactory } from './context';
 import { ImplComponentType, ResolverContext } from './types';
 
 export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): Promise<ImplComponentType> {
-    return cacheFactory<ImplComponentType>(rctx.implComponentTypes, definedIndex, async () => {
-        async function createDefinedType(ctx: BindingContext, index: number): Promise<any> {
+    const section = rctx.indexes.componentTypes[definedIndex];
+    return cacheFactory<ImplComponentType>(rctx, section, async () => {
+        async function createDefinedType(ctx: BindingContext): Promise<any> {
             //console.log('createDefinedType', index, section);
             return undefined;
         }
 
-        const section = rctx.indexes.componentTypes[definedIndex];
         switch (section.tag) {
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:
@@ -29,7 +29,7 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
                 throw new Error(`${section.tag} not implemented`);
         }
         //console.log('prepareDefinedType', definedIndex, section);
-        return (ctx) => createDefinedType(ctx, definedIndex);
+        return (ctx) => createDefinedType(ctx);
     });
 }
 

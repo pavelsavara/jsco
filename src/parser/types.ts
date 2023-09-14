@@ -6,7 +6,7 @@ import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instan
 import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
 
-export type WITSection =
+export type WITSection = { selfSortIndex?: number } & (
     | CustomSection
     | SkippedSection
     | CoreModule
@@ -16,7 +16,7 @@ export type WITSection =
     | ComponentExport
     | ComponentAlias
     | CanonicalFunction
-    | ComponentType
+    | ComponentType)
 
 export type CoreModule = {
     tag: ModelTag.CoreModule

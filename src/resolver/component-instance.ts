@@ -7,7 +7,8 @@ import { cacheFactory } from './context';
 import { ResolverContext, JsInterface, ImplComponentInstance } from './types';
 
 export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplComponentInstance> {
-    return cacheFactory<ImplComponentInstance>(rctx.implComponentInstance, componentInstanceIndex, async () => {
+    const section = rctx.indexes.componentInstances[componentInstanceIndex];
+    return cacheFactory<ImplComponentInstance>(rctx, section, async () => {
 
         //console.log('prepareComponentInstance', componentInstanceIndex);
         async function createComponentInstance(ctx: BindingContext, componentType: JsInterface): Promise<JsInterface> {
@@ -15,7 +16,6 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
             return componentType;
         }
 
-        const section = rctx.indexes.componentInstances[componentInstanceIndex];
         switch (section.tag) {
             case ModelTag.ComponentInstanceInstantiate: {
                 section.component_index;

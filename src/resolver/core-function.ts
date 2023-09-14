@@ -5,22 +5,21 @@ import { prepareCoreInstance } from './core-instance';
 import { ResolverContext, JsInterface, ImplCoreFunction } from './types';
 
 export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): Promise<ImplCoreFunction> {
-    return cacheFactory<ImplCoreFunction>(rctx.implComponentFunction, coreFunctionIndex, async () => {
+    const section = rctx.indexes.coreFunctions[coreFunctionIndex];
+    return cacheFactory<ImplCoreFunction>(rctx, section, async () => {
         //console.log('prepareCoreFunction', coreFunctionIndex);
         async function createCoreFunction(ctx: BindingContext): Promise<JsInterface> {
             console.log('createCoreFunction');
             return {};
         }
 
-        let factory: ImplCoreFunction;
-        const section = rctx.indexes.coreFunctions[coreFunctionIndex];
         switch (section.tag) {
             case ModelTag.ComponentAliasCoreInstanceExport: {
-                console.log('prepareCoreFunction', section);
+                console.log('prepareCoreFunction', section, new Error().stack);
 
                 const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
 
-                factory = async (ctx) => {
+                return (ctx) => {
                     instanceFactory(ctx, {
                         // TODO processed imports
                     });
@@ -32,6 +31,5 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
             default:
                 throw new Error(`${(section as any).tag} not implemented`);
         }
-        return factory;
     });
 }

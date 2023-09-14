@@ -1,7 +1,7 @@
 import { expectedModel } from '../../tests/hello';
 import { resolveTree, expectedContext } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
-import { produceResolverContext } from './context';
+import { produceResolverContext, setSelfIndex } from './context';
 import { createComponent, instantiateComponent } from './index';
 import { ResolverContext } from './types';
 import { parse } from '../parser';
@@ -50,7 +50,8 @@ describe('resolver hello', () => {
         const actualContext = produceResolverContext(expectedModel, {});
         // writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
         // writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
-
+        const expectedContextCpy = { ...expectedContext } as ResolverContext;
+        setSelfIndex(expectedContextCpy);
         expect(actualContext.indexes).toEqual(expectedContext.indexes);
     });
 

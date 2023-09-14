@@ -4,6 +4,7 @@ import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonica
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
+import { ModelTag } from '../model/tags';
 import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule } from '../parser/types';
@@ -70,11 +71,5 @@ export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
     wasmInstantiate: typeof WebAssembly.instantiate
-
-    implComponentInstance: ImplComponentInstance[]
-    implComponentResource: ImplComponentTypeResource[]
-    implComponentFunction: ImplComponentFunction[]
-    implComponentTypes: ImplComponentType[]
-    implCoreFunction: ImplComponentFunction[]
-    implCoreInstance: ImplCoreInstance[]
+    resolveCache: Map<ModelTag, Function[]>
 }

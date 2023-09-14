@@ -4,14 +4,14 @@ import { cacheFactory } from './context';
 import { ResolverContext, JsInterface, ImplComponentTypeFunction } from './types';
 
 export function prepareComponentTypeFunction(rctx: ResolverContext, componentTypeFunctionIndex: number): Promise<ImplComponentTypeFunction> {
-    return cacheFactory<ImplComponentTypeFunction>(rctx.implComponentFunction, componentTypeFunctionIndex, async () => {
+    const section = rctx.indexes.componentTypes[componentTypeFunctionIndex];
+    return cacheFactory<ImplComponentTypeFunction>(rctx, section, async () => {
         //console.log('prepareComponentTypeFunction', componentTypeFunctionIndex);
         async function createComponentTypeFunction(ctx: BindingContext): Promise<JsInterface> {
             //console.log('createComponentTypeFunction');
             return {};
         }
 
-        const section = rctx.indexes.componentTypes[componentTypeFunctionIndex];
         switch (section.tag) {
             case ModelTag.ComponentTypeFunc:
                 //console.log('prepareComponentTypeFunction', section.tag);

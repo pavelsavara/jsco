@@ -5,7 +5,8 @@ import { cacheFactory } from './context';
 import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
 export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): Promise<ImplComponentTypeComponent> {
-    return cacheFactory<ImplComponentTypeComponent>(rctx.implComponentTypes, componentIndex, async () => {
+    const section = rctx.indexes.componentTypes[componentIndex];
+    return cacheFactory<ImplComponentTypeComponent>(rctx, section, async () => {
         async function createComponentType(ctx: BindingContext, args: any[], exports: string[]): Promise<JsInterface> {
             //console.log('createComponentType', index, section);
             const ifc: JsInterface = {} as any;
@@ -24,7 +25,6 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
             return ifc;
         }
 
-        const section = rctx.indexes.componentTypes[componentIndex];
         ///console.log('prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exports: string[] = [];

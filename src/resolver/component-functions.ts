@@ -6,15 +6,14 @@ import { prepareCoreFunction } from './core-function';
 import { ResolverContext, JsInterface, ImplComponentFunction } from './types';
 
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplComponentFunction> {
-    return cacheFactory<ImplComponentFunction>(rctx.implComponentFunction, componentFunctionIndex, async () => {
+    const section = rctx.indexes.componentFunctions[componentFunctionIndex];
+    return cacheFactory<ImplComponentFunction>(rctx, section, async () => {
         //console.log('prepareComponentFunction', componentFunctionIndex);
         async function createComponentFunction(ctx: BindingContext): Promise<JsInterface> {
             //console.log('createComponentFunction');
             return {};
         }
 
-        let factory: ImplComponentFunction;
-        const section = rctx.indexes.componentFunctions[componentFunctionIndex];
         switch (section.tag) {
             case ModelTag.CanonicalFunctionLift: {
 
