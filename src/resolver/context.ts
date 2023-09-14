@@ -10,7 +10,6 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        modules: [],
         other: [],
 
         componentExports: [],
@@ -20,6 +19,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         componentTypes: [], // this is 2 phase
         componentTypeResource: [],
 
+        coreModules: [],
         coreInstances: [],
         coreFunctions: [],
         coreMemories: [],
@@ -40,7 +40,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         // TODO: process all sections into model
         switch (section.tag) {
             case ModelTag.CoreModule:
-                rctx.modules.push(section);
+                rctx.coreModules.push(section);
                 break;
             case ModelTag.ComponentExport:
                 rctx.componentExports.push(section);

@@ -31,12 +31,14 @@ describe('export', () => {
         const actualContext = produceResolverContext(expectedModel, {});
         // we don't test it here
         actualContext.other = [];
-        actualContext.modules = [];
+        actualContext.coreModules = [];
+        const expectedContextCpy = { ...expectedContext };// copy
+        expectedContextCpy.coreModules = [];
 
         // writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
         // writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
 
-        expect(actualContext).toEqual(expectedContext);
+        expect(actualContext).toEqual(expectedContextCpy);
     });
 
     test('manual resolve tree', async () => {
