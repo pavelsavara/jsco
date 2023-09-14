@@ -6,7 +6,7 @@ import { prepareComponentTypeComponent } from './component-type-component';
 import { cacheFactory } from './context';
 import { ResolverContext, JsInterface, ImplComponentInstance } from './types';
 
-export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): ImplComponentInstance {
+export async function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplComponentInstance> {
     //console.log('prepareComponentInstance', componentInstanceIndex);
     async function createComponentInstance(ctx: BindingContext, componentType: JsInterface): Promise<JsInterface> {
         //console.log('createComponentInstance', index, section);
@@ -23,7 +23,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
             for (const arg of section.args) {
                 switch (arg.kind) {
                     case ComponentExternalKind.Func: {
-                        const func = prepareComponentFunction(rctx, arg.index);
+                        const func = await prepareComponentFunction(rctx, arg.index);
                         argFactories.push(func);
                         break;
                     }
@@ -35,7 +35,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         throw new Error(`"${arg.kind}" not implemented`);
                 }
             }
-            factory = cacheFactory(rctx.implComponentInstance, componentInstanceIndex, () => async (ctx) => {
+            factory = cacheFactory<ImplComponentInstance>(rctx.implComponentInstance, componentInstanceIndex, () => async (ctx) => {
                 const args = [];
                 for (const argFactory of argFactories) {
                     const arg = argFactory(ctx);

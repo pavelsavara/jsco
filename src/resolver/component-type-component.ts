@@ -12,7 +12,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         // TODO: this is very fake!
         const fakeRun = () => {
             const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
-            ctx.imports['hello:city/city'].sendMessage(fakeMessage);
+            ctx.rootImports['hello:city/city'].sendMessage(fakeMessage);
         };
 
         for (const exportName of exports) {

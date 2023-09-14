@@ -10,6 +10,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+        wasmInstantiate: options.wasmInstantiate ?? WebAssembly.instantiate,
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -184,7 +185,7 @@ export function bindingContextFactory(rctx: ResolverContext, imports: JsImports)
         throw new Error('not implemented');
     }
     const ctx: BindingContext = {
-        imports,
+        rootImports: imports,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
         initialize,

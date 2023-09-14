@@ -6,7 +6,7 @@ import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
 import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
-import { CoreModule, WITSection } from '../parser/types';
+import { CoreModule } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -33,7 +33,7 @@ export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<
 export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
 export type ImplComponentExport = (ctx: BindingContext) => Promise<JsInterfaceCollection>
 export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface>
-export type ImplCoreInstance = (ctx: BindingContext) => Promise<WebAssembly.Instance>
+export type ImplCoreInstance = (ctx: BindingContext, imports: JsImports) => Promise<WebAssembly.Instance>
 export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
 export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
 export type ImplCoreFunction = (ctx: BindingContext) => Promise<any>
@@ -69,6 +69,7 @@ export type IndexedModel = {
 export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
+    wasmInstantiate: typeof WebAssembly.instantiate
 
     implComponentInstance: ImplComponentInstance[]
     implComponentResource: ImplComponentTypeResource[]

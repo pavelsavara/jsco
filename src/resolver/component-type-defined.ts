@@ -3,8 +3,8 @@ import { ModelTag } from '../model/tags';
 import { cacheFactory } from './context';
 import { ImplComponentType, ResolverContext } from './types';
 
-export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): ImplComponentType {
-    function createDefinedType(ctx: BindingContext, index: number): any {
+export async function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): Promise<ImplComponentType> {
+    async function createDefinedType(ctx: BindingContext, index: number): Promise<any> {
         //console.log('createDefinedType', index, section);
         return undefined;
     }
@@ -28,7 +28,7 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
             throw new Error(`${section.tag} not implemented`);
     }
     //console.log('prepareDefinedType', definedIndex, section);
-    const factory: ImplComponentType = cacheFactory(rctx.implComponentTypes, definedIndex, () => async (ctx) => {
+    const factory: ImplComponentType = cacheFactory<ImplComponentType>(rctx.implComponentTypes, definedIndex, () => async (ctx) => {
         return createDefinedType(ctx, definedIndex);
     });
     return factory;

@@ -4,6 +4,8 @@ import { js } from '../../tests/hello-component';
 import { produceResolverContext } from './context';
 import { createComponent, instantiateComponent } from './index';
 import { ResolverContext } from './types';
+import { parse } from '../parser';
+import { ModelTag } from '../model/tags';
 // import { writeToFile } from '../../tests/utils';
 
 describe('resolver hello', () => {
@@ -24,7 +26,16 @@ describe('resolver hello', () => {
                 }
             }
         };
-        const instance = await instantiateComponent(expectedModel, imports);
+
+        // here we need wasm modules from the actual .wasm file
+        // but the rest of the model is better to use fake for now
+        const parsedModel = await parse('./hello/wasm/hello.wasm');
+        const mergedModel = [
+            ...parsedModel.filter(x => x.tag === ModelTag.CoreModule),
+            ...expectedModel.filter(x => x.tag !== ModelTag.CoreModule),
+        ];
+
+        const instance = await instantiateComponent(mergedModel, imports);
 
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',
