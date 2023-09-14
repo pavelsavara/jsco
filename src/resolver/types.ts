@@ -4,9 +4,10 @@ import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonica
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
+import { ModelTag } from '../model/tags';
 import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
-import { CoreModule, WITSection } from '../parser/types';
+import { CoreModule } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -33,10 +34,10 @@ export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<
 export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
 export type ImplComponentExport = (ctx: BindingContext) => Promise<JsInterfaceCollection>
 export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface>
-export type ImplCoreInstance = (ctx: BindingContext) => Promise<WebAssembly.Instance>
+export type ImplCoreInstance = (ctx: BindingContext, imports: JsImports) => Promise<WebAssembly.Instance>
 export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
 export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
-export type ImplCoreFunction = (ctx: BindingContext) => Promise<any>
+export type ImplCoreFunction = (ctx: BindingContext) => Promise<Function>
 export type ImplComponentType = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeInstance = (ctx: BindingContext) => Promise<any>
@@ -69,11 +70,6 @@ export type IndexedModel = {
 export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
-
-    implComponentInstance: ImplComponentInstance[]
-    implComponentResource: ImplComponentTypeResource[]
-    implComponentFunction: ImplComponentFunction[]
-    implComponentTypes: ImplComponentType[]
-    implCoreFunction: ImplComponentFunction[]
-    implCoreInstance: ImplCoreInstance[]
+    wasmInstantiate: typeof WebAssembly.instantiate
+    resolveCache: Map<ModelTag, Function[]>
 }

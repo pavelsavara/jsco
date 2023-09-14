@@ -35,14 +35,7 @@ export const expectedContext: Partial<ResolverContext> = {
         coreTables: [aliasCoreExportTable0],
         coreGlobals: [],
     },
-
-    implComponentInstance: [],
-    implComponentTypes: [],
-    implComponentFunction: [],
-    implComponentResource: [],
-    implCoreInstance: [],
-    implCoreFunction: [],
-
+    resolveCache: new Map(),
 };
 
 

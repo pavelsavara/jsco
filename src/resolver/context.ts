@@ -5,11 +5,14 @@ import { ModelTag } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentTypeComponent } from '../model/types';
+import { WITSection } from '../parser/types';
+import { jsco_assert } from '../utils/assert';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
 
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+        wasmInstantiate: options.wasmInstantiate ?? WebAssembly.instantiate,
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -25,14 +28,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             coreTables: [],
             coreGlobals: [],
         },
-
-        implComponentInstance: [],
-        implComponentTypes: [],
-        implComponentFunction: [],
-        implComponentResource: [],
-        implCoreInstance: [],
-        implCoreFunction: [],
-
+        resolveCache: new Map(),
     };
 
     const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
@@ -146,8 +142,29 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
     // indexed with imports first and then function definitions next
     // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
     indexes.componentTypes = [...componentTypeDefinitions, ...indexes.componentTypes];
-
+    setSelfIndex(rctx);
     return rctx;
+}
+
+export function setSelfIndex(rctx: ResolverContext) {
+    function setSelfIndex(sort: WITSection[]) {
+        for (let i = 0; i < sort.length; i++) {
+            sort[i].selfSortIndex = i;
+        }
+    }
+    setSelfIndex(rctx.indexes.componentExports);
+    setSelfIndex(rctx.indexes.componentImports);
+    setSelfIndex(rctx.indexes.componentFunctions);
+    setSelfIndex(rctx.indexes.componentInstances);
+    setSelfIndex(rctx.indexes.componentTypes);
+    setSelfIndex(rctx.indexes.componentTypeResource);
+
+    setSelfIndex(rctx.indexes.coreModules);
+    setSelfIndex(rctx.indexes.coreInstances);
+    setSelfIndex(rctx.indexes.coreFunctions);
+    setSelfIndex(rctx.indexes.coreMemories);
+    setSelfIndex(rctx.indexes.coreTables);
+    setSelfIndex(rctx.indexes.coreGlobals);
 }
 
 
@@ -184,7 +201,7 @@ export function bindingContextFactory(rctx: ResolverContext, imports: JsImports)
         throw new Error('not implemented');
     }
     const ctx: BindingContext = {
-        imports,
+        rootImports: imports,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
         initialize,
@@ -200,11 +217,20 @@ export function bindingContextFactory(rctx: ResolverContext, imports: JsImports)
     return ctx;
 }
 
-export function cacheFactory<TFactory extends Function>(cache: TFactory[], cacheIndex: number, ff: () => TFactory): TFactory {
-    if (cache[cacheIndex] !== undefined) {
-        return cache[cacheIndex];
+export async function cacheFactory<TFactory extends Function>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
+    jsco_assert(section.selfSortIndex !== undefined, 'expectd selfSortIndex');
+    jsco_assert(section.tag !== undefined, 'expected tag');
+    const cacheIndex = section.selfSortIndex;
+    let cache = rctx.resolveCache.get(section.tag);
+    if (cache === undefined) {
+        cache = [];
     }
-    const factory = ff();
+    if (cache[cacheIndex] !== undefined) {
+        console.warn('cacheFactory hit', section);
+        return cache[cacheIndex] as TFactory;
+    }
+    //console.log('cacheFactory mis', cacheIndex);
+    const factory = await ff();
     cache[cacheIndex] = factory;
     return factory;
 }

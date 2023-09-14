@@ -4,9 +4,9 @@ import { ComponentExternName } from '../model/imports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentInstance } from './component-instance';
-import { ResolverContext, JsInterfaceCollection, ImplComponentExport, ImplComponentInstance, JsInterface } from './types';
+import { ResolverContext, JsInterfaceCollection, ImplComponentExport, JsInterface } from './types';
 
-export function prepareComponentExports(rctx: ResolverContext): ImplComponentExport[] {
+export async function prepareComponentExports(rctx: ResolverContext): Promise<ImplComponentExport[]> {
     async function createComponentExport(ctx: BindingContext, ifc: JsInterface, resolvedName: string): Promise<JsInterfaceCollection> {
         //console.log('createComponentExport', resolvedName, ifc);
         const namedInterface: JsInterfaceCollection = {};
@@ -32,7 +32,7 @@ export function prepareComponentExports(rctx: ResolverContext): ImplComponentExp
 
         switch (section.kind) {
             case ComponentExternalKind.Instance: {
-                const componentInstanceFactory = prepareComponentInstance(rctx, section.index);
+                const componentInstanceFactory = await prepareComponentInstance(rctx, section.index);
                 factory = async (ctx) => {
                     const ifc = await componentInstanceFactory(ctx);
                     return createComponentExport(ctx, ifc, resolvedName);

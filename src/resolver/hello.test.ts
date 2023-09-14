@@ -1,9 +1,11 @@
 import { expectedModel } from '../../tests/hello';
 import { resolveTree, expectedContext } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
-import { produceResolverContext } from './context';
+import { produceResolverContext, setSelfIndex } from './context';
 import { createComponent, instantiateComponent } from './index';
 import { ResolverContext } from './types';
+import { parse } from '../parser';
+import { ModelTag } from '../model/tags';
 // import { writeToFile } from '../../tests/utils';
 
 describe('resolver hello', () => {
@@ -24,7 +26,16 @@ describe('resolver hello', () => {
                 }
             }
         };
-        const instance = await instantiateComponent(expectedModel, imports);
+
+        // here we need wasm modules from the actual .wasm file
+        // but the rest of the model is better to use fake for now
+        const parsedModel = await parse('./hello/wasm/hello.wasm');
+        const mergedModel = [
+            ...parsedModel.filter(x => x.tag === ModelTag.CoreModule),
+            ...expectedModel.filter(x => x.tag !== ModelTag.CoreModule),
+        ];
+
+        const instance = await instantiateComponent(mergedModel, imports);
 
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',
@@ -39,7 +50,8 @@ describe('resolver hello', () => {
         const actualContext = produceResolverContext(expectedModel, {});
         // writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
         // writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
-
+        const expectedContextCpy = { ...expectedContext } as ResolverContext;
+        setSelfIndex(expectedContextCpy);
         expect(actualContext.indexes).toEqual(expectedContext.indexes);
     });
 

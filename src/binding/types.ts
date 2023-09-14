@@ -12,7 +12,7 @@ export type JsNumber = number | bigint;
 export type JsValue = JsNumber | JsString | JsBoolean;
 
 export type BindingContext = {
-    imports: JsImports
+    rootImports: JsImports
     initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;

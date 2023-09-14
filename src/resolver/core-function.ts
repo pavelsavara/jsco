@@ -1,29 +1,30 @@
 import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { cacheFactory } from './context';
-import { ResolverContext, JsInterface, ImplCoreFunction } from './types';
+import { prepareCoreInstance } from './core-instance';
+import { ResolverContext, ImplCoreFunction } from './types';
 
-export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): ImplCoreFunction {
-    //console.log('prepareCoreFunction', coreFunctionIndex);
-    async function createCoreFunction(ctx: BindingContext): Promise<JsInterface> {
-        //console.log('createCoreFunction');
-        return {};
-    }
-
-    let factory: ImplCoreFunction;
+export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): Promise<ImplCoreFunction> {
     const section = rctx.indexes.coreFunctions[coreFunctionIndex];
-    switch (section.tag) {
-        case ModelTag.CanonicalFunctionLower:
-        case ModelTag.ComponentAliasCoreInstanceExport: {
-            //console.log('prepareCoreFunction', section.tag);
-            factory = cacheFactory(rctx.implComponentFunction, coreFunctionIndex, () => async (ctx) => {
-                return createCoreFunction(ctx);
-            });
-            break;
+    return cacheFactory<ImplCoreFunction>(rctx, section, async () => {
+        async function createCoreFunction(ctx: BindingContext, instance: WebAssembly.Instance, name: string): Promise<Function> {
+            return instance.exports[name] as Function;
         }
-        default:
-            throw new Error(`${(section as any).tag} not implemented`);
-    }
-    return factory;
-}
 
+        switch (section.tag) {
+            case ModelTag.ComponentAliasCoreInstanceExport: {
+                const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
+
+                return async (ctx) => {
+                    const instance = await instanceFactory(ctx, {
+                        // TODO processed imports
+                    });
+                    return createCoreFunction(ctx, instance, section.name);
+                };
+            }
+            case ModelTag.CanonicalFunctionLower:
+            default:
+                throw new Error(`${(section as any).tag} not implemented`);
+        }
+    });
+}

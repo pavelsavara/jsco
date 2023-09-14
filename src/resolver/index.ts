@@ -1,4 +1,4 @@
-import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, WasmComponentFactory, ResolverContext, JsExports, WasmComponentInstance, WasmComponent } from './types';
+import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, ResolverContext, JsExports, WasmComponentInstance, WasmComponent } from './types';
 import { WITModel, parse } from '../parser';
 import { ParserOptions } from '../parser/types';
 import { bindingContextFactory, produceResolverContext } from './context';
@@ -17,9 +17,9 @@ export async function instantiateComponent<TJSExports>(
     return component.instantiate(imports);
 }
 
-export function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): WasmComponent<TJSExports> {
+export async function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): Promise<WasmComponent<TJSExports>> {
     const resolverContext: ResolverContext = produceResolverContext(model, options ?? {});
-    const factories = prepareComponentExports(resolverContext);
+    const factories = await prepareComponentExports(resolverContext);
     async function instantiate(imports?: JsImports): Promise<WasmComponentInstance<TJSExports>> {
         const ctx = bindingContextFactory(resolverContext, imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
