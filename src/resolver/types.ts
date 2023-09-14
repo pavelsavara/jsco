@@ -16,24 +16,31 @@ export type ComponentFactoryOptions = {
 export type JsInterface = Record<string, Function>;
 export type JsInterfaceCollection = Record<string, JsInterface>;
 
-export type WasmComponent<TJSExports> = {
+export type WasmComponentInstance<TJSExports> = {
     exports: JsExports<TJSExports>
     abort: () => void
 }
 export type JsExports<TJSExports> = TJSExports & JsInterfaceCollection
 export type JsImports = JsInterfaceCollection
 
-export type ComponentFactory<TJSExports> = (imports?: JsImports) => WasmComponent<TJSExports>
+export type WasmComponent<TJSExports> = {
+    resolverContext: any; // ResolverContext is not public type
+    instantiate: WasmComponentFactory<TJSExports>
+}
+export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>
+//
 
-export type WasmComponentFactory = () => WasmComponent<any>
-export type ImplComponentExport = (ctx: BindingContext) => JsInterfaceCollection
-export type ImplComponentInstance = (ctx: BindingContext) => JsInterface
-export type ImplCoreInstance = (ctx: BindingContext) => WebAssembly.Instance
-export type ImplComponentTypeComponent = (ctx: BindingContext) => JsInterface
-export type ImplComponentFunc = (ctx: BindingContext) => any
-export type ImplComponentType = (ctx: BindingContext) => any
-export type ImplComponentTypeResource = (ctx: BindingContext) => any
-export type ImplComponentTypeInstance = (ctx: BindingContext) => any
+export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
+export type ImplComponentExport = (ctx: BindingContext) => Promise<JsInterfaceCollection>
+export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface>
+export type ImplCoreInstance = (ctx: BindingContext) => Promise<WebAssembly.Instance>
+export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
+export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
+export type ImplCoreFunction = (ctx: BindingContext) => Promise<any>
+export type ImplComponentType = (ctx: BindingContext) => Promise<any>
+export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
+export type ImplComponentTypeInstance = (ctx: BindingContext) => Promise<any>
+export type ImplComponentTypeFunction = (ctx: BindingContext) => Promise<any>
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -43,22 +50,30 @@ export type ComponentFactoryInput = WITModel
     | PromiseLike<Response>
 
 
-export type ResolverContext = {
-
-    usesNumberForInt64: boolean
-    componentImports: ComponentImport[]
+export type IndexedModel = {
     coreModules: CoreModule[]
-    other: WITSection[]
-
-    coreInstances: CoreInstance[], implCoreInstance: ImplCoreInstance[]
+    coreInstances: CoreInstance[],
     coreFunctions: (ComponentAliasCoreInstanceExport | CanonicalFunctionLower)[]
     coreMemories: (ComponentAliasCoreInstanceExport)[]
     coreGlobals: (ComponentAliasCoreInstanceExport)[]
     coreTables: (ComponentAliasCoreInstanceExport)[]
 
+    componentImports: ComponentImport[]
     componentExports: ComponentExport[]
-    componentInstances: (ComponentInstance | ComponentTypeInstance)[], implComponentInstance: ImplComponentInstance[]
-    componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
-    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
-    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
+    componentInstances: (ComponentInstance | ComponentTypeInstance)[],
+    componentTypeResource: ComponentTypeResource[],
+    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[],
+    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[],
+}
+
+export type ResolverContext = {
+    indexes: IndexedModel;
+    usesNumberForInt64: boolean
+
+    implComponentInstance: ImplComponentInstance[]
+    implComponentResource: ImplComponentTypeResource[]
+    implComponentFunction: ImplComponentFunction[]
+    implComponentTypes: ImplComponentType[]
+    implCoreFunction: ImplComponentFunction[]
+    implCoreInstance: ImplCoreInstance[]
 }

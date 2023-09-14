@@ -6,7 +6,7 @@ import configuration from 'env:configuration';
 
 export type { WITModel } from './parser';
 export { parse } from './parser';
-export { createComponent, createComponentFactory } from './resolver';
+export { instantiateComponent as createComponent, createComponent as createComponentFactory } from './resolver';
 export { createLifting, createLowering } from './binding';
 
 export function getBuildInfo() {

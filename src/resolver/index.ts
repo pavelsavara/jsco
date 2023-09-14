@@ -1,36 +1,40 @@
-import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, ComponentFactory, ResolverContext, JsExports, WasmComponent } from './types';
+import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, WasmComponentFactory, ResolverContext, JsExports, WasmComponentInstance, WasmComponent } from './types';
 import { WITModel, parse } from '../parser';
 import { ParserOptions } from '../parser/types';
 import { bindingContextFactory, produceResolverContext } from './context';
 import { prepareComponentExports } from './component-exports';
 
-export async function createComponent<TJSExports>(
+export async function instantiateComponent<TJSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
     imports?: JsImports,
     options?: ComponentFactoryOptions & ParserOptions,
-): Promise<WasmComponent<TJSExports>> {
+): Promise<WasmComponentInstance<TJSExports>> {
     let input = modelOrComponentOrUrl as any;
     if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
         input = await parse(input, options ?? {});
     }
-    const componentFactory: ComponentFactory<TJSExports> = await createComponentFactory<TJSExports>(input, options);
-    const componentInstance: WasmComponent<TJSExports> = componentFactory(imports);
-    return componentInstance;
+    const component = await createComponent<TJSExports>(input, options);
+    return component.instantiate(imports);
 }
 
-export function createComponentFactory<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): ComponentFactory<TJSExports> {
-    const rctx: ResolverContext = produceResolverContext(model, options ?? {});
-    const factories = prepareComponentExports(rctx);
-    return (imports?: JsImports): WasmComponent<TJSExports> => {
-        const ctx = bindingContextFactory(rctx, imports ?? {});
+export function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): WasmComponent<TJSExports> {
+    const resolverContext: ResolverContext = produceResolverContext(model, options ?? {});
+    const factories = prepareComponentExports(resolverContext);
+    async function instantiate(imports?: JsImports): Promise<WasmComponentInstance<TJSExports>> {
+        const ctx = bindingContextFactory(resolverContext, imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
         for (const factory of factories) {
-            const ifc = factory(ctx);
+            const ifc = await factory(ctx);
             Object.assign(exports, ifc);
         }
         return {
             exports,
             abort: ctx.abort,
         };
+    }
+    const component: WasmComponent<TJSExports> = {
+        resolverContext,
+        instantiate,
     };
+    return component;
 }

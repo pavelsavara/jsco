@@ -2,11 +2,20 @@ import { expectedModel } from '../../tests/hello';
 import { resolveTree, expectedContext } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
 import { produceResolverContext } from './context';
-import { createComponent } from './index';
+import { createComponent, instantiateComponent } from './index';
+import { ResolverContext } from './types';
 // import { writeToFile } from '../../tests/utils';
 
-describe('export', () => {
-    test('parse method compiles modules', async () => {
+describe('resolver hello', () => {
+    test('resolver compiles component from fake model', async () => {
+        //TODO const wasm = './hello/wasm/hello.wasm';
+        const component = await createComponent<js.NamedExports>(expectedModel);
+        const rctx = component.resolverContext as ResolverContext;
+
+        //TODO asserts
+    });
+
+    test('component instantiated from fake model could run', async () => {
         let actualMessage: string = undefined as any;
         const imports: js.NamedImports = {
             'hello:city/city': {
@@ -15,10 +24,9 @@ describe('export', () => {
                 }
             }
         };
-        //TODO const wasm = './hello/wasm/hello.wasm';
-        const component = await createComponent<js.NamedExports>(expectedModel, imports);
+        const instance = await instantiateComponent(expectedModel, imports);
 
-        component.exports['hello:city/greeter'].run({
+        instance.exports['hello:city/greeter'].run({
             name: 'Prague',
             headCount: 1_000_000,
             budget: BigInt(200_000_000),
@@ -29,16 +37,10 @@ describe('export', () => {
 
     test('manual resolve indexes', async () => {
         const actualContext = produceResolverContext(expectedModel, {});
-        // we don't test it here
-        actualContext.other = [];
-        actualContext.coreModules = [];
-        const expectedContextCpy = { ...expectedContext };// copy
-        expectedContextCpy.coreModules = [];
-
         // writeToFile('actual-hello.json', JSON.stringify(actualContext, null, 2));
         // writeToFile('expected-hello.json', JSON.stringify(expectedContext, null, 2));
 
-        expect(actualContext).toEqual(expectedContextCpy);
+        expect(actualContext.indexes).toEqual(expectedContext.indexes);
     });
 
     test('manual resolve tree', async () => {

@@ -24,7 +24,8 @@
         "test:jco": "node ./hello/hello-test.mjs",
         "test:ci": "jest",
         "test:unix": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-        "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch"
+        "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
+        "test:cover": "set NODE_OPTIONS=--experimental-vm-modules && jest --coverage"
     },
 
     "repository": {

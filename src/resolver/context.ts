@@ -10,57 +10,58 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        other: [],
+        indexes: {
+            componentExports: [],
+            componentImports: [],
+            componentFunctions: [],
+            componentInstances: [],
+            componentTypes: [], // this is 2 phase
+            componentTypeResource: [],
 
-        componentExports: [],
-        componentImports: [],
-        componentFunctions: [],
-        componentInstances: [],
-        componentTypes: [], // this is 2 phase
-        componentTypeResource: [],
-
-        coreModules: [],
-        coreInstances: [],
-        coreFunctions: [],
-        coreMemories: [],
-        coreTables: [],
-        coreGlobals: [],
+            coreModules: [],
+            coreInstances: [],
+            coreFunctions: [],
+            coreMemories: [],
+            coreTables: [],
+            coreGlobals: [],
+        },
 
         implComponentInstance: [],
         implComponentTypes: [],
-        implComponentTypeFunc: [],
-        implComponentTypeResource: [],
+        implComponentFunction: [],
+        implComponentResource: [],
         implCoreInstance: [],
+        implCoreFunction: [],
 
     };
 
     const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
-
+    const indexes = rctx.indexes;
     for (const section of sections) {
         // TODO: process all sections into model
         switch (section.tag) {
             case ModelTag.CoreModule:
-                rctx.coreModules.push(section);
+                indexes.coreModules.push(section);
                 break;
             case ModelTag.ComponentExport:
-                rctx.componentExports.push(section);
+                indexes.componentExports.push(section);
                 break;
             case ModelTag.ComponentImport:
-                rctx.componentImports.push(section);
+                indexes.componentImports.push(section);
                 break;
             case ModelTag.ComponentAliasCoreInstanceExport: {
                 switch (section.kind) {
                     case ExternalKind.Func:
-                        rctx.coreFunctions.push(section);
+                        indexes.coreFunctions.push(section);
                         break;
                     case ExternalKind.Table:
-                        rctx.coreTables.push(section);
+                        indexes.coreTables.push(section);
                         break;
                     case ExternalKind.Memory:
-                        rctx.coreMemories.push(section);
+                        indexes.coreMemories.push(section);
                         break;
                     case ExternalKind.Global:
-                        rctx.coreGlobals.push(section);
+                        indexes.coreGlobals.push(section);
                         break;
                     case ExternalKind.Tag:
                     default:
@@ -71,13 +72,13 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentAliasInstanceExport: {
                 switch (section.kind) {
                     case ComponentExternalKind.Func:
-                        rctx.componentFunctions.push(section);
+                        indexes.componentFunctions.push(section);
                         break;
                     case ComponentExternalKind.Component:
-                        rctx.componentTypes.push(section);
+                        indexes.componentTypes.push(section);
                         break;
                     case ComponentExternalKind.Type:
-                        rctx.componentTypes.push(section);
+                        indexes.componentTypes.push(section);
                         break;
                     case ComponentExternalKind.Module:
                     case ComponentExternalKind.Value:
@@ -89,14 +90,14 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             }
             case ModelTag.CoreInstanceFromExports:
             case ModelTag.CoreInstanceInstantiate:
-                rctx.coreInstances.push(section);
+                indexes.coreInstances.push(section);
                 break;
             case ModelTag.ComponentInstanceFromExports:
             case ModelTag.ComponentInstanceInstantiate:
-                rctx.componentInstances.push(section);
+                indexes.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
-                rctx.componentTypes.push(section);
+                indexes.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeComponent:
                 componentTypeDefinitions.push(section);//append later
@@ -112,26 +113,26 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentTypeDefinedResult:
             case ModelTag.ComponentTypeDefinedTuple:
             case ModelTag.ComponentTypeDefinedVariant:
-                rctx.componentTypes.push(section);
+                indexes.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeInstance:
-                rctx.componentInstances.push(section);
+                indexes.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeResource:
-                rctx.componentTypeResource.push(section);
+                indexes.componentTypeResource.push(section);
                 break;
             case ModelTag.CanonicalFunctionLower: {
-                rctx.coreFunctions.push(section);
+                indexes.coreFunctions.push(section);
                 break;
             }
             case ModelTag.CanonicalFunctionLift: {
-                rctx.componentFunctions.push(section);
+                indexes.componentFunctions.push(section);
                 break;
             }
 
             case ModelTag.SkippedSection:
             case ModelTag.CustomSection:
-                rctx.other.push(section);
+                //drop
                 break;
             case ModelTag.ComponentAliasOuter:
             case ModelTag.CanonicalFunctionResourceDrop:
@@ -144,7 +145,7 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
     // indexed with imports first and then function definitions next
     // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
-    rctx.componentTypes = [...componentTypeDefinitions, ...rctx.componentTypes];
+    indexes.componentTypes = [...componentTypeDefinitions, ...indexes.componentTypes];
 
     return rctx;
 }

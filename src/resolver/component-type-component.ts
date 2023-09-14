@@ -5,7 +5,7 @@ import { cacheFactory } from './context';
 import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
 export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): ImplComponentTypeComponent {
-    function createComponentType(ctx: BindingContext, exports: string[]): JsInterface {
+    async function createComponentType(ctx: BindingContext, args: any[], exports: string[]): Promise<JsInterface> {
         //console.log('createComponentType', index, section);
         const ifc: JsInterface = {} as any;
 
@@ -23,7 +23,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         return ifc;
     }
 
-    const section = rctx.componentTypes[componentIndex];
+    const section = rctx.indexes.componentTypes[componentIndex];
     ///console.log('prepareComponentType', section);
     jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
     const exports: string[] = [];
@@ -53,9 +53,10 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         }
     }
 
-    const factory: ImplComponentTypeComponent = cacheFactory(rctx.implComponentTypes, componentIndex, () => (ctx) => {
-        return createComponentType(ctx, exports);
+    const factory: ImplComponentTypeComponent = cacheFactory<ImplComponentTypeComponent>(rctx.implComponentTypes, componentIndex, () => async (ctx, args) => {
+        return createComponentType(ctx, args, exports);
     });
+
     return factory;
 }
 
