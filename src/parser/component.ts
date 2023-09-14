@@ -8,22 +8,22 @@ import { parseSectionExport } from './export';
 export function parseComponent(
     ctx: ParserContext,
     src: SyncSource,
-): ComponentInstance {
+): ComponentInstance[] {
     const type = src.read();
     switch (type)
     {
         case 0x00: {
-            return {
+            return [{
                 tag: ModelTag.ComponentInstanceInstantiate,
                 component_index: readU32(src),
                 args: readComponentInstantiationArgs(src),
-            };
+            }];
         }
         case 0x01: {
-            return {
+            return [{
                 tag: ModelTag.ComponentInstanceFromExports,
                 exports: parseSectionExport(ctx, src)
-            };
+            }];
         }
         default: throw new Error(`Unrecognized type in parseComponent: ${type}`);
     }

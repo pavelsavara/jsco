@@ -7,7 +7,7 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType } from '../model/types';
+import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
 import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 
@@ -40,7 +40,7 @@ export async function readNameAsync(source: SyncSource): Promise<string> {
 export function readStringArray(src: SyncSource): string[] {
 
     const count = readU32(src);
-    const arr = [];
+    const arr: string[] = [];
     for(let i=0; i<count; i++)
     {
         arr.push(readName(src));
@@ -87,7 +87,7 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
         case 0x04: return ComponentExternalKind.Component;
         case 0x05: return ComponentExternalKind.Instance;
         default:
-            throw new Error(`unknown component external kind. ${k1}`);
+            throw new Error(`unknown component external kind. 0x${k1.toString(16)}`);
     }
 }
 
@@ -210,7 +210,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         }
         case 0x6f: {
             const count = readU32(src);
-            const members = [];
+            const members: ComponentValType[] = [];
             for(let i=0; i<count; i++)
             {
                 members.push(readComponentValType(src));
@@ -228,7 +228,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         }
         case 0x71: {
             const count = readU32(src);
-            const variants = [];
+            const variants: VariantCase[] = [];
             for(let i=0; i<count; i++)
             {
                 variants.push({
@@ -244,7 +244,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         }
         case 0x72: {
             const count = readU32(src);
-            const members = [];
+            const members: { name: string, type: ComponentValType }[] = [];
             for(let i=0; i<count; i++)
             {
                 members.push({
@@ -263,7 +263,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
 
 export function readComponentInstantiationArgs(src: SyncSource): ComponentInstantiationArg[] {
     const count = readU32(src);
-    const args = [];
+    const args: ComponentInstantiationArg[] = [];
     for(let i=0; i<count; i++)
     {
         args.push({
@@ -299,7 +299,7 @@ export function readCoreInstance(src: SyncSource): CoreInstance{
 
 export function readExports(src: SyncSource): Export[]{
     const count = readU32(src);
-    const exports = [];
+    const exports: Export[] = [];
     for(let i=0; i<count; i++)
     {
         const name = readName(src);
@@ -316,7 +316,7 @@ export function readExports(src: SyncSource): Export[]{
 
 export function readInstantiationArgs(src: SyncSource): InstantiationArg[] {
     const count = readU32(src);
-    const args = [];
+    const args: InstantiationArg[] = [];
     for(let i=0; i<count; i++){
         const name = readName(src);
         const kind = readInstantiationArgKind(src);
@@ -379,9 +379,9 @@ export function readCanonicalFunction(src: SyncSource): CanonicalFunction{
 }
 
 export function readCanonicalOptions(src: SyncSource): CanonicalOption[]{
-    
+
     const optionsCount = readU32(src);
-    const options = [];
+    const options: CanonicalOption[] = [];
     for (let i=0; i<optionsCount; i++)
     {
         options.push(readCanonicalOption(src));
@@ -488,7 +488,7 @@ export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
 }
 
 export function readNamedValues(src: SyncSource): NamedValue[]{
-    const values = [];
+    const values: NamedValue[] = [];
     const count = readU32(src);
     for(let i=0; i<count; i++)
     {
@@ -631,7 +631,7 @@ const maxLen = Math.ceil(bits / 7) | 0;
 async function readRawIntegerAsync(
     source: Source,
 ): Promise<Uint8Array> {
-    const buf = [];
+    const buf: number[] = [];
     for (let i = 0; i < maxLen; i++) {
         const b = await source.read();
         buf.push(b);
@@ -645,7 +645,7 @@ async function readRawIntegerAsync(
 function readRawInteger(
     source: SyncSource,
 ): Uint8Array {
-    const buf = [];
+    const buf: number[] = [];
     for (let i = 0; i < maxLen; i++) {
         const b = source.read();
         buf.push(b);
