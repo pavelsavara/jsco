@@ -15,7 +15,7 @@
 - just JS (no rust dependency), TypeScript, RollupJS
 
 ### Scope
-- hello world demo [wit](hello\wit\hello.wit) [wat](hello\wat\hello.wat)
+- hello world demo [wit](hello/wit/hello.wit) [wat](hello/wat/hello.wat)
 - this is just small attempt in limited time. It may grow into something larger ...
 - binding for `string` and `i32`, `record` as stretch goal.
 - minimal JS API for this polyfill:
@@ -24,7 +24,7 @@
 
 ### stretch goals
 - generator of typeScript for imports/exports and their arguments
-- loading WASI preview 2 polyfill would be amazing stretch goal. I have no idea how to.
+- loading WASI preview 2 polyfill would be amazing stretch goal. I have no idea how to. there is `@bytecodealliance/preview2-shim` npm package.
 
 ## Why
 - as a hackathon week project: https://hackbox.microsoft.com/hackathons/hackathon2023/project/32678

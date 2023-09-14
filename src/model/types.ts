@@ -118,12 +118,6 @@ export type ComponentType =
     | ComponentTypeResource
 
 
-/// The type is a component defined type.
-export type ComponentTypeDefined = {
-    tag: ModelTag.ComponentTypeDefined
-    value: ComponentDefinedType
-}
-
 /// The type is a function type.
 export type ComponentTypeFunc = ComponentFuncType & {
     tag: ModelTag.ComponentTypeFunc
@@ -270,69 +264,69 @@ export type VariantCase = {
 }
 
 /// Represents a defined type in a WebAssembly component.
-export type ComponentDefinedType =
-    | ComponentDefinedTypePrimitive
-    | ComponentDefinedTypeRecord
-    | ComponentDefinedTypeVariant
-    | ComponentDefinedTypeList
-    | ComponentDefinedTypeTuple
-    | ComponentDefinedTypeFlags
-    | ComponentDefinedTypeEnum
-    | ComponentDefinedTypeOption
-    | ComponentDefinedTypeResult
-    | ComponentDefinedTypeOwn
-    | ComponentDefinedTypeBorrow
+export type ComponentTypeDefined =
+    | ComponentTypeDefinedPrimitive
+    | ComponentTypeDefinedRecord
+    | ComponentTypeDefinedVariant
+    | ComponentTypeDefinedList
+    | ComponentTypeDefinedTuple
+    | ComponentTypeDefinedFlags
+    | ComponentTypeDefinedEnum
+    | ComponentTypeDefinedOption
+    | ComponentTypeDefinedResult
+    | ComponentTypeDefinedOwn
+    | ComponentTypeDefinedBorrow
 
 /// The type is one of the primitive value types.
-export type ComponentDefinedTypePrimitive = {
-    tag: ModelTag.ComponentDefinedTypePrimitive,
+export type ComponentTypeDefinedPrimitive = {
+    tag: ModelTag.ComponentTypeDefinedPrimitive,
     value: PrimitiveValType,
 }
 
 /// The type is a record with the given fields.
-export type ComponentDefinedTypeRecord = {
-    tag: ModelTag.ComponentDefinedTypeRecord,
+export type ComponentTypeDefinedRecord = {
+    tag: ModelTag.ComponentTypeDefinedRecord,
     members: { name: string, type: ComponentValType }[],
 }
 
 /// The type is a variant with the given cases.
-export type ComponentDefinedTypeVariant = {
-    tag: ModelTag.ComponentDefinedTypeVariant,
+export type ComponentTypeDefinedVariant = {
+    tag: ModelTag.ComponentTypeDefinedVariant,
     variants: VariantCase[],
 }
 
 /// The type is a list of the given value type.
-export type ComponentDefinedTypeList = {
-    tag: ModelTag.ComponentDefinedTypeList,
+export type ComponentTypeDefinedList = {
+    tag: ModelTag.ComponentTypeDefinedList,
     value: ComponentValType,
 }
 
 /// The type is a tuple of the given value types.
-export type ComponentDefinedTypeTuple = {
-    tag: ModelTag.ComponentDefinedTypeTuple,
+export type ComponentTypeDefinedTuple = {
+    tag: ModelTag.ComponentTypeDefinedTuple,
     members: ComponentValType[],
 }
 
 /// The type is flags with the given names.
-export type ComponentDefinedTypeFlags = {
-    tag: ModelTag.ComponentDefinedTypeFlags,
+export type ComponentTypeDefinedFlags = {
+    tag: ModelTag.ComponentTypeDefinedFlags,
     members: string[],
 }
 /// The type is an enum with the given tags.
-export type ComponentDefinedTypeEnum = {
-    tag: ModelTag.ComponentDefinedTypeEnum,
+export type ComponentTypeDefinedEnum = {
+    tag: ModelTag.ComponentTypeDefinedEnum,
     members: string[],
 }
 
 /// The type is an option of the given value type.
-export type ComponentDefinedTypeOption = {
-    tag: ModelTag.ComponentDefinedTypeOption,
+export type ComponentTypeDefinedOption = {
+    tag: ModelTag.ComponentTypeDefinedOption,
     value: ComponentValType,
 }
 
 /// The type is a result type.
-export type ComponentDefinedTypeResult = {
-    tag: ModelTag.ComponentDefinedTypeResult,
+export type ComponentTypeDefinedResult = {
+    tag: ModelTag.ComponentTypeDefinedResult,
     /// The type returned for success.
     ok?: ComponentValType,
     /// The type returned for failure.
@@ -340,13 +334,13 @@ export type ComponentDefinedTypeResult = {
 }
 
 /// An owned handle to a resource.
-export type ComponentDefinedTypeOwn = {
-    tag: ModelTag.ComponentDefinedTypeOwn,
+export type ComponentTypeDefinedOwn = {
+    tag: ModelTag.ComponentTypeDefinedOwn,
     value: u32,
 }
 
 /// A borrowed handle to a resource.
-export type ComponentDefinedTypeBorrow = {
-    tag: ModelTag.ComponentDefinedTypeBorrow,
+export type ComponentTypeDefinedBorrow = {
+    tag: ModelTag.ComponentTypeDefinedBorrow,
     value: u32,
 }

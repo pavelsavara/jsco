@@ -19,7 +19,7 @@ export type InstantiationArg = {
 }
 
 /// Represents an instance of a WebAssembly module.
-export type Instance =
+export type CoreInstance =
     | CoreInstanceInstantiate
     | CoreInstanceFromExports
 

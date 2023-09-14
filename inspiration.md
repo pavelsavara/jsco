@@ -26,3 +26,7 @@ https://github.com/yskszk63/stream-wasm-parser
 
 ## WIT text AST parser + TypeScript generator
 https://github.com/microsoft/vscode-wasm/tree/dbaeumer/monetary-ox-cyan
+
+## Other stuff
+https://github.com/rylev/wepl
+https://wasmbuilder.app/

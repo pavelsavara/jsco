@@ -1,10 +1,10 @@
 import { BindingContext } from '../binding/types';
-import { ComponentAlias } from '../model/aliases';
-import { CanonicalFunction } from '../model/canonicals';
+import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
+import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { ComponentInstance, Instance as CoreInstance } from '../model/instances';
-import { ComponentType } from '../model/types';
+import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
+import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, WITSection } from '../parser/types';
 
@@ -25,9 +25,15 @@ export type JsImports = JsInterfaceCollection
 
 export type ComponentFactory<TJSExports> = (imports?: JsImports) => WasmComponent<TJSExports>
 
-export type ComponentFactoryImpl = () => WasmComponent<any>
-export type ExportFactory = (ctx: BindingContext) => JsInterfaceCollection
-export type InstanceFactory = (ctx: BindingContext) => JsInterface
+export type WasmComponentFactory = () => WasmComponent<any>
+export type ImplComponentExport = (ctx: BindingContext) => JsInterfaceCollection
+export type ImplComponentInstance = (ctx: BindingContext) => JsInterface
+export type ImplCoreInstance = (ctx: BindingContext) => WebAssembly.Instance
+export type ImplComponentTypeComponent = (ctx: BindingContext) => JsInterface
+export type ImplComponentFunc = (ctx: BindingContext) => any
+export type ImplComponentType = (ctx: BindingContext) => any
+export type ImplComponentTypeResource = (ctx: BindingContext) => any
+export type ImplComponentTypeInstance = (ctx: BindingContext) => any
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -42,20 +48,17 @@ export type ResolverContext = {
     usesNumberForInt64: boolean
     componentImports: ComponentImport[]
     modules: CoreModule[]
-    aliases: ComponentAlias[]
-    cannon: CanonicalFunction[]
     other: WITSection[]
 
-    componentExports: ComponentExport[], componentExportFactories: ExportFactory[]
-    componentInstances: ComponentInstance[], componentInstanceFactories: InstanceFactory[]
-    coreInstances: CoreInstance[], coreInstanceFactories: Function[]
+    coreInstances: CoreInstance[], implCoreInstance: ImplCoreInstance[]
+    coreFunctions: (ComponentAliasCoreInstanceExport | CanonicalFunctionLower)[]
+    coreMemories: (ComponentAliasCoreInstanceExport)[]
+    coreGlobals: (ComponentAliasCoreInstanceExport)[]
+    coreTables: (ComponentAliasCoreInstanceExport)[]
 
-
-    // this is the same thing ?
-    type: ComponentType[]
-    component: ComponentType[]
-    bindingContextFactory: (imports: JsImports) => BindingContext
-
-    prepareComponentExports: () => void
-    prepareComponentInstance: (componentInstanceIndex: number) => void
+    componentExports: ComponentExport[]
+    componentInstances: (ComponentInstance | ComponentTypeInstance)[], implComponentInstance: ImplComponentInstance[]
+    componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
+    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
+    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
 }

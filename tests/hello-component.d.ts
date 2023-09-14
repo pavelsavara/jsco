@@ -24,7 +24,7 @@ declare module js {
     }
 }
 
-declare module abi {
+declare module wasm {
     export type module0Exports = {
         memory: WebAssembly.Memory
         cabi_realloc: Tcabi_realloc
