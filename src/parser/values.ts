@@ -7,7 +7,7 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType } from '../model/types';
 
 const textDecoder = new TextDecoder();
 
@@ -33,6 +33,17 @@ export async function readNameAsync(source: SyncSource): Promise<string> {
     const length = await readU32(source);
     const content = await source.readExact(length);
     return textDecoder.decode(content) as any;
+}
+
+export function readStringArray(src: SyncSource): string[] {
+
+    const count = readU32(src);
+    const arr = [];
+    for(let i=0; i<count; i++)
+    {
+        arr.push(readName(src));
+    }
+    return arr;
 }
 
 export function readName(source: SyncSource): string {
@@ -78,6 +89,55 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
     }
 }
 
+export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDeclaration[]
+{
+    const count = readU32(src);
+    const declarations: InstanceTypeDeclaration[] = [];
+    for(let i = 0; i < count; i++)
+    {
+        const type = src.read();
+        let declaration: any;
+        switch (type)
+        {
+            case 0x00:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationCoreType,
+                    value: undefined,
+                };
+                break;
+            }
+            case 0x01:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationType,
+                    value: readComponentType(src),
+                };
+                break;
+            }
+            case 0x02:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationAlias,
+                    value: undefined,
+                };
+                break;
+            }
+            case 0x04:
+            {
+                declaration = {
+                    tag: ModelTag.InstanceTypeDeclarationExport,
+                    name: readComponentExternName(src),
+                    ty: readComponentTypeRef(src)
+                };
+                break;
+            }
+        }
+        declarations.push(declaration);
+    }
+    return declarations;
+}
+
 export function readComponentExternName(src: SyncSource): ComponentExternName {
     const type = readU32(src);
 
@@ -95,10 +155,151 @@ export function readComponentExternName(src: SyncSource): ComponentExternName {
     }
 }
 
+export function readDestructor(src: SyncSource) : number | undefined
+{
+    const type = src.read();
+    switch (type)
+    {
+        case 0x00: return undefined;
+        case 0x01: return readU32(src);
+        default: throw new Error('Invalid leading byte in resource destructor');
+    }
+}
+
+export function readComponentTypeDefined(src: SyncSource, type: number): ComponentTypeDefined{
+    switch (type)
+    {
+        case 0x68: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedBorrow,
+                value: readU32(src),
+            };
+        }
+        case 0x69: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedOwn,
+                value: readU32(src),
+            };
+        }
+        case 0x6a: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedResult,
+                ok: readComponentValType(src),
+                err: readComponentValType(src),
+            };
+        }
+        case 0x6b: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedOption,
+                value: readComponentValType(src),
+            };
+        }
+        case 0x6d: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedEnum,
+                members: readStringArray(src),
+            };
+        }
+        case 0x6e: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedFlags,
+                members: readStringArray(src),
+            };
+        }
+        case 0x6f: {
+            const count = readU32(src);
+            const members = [];
+            for(let i=0; i<count; i++)
+            {
+                members.push(readComponentValType(src));
+            }
+            return {
+                tag: ModelTag.ComponentTypeDefinedTuple,
+                members: members,
+            };
+        }
+        case 0x70: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedList,
+                value: readComponentValType(src),
+            };
+        }
+        case 0x71: {
+            const count = readU32(src);
+            const variants = [];
+            for(let i=0; i<count; i++)
+            {
+                variants.push({
+                    name: readName(src),
+                    ty: readComponentValType(src),
+                    refines: readU32(src),
+                });
+            }
+            return {
+                tag: ModelTag.ComponentTypeDefinedVariant,
+                variants: variants,
+            };
+        }
+        case 0x72: {
+            const count = readU32(src);
+            const members = [];
+            for(let i=0; i<count; i++)
+            {
+                members.push({
+                    name: readName(src),
+                    type: readComponentValType(src),
+                });
+            }
+            return {
+                tag: ModelTag.ComponentTypeDefinedRecord,
+                members: members,
+            };
+        }
+        default:
+            throw new Error('Unrecognized type in readComponentTypeDefined.');
+    }
+}
+
+export function readComponentType(src: SyncSource) : any
+{
+    const type = src.read();
+    switch (type)
+    {
+        case 0x3F: {
+            return {
+                tag: ModelTag.ComponentTypeResource,
+                rep: readU32(src),
+                dtor: readDestructor(src)
+            };
+        }
+        case 0x40: {
+            return {
+                tag: ModelTag.ComponentTypeFunc,
+                params: readNamedValues(src),
+                results: readComponentFuncResult(src),
+            };
+        }
+        case 0x41: {
+            return {
+                tag: ModelTag.ComponentTypeComponent,
+                declarations: undefined,
+            };
+        }
+        case 0x42: {
+            return {
+                tag: ModelTag.ComponentTypeInstance,
+                declarations:  readInstanceTypeDeclarations(src),
+            };
+        }
+        default: {
+            return readComponentTypeDefined(src, type);
+        }
+    }
+}
+
 export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
     const type = readU32(src);
     switch (type) {
-        // wrong case 0x00: return undefined;
         case 0x00: return {
             tag: ModelTag.ComponentTypeRefModule,
             value: readU32(src),
@@ -128,18 +329,59 @@ export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
     }
 }
 
+export function readNamedValues(src: SyncSource): NamedValue[]{
+    const values = [];
+    const count = readU32(src);
+    for(let i=0; i<count; i++)
+    {
+        values.push({
+            name: readName(src),
+            type: readComponentValType(src),
+        });
+    }
+    return values;
+}
+
+export function readComponentFuncResult(src: SyncSource) : ComponentFuncResult | undefined
+{
+    try
+    {
+        const type = src.read();
+        switch(type)
+        {
+            case 0x00:
+                return {
+                    tag: ModelTag.ComponentFuncResultUnnamed,
+                    value: readComponentValType(src),
+                };
+            case 0x01:
+                return {
+                    tag: ModelTag.ComponentFuncResultNamed,
+                    value: readNamedValues(src),
+                };
+            default: throw new Error(`unknown ComponentFuncResult type: ${type}`);
+        }
+    }
+    catch
+    {
+        return undefined;
+    }
+}
+
 export function readComponentValType(src: SyncSource): ComponentValType {
-    const b = readU32(src);
-    switch (b) {
-        case 0x00: return {
-            tag: ModelTag.ComponentValTypeType,
-            value: readU32(src), // TODO should be 33 bits signed
-        };
-        default: return {
+    const b = src.read();
+    if (0x73 <= b && b <= 0x7f)
+    {
+        return {
             tag: ModelTag.ComponentValTypePrimitive,
-            value: parsePrimitiveValType(src),
+            value: parsePrimitiveValType(b),
         };
     }
+    const val = readU32(src);
+    return {
+        tag: ModelTag.ComponentValTypeType,
+        value: val,
+    };
 }
 
 export function readTypeBounds(src: SyncSource): TypeBounds {
@@ -157,8 +399,7 @@ export function readTypeBounds(src: SyncSource): TypeBounds {
     }
 }
 
-export function parsePrimitiveValType(src: SyncSource): PrimitiveValType {
-    const b = src.read();
+export function parsePrimitiveValType(b: number): PrimitiveValType {
     switch (b) {
         case 0x7f: return PrimitiveValType.Bool;
         case 0x7e: return PrimitiveValType.S8;
