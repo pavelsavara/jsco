@@ -94,7 +94,6 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 for (const declaration of section.declarations) {
                     switch (declaration.tag) {
                         case ModelTag.InstanceTypeDeclarationType: {
-                            //console.log('TODO ComponentTypeInstance', declaration, rctx.debugStack);
                             const type = await prepareComponentType(rctx, declaration.value);
                             typeFactories.push(type);
                             break;
@@ -107,7 +106,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         case ModelTag.InstanceTypeDeclarationCoreType:
                         case ModelTag.InstanceTypeDeclarationAlias:
                         default:
-                            throw new Error(`"${declaration.tag}" not implemented`);
+                            throw new Error(`"${declaration.tag}" not implemented, ${rctx.debugStack}`);
                     }
                 }
 

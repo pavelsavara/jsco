@@ -244,10 +244,8 @@ export async function memoizePrepare<TFactory extends ((ctx: BindingContext, ...
                 try {
                     ctx.debugStack!.unshift(`CREATE  ${section.tag}[${cacheIndex}] (${args.length != 0 ? JSON.stringify(args) : ''})`);
                     const res = await factory(ctx, ...args);
+                    console.log(`CREATE returned ${section.tag}[${cacheIndex}]`, res);
                     return res;
-                } catch (e) {
-                    console.error('factory error', section, e);
-                    throw e;
                 }
                 finally {
                     ctx.debugStack!.shift();

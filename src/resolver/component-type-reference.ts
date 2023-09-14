@@ -19,11 +19,21 @@ export async function prepareComponentTypeReference(rctx: ResolverContext, compo
 
 export async function prepareComponentType(rctx: ResolverContext, componentTypeRef: ComponentType): Promise<ImplComponentTypeReference> {
     switch (componentTypeRef.tag) {
-        case ModelTag.ComponentTypeDefinedRecord:
+        case ModelTag.ComponentTypeDefinedRecord: {
+            return async (ctx) => {
+                return {
+                    TODO: componentTypeRef.tag,
+                    members: componentTypeRef.members,
+                } as any;
+            };
+            break;
+        }
         case ModelTag.ComponentTypeFunc:
             return async (ctx) => {
                 return {
-                    TODO: componentTypeRef.tag
+                    TODO: componentTypeRef.tag,
+                    params: componentTypeRef.params,
+                    results: componentTypeRef.results,
                 } as any;
             };
         default:

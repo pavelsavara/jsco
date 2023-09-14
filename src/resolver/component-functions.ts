@@ -15,6 +15,8 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                     const coreFn = await coreFunctionFactory(ctx);
                     const componentType = await componentTypeFuntionFactory(ctx);
                     return {
+                        stack: ctx.debugStack?.join(' '),
+                        options: section.options,
                         TODO: section.tag,
                         coreFn,
                         componentType,
