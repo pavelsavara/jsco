@@ -8,6 +8,7 @@ import { ResolverContext, ImplCoreInstance, ImplCoreFunction } from './types';
 export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplCoreInstance> {
     const section = rctx.indexes.coreInstances[coreInstanceIndex];
     return cacheFactory<ImplCoreInstance>(rctx, section, async () => {
+        console.log('TODO prepareCoreInstance', rctx.debugStack);
         switch (section.tag) {
             case ModelTag.CoreInstanceInstantiate: {
                 const moduleSection = rctx.indexes.coreModules[section.module_index];

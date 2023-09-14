@@ -6,7 +6,10 @@ import { createComponent, instantiateComponent } from './index';
 import { ResolverContext } from './types';
 import { parse } from '../parser';
 import { ModelTag } from '../model/tags';
+import { setConfiguration } from '../utils/assert';
 // import { writeToFile } from '../../tests/utils';
+
+setConfiguration('Debug');
 
 describe('resolver hello', () => {
     test('resolver compiles component from fake model', async () => {

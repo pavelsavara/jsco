@@ -7,7 +7,7 @@ import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instan
 import { ModelTag } from '../model/tags';
 import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
-import { CoreModule } from '../parser/types';
+import { CoreModule, WITSection } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -37,6 +37,7 @@ export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface
 export type ImplCoreInstance = (ctx: BindingContext, imports: JsImports) => Promise<WebAssembly.Instance>
 export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
 export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
+export type ImplComponentImport = (ctx: BindingContext) => Promise<any>
 export type ImplCoreFunction = (ctx: BindingContext) => Promise<Function>
 export type ImplComponentType = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
@@ -72,4 +73,6 @@ export type ResolverContext = {
     usesNumberForInt64: boolean
     wasmInstantiate: typeof WebAssembly.instantiate
     resolveCache: Map<ModelTag, Function[]>
+    // TODO remove debugStack
+    debugStack?: string[]
 }

@@ -6,7 +6,7 @@ import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentTypeComponent } from '../model/types';
 import { WITSection } from '../parser/types';
-import { jsco_assert } from '../utils/assert';
+import { jsco_assert, configuration } from '../utils/assert';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
 
@@ -30,6 +30,9 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         },
         resolveCache: new Map(),
     };
+    if (configuration === 'Debug') {
+        rctx.debugStack = [];
+    }
 
     const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
     const indexes = rctx.indexes;
@@ -230,7 +233,17 @@ export async function cacheFactory<TFactory extends Function>(rctx: ResolverCont
         return cache[cacheIndex] as TFactory;
     }
     //console.log('cacheFactory mis', cacheIndex);
-    const factory = await ff();
-    cache[cacheIndex] = factory;
-    return factory;
+    try {
+        if (configuration === 'Debug') {
+            rctx.debugStack!.unshift(`${section.tag} ${cacheIndex}`);
+        }
+        const factory = await ff();
+        cache[cacheIndex] = factory;
+        return factory;
+    }
+    finally {
+        if (configuration === 'Debug') {
+            rctx.debugStack!.pop();
+        }
+    }
 }
