@@ -1,4 +1,5 @@
 import { BindingContext } from '../binding/types';
+import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { prepareComponentTypeComponent } from './component-type-component';
 import { cacheFactory } from './context';
@@ -6,15 +7,9 @@ import { ResolverContext, JsInterface, ImplComponentInstance } from './types';
 
 export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): ImplComponentInstance {
     //console.log('prepareComponentInstance', componentInstanceIndex);
-    function createComponentInstance(ctx: BindingContext, index: number, componentType: any): JsInterface {
+    function createComponentInstance(ctx: BindingContext, index: number, componentType: JsInterface): JsInterface {
         //console.log('createComponentInstance', index, section);
-        const ifc: JsInterface = {} as any;
-        // TODO: this is very fake!
-        ifc['run'] = () => {
-            const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
-            ctx.imports['hello:city/city'].sendMessage(fakeMessage);
-        };
-        return ifc;
+        return componentType;
     }
 
     let factory: ImplComponentInstance;
@@ -23,21 +18,22 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         case ModelTag.ComponentInstanceInstantiate: {
             section.component_index;
             const typeFactory = prepareComponentTypeComponent(rctx, section.component_index);
+            const args = [];
             for (const arg of section.args) {
-                /*
                 switch (arg.kind) {
                     case ComponentExternalKind.Func:
-                        rctx.prepareFunctionType(arg.index);
+                        //prepareFunctionType(arg.index);
+                        console.log('ComponentExternalKind.Func', arg);
                         break;
                     case ComponentExternalKind.Component:
-                        rctx.prepareComponentType(arg.index);
+                        //prepareComponentType(arg.index);
                         break;
                     case ComponentExternalKind.Type:
-                        rctx.prepareDefinedType(arg.index);
+                        //prepareDefinedType(arg.index);
                         break;
                     default:
                         throw new Error(`"${arg.kind}" not implemented`);
-                }*/
+                }
             }
             factory = cacheFactory(rctx.implComponentInstance, componentInstanceIndex, () => (ctx) => {
                 const componentType = typeFactory(ctx);

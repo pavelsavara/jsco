@@ -29,7 +29,7 @@ export type WasmComponentFactory = () => WasmComponent<any>
 export type ImplComponentExport = (ctx: BindingContext) => JsInterfaceCollection
 export type ImplComponentInstance = (ctx: BindingContext) => JsInterface
 export type ImplCoreInstance = (ctx: BindingContext) => WebAssembly.Instance
-export type ImplComponentTypeComponent = (ctx: BindingContext) => any
+export type ImplComponentTypeComponent = (ctx: BindingContext) => JsInterface
 export type ImplComponentTypeFunc = (ctx: BindingContext) => any
 export type ImplComponentTypeDefined = (ctx: BindingContext) => any
 export type ImplComponentTypeResource = (ctx: BindingContext) => any

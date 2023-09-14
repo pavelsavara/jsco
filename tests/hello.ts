@@ -63,6 +63,13 @@ export const componentType: ComponentTypeInstance = {
             value: {
                 tag: ModelTag.ComponentTypeFunc,
                 params: [
+                    {
+                        name: 'message',
+                        type: {
+                            tag: ModelTag.ComponentValTypePrimitive,
+                            value: PrimitiveValType.String
+                        }
+                    }
                 ],
                 results: {
                     tag: ModelTag.ComponentFuncResultNamed,
