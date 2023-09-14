@@ -9,7 +9,7 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
         return undefined;
     }
 
-    const section = rctx.componentTypes[definedIndex];
+    const section = rctx.indexes.componentTypes[definedIndex];
     switch (section.tag) {
         case ModelTag.ComponentTypeDefinedBorrow:
         case ModelTag.ComponentTypeDefinedEnum:
@@ -22,11 +22,13 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
         case ModelTag.ComponentTypeDefinedResult:
         case ModelTag.ComponentTypeDefinedTuple:
         case ModelTag.ComponentTypeDefinedVariant:
+            console.log('ComponentTypeDefined', section.tag);
+            break;
         default:
             throw new Error(`${section.tag} not implemented`);
     }
     console.log('prepareDefinedType', definedIndex, section);
-    const factory: ImplComponentType = cacheFactory(rctx.implComponentTypes, definedIndex, () => (ctx) => {
+    const factory: ImplComponentType = cacheFactory(rctx.implComponentTypes, definedIndex, () => async (ctx) => {
         return createDefinedType(ctx, definedIndex);
     });
     return factory;

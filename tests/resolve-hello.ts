@@ -20,33 +20,35 @@ import { PrimitiveValType } from '../src/model/types';
 
 export const expectedContext: Partial<ResolverContext> = {
     usesNumberForInt64: false,
-    other: [],
+    indexes: {
+        componentExports: [componentExport0],
+        componentImports: [componentImport0],
+        componentFunctions: [aliasExport0, canonicalFuncLift1],
+        componentInstances: [componentTypeInstance0, componentInstance1],
+        componentTypes: [componentTypeComponent0, aliasExportType1, componentTypeFunc2, aliasExportType3],
+        componentTypeResource: [],
 
-    componentExports: [componentExport0],
-    componentImports: [componentImport0],
-    componentFunctions: [aliasExport0, canonicalFuncLift1],
-    componentInstances: [componentTypeInstance0, componentInstance1],
-    componentTypes: [componentTypeComponent0, aliasExportType1, componentTypeFunc2, aliasExportType3],
-    componentTypeResource: [],
-
-    coreModules: [coreModule0, coreModule1, coreModule2],
-    coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
-    coreFunctions: [aliasCoreExportFunc0, aliasCoreExportFunc1, canonicalFuncLower2, aliasCoreExportFunc3],
-    coreMemories: [aliasCoreExportMemory0],
-    coreTables: [aliasCoreExportTable0],
-    coreGlobals: [],
+        coreModules: [coreModule0, coreModule1, coreModule2],
+        coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
+        coreFunctions: [aliasCoreExportFunc0, aliasCoreExportFunc1, canonicalFuncLower2, aliasCoreExportFunc3],
+        coreMemories: [aliasCoreExportMemory0],
+        coreTables: [aliasCoreExportTable0],
+        coreGlobals: [],
+    },
 
     implComponentInstance: [],
     implComponentTypes: [],
     implComponentFunction: [],
     implComponentResource: [],
     implCoreInstance: [],
+    implCoreFunction: [],
 
 };
 
 
 export function resolveTree() {
-    const model: ResolverContext = expectedContext as ResolverContext;
+    const rctx: ResolverContext = expectedContext as ResolverContext;
+    const indexes = rctx.indexes;
     const instantiateMock = (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => {
         return {
             exports: {
@@ -61,27 +63,27 @@ export function resolveTree() {
     const exports2: any = {};
     const imports2: any = {};
 
-    jsco_assert(componentExport0 === model.componentExports[0], 'aww, snap! 1');
+    jsco_assert(componentExport0 === indexes.componentExports[0], 'aww, snap! 1');
     {
-        jsco_assert(componentInstance1 === model.componentInstances[componentExport0.index], 'aww, snap! 2');
+        jsco_assert(componentInstance1 === indexes.componentInstances[componentExport0.index], 'aww, snap! 2');
         {
             const runArgIndex = componentInstance1.args[0].index;// import-func-run
             {
-                jsco_assert(canonicalFuncLift1 === model.componentFunctions[runArgIndex], 'aww, snap! 3');
+                jsco_assert(canonicalFuncLift1 === indexes.componentFunctions[runArgIndex], 'aww, snap! 3');
                 {
-                    jsco_assert(aliasCoreExportFunc3 === model.coreFunctions[canonicalFuncLift1.core_func_index], 'aww, snap! 4');
+                    jsco_assert(aliasCoreExportFunc3 === indexes.coreFunctions[canonicalFuncLift1.core_func_index], 'aww, snap! 4');
                     {
-                        jsco_assert(coreInstance2 === model.coreInstances[aliasCoreExportFunc3.instance_index], 'aww, snap! 5');
+                        jsco_assert(coreInstance2 === indexes.coreInstances[aliasCoreExportFunc3.instance_index], 'aww, snap! 5');
                         {
                             const argIndex = coreInstance2.args[0].index;// hello:city/city 1 
-                            jsco_assert(coreInstance1 === model.coreInstances[argIndex], 'aww, snap!');
+                            jsco_assert(coreInstance1 === indexes.coreInstances[argIndex], 'aww, snap!');
                             {
                                 const exportIndex = coreInstance1.exports[0].index;// send-message 0
-                                jsco_assert(aliasCoreExportFunc0 === model.coreFunctions[exportIndex], 'aww, snap!');
+                                jsco_assert(aliasCoreExportFunc0 === indexes.coreFunctions[exportIndex], 'aww, snap!');
                                 {
-                                    jsco_assert(coreInstance0 === model.coreInstances[aliasCoreExportFunc0.instance_index], 'aww, snap!');
+                                    jsco_assert(coreInstance0 === indexes.coreInstances[aliasCoreExportFunc0.instance_index], 'aww, snap!');
                                     {
-                                        jsco_assert(coreModule1 === model.coreModules[coreInstance0.module_index], 'aww, snap!');
+                                        jsco_assert(coreModule1 === indexes.coreModules[coreInstance0.module_index], 'aww, snap!');
                                         {
                                             // NO imports1 coreInstance0.args == []
                                             exports1 = instantiateMock(coreModule1.module!);
@@ -100,28 +102,28 @@ export function resolveTree() {
                         imports0[interfaceName] = {};
                         imports0[interfaceName][funcName] = exports1[exportName];
 
-                        jsco_assert(coreModule0 === model.coreModules[coreInstance2.module_index], 'aww, snap!');
+                        jsco_assert(coreModule0 === indexes.coreModules[coreInstance2.module_index], 'aww, snap!');
 
                         exports0 = instantiateMock(coreModule1.module!, imports0);
 
                     }
                 }
 
-                jsco_assert(componentTypeFunc2 === model.componentTypes[canonicalFuncLift1.type_index], 'aww, snap!');
+                jsco_assert(componentTypeFunc2 === indexes.componentTypes[canonicalFuncLift1.type_index], 'aww, snap!');
             }
         }
 
         const cityInfoIndex = componentInstance1.args[1].index;// import-type-city-info
         {
-            jsco_assert(aliasExportType3 === model.componentTypes[cityInfoIndex], 'aww, snap! ');
+            jsco_assert(aliasExportType3 === indexes.componentTypes[cityInfoIndex], 'aww, snap! ');
         }
         const cityInfo0Index = componentInstance1.args[2].index;// import-type-city-info0
         {
-            jsco_assert(aliasExportType1 === model.componentTypes[cityInfo0Index], 'aww, snap!');
+            jsco_assert(aliasExportType1 === indexes.componentTypes[cityInfo0Index], 'aww, snap!');
         }
 
 
-        jsco_assert(componentTypeComponent0 === model.componentTypes[componentInstance1.component_index], 'aww, snap!');
+        jsco_assert(componentTypeComponent0 === indexes.componentTypes[componentInstance1.component_index], 'aww, snap!');
 
     }
 }
@@ -163,9 +165,9 @@ export async function resolveJCO(imports: any) {
         sendMessage(result0 as any);
     }
 
-    const module0: WebAssembly.Module = await rctx.coreModules[0].module!;
-    const module1: WebAssembly.Module = await rctx.coreModules[1].module!;
-    const module2: WebAssembly.Module = await rctx.coreModules[2].module!;
+    const module0: WebAssembly.Module = await rctx.indexes.coreModules[0].module!;
+    const module1: WebAssembly.Module = await rctx.indexes.coreModules[1].module!;
+    const module2: WebAssembly.Module = await rctx.indexes.coreModules[2].module!;
 
     const exports1 = (await wasmInstantiate(module1)).exports as wasm.module1Exports;
 
