@@ -1,15 +1,15 @@
 import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { cacheFactory } from './context';
-import { ImplComponentTypeDefined, ResolverContext } from './types';
+import { ImplComponentType, ResolverContext } from './types';
 
-export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): ImplComponentTypeDefined {
+export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): ImplComponentType {
     function createDefinedType(ctx: BindingContext, index: number): any {
         console.log('createDefinedType', index, section);
         return undefined;
     }
 
-    const section = rctx.componentTypeDefined[definedIndex];
+    const section = rctx.componentTypes[definedIndex];
     switch (section.tag) {
         case ModelTag.ComponentTypeDefinedBorrow:
         case ModelTag.ComponentTypeDefinedEnum:
@@ -26,7 +26,7 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
             throw new Error(`${section.tag} not implemented`);
     }
     console.log('prepareDefinedType', definedIndex, section);
-    const factory: ImplComponentTypeDefined = cacheFactory(rctx.implComponentTypeDefined, definedIndex, () => (ctx) => {
+    const factory: ImplComponentType = cacheFactory(rctx.implComponentTypes, definedIndex, () => (ctx) => {
         return createDefinedType(ctx, definedIndex);
     });
     return factory;

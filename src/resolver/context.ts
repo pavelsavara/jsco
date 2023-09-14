@@ -2,27 +2,29 @@ import { WITModel } from '../parser';
 import { ComponentFactoryOptions, JsImports, ResolverContext } from './types';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
 import { ModelTag } from '../model/tags';
+import { ExternalKind } from '../model/core';
+import { ComponentExternalKind } from '../model/exports';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
 
-    const dummyOnIndexZero = { tag: 'this is dummy on index 0 because references are 1 based' } as any;
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
         componentImports: [],
         modules: [],
         other: [],
-        componentTypeComponent: [], implComponentTypeComponent: [],
-        componentTypeDefined: [], implComponentTypeDefined: [],
-        componentTypeInstance: [], implComponentTypeInstance: [],
+        componentTypeComponents: [], implComponentTypeComponent: [],
+        componentTypes: [], implComponentTypes: [],
         componentTypeResource: [], implComponentTypeResource: [],
-        componentTypeFunc: [], implComponentTypeFunc: [],
-
-        aliases: [],
-        cannon: [],
-
-        coreInstances: [], implCoreInstance: [],
-        componentInstances: [dummyOnIndexZero], implComponentInstance: [],
+        componentFunctions: [], implComponentTypeFunc: [],
+        componentInstances: [], implComponentInstance: [],
         componentExports: [],
+
+        coreGlobals: [],
+        coreFunctions: [],
+        coreMemories: [],
+        coreTables: [],
+        coreInstances: [], implCoreInstance: [],
+
     };
 
     for (const section of sections) {
@@ -37,11 +39,45 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentImport:
                 rctx.componentImports.push(section);
                 break;
-            case ModelTag.ComponentAliasOuter:
-            case ModelTag.ComponentAliasCoreInstanceExport:
-            case ModelTag.ComponentAliasInstanceExport:
-                rctx.aliases.push(section);
+            case ModelTag.ComponentAliasCoreInstanceExport: {
+                switch (section.kind) {
+                    case ExternalKind.Func:
+                        rctx.coreFunctions.push(section);
+                        break;
+                    case ExternalKind.Table:
+                        rctx.coreTables.push(section);
+                        break;
+                    case ExternalKind.Memory:
+                        rctx.coreMemories.push(section);
+                        break;
+                    case ExternalKind.Global:
+                        rctx.coreGlobals.push(section);
+                        break;
+                    case ExternalKind.Tag:
+                    default:
+                        throw new Error(`unexpected section tag: ${section.kind}`);
+                }
                 break;
+            }
+            case ModelTag.ComponentAliasInstanceExport: {
+                switch (section.kind) {
+                    case ComponentExternalKind.Func:
+                        rctx.componentFunctions.push(section);
+                        break;
+                    case ComponentExternalKind.Component:
+                        rctx.componentTypes.push(section);
+                        break;
+                    case ComponentExternalKind.Type:
+                        rctx.componentTypes.push(section);
+                        break;
+                    case ComponentExternalKind.Module:
+                    case ComponentExternalKind.Value:
+                    case ComponentExternalKind.Instance:
+                    default:
+                        throw new Error(`unexpected section tag: ${section.kind}`);
+                }
+                break;
+            }
             case ModelTag.CoreInstanceFromExports:
             case ModelTag.CoreInstanceInstantiate:
                 rctx.coreInstances.push(section);
@@ -51,10 +87,10 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
-                rctx.componentTypeFunc.push(section);
+                rctx.componentFunctions.push(section);
                 break;
             case ModelTag.ComponentTypeComponent:
-                rctx.componentTypeComponent.push(section);
+                rctx.componentTypeComponents.push(section);
                 break;
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:
@@ -67,25 +103,31 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentTypeDefinedResult:
             case ModelTag.ComponentTypeDefinedTuple:
             case ModelTag.ComponentTypeDefinedVariant:
-                rctx.componentTypeDefined.push(section);
+                rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeInstance:
-                rctx.componentTypeInstance.push(section);
+                rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeResource:
                 rctx.componentTypeResource.push(section);
                 break;
-            case ModelTag.CanonicalFunctionLower:
-            case ModelTag.CanonicalFunctionLift:
-            case ModelTag.CanonicalFunctionResourceDrop:
-            case ModelTag.CanonicalFunctionResourceNew:
-            case ModelTag.CanonicalFunctionResourceRep:
-                rctx.cannon.push(section);
+            case ModelTag.CanonicalFunctionLower: {
+                rctx.coreFunctions.push(section);
                 break;
+            }
+            case ModelTag.CanonicalFunctionLift: {
+                rctx.componentFunctions.push(section);
+                break;
+            }
+
             case ModelTag.SkippedSection:
             case ModelTag.CustomSection:
                 rctx.other.push(section);
                 break;
+            case ModelTag.ComponentAliasOuter:
+            case ModelTag.CanonicalFunctionResourceDrop:
+            case ModelTag.CanonicalFunctionResourceNew:
+            case ModelTag.CanonicalFunctionResourceRep:
             default:
                 throw new Error(`unexpected section tag: ${(section as any).tag}`);
         }

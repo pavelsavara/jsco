@@ -14,8 +14,9 @@ import { ModelTag } from '../src/model/tags';
 import { createLifting, createLowering } from '../src/binding';
 import { js, wasm } from './hello-component';
 import { BindingContext, Tcabi_realloc, WasmPointer } from '../src/binding/types';
+import { jsco_assert } from '../src/utils/assert';
 
-export const componentType: ComponentTypeInstance = {
+export const componentTypeInstance0: ComponentTypeInstance = {
     tag: ModelTag.ComponentTypeInstance,
     declarations: [
         {
@@ -94,7 +95,7 @@ export const componentType: ComponentTypeInstance = {
     ]
 };
 
-export const componentImport: ComponentImport = {
+export const componentImport0: ComponentImport = {
     tag: ModelTag.ComponentImport,
     name: {
         tag: ModelTag.ComponentExternNameInterface,
@@ -170,7 +171,7 @@ export const aliasExport0: ComponentAliasInstanceExport = {
     name: 'send-message',
 };
 
-export const canonicalFunc2: CanonicalFunctionLower = {
+export const canonicalFuncLower2: CanonicalFunctionLower = {
     tag: ModelTag.CanonicalFunctionLower,
     func_index: 0,
     options: [
@@ -212,7 +213,7 @@ export const coreInstance4: CoreInstanceInstantiate = {
     ],
 };
 
-export const aliasExport1: ComponentAliasInstanceExport = {
+export const aliasExportType1: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     /// The alias kind.
     kind: ComponentExternalKind.Type,
@@ -222,7 +223,7 @@ export const aliasExport1: ComponentAliasInstanceExport = {
     name: 'city-info',
 };
 
-export const typeFunction2: ComponentTypeFunc = {
+export const componentTypeFunc2: ComponentTypeFunc = {
     tag: ModelTag.ComponentTypeFunc,
     params: [
         {
@@ -244,7 +245,7 @@ export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
     name: 'hello:city/greeter#run',
 };
 
-export const canonicalFunc1: CanonicalFunctionLift = {
+export const canonicalFuncLift1: CanonicalFunctionLift = {
     tag: ModelTag.CanonicalFunctionLift,
     core_func_index: 3,
     type_index: 2,
@@ -270,7 +271,7 @@ export const aliasExportType3: ComponentAliasInstanceExport = {
     name: 'city-info',
 };
 
-export const component: ComponentTypeComponent = {
+export const componentTypeComponent0: ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent,
     declarations: [
         {
@@ -415,7 +416,7 @@ export const component: ComponentTypeComponent = {
 };
 
 // TODO: re-check where type/func info should be saved
-export const componentInstance: ComponentInstanceInstantiate = {
+export const componentInstance1: ComponentInstanceInstantiate = {
     tag: ModelTag.ComponentInstanceInstantiate,
     component_index: 0,
     args: [
@@ -437,7 +438,7 @@ export const componentInstance: ComponentInstanceInstantiate = {
     ]
 };
 
-export const componentExport: ComponentExport = {
+export const componentExport0: ComponentExport = {
     tag: ModelTag.ComponentExport,
     name: { tag: ModelTag.ComponentExternNameInterface, name: 'hello:city/greeter' },
     kind: ComponentExternalKind.Instance,
@@ -446,8 +447,8 @@ export const componentExport: ComponentExport = {
 };
 
 export const expectedModel: WITSection[] = [
-    componentType,
-    componentImport,
+    componentTypeInstance0,
+    componentImport0,
     coreInstance0,
     aliasCoreExportFunc0,
     coreInstance1,
@@ -456,32 +457,62 @@ export const expectedModel: WITSection[] = [
     aliasCoreExportFunc1,
     aliasCoreExportTable0,
     aliasExport0,
-    canonicalFunc2,
+    canonicalFuncLower2,
     coreInstance3,
     coreInstance4,
-    aliasExport1,
-    typeFunction2,
+    aliasExportType1,
+    componentTypeFunc2,
     aliasCoreExportFunc3,
-    canonicalFunc1,
+    canonicalFuncLift1,
     aliasExportType3,
-    component,
-    componentInstance,
-    componentExport
+    componentTypeComponent0,
+    componentInstance1,
+    componentExport0
 ];
 
-export const expectedModelByType: Partial<ResolverContext> = {
-    modules: [], other: [],
-    componentExports: [componentExport],
-    componentImports: [componentImport],
+export const expectedContext: Partial<ResolverContext> = {
+    modules: [], other: [], usesNumberForInt64: false,
+    componentExports: [componentExport0],
+    componentImports: [componentImport0],
+    componentFunctions: [aliasExport0, canonicalFuncLift1, componentTypeFunc2],
+    componentTypeComponents: [componentTypeComponent0],
+    componentInstances: [componentTypeInstance0, componentInstance1],
+    componentTypes: [0 as any, aliasExportType1, 2 as any, aliasExportType3],
+    componentTypeResource: [],
+
     coreInstances: [coreInstance0, coreInstance1, coreInstance2, coreInstance3, coreInstance4],
-    componentInstances: [componentInstance],
-    aliases: [aliasCoreExportFunc0, aliasCoreExportMemory0, aliasCoreExportFunc1, aliasCoreExportTable0, aliasExport0, aliasExport1, aliasCoreExportFunc3, aliasExportType3],
-    cannon: [canonicalFunc2, canonicalFunc1],
-    componentTypeInstance: [componentType],
-    componentTypeFunc: [typeFunction2],
-    componentTypeComponent: [component],
+    coreFunctions: [aliasCoreExportFunc0, aliasCoreExportFunc1, canonicalFuncLower2, aliasCoreExportFunc3],
+    coreMemories: [aliasCoreExportMemory0],
+    coreTables: [aliasCoreExportTable0],
+    coreGlobals: [],
+
+    implComponentInstance: [],
+    implComponentTypeComponent: [],
+    implComponentTypes: [],
+    implComponentTypeFunc: [],
+    implComponentTypeResource: [],
+    implCoreInstance: [],
+
 };
 
+
+export function resolveTree() {
+    const model: ResolverContext = expectedContext as ResolverContext;
+    jsco_assert(componentExport0 === model.componentExports[0], 'aww, snap! 1');
+    jsco_assert(componentExport0.kind === ComponentExternalKind.Instance, 'aww, snap! 2');
+    //jsco_assert(componentExport.ty!.tag === ModelTag.ComponentExternNameInterface, 'aww, snap!');
+
+    const componentInstanceIndex = componentExport0.index;// because 1 based
+    jsco_assert(componentInstance1 === model.componentInstances[componentInstanceIndex], 'aww, snap! 3');
+    const componentIndex = componentInstance1.component_index;
+    jsco_assert(componentTypeComponent0 === model.componentTypeComponents[componentIndex], 'aww, snap! 4');
+
+    const runArgIndex = componentInstance1.args[0].index;// import-func-run
+    jsco_assert(canonicalFuncLift1 === model.componentFunctions[runArgIndex], 'aww, snap! 5');
+
+    //const instantiateComponent: Function = undefined as any;
+    //instantiateComponent()
+}
 
 export async function resolveJCO(imports: any) {
     const rctx: ResolverContext = undefined as any;
@@ -520,15 +551,6 @@ export async function resolveJCO(imports: any) {
         sendMessage(result0 as any);
     }
 
-    function runToAbi(info: js.CityInfo) {
-        const args = [
-            ...stringFromJs(ctx, info.name),
-            numberToUint32(ctx, info.headCount),
-            bigIntToInt64(ctx, info.budget),
-        ];
-        exports0['hello:city/greeter#run'].apply(null, args as any);
-    }
-
     const module0: WebAssembly.Module = await rctx.modules[0].module!;
     const module1: WebAssembly.Module = await rctx.modules[1].module!;
     const module2: WebAssembly.Module = await rctx.modules[2].module!;
@@ -555,8 +577,18 @@ export async function resolveJCO(imports: any) {
 
     await wasmInstantiate(module2, imports2);
 
+    function runToAbi(info: js.CityInfo) {
+        const args = [
+            ...stringFromJs(ctx, info.name),
+            numberToUint32(ctx, info.headCount),
+            bigIntToInt64(ctx, info.budget),
+        ];
+        exports0['hello:city/greeter#run'].apply(null, args as any);
+    }
+
     const greeter0_1_0: js.Exports = {
         run: runToAbi,
     };
+
     return greeter0_1_0;
 }

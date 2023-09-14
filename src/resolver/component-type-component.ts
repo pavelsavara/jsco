@@ -16,24 +16,24 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         };
 
         for (const exportName of exports) {
-            console.log('createComponentType', exportName);
+            //console.log('createComponentType', exportName);
             ifc[exportName] = fakeRun;
         }
 
         return ifc;
     }
 
-    const section = rctx.componentTypeComponent[componentIndex];
+    const section = rctx.componentTypeComponents[componentIndex];
     ///console.log('prepareComponentType', section);
     jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
     const exports: string[] = [];
     for (const declaration of section.declarations) {
         switch (declaration.tag) {
             case ModelTag.ComponentTypeDeclarationType:
-                console.log('ComponentTypeDeclarationType', declaration);
+                //console.log('ComponentTypeDeclarationType', declaration);
                 break;
             case ModelTag.ComponentImport:
-                console.log('ComponentImport', declaration);
+                //console.log('ComponentImport', declaration);
                 break;
             case ModelTag.ComponentTypeDeclarationExport:
                 switch (declaration.ty.tag) {
