@@ -8,6 +8,7 @@ import { ResolverContext, JsInterfaceCollection, ImplComponentExport, ImplCompon
 
 export function prepareComponentExports(rctx: ResolverContext): ImplComponentExport[] {
     async function createComponentExport(ctx: BindingContext, ifc: JsInterface, resolvedName: string): Promise<JsInterfaceCollection> {
+        //console.log('createComponentExport', resolvedName, ifc);
         const namedInterface: JsInterfaceCollection = {};
         namedInterface[resolvedName] = ifc;
         return namedInterface;

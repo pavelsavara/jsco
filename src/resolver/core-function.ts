@@ -6,7 +6,7 @@ import { ResolverContext, JsInterface, ImplCoreFunction } from './types';
 export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): ImplCoreFunction {
     //console.log('prepareCoreFunction', coreFunctionIndex);
     async function createCoreFunction(ctx: BindingContext): Promise<JsInterface> {
-        console.log('createCoreFunction');
+        //console.log('createCoreFunction');
         return {};
     }
 
@@ -15,7 +15,7 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
     switch (section.tag) {
         case ModelTag.CanonicalFunctionLower:
         case ModelTag.ComponentAliasCoreInstanceExport: {
-            console.log('prepareCoreFunction', section.tag);
+            //console.log('prepareCoreFunction', section.tag);
             factory = cacheFactory(rctx.implComponentFunction, coreFunctionIndex, () => async (ctx) => {
                 return createCoreFunction(ctx);
             });

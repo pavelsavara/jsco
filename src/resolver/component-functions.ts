@@ -8,7 +8,7 @@ import { ResolverContext, JsInterface, ImplComponentFunction } from './types';
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): ImplComponentFunction {
     //console.log('prepareComponentFunction', componentFunctionIndex);
     async function createComponentFunction(ctx: BindingContext): Promise<JsInterface> {
-        console.log('createComponentFunction');
+        //console.log('createComponentFunction');
         return {};
     }
 

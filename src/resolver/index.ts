@@ -24,7 +24,7 @@ export function createComponent<TJSExports>(model: WITModel, options?: Component
         const ctx = bindingContextFactory(resolverContext, imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
         for (const factory of factories) {
-            const ifc = factory(ctx);
+            const ifc = await factory(ctx);
             Object.assign(exports, ifc);
         }
         return {

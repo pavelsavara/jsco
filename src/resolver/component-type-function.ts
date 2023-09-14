@@ -6,7 +6,7 @@ import { ResolverContext, JsInterface, ImplComponentTypeFunction } from './types
 export function prepareComponentTypeFunction(rctx: ResolverContext, componentTypeFunctionIndex: number): ImplComponentTypeFunction {
     //console.log('prepareComponentTypeFunction', componentTypeFunctionIndex);
     function createComponentTypeFunction(ctx: BindingContext): JsInterface {
-        console.log('createComponentTypeFunction');
+        //console.log('createComponentTypeFunction');
         return {};
     }
 
@@ -14,7 +14,7 @@ export function prepareComponentTypeFunction(rctx: ResolverContext, componentTyp
     const section = rctx.indexes.componentTypes[componentTypeFunctionIndex];
     switch (section.tag) {
         case ModelTag.ComponentTypeFunc:
-            console.log('prepareComponentTypeFunction', section.tag);
+            //console.log('prepareComponentTypeFunction', section.tag);
             factory = cacheFactory(rctx.implComponentFunction, componentTypeFunctionIndex, () => async (ctx) => {
                 return createComponentTypeFunction(ctx);
             });

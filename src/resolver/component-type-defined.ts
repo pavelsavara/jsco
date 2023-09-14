@@ -5,7 +5,7 @@ import { ImplComponentType, ResolverContext } from './types';
 
 export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): ImplComponentType {
     function createDefinedType(ctx: BindingContext, index: number): any {
-        console.log('createDefinedType', index, section);
+        //console.log('createDefinedType', index, section);
         return undefined;
     }
 
@@ -22,12 +22,12 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
         case ModelTag.ComponentTypeDefinedResult:
         case ModelTag.ComponentTypeDefinedTuple:
         case ModelTag.ComponentTypeDefinedVariant:
-            console.log('ComponentTypeDefined', section.tag);
+            //console.log('ComponentTypeDefined', section.tag);
             break;
         default:
             throw new Error(`${section.tag} not implemented`);
     }
-    console.log('prepareDefinedType', definedIndex, section);
+    //console.log('prepareDefinedType', definedIndex, section);
     const factory: ImplComponentType = cacheFactory(rctx.implComponentTypes, definedIndex, () => async (ctx) => {
         return createDefinedType(ctx, definedIndex);
     });
