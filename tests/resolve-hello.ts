@@ -38,8 +38,8 @@ export const expectedContext: Partial<ResolverContext> = {
 
     implComponentInstance: [],
     implComponentTypes: [],
-    implComponentTypeFunc: [],
-    implComponentTypeResource: [],
+    implComponentFunction: [],
+    implComponentResource: [],
     implCoreInstance: [],
 
 };

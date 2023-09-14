@@ -29,8 +29,8 @@ export type WasmComponentFactory = () => WasmComponent<any>
 export type ImplComponentExport = (ctx: BindingContext) => JsInterfaceCollection
 export type ImplComponentInstance = (ctx: BindingContext) => JsInterface
 export type ImplCoreInstance = (ctx: BindingContext) => WebAssembly.Instance
-export type ImplComponentTypeComponent = (ctx: BindingContext) => JsInterface
-export type ImplComponentFunc = (ctx: BindingContext) => any
+export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => JsInterface
+export type ImplComponentFunction = (ctx: BindingContext) => any
 export type ImplComponentType = (ctx: BindingContext) => any
 export type ImplComponentTypeResource = (ctx: BindingContext) => any
 export type ImplComponentTypeInstance = (ctx: BindingContext) => any
@@ -57,8 +57,13 @@ export type ResolverContext = {
     coreTables: (ComponentAliasCoreInstanceExport)[]
 
     componentExports: ComponentExport[]
-    componentInstances: (ComponentInstance | ComponentTypeInstance)[], implComponentInstance: ImplComponentInstance[]
-    componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
-    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
-    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
+    componentInstances: (ComponentInstance | ComponentTypeInstance)[],
+    componentTypeResource: ComponentTypeResource[],
+    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[],
+    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[],
+
+    implComponentInstance: ImplComponentInstance[]
+    implComponentResource: ImplComponentTypeResource[]
+    implComponentFunction: ImplComponentFunction[]
+    implComponentTypes: ImplComponentType[]
 }

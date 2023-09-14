@@ -5,7 +5,7 @@ import { cacheFactory } from './context';
 import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
 export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): ImplComponentTypeComponent {
-    function createComponentType(ctx: BindingContext, exports: string[]): JsInterface {
+    function createComponentType(ctx: BindingContext, args: any[], exports: string[]): JsInterface {
         //console.log('createComponentType', index, section);
         const ifc: JsInterface = {} as any;
 
@@ -53,9 +53,10 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         }
     }
 
-    const factory: ImplComponentTypeComponent = cacheFactory(rctx.implComponentTypes, componentIndex, () => (ctx) => {
-        return createComponentType(ctx, exports);
+    const factory: ImplComponentTypeComponent = cacheFactory<ImplComponentTypeComponent>(rctx.implComponentTypes, componentIndex, () => (ctx, args) => {
+        return createComponentType(ctx, args, exports);
     });
+
     return factory;
 }
 

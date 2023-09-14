@@ -28,8 +28,8 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
 
         implComponentInstance: [],
         implComponentTypes: [],
-        implComponentTypeFunc: [],
-        implComponentTypeResource: [],
+        implComponentFunction: [],
+        implComponentResource: [],
         implCoreInstance: [],
 
     };
