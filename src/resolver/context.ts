@@ -201,11 +201,11 @@ export function bindingContextFactory(rctx: ResolverContext, imports: JsImports)
     return ctx;
 }
 
-export function cacheFactory<TFactory extends Function>(cache: TFactory[], cacheIndex: number, ff: () => TFactory): TFactory {
+export async function cacheFactory<TFactory extends Function>(cache: TFactory[], cacheIndex: number, ff: () => Promise<TFactory>): Promise<TFactory> {
     if (cache[cacheIndex] !== undefined) {
         return cache[cacheIndex];
     }
-    const factory = ff();
+    const factory = await ff();
     cache[cacheIndex] = factory;
     return factory;
 }
