@@ -1,7 +1,7 @@
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
 import * as leb from '@thi.ng/leb128';
-import { ExternalKind } from '../model/core';
+import { Export, ExternalKind } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
@@ -9,6 +9,7 @@ import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
 import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
+import { CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 
 const textDecoder = new TextDecoder();
 
@@ -258,6 +259,68 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         }
         default: throw new Error(`Unrecognized type in readComponentTypeDefined: ${type}`);
     }
+}
+
+export function readCoreInstance(src: SyncSource): CoreInstance{
+    const type = src.read();
+    switch (type)
+    {
+        case 0x00: {
+            const index = readU32(src);
+            return {
+                tag: ModelTag.CoreInstanceInstantiate,
+                module_index: index,
+                args: readInstantiationArgs(src),
+            };
+        }
+        case 0x01: {
+            return {
+                tag: ModelTag.CoreInstanceFromExports,
+                exports: readExports(src),
+            };
+        }
+        default: throw new Error(`Unrecognized type in readCoreInstance: ${type}`);
+    }
+}
+
+export function readExports(src: SyncSource): Export[]{
+    const count = readU32(src);
+    const exports = [];
+    for(let i=0; i<count; i++)
+    {
+        const name = readName(src);
+        const kind = readU32(src);
+        const index = readU32(src);
+        exports.push({
+            name: name,
+            kind: parseAsExternalKind(kind),
+            index: index,
+        });
+    }
+    return exports;
+}
+
+export function readInstantiationArgs(src: SyncSource): InstantiationArg[] {
+    const count = readU32(src);
+    const args = [];
+    for(let i=0; i<count; i++){
+        const name = readName(src);
+        const kind = readInstantiationArgKind(src);
+        const index = readU32(src);
+        args.push({
+            name: name,
+            kind: kind,
+            index: index
+        });
+    }
+    return args;
+}
+
+export function readInstantiationArgKind(src: SyncSource): InstantiationArgKind {
+    const kind = src.read();
+    if (kind != 0x12)
+        throw new Error(`Unrecognized kind in readInstantiationArgKind: ${kind}`);
+    return InstantiationArgKind.Instance;
 }
 
 export function readCanonicalFunction(src: SyncSource): CanonicalFunction{

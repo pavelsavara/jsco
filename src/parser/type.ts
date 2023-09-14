@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readComponentType } from './values';
