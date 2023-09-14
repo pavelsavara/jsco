@@ -24,6 +24,7 @@ export type BindingContext = {
     readI32: (ptr: WasmPointer) => number;
     writeI32: (ptr: WasmPointer, value: number) => void;
     abort: () => void;
+    debugStack?: string[];
 }
 
 export type FnLoweringToJs = (ctx: BindingContext, abiExport: WasmFunction) => Function;

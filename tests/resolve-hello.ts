@@ -162,14 +162,16 @@ export async function resolveJCO(imports: any) {
     const module1: WebAssembly.Module = await rctx.indexes.coreModules[1].module!;
     const module2: WebAssembly.Module = await rctx.indexes.coreModules[2].module!;
 
-    const exports1 = (await wasmInstantiate(module1)).exports as wasm.module1Exports;
+    const instance1 = await wasmInstantiate(module1);
+    const exports1 = instance1.exports as wasm.module1Exports;
 
     const imports0: wasm.module0Imports = {
         'hello:city/city': {
             'send-message': exports1['0'],
         },
     };
-    const exports0 = (await wasmInstantiate(module0, imports0)).exports as wasm.module0Exports;
+    const instance0 = await wasmInstantiate(module0, imports0);
+    const exports0 = instance0.exports as wasm.module0Exports;
 
     const cabi_realloc: Tcabi_realloc = exports0.cabi_realloc;
     const memory0 = exports0.memory as WebAssembly.Memory;
@@ -182,7 +184,7 @@ export async function resolveJCO(imports: any) {
         },
     };
 
-    await wasmInstantiate(module2, imports2);
+    const instance2 = await wasmInstantiate(module2, imports2);
 
     function runToAbi(info: js.CityInfo) {
         const args = [

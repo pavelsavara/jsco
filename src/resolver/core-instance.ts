@@ -1,13 +1,13 @@
 import { ExternalKind } from '../model/core';
 import { InstantiationArgKind } from '../model/instances';
 import { ModelTag } from '../model/tags';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplCoreInstance, ImplCoreFunction } from './types';
 
 export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplCoreInstance> {
     const section = rctx.indexes.coreInstances[coreInstanceIndex];
-    return cacheFactory<ImplCoreInstance>(rctx, section, async () => {
+    return memoizePrepare<ImplCoreInstance>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CoreInstanceInstantiate: {
                 const moduleSection = rctx.indexes.coreModules[section.module_index];
@@ -34,6 +34,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                         const instance = await factory(ctx, todoArgs);
                         args[name] = instance as any;
                     }
+                    //console.log('TODO wasmInstantiate', ctx.debugStack);
                     return rctx.wasmInstantiate(module, args);
                 };
             }

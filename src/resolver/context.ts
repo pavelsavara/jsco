@@ -6,10 +6,9 @@ import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentTypeComponent } from '../model/types';
 import { WITSection } from '../parser/types';
-import { jsco_assert } from '../utils/assert';
+import { jsco_assert, configuration } from '../utils/assert';
 
-export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
-
+export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
         wasmInstantiate: options.wasmInstantiate ?? WebAssembly.instantiate,
@@ -30,6 +29,9 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
         },
         resolveCache: new Map(),
     };
+    if (configuration === 'Debug') {
+        rctx.debugStack = [];
+    }
 
     const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
     const indexes = rctx.indexes;
@@ -168,7 +170,7 @@ export function setSelfIndex(rctx: ResolverContext) {
 }
 
 
-export function bindingContextFactory(rctx: ResolverContext, imports: JsImports): BindingContext {
+export function createBindingContext(rctx: ResolverContext, imports: JsImports): BindingContext {
     let memory: WebAssembly.Memory = undefined as any;// TODO
     let cabi_realloc: Tcabi_realloc = undefined as any;// TODO
 
@@ -214,10 +216,13 @@ export function bindingContextFactory(rctx: ResolverContext, imports: JsImports)
         writeI32,
         abort,
     };
+    if (configuration === 'Debug') {
+        ctx.debugStack = [];
+    }
     return ctx;
 }
 
-export async function cacheFactory<TFactory extends Function>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
+export async function memoizePrepare<TFactory extends ((ctx: BindingContext, ...args: any[]) => Promise<any>)>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
     jsco_assert(section.selfSortIndex !== undefined, 'expectd selfSortIndex');
     jsco_assert(section.tag !== undefined, 'expected tag');
     const cacheIndex = section.selfSortIndex;
@@ -230,7 +235,33 @@ export async function cacheFactory<TFactory extends Function>(rctx: ResolverCont
         return cache[cacheIndex] as TFactory;
     }
     //console.log('cacheFactory mis', cacheIndex);
-    const factory = await ff();
-    cache[cacheIndex] = factory;
-    return factory;
+    try {
+        if (configuration === 'Debug') {
+            rctx.debugStack!.unshift(`PREPARE ${section.tag}[${cacheIndex}]`);
+
+            const factory = await ff();
+            const wrap = async (ctx: BindingContext, ...args: any[]) => {
+                try {
+                    ctx.debugStack!.unshift(`CREATE  ${section.tag}[${cacheIndex}] (${args.length != 0 ? JSON.stringify(args) : ''})`);
+                    const res = await factory(ctx, ...args);
+                    console.log(`CREATE returned ${section.tag}[${cacheIndex}]`, res);
+                    return res;
+                }
+                finally {
+                    ctx.debugStack!.shift();
+                }
+            };
+            cache[cacheIndex] = wrap;
+            return wrap as TFactory;
+        } else {
+            const factory = await ff();
+            cache[cacheIndex] = factory;
+            return factory;
+        }
+    }
+    finally {
+        if (configuration === 'Debug') {
+            rctx.debugStack!.pop();
+        }
+    }
 }

@@ -6,3 +6,9 @@ export function jsco_assert(condition: unknown, messageFactory: string | (() => 
         : messageFactory);
     throw new Error(message);
 }
+
+// TODO figure out how to get jest to use virtual modules
+export let configuration = 'Debug';
+export function setConfiguration(value: string) {
+    configuration = value;
+}

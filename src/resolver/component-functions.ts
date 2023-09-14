@@ -1,29 +1,26 @@
-import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { prepareComponentTypeFunction } from './component-type-function';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
-import { ResolverContext, JsInterface, ImplComponentFunction } from './types';
+import { ResolverContext, ImplComponentFunction } from './types';
 
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplComponentFunction> {
     const section = rctx.indexes.componentFunctions[componentFunctionIndex];
-    return cacheFactory<ImplComponentFunction>(rctx, section, async () => {
-        //console.log('prepareComponentFunction', componentFunctionIndex);
-        async function createComponentFunction(ctx: BindingContext): Promise<JsInterface> {
-            //console.log('createComponentFunction');
-            return {};
-        }
-
+    return memoizePrepare<ImplComponentFunction>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CanonicalFunctionLift: {
-
                 const coreFunctionFactory = await prepareCoreFunction(rctx, section.core_func_index);
                 const componentTypeFuntionFactory = await prepareComponentTypeFunction(rctx, section.type_index);
-
                 return async (ctx) => {
                     const coreFn = await coreFunctionFactory(ctx);
                     const componentType = await componentTypeFuntionFactory(ctx);
-                    return createComponentFunction(ctx);
+                    return {
+                        stack: ctx.debugStack?.join(' '),
+                        options: section.options,
+                        TODO: section.tag,
+                        coreFn,
+                        componentType,
+                    };
                 };
             }
             case ModelTag.ComponentAliasInstanceExport:
