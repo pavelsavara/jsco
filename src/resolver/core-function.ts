@@ -2,30 +2,25 @@ import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { cacheFactory } from './context';
 import { prepareCoreInstance } from './core-instance';
-import { ResolverContext, JsInterface, ImplCoreFunction } from './types';
+import { ResolverContext, ImplCoreFunction } from './types';
 
 export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): Promise<ImplCoreFunction> {
     const section = rctx.indexes.coreFunctions[coreFunctionIndex];
     return cacheFactory<ImplCoreFunction>(rctx, section, async () => {
-        //console.log('prepareCoreFunction', coreFunctionIndex);
-        async function createCoreFunction(ctx: BindingContext): Promise<JsInterface> {
-            console.log('createCoreFunction');
-            return {};
+        async function createCoreFunction(ctx: BindingContext, instance: WebAssembly.Instance, name: string): Promise<Function> {
+            return instance.exports[name] as Function;
         }
 
         switch (section.tag) {
             case ModelTag.ComponentAliasCoreInstanceExport: {
-                console.log('prepareCoreFunction', section, new Error().stack);
-
                 const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
 
-                return (ctx) => {
-                    instanceFactory(ctx, {
+                return async (ctx) => {
+                    const instance = await instanceFactory(ctx, {
                         // TODO processed imports
                     });
-                    return createCoreFunction(ctx);
+                    return createCoreFunction(ctx, instance, section.name);
                 };
-                break;
             }
             case ModelTag.CanonicalFunctionLower:
             default:

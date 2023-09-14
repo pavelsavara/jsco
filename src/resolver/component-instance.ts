@@ -40,7 +40,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 return async (ctx) => {
                     const args = [];
                     for (const argFactory of argFactories) {
-                        const arg = argFactory(ctx);
+                        const arg = await argFactory(ctx);
                         args.push(arg);
                     }
                     const componentType = await typeFactory(ctx, args);

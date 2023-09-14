@@ -226,10 +226,10 @@ export async function cacheFactory<TFactory extends Function>(rctx: ResolverCont
         cache = [];
     }
     if (cache[cacheIndex] !== undefined) {
-        console.log('cacheFactory hit', cacheIndex);
+        console.warn('cacheFactory hit', section);
         return cache[cacheIndex] as TFactory;
     }
-    console.log('cacheFactory mis', cacheIndex);
+    //console.log('cacheFactory mis', cacheIndex);
     const factory = await ff();
     cache[cacheIndex] = factory;
     return factory;
