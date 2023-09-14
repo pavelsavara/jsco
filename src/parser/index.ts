@@ -94,12 +94,12 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 6: return parseSectionAlias(ctx, sub!);
             case 11: return parseSectionExport(ctx, sub!);
             case 10: return parseSectionImport(ctx, sub!);
-            case 7: return parseSectionType(ctx, sub!); // ComponentType
+            case 7: return parseSectionType(ctx, sub!);
 
             //TODO: to implement
             case 2: // core instance
             case 3: // core type - we don't have it in the sample
-            case 4: // type
+            case 4: // component
             case 5: // instance
             case 8: // canon
                 return skipSection(ctx, sub!, type, size); // this is all TODO
