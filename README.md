@@ -24,7 +24,7 @@
 
 ### stretch goals
 - generator of typeScript for imports/exports and their arguments
-- loading WASI preview 2 polyfill would be amazing stretch goal. I have no idea how to.
+- loading WASI preview 2 polyfill would be amazing stretch goal. I have no idea how to. there is `@bytecodealliance/preview2-shim` npm package.
 
 ## Why
 - as a hackathon week project: https://hackbox.microsoft.com/hackathons/hackathon2023/project/32678

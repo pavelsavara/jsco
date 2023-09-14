@@ -1,6 +1,6 @@
 import { BindingContext } from '../binding/types';
-import { ComponentAlias } from '../model/aliases';
-import { CanonicalFunction } from '../model/canonicals';
+import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
+import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
@@ -29,9 +29,9 @@ export type WasmComponentFactory = () => WasmComponent<any>
 export type ImplComponentExport = (ctx: BindingContext) => JsInterfaceCollection
 export type ImplComponentInstance = (ctx: BindingContext) => JsInterface
 export type ImplCoreInstance = (ctx: BindingContext) => WebAssembly.Instance
-export type ImplComponentTypeComponent = (ctx: BindingContext) => any
-export type ImplComponentTypeFunc = (ctx: BindingContext) => any
-export type ImplComponentTypeDefined = (ctx: BindingContext) => any
+export type ImplComponentTypeComponent = (ctx: BindingContext) => JsInterface
+export type ImplComponentFunc = (ctx: BindingContext) => any
+export type ImplComponentType = (ctx: BindingContext) => any
 export type ImplComponentTypeResource = (ctx: BindingContext) => any
 export type ImplComponentTypeInstance = (ctx: BindingContext) => any
 
@@ -48,26 +48,17 @@ export type ResolverContext = {
     usesNumberForInt64: boolean
     componentImports: ComponentImport[]
     modules: CoreModule[]
-    aliases: ComponentAlias[]
-    cannon: CanonicalFunction[]
     other: WITSection[]
 
     coreInstances: CoreInstance[], implCoreInstance: ImplCoreInstance[]
-    componentInstances: ComponentInstance[], implComponentInstance: ImplComponentInstance[]
+    coreFunctions: (ComponentAliasCoreInstanceExport | CanonicalFunctionLower)[]
+    coreMemories: (ComponentAliasCoreInstanceExport)[]
+    coreGlobals: (ComponentAliasCoreInstanceExport)[]
+    coreTables: (ComponentAliasCoreInstanceExport)[]
+
     componentExports: ComponentExport[]
-    componentTypeDefined: ComponentTypeDefined[], implComponentTypeDefined: ImplComponentTypeDefined[]
-    componentTypeInstance: ComponentTypeInstance[], implComponentTypeInstance: ImplComponentTypeInstance[]
+    componentInstances: (ComponentInstance | ComponentTypeInstance)[], implComponentInstance: ImplComponentInstance[]
     componentTypeResource: ComponentTypeResource[], implComponentTypeResource: ImplComponentTypeResource[]
-    componentTypeFunc: ComponentTypeFunc[], implComponentTypeFunc: ImplComponentTypeFunc[]
-    componentTypeComponent: ComponentTypeComponent[], implComponentTypeComponent: ImplComponentTypeComponent[]
-
-    bindingContextFactory: (imports: JsImports) => BindingContext
-    prepareComponentExports: () => ImplComponentExport[]
-    prepareComponentInstance: (componentInstanceIndex: number) => ImplComponentInstance
-    prepareImplComponentTypeDefined: (componentInstanceIndex: number) => ImplComponentTypeDefined
-    prepareImplComponentTypeComponent: (componentInstanceIndex: number) => ImplComponentTypeComponent
-
-    //prepareImplComponentTypeInstance: (componentInstanceIndex: number) => ImplComponentTypeInstance
-    //prepareImplComponentTypeResource: (componentInstanceIndex: number) => ImplComponentTypeResource
-    //prepareImplComponentTypeFunc: (componentInstanceIndex: number) => ImplComponentTypeFunc
+    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[], implComponentTypeFunc: ImplComponentFunc[]
+    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[], implComponentTypes: ImplComponentType[]
 }

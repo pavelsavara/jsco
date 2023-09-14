@@ -1,88 +1,41 @@
 import { WITModel } from '../parser';
 import { ComponentFactoryOptions, JsImports, ResolverContext } from './types';
 import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
-import { prepareComponentExports } from './component-exports';
-import { prepareComponentInstance } from './component-instance';
-import { prepareComponentTypeComponent } from './component-type-component';
 import { ModelTag } from '../model/tags';
-import { prepareComponentTypeDefined } from './component-type-defined';
+import { ExternalKind } from '../model/core';
+import { ComponentExternalKind } from '../model/exports';
+import { ComponentTypeComponent } from '../model/types';
 
 export function produceResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
-    function bindingContextFactory(imports: JsImports): BindingContext {
-        let memory: WebAssembly.Memory = undefined as any;// TODO
-        let cabi_realloc: Tcabi_realloc = undefined as any;// TODO
 
-        function initialize(m: WebAssembly.Memory, cr: Tcabi_realloc) {
-            memory = m;
-            cabi_realloc = cr;
-        }
-        function getView(pointer?: number, len?: number) {
-            return new DataView(memory.buffer, pointer, len);
-        }
-        function getViewU8(pointer?: number, len?: number) {
-            return new Uint8Array(memory.buffer, pointer, len);
-        }
-        function getMemory() {
-            return memory;
-        }
-        function realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) {
-            return cabi_realloc(oldPtr, oldSize, align, newSize);
-        }
-        function alloc(newSize: WasmSize, align: WasmSize) {
-            return cabi_realloc(0 as any, 0 as any, align, newSize);
-        }
-        function readI32(ptr: WasmPointer) {
-            return getView().getInt32(ptr);
-        }
-        function writeI32(ptr: WasmPointer, value: number) {
-            return getView().setInt32(ptr, value);
-        }
-        function abort() {
-            throw new Error('not implemented');
-        }
-        const ctx: BindingContext = {
-            imports,
-            utf8Decoder: new TextDecoder(),
-            utf8Encoder: new TextEncoder(),
-            initialize,
-            getView,
-            getViewU8,
-            getMemory,
-            realloc,
-            alloc,
-            readI32,
-            writeI32,
-            abort,
-        };
-        return ctx;
-    }
-
-    const dummyOnIndexZero = { tag: 'this is dummy on index 0 because references are 1 based' } as any;
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        componentImports: [],
         modules: [],
         other: [],
-        componentTypeComponent: [], implComponentTypeComponent: [],
-        componentTypeDefined: [], implComponentTypeDefined: [],
-        componentTypeInstance: [], implComponentTypeInstance: [],
-        componentTypeResource: [], implComponentTypeResource: [],
-        componentTypeFunc: [], implComponentTypeFunc: [],
 
-        aliases: [],
-        cannon: [],
-
-        coreInstances: [], implCoreInstance: [],
-        componentInstances: [dummyOnIndexZero], implComponentInstance: [],
         componentExports: [],
+        componentImports: [],
+        componentFunctions: [], // this is 2 phase
+        componentInstances: [],
+        componentTypes: [], // this is 2 phase
+        componentTypeResource: [],
 
+        coreInstances: [],
+        coreFunctions: [],
+        coreMemories: [],
+        coreTables: [],
+        coreGlobals: [],
 
-        bindingContextFactory,
-        prepareComponentExports: () => prepareComponentExports(rctx),
-        prepareComponentInstance: (componentIndex: number) => prepareComponentInstance(rctx, componentIndex),
-        prepareImplComponentTypeComponent: (componentIndex: number) => prepareComponentTypeComponent(rctx, componentIndex),
-        prepareImplComponentTypeDefined: (componentIndex: number) => prepareComponentTypeDefined(rctx, componentIndex),
+        implComponentInstance: [],
+        implComponentTypes: [],
+        implComponentTypeFunc: [],
+        implComponentTypeResource: [],
+        implCoreInstance: [],
+
     };
+
+    //const componentFunctionDefinitions: (ComponentTypeFunc)[] = [];
+    const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
 
     for (const section of sections) {
         // TODO: process all sections into model
@@ -96,11 +49,45 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentImport:
                 rctx.componentImports.push(section);
                 break;
-            case ModelTag.ComponentAliasOuter:
-            case ModelTag.ComponentAliasCoreInstanceExport:
-            case ModelTag.ComponentAliasInstanceExport:
-                rctx.aliases.push(section);
+            case ModelTag.ComponentAliasCoreInstanceExport: {
+                switch (section.kind) {
+                    case ExternalKind.Func:
+                        rctx.coreFunctions.push(section);
+                        break;
+                    case ExternalKind.Table:
+                        rctx.coreTables.push(section);
+                        break;
+                    case ExternalKind.Memory:
+                        rctx.coreMemories.push(section);
+                        break;
+                    case ExternalKind.Global:
+                        rctx.coreGlobals.push(section);
+                        break;
+                    case ExternalKind.Tag:
+                    default:
+                        throw new Error(`unexpected section tag: ${section.kind}`);
+                }
                 break;
+            }
+            case ModelTag.ComponentAliasInstanceExport: {
+                switch (section.kind) {
+                    case ComponentExternalKind.Func:
+                        rctx.componentFunctions.push(section);
+                        break;
+                    case ComponentExternalKind.Component:
+                        rctx.componentTypes.push(section);
+                        break;
+                    case ComponentExternalKind.Type:
+                        rctx.componentTypes.push(section);
+                        break;
+                    case ComponentExternalKind.Module:
+                    case ComponentExternalKind.Value:
+                    case ComponentExternalKind.Instance:
+                    default:
+                        throw new Error(`unexpected section tag: ${section.kind}`);
+                }
+                break;
+            }
             case ModelTag.CoreInstanceFromExports:
             case ModelTag.CoreInstanceInstantiate:
                 rctx.coreInstances.push(section);
@@ -110,10 +97,11 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
                 rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeFunc:
-                rctx.componentTypeFunc.push(section);
+                rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeComponent:
-                rctx.componentTypeComponent.push(section);
+                componentTypeDefinitions.push(section);//append later
+                //rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:
@@ -126,31 +114,98 @@ export function produceResolverContext(sections: WITModel, options: ComponentFac
             case ModelTag.ComponentTypeDefinedResult:
             case ModelTag.ComponentTypeDefinedTuple:
             case ModelTag.ComponentTypeDefinedVariant:
-                rctx.componentTypeDefined.push(section);
+                rctx.componentTypes.push(section);
                 break;
             case ModelTag.ComponentTypeInstance:
-                rctx.componentTypeInstance.push(section);
+                rctx.componentInstances.push(section);
                 break;
             case ModelTag.ComponentTypeResource:
                 rctx.componentTypeResource.push(section);
                 break;
-            case ModelTag.CanonicalFunctionLower:
-            case ModelTag.CanonicalFunctionLift:
-            case ModelTag.CanonicalFunctionResourceDrop:
-            case ModelTag.CanonicalFunctionResourceNew:
-            case ModelTag.CanonicalFunctionResourceRep:
-                rctx.cannon.push(section);
+            case ModelTag.CanonicalFunctionLower: {
+                rctx.coreFunctions.push(section);
                 break;
+            }
+            case ModelTag.CanonicalFunctionLift: {
+                rctx.componentFunctions.push(section);
+                break;
+            }
+
             case ModelTag.SkippedSection:
             case ModelTag.CustomSection:
                 rctx.other.push(section);
                 break;
+            case ModelTag.ComponentAliasOuter:
+            case ModelTag.CanonicalFunctionResourceDrop:
+            case ModelTag.CanonicalFunctionResourceNew:
+            case ModelTag.CanonicalFunctionResourceRep:
             default:
                 throw new Error(`unexpected section tag: ${(section as any).tag}`);
         }
     }
 
+    // indexed with imports first and then function definitions next
+    // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
+    rctx.componentTypes = [...componentTypeDefinitions, ...rctx.componentTypes];
+
     return rctx;
 }
 
 
+export function bindingContextFactory(rctx: ResolverContext, imports: JsImports): BindingContext {
+    let memory: WebAssembly.Memory = undefined as any;// TODO
+    let cabi_realloc: Tcabi_realloc = undefined as any;// TODO
+
+    function initialize(m: WebAssembly.Memory, cr: Tcabi_realloc) {
+        memory = m;
+        cabi_realloc = cr;
+    }
+    function getView(pointer?: number, len?: number) {
+        return new DataView(memory.buffer, pointer, len);
+    }
+    function getViewU8(pointer?: number, len?: number) {
+        return new Uint8Array(memory.buffer, pointer, len);
+    }
+    function getMemory() {
+        return memory;
+    }
+    function realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) {
+        return cabi_realloc(oldPtr, oldSize, align, newSize);
+    }
+    function alloc(newSize: WasmSize, align: WasmSize) {
+        return cabi_realloc(0 as any, 0 as any, align, newSize);
+    }
+    function readI32(ptr: WasmPointer) {
+        return getView().getInt32(ptr);
+    }
+    function writeI32(ptr: WasmPointer, value: number) {
+        return getView().setInt32(ptr, value);
+    }
+    function abort() {
+        throw new Error('not implemented');
+    }
+    const ctx: BindingContext = {
+        imports,
+        utf8Decoder: new TextDecoder(),
+        utf8Encoder: new TextEncoder(),
+        initialize,
+        getView,
+        getViewU8,
+        getMemory,
+        realloc,
+        alloc,
+        readI32,
+        writeI32,
+        abort,
+    };
+    return ctx;
+}
+
+export function cacheFactory<TFactory extends Function>(cache: TFactory[], cacheIndex: number, ff: () => TFactory): TFactory {
+    if (cache[cacheIndex] !== undefined) {
+        return cache[cacheIndex];
+    }
+    const factory = ff();
+    cache[cacheIndex] = factory;
+    return factory;
+}

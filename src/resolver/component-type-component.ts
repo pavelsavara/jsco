@@ -1,22 +1,39 @@
 import { BindingContext } from '../binding/types';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
-import { ResolverContext, ImplComponentTypeComponent } from './types';
+import { cacheFactory } from './context';
+import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
 export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): ImplComponentTypeComponent {
-    function createComponentType(index: number, ctx: BindingContext): any {
+    function createComponentType(ctx: BindingContext, exports: string[]): JsInterface {
         //console.log('createComponentType', index, section);
-        return undefined;
+        const ifc: JsInterface = {} as any;
+
+        // TODO: this is very fake!
+        const fakeRun = () => {
+            const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
+            ctx.imports['hello:city/city'].sendMessage(fakeMessage);
+        };
+
+        for (const exportName of exports) {
+            //console.log('createComponentType', exportName);
+            ifc[exportName] = fakeRun;
+        }
+
+        return ifc;
     }
 
-    const section = rctx.componentTypeComponent[componentIndex];
-    // console.log('prepareComponentType', section);
+    const section = rctx.componentTypes[componentIndex];
+    ///console.log('prepareComponentType', section);
     jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
-
+    const exports: string[] = [];
     for (const declaration of section.declarations) {
         switch (declaration.tag) {
             case ModelTag.ComponentTypeDeclarationType:
+                //console.log('ComponentTypeDeclarationType', declaration);
+                break;
             case ModelTag.ComponentImport:
+                //console.log('ComponentImport', declaration);
                 break;
             case ModelTag.ComponentTypeDeclarationExport:
                 switch (declaration.ty.tag) {
@@ -24,6 +41,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                         // TODO console.log('prepareComponentType declaration', declaration);
                         break;
                     case ModelTag.ComponentTypeRefFunc:
+                        exports.push(declaration.name.name);
                         //rctx.prepareFunctionType(declaration.ty.value);
                         break;
                     default:
@@ -35,16 +53,9 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         }
     }
 
-    const factory: ImplComponentTypeComponent = cacheFactory(rctx, componentIndex, () => (ctx) => createComponentType(componentIndex, ctx));
+    const factory: ImplComponentTypeComponent = cacheFactory(rctx.implComponentTypes, componentIndex, () => (ctx) => {
+        return createComponentType(ctx, exports);
+    });
     return factory;
 }
 
-function cacheFactory(rctx: ResolverContext, cacheIndex: number, ff: () => ImplComponentTypeComponent): ImplComponentTypeComponent {
-    const cache = rctx.implComponentTypeComponent;
-    if (cache[cacheIndex] !== undefined) {
-        return cache[cacheIndex];
-    }
-    const factory = ff();
-    cache[cacheIndex] = factory;
-    return factory;
-}
