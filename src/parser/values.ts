@@ -9,7 +9,7 @@ import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
 import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
-import { CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
+import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 
 const textDecoder = new TextDecoder();
 
@@ -259,6 +259,20 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         }
         default: throw new Error(`Unrecognized type in readComponentTypeDefined: ${type}`);
     }
+}
+
+export function readComponentInstantiationArgs(src: SyncSource): ComponentInstantiationArg[] {
+    const count = readU32(src);
+    const args = [];
+    for(let i=0; i<count; i++)
+    {
+        args.push({
+            name: readName(src),
+            kind: readComponentExternalKind(src),
+            index: readU32(src)
+        });
+    }
+    return args;
 }
 
 export function readCoreInstance(src: SyncSource): CoreInstance{
