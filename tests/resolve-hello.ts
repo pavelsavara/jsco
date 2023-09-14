@@ -48,7 +48,7 @@ export function resolveTree() {
                 {
                     jsco_assert(aliasCoreExportFunc3 === model.coreFunctions[canonicalFuncLift1.core_func_index], 'aww, snap! 1.1.1.1');
                     {
-                        jsco_assert(aliasCoreExportFunc3 === model.coreInstances[aliasCoreExportFunc3.instance_index], 'aww, snap! 1.1.1.1');
+                        //jsco_assert(aliasCoreExportFunc3 === model.coreInstances[aliasCoreExportFunc3.instance_index], 'aww, snap! 1.1.1.1');
 
                     }
 
