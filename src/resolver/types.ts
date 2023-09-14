@@ -74,6 +74,5 @@ export type ResolverContext = {
     usesNumberForInt64: boolean
     wasmInstantiate: typeof WebAssembly.instantiate
     resolveCache: Map<ModelTag, Function[]>
-    // TODO remove debugStack
     debugStack?: string[]
 }
