@@ -171,11 +171,11 @@ export const canonicalFuncLower2: CanonicalFunctionLower = {
     func_index: 0,
     options: [
         {
-            tag: ModelTag.CanonicalOptionUTF8
-        },
-        {
             tag: ModelTag.CanonicalOptionMemory,
             value: 0
+        },
+        {
+            tag: ModelTag.CanonicalOptionUTF8
         }
     ],
 };
@@ -246,16 +246,16 @@ export const canonicalFuncLift1: CanonicalFunctionLift = {
     type_index: 2,
     options: [
         {
-            tag: ModelTag.CanonicalOptionUTF8
+            tag: ModelTag.CanonicalOptionMemory,
+            value: 0
         },
         {
             tag: ModelTag.CanonicalOptionRealloc,
             value: 1
         },
         {
-            tag: ModelTag.CanonicalOptionMemory,
-            value: 0
-        }
+            tag: ModelTag.CanonicalOptionUTF8
+        },
     ],
 };
 
