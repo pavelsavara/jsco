@@ -103,7 +103,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
         let declaration: any;
         switch (type)
         {
-            case 0:
+            case 0x00:
             {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationCoreType,
@@ -111,7 +111,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
                 };
                 break;
             }
-            case 1: // i=0, i=2
+            case 0x01: // i=0, i=2
             {
                 declaration = {
                     tag: ModelTag.ComponentTypeDefined, // this
@@ -121,7 +121,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
                 };
                 break;
             }
-            case 2:
+            case 0x02:
             {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationAlias,
@@ -129,7 +129,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
                 };
                 break;
             }
-            case 4: // i=1
+            case 0x04: // i=1
             {
                 declaration = { // 110, 97, 109 is probably on 1st iter
                     tag: ModelTag.InstanceTypeDeclarationExport, // this
@@ -166,8 +166,8 @@ export function readDestructor(src: SyncSource) : number | undefined
     const type = src.read(); // read_u8
     switch (type)
     {
-        case 0: return undefined;
-        case 1: return readU32(src);
+        case 0x00: return undefined;
+        case 0x01: return readU32(src);
         default: throw new Error('Invalid leading byte in resource destructor');
     }
 }
@@ -177,44 +177,44 @@ export function readComponentDefinedType(src: SyncSource): ComponentDefinedType{
     console.log(`readComponentDefinedType: type=${type}`);
     switch (type)
     {
-        case 104: {
+        case 0x68: {
             return {
                 tag: ModelTag.ComponentDefinedTypeBorrow,
                 value: readU32(src),
             };
         }
-        case 105: {
+        case 0x69: {
             return {
                 tag: ModelTag.ComponentDefinedTypeOwn,
                 value: readU32(src),
             };
         }
-        case 106: {
+        case 0x6a: {
             return {
                 tag: ModelTag.ComponentDefinedTypeResult,
                 ok: readComponentValType(src),
                 err: readComponentValType(src),
             };
         }
-        case 107: {
+        case 0x6b: {
             return {
                 tag: ModelTag.ComponentDefinedTypeOption,
                 value: readComponentValType(src),
             };
         }
-        case 109: {
+        case 0x6d: {
             return {
                 tag: ModelTag.ComponentDefinedTypeEnum,
                 members: readStringArray(src),
             };
         }
-        case 110: {
+        case 0x6e: {
             return {
                 tag: ModelTag.ComponentDefinedTypeFlags,
                 members: readStringArray(src),
             };
         }
-        case 111: {
+        case 0x6f: {
             const count = readU32(src);
             const members = [];
             for(let i=0; i<count; i++)
@@ -226,13 +226,13 @@ export function readComponentDefinedType(src: SyncSource): ComponentDefinedType{
                 members: members,
             };
         }
-        case 112: {
+        case 0x70: {
             return {
                 tag: ModelTag.ComponentDefinedTypeList,
                 value: readComponentValType(src),
             };
         }
-        case 113: {
+        case 0x71: {
             const count = readU32(src);
             const variants = [];
             for(let i=0; i<count; i++)
@@ -248,7 +248,7 @@ export function readComponentDefinedType(src: SyncSource): ComponentDefinedType{
                 variants: variants,
             };
         }
-        case 114: {
+        case 0x72: {
             const count = readU32(src);
             console.log(`readComponentDefinedType 114: count=${count}`);
             const members = [];
@@ -271,44 +271,42 @@ export function readComponentDefinedType(src: SyncSource): ComponentDefinedType{
 
 export function readComponentType(src: SyncSource) : any
 {
-    const type = src.read(); // 66
+    const type = src.read(); // 66 (0x42)
     console.log(`readComponentType: type=${type}`);
     switch (type)
     {
-        case 63: {
+        case 0x3F: {
             return {
                 tag: ModelTag.ComponentTypeResource,
                 rep: readU32(src),
                 dtor: readDestructor(src)
             };
         }
-        case 64: {
+        case 0x40: {
             return {
                 tag: ModelTag.ComponentTypeFunc,
                 params: undefined, // NamedValue[], read_iter
                 results: undefined, //readComponentFunctionResult(),
             };
         }
-        case 65: {
+        case 0x41: {
             return {
                 tag: ModelTag.ComponentTypeComponent,
                 declarations: undefined, // ComponentTypeDeclaration[], read_iter
             };
         }
-        case 66: {
+        case 0x42: {
             return {
                 tag: ModelTag.ComponentTypeInstance,
                 declarations:  readInstanceTypeDeclarations(src),
             };
         }
-        case 67: {
+        default: {
             return {
                 tag: ModelTag.ComponentTypeDefined,
-                value: undefined, // ComponentDefinedType
+                value: undefined, // ComponentDefinedType, we pass type to read it
             };
         }
-        default:
-            throw new Error('Unrecognized type in readComponentType.');
     }
 }
 
