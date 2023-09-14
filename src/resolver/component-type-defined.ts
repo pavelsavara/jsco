@@ -1,26 +1,23 @@
-import { BindingContext } from '../binding/types';
-import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { prepareComponentInstance } from './component-instance';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { ImplComponentType, ResolverContext } from './types';
 
 export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex: number): Promise<ImplComponentType> {
     const section = rctx.indexes.componentTypes[definedIndex];
-    return cacheFactory<ImplComponentType>(rctx, section, async () => {
-        async function createDefinedType(ctx: BindingContext): Promise<any> {
-            //console.log('createDefinedType', index, section);
-            return undefined;
-        }
-
+    return memoizePrepare<ImplComponentType>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.ComponentAliasInstanceExport: {
                 switch (section.kind) {
                     case ComponentExternalKind.Type: {
-                        //console.log('TODO ComponentTypeDefined', section);
                         const componentInstance = await prepareComponentInstance(rctx, section.instance_index);
-                        break;
+                        //console.log('TODO ComponentAliasInstanceExport', section, componentInstance);
+                        return async (ctx) => {
+                            const instance = await componentInstance(ctx);
+                            //console.log('TODO ComponentAliasInstanceExport', section, instance);
+                            return instance;
+                        };
                     }
                     case ComponentExternalKind.Func:
                     case ComponentExternalKind.Component:
@@ -48,8 +45,6 @@ export function prepareComponentTypeDefined(rctx: ResolverContext, definedIndex:
             default:
                 throw new Error(`${section.tag} not implemented`);
         }
-        //console.log('prepareDefinedType', definedIndex, section);
-        return (ctx) => createDefinedType(ctx);
     });
 }
 

@@ -43,6 +43,7 @@ export type ImplComponentType = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeInstance = (ctx: BindingContext) => Promise<any>
 export type ImplComponentTypeFunction = (ctx: BindingContext) => Promise<any>
+export type ImplComponentTypeReference = (ctx: BindingContext) => Promise<any>
 
 export type ComponentFactoryInput = WITModel
     | string

@@ -1,11 +1,11 @@
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
 
 export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): Promise<ImplComponentTypeComponent> {
     const section = rctx.indexes.componentTypes[componentIndex];
-    return cacheFactory<ImplComponentTypeComponent>(rctx, section, async () => {
+    return memoizePrepare<ImplComponentTypeComponent>(rctx, section, async () => {
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exports: string[] = [];
@@ -19,11 +19,11 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                     const importName = declaration.name.name;//TODO name
                     switch (declaration.ty.tag) {
                         case ModelTag.ComponentTypeRefType: {
-                            console.log('TODO ComponentImport', declaration);
+                            //console.log('TODO ComponentImport', declaration);
                             break;
                         }
                         case ModelTag.ComponentTypeRefFunc: {
-                            console.log('TODO ComponentImport', declaration);
+                            //console.log('TODO ComponentImport', declaration);
                             break;
                         }
                         case ModelTag.ComponentTypeRefModule:
@@ -56,9 +56,11 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
             }
         }
 
-        return async (ctx) => {
-            // console.log('createComponentType', section.tag, args);
-            const ifc: JsInterface = {} as any;
+        return async (ctx, args) => {
+            //console.log('createComponentType', ctx.debugStack);
+            const ifc: JsInterface = {
+                TODO: section.tag
+            } as any;
 
             // TODO: this is very fake!
             const fakeRun = () => {

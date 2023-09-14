@@ -1,12 +1,12 @@
 import { ModelTag } from '../model/tags';
 import { prepareComponentTypeFunction } from './component-type-function';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplComponentFunction } from './types';
 
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplComponentFunction> {
     const section = rctx.indexes.componentFunctions[componentFunctionIndex];
-    return cacheFactory<ImplComponentFunction>(rctx, section, async () => {
+    return memoizePrepare<ImplComponentFunction>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CanonicalFunctionLift: {
                 const coreFunctionFactory = await prepareCoreFunction(rctx, section.core_func_index);
