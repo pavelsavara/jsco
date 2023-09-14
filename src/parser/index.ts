@@ -12,6 +12,7 @@ import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
+import { parseSectionInstance } from './instance';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -93,17 +94,17 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             ///
             case 0: return parseSectionCustom(ctx, sub!, size);
             case 1: return parseModule(ctx, asyncSub!, size);
+            case 2: return parseSectionCoreInstance(ctx, sub!);
+            case 5: return parseSectionInstance(ctx, sub!);
             case 6: return parseSectionAlias(ctx, sub!);
-            case 11: return parseSectionExport(ctx, sub!);
-            case 10: return parseSectionImport(ctx, sub!);
             case 7: return parseSectionType(ctx, sub!);
             case 8: return parseSectionCanon(ctx, sub!);
-            case 2: return parseSectionCoreInstance(ctx, sub!);
+            case 10: return parseSectionImport(ctx, sub!);
+            case 11: return parseSectionExport(ctx, sub!);
 
             //TODO: to implement
             case 3: // core type - we don't have it in the sample
             case 4: // component
-            case 5: // instance
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
