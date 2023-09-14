@@ -99,11 +99,11 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 7: return parseSectionType(ctx, sub!);
             case 8: return parseSectionCanon(ctx, sub!);
             case 2: return parseSectionCoreInstance(ctx, sub!);
+            case 5: return parseSectionInstance(ctx, sub!);
 
             //TODO: to implement
             case 3: // core type - we don't have it in the sample
             case 4: // component
-            case 5: // instance
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
