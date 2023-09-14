@@ -9,7 +9,7 @@ export function prepareComponentTypeFunction(rctx: ResolverContext, componentTyp
             case ModelTag.ComponentTypeFunc:
                 return (ctx) => {
                     return {
-                        TODO: 'ComponentTypeFunc'
+                        TODO: section.tag
                     } as any;
                 };
             default:

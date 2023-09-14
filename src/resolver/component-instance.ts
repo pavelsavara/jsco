@@ -4,7 +4,7 @@ import { ModelTag } from '../model/tags';
 import { prepareComponentFunction } from './component-functions';
 import { prepareComponentTypeComponent } from './component-type-component';
 import { prepareComponentTypeDefined } from './component-type-defined';
-import { prepareComponentTypeReference } from './component-type-reference';
+import { prepareComponentType, prepareComponentTypeReference } from './component-type-reference';
 import { memoizePrepare } from './context';
 import { ResolverContext, ImplComponentInstance, ImplComponentFunction, ImplComponentTypeReference } from './types';
 
@@ -95,6 +95,8 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     switch (declaration.tag) {
                         case ModelTag.InstanceTypeDeclarationType: {
                             //console.log('TODO ComponentTypeInstance', declaration, rctx.debugStack);
+                            const type = await prepareComponentType(rctx, declaration.value);
+                            typeFactories.push(type);
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationExport: {
@@ -110,9 +112,12 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 }
 
                 return async (ctx) => {
-                    return {
-                        'TODO': 'ComponentTypeInstance'
-                    } as any;
+                    const exports = [];
+                    for (const factory of typeFactories) {
+                        const value = await factory(ctx);
+                        exports.push(value);
+                    }
+                    return exports;
                 };
                 break;
             }

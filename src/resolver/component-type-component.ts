@@ -59,7 +59,8 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         return async (ctx, args) => {
             //console.log('createComponentType', ctx.debugStack);
             const ifc: JsInterface = {
-                TODO: section.tag
+                TODO: section.tag,
+                TODOArgs: args
             } as any;
 
             // TODO: this is very fake!

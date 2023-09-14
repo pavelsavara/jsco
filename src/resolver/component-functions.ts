@@ -14,7 +14,11 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                 return async (ctx) => {
                     const coreFn = await coreFunctionFactory(ctx);
                     const componentType = await componentTypeFuntionFactory(ctx);
-                    return {};
+                    return {
+                        TODO: section.tag,
+                        coreFn,
+                        componentType,
+                    };
                 };
             }
             case ModelTag.ComponentAliasInstanceExport:
