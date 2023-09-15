@@ -5,10 +5,10 @@ import { ResolverContext } from '../resolver/types';
 import { jsco_assert } from '../utils/assert';
 import { memoize } from './cache';
 import { createLowering } from './to-js';
-import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
+import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
 
-export function createImportLifting(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLiftingFromJs {
+export function createImportLifting(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(exportModel, () => {
         const paramLifters: Function[] = [];
         for (const param of exportModel.params) {
@@ -30,9 +30,9 @@ export function createImportLifting(rctx: ResolverContext, exportModel: Componen
             }
         }
 
-        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
+        return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
             function liftingTrampoline(...args: any[]): any {
-                let covertedArgs: any[] = Array(paramLifters.length);
+                let covertedArgs: any[] = [];
                 for (let i = 0; i < paramLifters.length; i++) {
                     const lifter = paramLifters[i];
                     const value = args[i];
@@ -40,8 +40,7 @@ export function createImportLifting(rctx: ResolverContext, exportModel: Componen
                     // TODO do not alwas spill into stack
                     covertedArgs = [...covertedArgs, ...converted];
                 }
-                console.log('call liftingTrampoline conv', covertedArgs);
-                const resJs = jsFunction(...covertedArgs);
+                const resJs = wasmFunction(...covertedArgs);
                 if (resultLowerers.length === 1) {
                     resultLowerers[0](resJs);
                 }
@@ -101,11 +100,11 @@ function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDe
     return (ctx: BindingContext, srcJsRecord: JsValue): WasmValue[] => {
         // this is spilling into stack
         // TODO allocate on heap
-        const args: any = [];
+        let args: any = [];
         for (const { name, lifter } of lifters) {
             const jsValue = srcJsRecord[name];
             const wasmValue = lifter(ctx, jsValue);
-            args.push(wasmValue);
+            args = [...args, ...wasmValue];
         }
         return args;
     };

@@ -34,10 +34,22 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                         const instance = await factory(ctx, todoArgs);
                         args[name] = instance as any;
                     }
-                    //console.log('TODO wasmInstantiate', ctx.debugStack);
-                    return rctx.wasmInstantiate(module, args);
+
+                    const instance = await rctx.wasmInstantiate(module, args);
+                    const anyExports = instance.exports as any;
+
+                    // this is a hack
+                    // TODO maybe there are WIT instructions about which memory to use?
+                    const memory = anyExports['memory'];
+                    const cabi_realloc = anyExports['cabi_realloc'];
+                    if (memory) {
+                        ctx.initialize(memory, cabi_realloc);
+                    }
+
+                    return instance;
                 };
             }
+
             case ModelTag.CoreInstanceFromExports: {
                 const exportFactories: ({ name: string, factory: ImplCoreFunction })[] = [];
                 for (const exp of section.exports) {
