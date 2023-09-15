@@ -145,9 +145,30 @@ async function parseSectionComponent(
         }
         for (const s of sections) {
             switch (s.tag) {
+                case ModelTag.ComponentTypeDefinedRecord:
+                    model.push({
+                        tag: ModelTag.ComponentTypeDeclarationType,
+                        value: s
+                    });
+                    break;
+                case ModelTag.ComponentTypeFunc:
+                    model.push({
+                        tag: ModelTag.ComponentTypeDeclarationType,
+                        value: s
+                    });
+                    break;
+                case ModelTag.ComponentExport:
+                    model.push({
+                        tag: ModelTag.ComponentTypeDeclarationExport,
+                        name: s.name,
+                        ty: s.ty!
+                    });
+                    break;
+                case ModelTag.ComponentImport:
+                    model.push(s);
+                    break;
                 default:
-                    console.log(JSON.stringify(s));
-                    //throw new Error(`Unexpected section ${s.tag}`);
+                    throw new Error(`Unexpected section ${s.tag}`);
                     break;
             }
         }
