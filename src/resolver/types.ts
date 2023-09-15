@@ -32,18 +32,8 @@ export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<
 //
 
 export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
-export type ImplComponentExport = (ctx: BindingContext) => Promise<JsInterfaceCollection>
-export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface>
-export type ImplCoreInstance = (ctx: BindingContext, imports: JsImports) => Promise<WebAssembly.Instance>
-export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
-export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
-export type ImplComponentImport = (ctx: BindingContext) => Promise<any>
-export type ImplCoreFunction = (ctx: BindingContext) => Promise<Function>
-export type ImplComponentType = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeInstance = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeFunction = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeReference = (ctx: BindingContext) => Promise<any>
+export type ImplFactory = (ctx: BindingContext, imports: any) => Promise<any>
+export type NamedImplFactory = { name: string, factory: ImplFactory }
 
 export type ComponentFactoryInput = WITModel
     | string

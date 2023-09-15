@@ -3,18 +3,18 @@ import { InstantiationArgKind } from '../model/instances';
 import { ModelTag } from '../model/tags';
 import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
-import { ResolverContext, ImplCoreInstance, ImplCoreFunction } from './types';
+import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
-export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplCoreInstance> {
+export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.coreInstances[coreInstanceIndex];
-    return memoizePrepare<ImplCoreInstance>(rctx, section, async () => {
+    return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CoreInstanceInstantiate: {
                 const moduleSection = rctx.indexes.coreModules[section.module_index];
                 // TODO make lazy compilation from moduleSection.data
                 const module = await moduleSection.module!;
 
-                const argFactories: ({ name: string, factory: ImplCoreInstance })[] = [];
+                const argFactories: NamedImplFactory[] = [];
                 for (const arg of section.args) {
                     switch (arg.kind) {
                         case InstantiationArgKind.Instance: {
@@ -55,7 +55,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
             }
 
             case ModelTag.CoreInstanceFromExports: {
-                const exportFactories: ({ name: string, factory: ImplCoreFunction })[] = [];
+                const exportFactories: NamedImplFactory[] = [];
                 for (const exp of section.exports) {
                     switch (exp.kind) {
                         case ExternalKind.Func: {
@@ -69,11 +69,11 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
                 }
 
-                return async (ctx) => {
+                return async (ctx, imports) => {
                     //console.log('CoreInstanceFromExports', section);
                     const exports = {} as any;
                     for (const { name, factory } of exportFactories) {
-                        let value = await factory(ctx);
+                        let value = await factory(ctx, imports);
                         if (typeof value === 'function') {
                             const orig = value;// TODO remove
                             value = (...args: any[]) => {

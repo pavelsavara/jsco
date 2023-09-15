@@ -1,37 +1,48 @@
-import { BindingContext } from '../binding/types';
 import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
+import { prepareComponentExports } from './component-exports';
 import { prepareComponentFunction } from './component-functions';
 import { prepareComponentSection } from './component-section';
-import { prepareComponentTypeDefined } from './component-type-defined';
-import { prepareComponentType, prepareComponentTypeReference } from './component-type-reference';
 import { memoizePrepare } from './context';
-import { ResolverContext, ImplComponentInstance, ImplComponentFunction, ImplComponentTypeReference } from './types';
+import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
-export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplComponentInstance> {
+export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentInstances[componentInstanceIndex];
-    return memoizePrepare<ImplComponentInstance>(rctx, section, async () => {
+    return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {
+            case ModelTag.ComponentInstanceFromExports: {
+                const factory = await prepareComponentExports(rctx, section.exports);
+                return async (ctx, imports) => {
+                    const exports = factory(ctx, imports);
+                    return exports;
+                };
+            }
             case ModelTag.ComponentInstanceInstantiate: {
                 section.component_index;
                 const componentFactory = await prepareComponentSection(rctx, section.component_index);
-                const argFactories: { name: string, factory: (ctx: BindingContext) => Promise<any> }[] = [];
+                const importFactories: NamedImplFactory[] = [];
                 for (const arg of section.args) {
-
                     switch (arg.kind) {
                         case ComponentExternalKind.Func: {
                             const factory = await prepareComponentFunction(rctx, arg.index);
-                            argFactories.push({ name: arg.name, factory });
-                            break;
-                        }
-                        case ComponentExternalKind.Type: {
-                            const factory = await prepareComponentTypeDefined(rctx, arg.index);
-                            argFactories.push({ name: arg.name, factory });
+                            importFactories.push({ name: arg.name, factory });
                             break;
                         }
                         case ComponentExternalKind.Instance: {
                             const factory = await prepareComponentInstance(rctx, arg.index);
-                            argFactories.push({ name: arg.name, factory });
+                            importFactories.push({ name: arg.name, factory });
+                            break;
+                        }
+                        case ComponentExternalKind.Type: {
+                            //const factory = await prepareComponentTypeDefined(rctx, arg.index);
+                            //importFactories.push({ name: arg.name, factory });
+
+                            const factory = async () => {
+                                return {
+                                    TODO: arg.kind
+                                };
+                            };
+                            importFactories.push({ name: arg.name, factory });
                             break;
                         }
                         case ComponentExternalKind.Component:
@@ -42,56 +53,19 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     }
                 }
 
-                return async (ctx) => {
+                return async (ctx, imports) => {
                     const args = {} as any;
-                    for (const { name, factory } of argFactories) {
-                        const arg = await factory(ctx);
+                    for (const { name, factory } of importFactories) {
+                        const arg = await factory(ctx, imports);
                         args[name] = arg;
                     }
-                    console.log(section.tag, args);
                     const componentType = await componentFactory(ctx, args);
                     return componentType;
                 };
             }
-            case ModelTag.ComponentInstanceFromExports: {
-                const exportFactories: ({ name: string, factory: ImplComponentFunction })[] = [];
-                for (const exp of section.exports) {
-                    switch (exp.kind) {
-                        case ComponentExternalKind.Func: {
-                            const func = await prepareComponentFunction(rctx, exp.index);
-                            // TODO: handle name kinds
-                            exportFactories.push({ name: exp.name.name, factory: func });
-                            break;
-                        }
-                        case ComponentExternalKind.Type: {
-                            const type = await prepareComponentTypeDefined(rctx, exp.index);
-                            exportFactories.push({ name: exp.name.name, factory: type });
-                            break;
-                        }
-                        case ComponentExternalKind.Instance: {
-                            const instance = await prepareComponentInstance(rctx, exp.index);
-                            exportFactories.push({ name: exp.name.name, factory: instance });
-                            break;
-                        }
-                        case ComponentExternalKind.Component:
-                        case ComponentExternalKind.Module:
-                        case ComponentExternalKind.Value:
-                        default:
-                            throw new Error(`"${exp.kind}" not implemented`);
-                    }
-                }
-
-                return async (ctx) => {
-                    const exports = {} as any;
-                    for (const { name, factory } of exportFactories) {
-                        const value = await factory(ctx);
-                        exports[name] = value as any;
-                    }
-                    return exports;
-                };
-            }
+            /*
             case ModelTag.ComponentTypeInstance: {
-                const typeFactories: (ImplComponentTypeReference)[] = [];
+                const typeFactories: NamesImplFactory[] = [];
                 for (const declaration of section.declarations) {
                     switch (declaration.tag) {
                         case ModelTag.InstanceTypeDeclarationType: {
@@ -111,16 +85,16 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     }
                 }
 
-                return async (ctx) => {
+                return async (ctx, imports) => {
                     const exports = [];
-                    for (const factory of typeFactories) {
-                        const value = await factory(ctx);
+                    for (const { name, factory } of typeFactories) {
+                        const value = await factory(ctx, imports);
                         exports.push(value);
                     }
                     return exports;
                 };
                 break;
-            }
+            }*/
             default:
                 throw new Error(`${(section as any).tag} not implemented`);
         }
