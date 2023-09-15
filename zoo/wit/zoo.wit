@@ -1,20 +1,59 @@
 package zoo:food
 
 interface food {
+    enum nutrition-type {
+        carbohyrdate,
+        protein,
+        vitamin,
+    }
+
+    record nutrition-info {
+        percentage: float64,
+        nutrition-type: nutrition-type,
+    }
+
+    variant material-type {
+        plastic-bag,
+        metal-can,
+    }
+
+// here I wanted to use flag but it cannot be found
+    enum sealing-state {
+        opened,
+        closed,
+        damaged,
+    }
+
+    record package-info {
+        nutrition: nutrition-info,
+        material: material-type,
+        sealing: sealing-state,
+    }
+
+// flat record, do not nest:
+// u32 is tested in hello
     record food-info {
         name: string,
+        iso-code: char,
         weight: float32,
         healthy: bool,
         calories: u64,
         cost: s64,
+        pieces: u8,
+        // tuple (Celcius, Fahrenheit)
+        shelf-temperature: tuple<s8, u8>,
+        cook-time-in-minutes: s32,
     }
 
     hide-food: func(food: food-info, message: string)
+    consume-food: func(foodinfo: food-info, packageinfo: package-info, message: string)
+    open-package: func(packageinfo: package-info, message: string)
+    trash-package: func(sealingstate: sealing-state, message: string)
 }
 
 interface eater {
-    use food.{food-info}
-    feed: func(info: food-info)
+    use food.{food-info, package-info}
+    feed: func(foodinfo: food-info, packageinfo: package-info)
 }
 
 world zoo {
