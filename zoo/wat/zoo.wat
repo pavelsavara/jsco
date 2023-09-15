@@ -18,10 +18,11 @@
       (export (;0;) "hide-food" (func (type 13)))
       (type (;14;) (func (param "foodinfo" 2) (param "packageinfo" 12) (param "message" string)))
       (export (;1;) "consume-food" (func (type 14)))
-      (type (;15;) (func (param "packageinfo" 12) (param "message" string)))
+      (type (;15;) (func (param "sealingstate" 10) (param "packageinfo" 12) (param "message" string)))
       (export (;2;) "open-package" (func (type 15)))
-      (type (;16;) (func (param "sealingstate" 10) (param "message" string)))
-      (export (;3;) "trash-package" (func (type 16)))
+      (type (;16;) (list 12))
+      (type (;17;) (func (param "trashed" 16) (param "message" string) (result bool)))
+      (export (;3;) "trash-package" (func (type 17)))
     )
   )
   (import (interface "zoo:food/food") (instance (;0;) (type 0)))
@@ -29,19 +30,19 @@
     (type $.rodata (;0;) (func (param i32 i32 i32) (result i32)))
     (type (;1;) (func (param i32 i32) (result i32)))
     (type (;2;) (func (param i32 i32 i32 i32)))
-    (type (;3;) (func (param f64 i32 i32 i32 i32 i32)))
+    (type (;3;) (func (param i32 f64 i32 i32 i32 i32 i32)))
     (type (;4;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)))
-    (type (;5;) (func (param i32 i32 i32)))
+    (type (;5;) (func (param i32 i32 i32 i32) (result i32)))
     (type (;6;) (func (param i32)))
     (type (;7;) (func))
-    (type (;8;) (func (param i32 i32 i32 i32) (result i32)))
+    (type (;8;) (func (param i32 i32 i32)))
     (type (;9;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 f64 i32 i32 i32)))
     (type (;10;) (func (param i32 i32)))
     (type (;11;) (func (param i32 i32 i32 i32 i32) (result i32)))
     (type (;12;) (func (param i32) (result i32)))
-    (import "zoo:food/food" "open-package" (func $_ZN3zoo8bindings3zoo4food4food12open_package10wit_import17hc5bcad4bb6a00df6E (;0;) (type 3)))
+    (import "zoo:food/food" "open-package" (func $_ZN3zoo8bindings3zoo4food4food12open_package10wit_import17h29f779d1a2628a76E (;0;) (type 3)))
     (import "zoo:food/food" "hide-food" (func $_ZN3zoo8bindings3zoo4food4food9hide_food10wit_import17hd4c64e0ea40de730E (;1;) (type 4)))
-    (import "zoo:food/food" "trash-package" (func $_ZN3zoo8bindings3zoo4food4food13trash_package10wit_import17h09320e8c31116581E (;2;) (type 5)))
+    (import "zoo:food/food" "trash-package" (func $_ZN3zoo8bindings3zoo4food4food13trash_package10wit_import17hd16c4fa746f02a14E (;2;) (type 5)))
     (import "zoo:food/food" "consume-food" (func $_ZN3zoo8bindings3zoo4food4food12consume_food10wit_import17h68921f08162a190bE (;3;) (type 6)))
     (func $__wasm_call_ctors (;4;) (type 7))
     (func $_ZN60_$LT$alloc..string..String$u20$as$u20$core..fmt..Display$GT$3fmt17he8cd3ece0b998a29E (;5;) (type 1) (param i32 i32) (result i32)
@@ -965,7 +966,7 @@
       i32.load offset=12
       call_indirect (type $.rodata)
     )
-    (func $__rust_realloc (;8;) (type 8) (param i32 i32 i32 i32) (result i32)
+    (func $__rust_realloc (;8;) (type 5) (param i32 i32 i32 i32) (result i32)
       (local i32)
       block ;; label = @1
         local.get 2
@@ -1073,7 +1074,7 @@
       global.set $__stack_pointer
       local.get 0
     )
-    (func $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE (;10;) (type 5) (param i32 i32 i32)
+    (func $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE (;10;) (type 8) (param i32 i32 i32)
       (local i32 i32 i32 i32)
       block ;; label = @1
         block ;; label = @2
@@ -1342,6 +1343,7 @@
       local.get 14
       i32.const 0
       i32.ne
+      local.tee 10
       i32.store8 offset=64
       local.get 16
       local.get 13
@@ -1367,17 +1369,95 @@
                   block ;; label = @7
                     block ;; label = @8
                       block ;; label = @9
-                        local.get 15
+                        block ;; label = @10
+                          local.get 15
+                          i32.const 255
+                          i32.and
+                          i32.const -1
+                          i32.add
+                          br_table 0 (;@10;) 2 (;@8;) 1 (;@9;)
+                        end
+                        local.get 16
+                        i32.const 96
+                        i32.add
+                        i32.const 12
+                        i32.add
+                        i64.const 1
+                        i64.store align=4
+                        local.get 16
+                        i32.const 2
+                        i32.store offset=100
+                        local.get 16
+                        i32.const 16496
+                        i32.store offset=96
+                        local.get 16
+                        i32.const 1
+                        i32.store offset=92
+                        local.get 16
+                        local.get 11
+                        i32.store offset=88
+                        local.get 16
+                        local.get 16
+                        i32.const 88
+                        i32.add
+                        i32.store offset=104
+                        local.get 16
+                        i32.const 72
+                        i32.add
+                        local.get 16
+                        i32.const 96
+                        i32.add
+                        call $_ZN5alloc3fmt6format12format_inner17h990b912b426f2cf4E
+                        local.get 16
+                        i32.load offset=76
+                        local.set 1
+                        i32.const 1
+                        local.get 12
+                        local.get 13
                         i32.const 255
                         i32.and
-                        i32.const -1
-                        i32.add
-                        br_table 0 (;@9;) 2 (;@7;) 1 (;@8;)
+                        local.get 14
+                        i32.const 0
+                        i32.ne
+                        i32.const 1
+                        local.get 16
+                        i32.load offset=72
+                        local.tee 0
+                        local.get 16
+                        i32.load offset=80
+                        call $_ZN3zoo8bindings3zoo4food4food12open_package10wit_import17h29f779d1a2628a76E
+                        local.get 1
+                        i32.eqz
+                        br_if 0 (;@9;)
+                        local.get 0
+                        i32.const 1
+                        local.get 1
+                        call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
                       end
                       local.get 16
-                      i32.const 96
+                      i32.const 8
                       i32.add
                       i32.const 12
+                      i32.add
+                      local.set 1
+                      block ;; label = @9
+                        local.get 5
+                        i64.const 1001
+                        i64.lt_u
+                        br_if 0 (;@9;)
+                        local.get 4
+                        i32.const 255
+                        i32.and
+                        br_if 2 (;@7;)
+                      end
+                      local.get 6
+                      i32.const 65535
+                      i32.and
+                      i32.const 100
+                      i32.gt_u
+                      br_if 2 (;@6;)
+                      local.get 16
+                      i32.const 108
                       i32.add
                       i64.const 1
                       i64.store align=4
@@ -1385,13 +1465,13 @@
                       i32.const 2
                       i32.store offset=100
                       local.get 16
-                      i32.const 16496
+                      i32.const 16520
                       i32.store offset=96
                       local.get 16
-                      i32.const 1
+                      i32.const 2
                       i32.store offset=92
                       local.get 16
-                      local.get 11
+                      local.get 1
                       i32.store offset=88
                       local.get 16
                       local.get 16
@@ -1408,52 +1488,51 @@
                       local.get 16
                       i32.load offset=76
                       local.set 1
-                      local.get 12
-                      local.get 13
-                      i32.const 255
-                      i32.and
-                      local.get 14
-                      i32.const 0
-                      i32.ne
-                      i32.const 1
+                      local.get 16
+                      i32.load offset=20
+                      local.get 16
+                      i32.const 28
+                      i32.add
+                      i32.load
+                      local.get 16
+                      i32.load offset=16
+                      local.get 16
+                      f32.load offset=32
+                      local.get 16
+                      i32.load8_u offset=46
+                      local.get 16
+                      i64.load offset=8
+                      local.get 16
+                      i32.load16_u offset=40
+                      local.get 16
+                      i32.load16_s offset=42
+                      local.get 16
+                      i32.load8_u offset=47
+                      local.get 16
+                      i32.load8_s offset=44
+                      local.get 16
+                      i32.load8_u offset=45
+                      local.get 16
+                      i32.load offset=36
                       local.get 16
                       i32.load offset=72
-                      local.tee 0
+                      local.tee 15
                       local.get 16
                       i32.load offset=80
-                      call $_ZN3zoo8bindings3zoo4food4food12open_package10wit_import17hc5bcad4bb6a00df6E
+                      call $_ZN3zoo8bindings3zoo4food4food9hide_food10wit_import17hd4c64e0ea40de730E
                       local.get 1
                       i32.eqz
-                      br_if 0 (;@8;)
-                      local.get 0
+                      br_if 5 (;@3;)
+                      local.get 15
                       i32.const 1
                       local.get 1
                       call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
+                      br 5 (;@3;)
                     end
                     local.get 16
-                    i32.const 8
+                    i32.const 96
                     i32.add
                     i32.const 12
-                    i32.add
-                    local.set 1
-                    block ;; label = @8
-                      local.get 5
-                      i64.const 1001
-                      i64.lt_u
-                      br_if 0 (;@8;)
-                      local.get 4
-                      i32.const 255
-                      i32.and
-                      br_if 2 (;@6;)
-                    end
-                    local.get 6
-                    i32.const 65535
-                    i32.and
-                    i32.const 100
-                    i32.gt_u
-                    br_if 2 (;@5;)
-                    local.get 16
-                    i32.const 108
                     i32.add
                     i64.const 1
                     i64.store align=4
@@ -1461,13 +1540,13 @@
                     i32.const 2
                     i32.store offset=100
                     local.get 16
-                    i32.const 16520
+                    i32.const 16456
                     i32.store offset=96
                     local.get 16
-                    i32.const 2
+                    i32.const 1
                     i32.store offset=92
                     local.get 16
-                    local.get 1
+                    local.get 11
                     i32.store offset=88
                     local.get 16
                     local.get 16
@@ -1481,54 +1560,101 @@
                     i32.const 96
                     i32.add
                     call $_ZN5alloc3fmt6format12format_inner17h990b912b426f2cf4E
-                    local.get 16
-                    i32.load offset=76
-                    local.set 1
-                    local.get 16
-                    i32.load offset=20
-                    local.get 16
-                    i32.const 28
-                    i32.add
-                    i32.load
-                    local.get 16
-                    i32.load offset=16
-                    local.get 16
-                    f32.load offset=32
-                    local.get 16
-                    i32.load8_u offset=46
-                    local.get 16
-                    i64.load offset=8
-                    local.get 16
-                    i32.load16_u offset=40
-                    local.get 16
-                    i32.load16_s offset=42
-                    local.get 16
-                    i32.load8_u offset=47
-                    local.get 16
-                    i32.load8_s offset=44
-                    local.get 16
-                    i32.load8_u offset=45
-                    local.get 16
-                    i32.load offset=36
+                    i32.const 0
+                    i32.load8_u offset=18069
+                    drop
                     local.get 16
                     i32.load offset=72
-                    local.tee 15
+                    local.set 4
+                    local.get 16
+                    i32.load offset=76
+                    local.set 14
                     local.get 16
                     i32.load offset=80
-                    call $_ZN3zoo8bindings3zoo4food4food9hide_food10wit_import17hd4c64e0ea40de730E
-                    local.get 1
+                    local.set 6
+                    local.get 16
+                    i32.const 0
+                    i32.load offset=18052
+                    i32.store offset=96
+                    i32.const 6
+                    i32.const 8
+                    local.get 16
+                    i32.const 96
+                    i32.add
+                    i32.const 16980
+                    i32.const 17004
+                    call $_ZN9wee_alloc17alloc_with_refill17hc39d399105e67359E
+                    local.set 15
+                    i32.const 0
+                    local.get 16
+                    i32.load offset=96
+                    i32.store offset=18052
+                    local.get 15
                     i32.eqz
-                    br_if 4 (;@3;)
+                    br_if 3 (;@4;)
+                    local.get 15
+                    local.get 12
+                    f64.store
+                    local.get 15
+                    i32.const 17
+                    i32.add
+                    i32.const 2
+                    i32.store8
+                    local.get 15
+                    i32.const 16
+                    i32.add
+                    local.get 10
+                    i32.store8
+                    local.get 15
+                    i32.const 8
+                    i32.add
+                    local.get 13
+                    i32.store8
                     local.get 15
                     i32.const 1
-                    local.get 1
+                    local.get 4
+                    local.get 6
+                    call $_ZN3zoo8bindings3zoo4food4food13trash_package10wit_import17hd16c4fa746f02a14E
+                    drop
+                    local.get 15
+                    i32.const 8
+                    i32.const 24
                     call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
-                    br 4 (;@3;)
+                    block ;; label = @8
+                      local.get 14
+                      i32.eqz
+                      br_if 0 (;@8;)
+                      local.get 4
+                      i32.const 1
+                      local.get 14
+                      call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
+                    end
+                    local.get 1
+                    i32.eqz
+                    br_if 6 (;@1;)
+                    br 5 (;@2;)
+                  end
+                  block ;; label = @7
+                    local.get 15
+                    i32.const 255
+                    i32.and
+                    br_if 0 (;@7;)
+                    local.get 16
+                    i32.load8_u offset=56
+                    i32.const 255
+                    i32.and
+                    i32.const 1
+                    i32.ne
+                    br_if 0 (;@7;)
+                    local.get 16
+                    f64.load offset=48
+                    local.tee 12
+                    f64.const 0x1.ep+4 (;=30;)
+                    f64.gt
+                    br_if 2 (;@5;)
                   end
                   local.get 16
-                  i32.const 96
-                  i32.add
-                  i32.const 12
+                  i32.const 108
                   i32.add
                   i64.const 1
                   i64.store align=4
@@ -1536,13 +1662,13 @@
                   i32.const 2
                   i32.store offset=100
                   local.get 16
-                  i32.const 16456
+                  i32.const 16616
                   i32.store offset=96
                   local.get 16
-                  i32.const 1
+                  i32.const 2
                   i32.store offset=92
                   local.get 16
-                  local.get 11
+                  local.get 1
                   i32.store offset=88
                   local.get 16
                   local.get 16
@@ -1558,46 +1684,47 @@
                   call $_ZN5alloc3fmt6format12format_inner17h990b912b426f2cf4E
                   local.get 16
                   i32.load offset=76
-                  local.set 15
-                  i32.const 2
+                  local.set 1
+                  local.get 16
+                  i32.load offset=20
+                  local.get 16
+                  i32.const 28
+                  i32.add
+                  i32.load
+                  local.get 16
+                  i32.load offset=16
+                  local.get 16
+                  f32.load offset=32
+                  local.get 16
+                  i32.load8_u offset=46
+                  local.get 16
+                  i64.load offset=8
+                  local.get 16
+                  i32.load16_u offset=40
+                  local.get 16
+                  i32.load16_s offset=42
+                  local.get 16
+                  i32.load8_u offset=47
+                  local.get 16
+                  i32.load8_s offset=44
+                  local.get 16
+                  i32.load8_u offset=45
+                  local.get 16
+                  i32.load offset=36
                   local.get 16
                   i32.load offset=72
-                  local.tee 4
+                  local.tee 15
                   local.get 16
                   i32.load offset=80
-                  call $_ZN3zoo8bindings3zoo4food4food13trash_package10wit_import17h09320e8c31116581E
-                  block ;; label = @7
-                    local.get 15
-                    i32.eqz
-                    br_if 0 (;@7;)
-                    local.get 4
-                    i32.const 1
-                    local.get 15
-                    call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
-                  end
+                  call $_ZN3zoo8bindings3zoo4food4food9hide_food10wit_import17hd4c64e0ea40de730E
                   local.get 1
                   i32.eqz
-                  br_if 5 (;@1;)
-                  br 4 (;@2;)
-                end
-                block ;; label = @6
+                  br_if 3 (;@3;)
                   local.get 15
-                  i32.const 255
-                  i32.and
-                  br_if 0 (;@6;)
-                  local.get 16
-                  i32.load8_u offset=56
-                  i32.const 255
-                  i32.and
                   i32.const 1
-                  i32.ne
-                  br_if 0 (;@6;)
-                  local.get 16
-                  f64.load offset=48
-                  local.tee 12
-                  f64.const 0x1.ep+4 (;=30;)
-                  f64.gt
-                  br_if 2 (;@4;)
+                  local.get 1
+                  call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
+                  br 3 (;@3;)
                 end
                 local.get 16
                 i32.const 108
@@ -1608,7 +1735,7 @@
                 i32.const 2
                 i32.store offset=100
                 local.get 16
-                i32.const 16616
+                i32.const 16564
                 i32.store offset=96
                 local.get 16
                 i32.const 2
@@ -1673,15 +1800,19 @@
                 br 2 (;@3;)
               end
               local.get 16
+              i32.load8_u offset=64
+              local.set 0
+              local.get 16
               i32.const 108
               i32.add
+              local.tee 13
               i64.const 1
               i64.store align=4
               local.get 16
-              i32.const 2
+              i32.const 1
               i32.store offset=100
               local.get 16
-              i32.const 16564
+              i32.const 16640
               i32.store offset=96
               local.get 16
               i32.const 2
@@ -1705,37 +1836,115 @@
               i32.load offset=76
               local.set 1
               local.get 16
-              i32.load offset=20
+              i32.load offset=72
+              local.set 15
+              local.get 16
+              i32.load offset=80
+              local.set 4
+              local.get 16
+              i32.const 104
+              i32.add
+              local.get 16
+              i32.load offset=16
+              i32.store
+              local.get 13
+              local.get 16
+              f32.load offset=32
+              f32.store
+              local.get 16
+              i32.const 112
+              i32.add
+              local.get 16
+              i32.load8_u offset=46
+              i32.store8
+              local.get 16
+              i32.const 120
+              i32.add
+              local.get 16
+              i64.load offset=8
+              i64.store
+              local.get 16
               local.get 16
               i32.const 28
               i32.add
               i32.load
+              i32.store offset=100
               local.get 16
-              i32.load offset=16
               local.get 16
-              f32.load offset=32
+              i32.load offset=20
+              i32.store offset=96
               local.get 16
-              i32.load8_u offset=46
-              local.get 16
-              i64.load offset=8
+              i32.const 128
+              i32.add
               local.get 16
               i32.load16_u offset=40
+              i32.store16
               local.get 16
-              i32.load16_s offset=42
+              i32.const 130
+              i32.add
+              local.get 16
+              i32.load16_u offset=42
+              i32.store16
+              local.get 16
+              i32.const 132
+              i32.add
               local.get 16
               i32.load8_u offset=47
+              i32.store8
               local.get 16
-              i32.load8_s offset=44
+              i32.const 133
+              i32.add
+              local.get 16
+              i32.load8_u offset=44
+              i32.store8
+              local.get 16
+              i32.const 134
+              i32.add
               local.get 16
               i32.load8_u offset=45
+              i32.store8
               local.get 16
               i32.load offset=36
+              local.set 13
               local.get 16
-              i32.load offset=72
-              local.tee 15
+              i32.const 172
+              i32.add
+              local.get 4
+              i32.store
               local.get 16
-              i32.load offset=80
-              call $_ZN3zoo8bindings3zoo4food4food9hide_food10wit_import17hd4c64e0ea40de730E
+              i32.const 161
+              i32.add
+              i32.const 0
+              i32.store8
+              local.get 16
+              i32.const 160
+              i32.add
+              local.get 0
+              i32.store8
+              local.get 16
+              i32.const 152
+              i32.add
+              i32.const 1
+              i32.store8
+              local.get 16
+              i32.const 144
+              i32.add
+              local.get 12
+              f64.store
+              local.get 16
+              i32.const 136
+              i32.add
+              local.get 13
+              i32.store
+              local.get 16
+              i32.const 168
+              i32.add
+              local.get 15
+              i32.store
+              local.get 16
+              i32.const 96
+              i32.add
+              call $_ZN3zoo8bindings3zoo4food4food12consume_food10wit_import17h68921f08162a190bE
               local.get 1
               i32.eqz
               br_if 1 (;@3;)
@@ -1745,159 +1954,8 @@
               call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
               br 1 (;@3;)
             end
-            local.get 16
-            i32.load8_u offset=64
-            local.set 0
-            local.get 16
-            i32.const 108
-            i32.add
-            local.tee 4
-            i64.const 1
-            i64.store align=4
-            local.get 16
-            i32.const 1
-            i32.store offset=100
-            local.get 16
-            i32.const 16640
-            i32.store offset=96
-            local.get 16
-            i32.const 2
-            i32.store offset=92
-            local.get 16
-            local.get 1
-            i32.store offset=88
-            local.get 16
-            local.get 16
-            i32.const 88
-            i32.add
-            i32.store offset=104
-            local.get 16
-            i32.const 72
-            i32.add
-            local.get 16
-            i32.const 96
-            i32.add
-            call $_ZN5alloc3fmt6format12format_inner17h990b912b426f2cf4E
-            local.get 16
-            i32.load offset=76
-            local.set 1
-            local.get 16
-            i32.load offset=72
-            local.set 15
-            local.get 16
-            i32.load offset=80
-            local.set 14
-            local.get 16
-            i32.const 104
-            i32.add
-            local.get 16
-            i32.load offset=16
-            i32.store
-            local.get 4
-            local.get 16
-            f32.load offset=32
-            f32.store
-            local.get 16
-            i32.const 112
-            i32.add
-            local.get 16
-            i32.load8_u offset=46
-            i32.store8
-            local.get 16
-            i32.const 120
-            i32.add
-            local.get 16
-            i64.load offset=8
-            i64.store
-            local.get 16
-            local.get 16
-            i32.const 28
-            i32.add
-            i32.load
-            i32.store offset=100
-            local.get 16
-            local.get 16
-            i32.load offset=20
-            i32.store offset=96
-            local.get 16
-            i32.const 128
-            i32.add
-            local.get 16
-            i32.load16_u offset=40
-            i32.store16
-            local.get 16
-            i32.const 130
-            i32.add
-            local.get 16
-            i32.load16_u offset=42
-            i32.store16
-            local.get 16
-            i32.const 132
-            i32.add
-            local.get 16
-            i32.load8_u offset=47
-            i32.store8
-            local.get 16
-            i32.const 133
-            i32.add
-            local.get 16
-            i32.load8_u offset=44
-            i32.store8
-            local.get 16
-            i32.const 134
-            i32.add
-            local.get 16
-            i32.load8_u offset=45
-            i32.store8
-            local.get 16
-            i32.load offset=36
-            local.set 4
-            local.get 16
-            i32.const 172
-            i32.add
-            local.get 14
-            i32.store
-            local.get 16
-            i32.const 161
-            i32.add
-            i32.const 0
-            i32.store8
-            local.get 16
-            i32.const 160
-            i32.add
-            local.get 0
-            i32.store8
-            local.get 16
-            i32.const 152
-            i32.add
-            i32.const 1
-            i32.store8
-            local.get 16
-            i32.const 144
-            i32.add
-            local.get 12
-            f64.store
-            local.get 16
-            i32.const 136
-            i32.add
-            local.get 4
-            i32.store
-            local.get 16
-            i32.const 168
-            i32.add
-            local.get 15
-            i32.store
-            local.get 16
-            i32.const 96
-            i32.add
-            call $_ZN3zoo8bindings3zoo4food4food12consume_food10wit_import17h68921f08162a190bE
-            local.get 1
-            i32.eqz
-            br_if 0 (;@3;)
-            local.get 15
-            i32.const 1
-            local.get 1
-            call $_ZN72_$LT$wee_alloc..WeeAlloc$u20$as$u20$core..alloc..global..GlobalAlloc$GT$7dealloc17h09f441c49fee5a3eE
+            unreachable
+            unreachable
           end
           local.get 16
           i32.const 24
@@ -2151,7 +2209,60 @@
       i32.add
       global.set $__stack_pointer
     )
-    (func $_ZN5alloc7raw_vec17capacity_overflow17h69391d2b6a90e408E (;13;) (type 7)
+    (func $_ZN9wee_alloc17alloc_with_refill17hc39d399105e67359E (;13;) (type 11) (param i32 i32 i32 i32 i32) (result i32)
+      (local i32 i32)
+      global.get $__stack_pointer
+      i32.const 16
+      i32.sub
+      local.tee 5
+      global.set $__stack_pointer
+      block ;; label = @1
+        local.get 0
+        local.get 1
+        local.get 2
+        local.get 3
+        local.get 4
+        call $_ZN9wee_alloc15alloc_first_fit17hdf51ef068dd0d772E
+        local.tee 6
+        br_if 0 (;@1;)
+        local.get 5
+        i32.const 8
+        i32.add
+        local.get 3
+        local.get 0
+        local.get 1
+        local.get 4
+        i32.load offset=12
+        call_indirect (type 2)
+        i32.const 0
+        local.set 6
+        local.get 5
+        i32.load offset=8
+        br_if 0 (;@1;)
+        local.get 5
+        i32.load offset=12
+        local.tee 6
+        local.get 2
+        i32.load
+        i32.store offset=8
+        local.get 2
+        local.get 6
+        i32.store
+        local.get 0
+        local.get 1
+        local.get 2
+        local.get 3
+        local.get 4
+        call $_ZN9wee_alloc15alloc_first_fit17hdf51ef068dd0d772E
+        local.set 6
+      end
+      local.get 5
+      i32.const 16
+      i32.add
+      global.set $__stack_pointer
+      local.get 6
+    )
+    (func $_ZN5alloc7raw_vec17capacity_overflow17h69391d2b6a90e408E (;14;) (type 7)
       (local i32)
       global.get $__stack_pointer
       i32.const 32
@@ -2179,7 +2290,7 @@
       call $_ZN4core9panicking9panic_fmt17h6dad0405f48e39e2E
       unreachable
     )
-    (func $_ZN4core9panicking9panic_fmt17h6dad0405f48e39e2E (;14;) (type 10) (param i32 i32)
+    (func $_ZN4core9panicking9panic_fmt17h6dad0405f48e39e2E (;15;) (type 10) (param i32 i32)
       (local i32)
       global.get $__stack_pointer
       i32.const 32
@@ -2207,7 +2318,7 @@
       call $rust_begin_unwind
       unreachable
     )
-    (func $_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$7reserve21do_reserve_and_handle17h65113c45b2745902E (;15;) (type 5) (param i32 i32 i32)
+    (func $_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$7reserve21do_reserve_and_handle17h65113c45b2745902E (;16;) (type 8) (param i32 i32 i32)
       (local i32 i32)
       global.get $__stack_pointer
       i32.const 32
@@ -2311,7 +2422,7 @@
       i32.add
       global.set $__stack_pointer
     )
-    (func $_ZN5alloc7raw_vec11finish_grow17hbecdce00a583a218E (;16;) (type 2) (param i32 i32 i32 i32)
+    (func $_ZN5alloc7raw_vec11finish_grow17hbecdce00a583a218E (;17;) (type 2) (param i32 i32 i32 i32)
       block ;; label = @1
         block ;; label = @2
           local.get 1
@@ -2410,7 +2521,7 @@
       i32.const 1
       i32.store
     )
-    (func $_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$16reserve_for_push17hb61919fa8918a326E (;17;) (type 10) (param i32 i32)
+    (func $_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$16reserve_for_push17hb61919fa8918a326E (;18;) (type 10) (param i32 i32)
       (local i32 i32 i32)
       global.get $__stack_pointer
       i32.const 32
@@ -2513,8 +2624,8 @@
       i32.add
       global.set $__stack_pointer
     )
-    (func $_ZN4core3ptr26drop_in_place$LT$usize$GT$17h58a2c0218f0be954E (;18;) (type 6) (param i32))
-    (func $_ZN4core3fmt5write17hce4d120ebbfb2b82E (;19;) (type $.rodata) (param i32 i32 i32) (result i32)
+    (func $_ZN4core3ptr26drop_in_place$LT$usize$GT$17h58a2c0218f0be954E (;19;) (type 6) (param i32))
+    (func $_ZN4core3fmt5write17hce4d120ebbfb2b82E (;20;) (type $.rodata) (param i32 i32 i32) (result i32)
       (local i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
       global.get $__stack_pointer
       i32.const 48
@@ -2845,7 +2956,7 @@
       global.set $__stack_pointer
       local.get 1
     )
-    (func $_ZN4core6result13unwrap_failed17h7ed8731a69ab17a3E (;20;) (type 6) (param i32)
+    (func $_ZN4core6result13unwrap_failed17h7ed8731a69ab17a3E (;21;) (type 6) (param i32)
       (local i32)
       global.get $__stack_pointer
       i32.const 64
@@ -2909,7 +3020,7 @@
       call $_ZN4core9panicking9panic_fmt17h6dad0405f48e39e2E
       unreachable
     )
-    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hda9d1ffcaf7e2362E (;21;) (type $.rodata) (param i32 i32 i32) (result i32)
+    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_str17hda9d1ffcaf7e2362E (;22;) (type $.rodata) (param i32 i32 i32) (result i32)
       (local i32)
       block ;; label = @1
         local.get 0
@@ -2946,7 +3057,7 @@
       i32.store offset=8
       i32.const 0
     )
-    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h3670014ad85a5bfbE (;22;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$10write_char17h3670014ad85a5bfbE (;23;) (type 1) (param i32 i32) (result i32)
       (local i32 i32)
       global.get $__stack_pointer
       i32.const 16
@@ -3126,7 +3237,7 @@
       global.set $__stack_pointer
       i32.const 0
     )
-    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17h18b79f54c5839d64E (;23;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN50_$LT$$RF$mut$u20$W$u20$as$u20$core..fmt..Write$GT$9write_fmt17h18b79f54c5839d64E (;24;) (type 1) (param i32 i32) (result i32)
       (local i32)
       global.get $__stack_pointer
       i32.const 32
@@ -3178,7 +3289,7 @@
       global.set $__stack_pointer
       local.get 1
     )
-    (func $_ZN4core3ops8function6FnOnce9call_once17h76067c467ab7d853E (;24;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN4core3ops8function6FnOnce9call_once17h76067c467ab7d853E (;25;) (type 1) (param i32 i32) (result i32)
       local.get 0
       i32.load
       drop
@@ -3186,7 +3297,7 @@
         br 0 (;@1;)
       end
     )
-    (func $rust_begin_unwind (;25;) (type 6) (param i32)
+    (func $rust_begin_unwind (;26;) (type 6) (param i32)
       (local i32 i32)
       global.get $__stack_pointer
       i32.const 16
@@ -3215,8 +3326,8 @@
       call $_ZN3std10sys_common9backtrace26__rust_end_short_backtrace17h04fac26f88d230dfE
       unreachable
     )
-    (func $_ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$17h20c52a201febd195E (;26;) (type 6) (param i32))
-    (func $_ZN36_$LT$T$u20$as$u20$core..any..Any$GT$7type_id17hfb753db928a637b4E (;27;) (type 10) (param i32 i32)
+    (func $_ZN4core3ptr37drop_in_place$LT$core..fmt..Error$GT$17h20c52a201febd195E (;27;) (type 6) (param i32))
+    (func $_ZN36_$LT$T$u20$as$u20$core..any..Any$GT$7type_id17hfb753db928a637b4E (;28;) (type 10) (param i32 i32)
       local.get 0
       i64.const 6709583872402221221
       i64.store offset=8
@@ -3224,7 +3335,7 @@
       i64.const -517914840449640987
       i64.store
     )
-    (func $_ZN4core9panicking5panic17hfd6e422134ee8ce5E (;28;) (type 7)
+    (func $_ZN4core9panicking5panic17hfd6e422134ee8ce5E (;29;) (type 7)
       (local i32)
       global.get $__stack_pointer
       i32.const 32
@@ -3258,7 +3369,7 @@
       call $_ZN4core9panicking9panic_fmt17h6dad0405f48e39e2E
       unreachable
     )
-    (func $_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hb73b6a73788677afE (;29;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hb73b6a73788677afE (;30;) (type 1) (param i32 i32) (result i32)
       local.get 1
       local.get 0
       i32.load
@@ -3266,7 +3377,7 @@
       i32.load offset=4
       call $_ZN4core3fmt9Formatter3pad17h0b6da8b5646917dcE
     )
-    (func $_ZN42_$LT$$RF$T$u20$as$u20$core..fmt..Debug$GT$3fmt17h492aa3edaecea1b7E (;30;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN42_$LT$$RF$T$u20$as$u20$core..fmt..Debug$GT$3fmt17h492aa3edaecea1b7E (;31;) (type 1) (param i32 i32) (result i32)
       local.get 0
       i32.load
       local.get 1
@@ -3275,7 +3386,7 @@
       i32.load offset=12
       call_indirect (type 1)
     )
-    (func $_ZN53_$LT$core..fmt..Error$u20$as$u20$core..fmt..Debug$GT$3fmt17h6624c0bc755aa54fE (;31;) (type 1) (param i32 i32) (result i32)
+    (func $_ZN53_$LT$core..fmt..Error$u20$as$u20$core..fmt..Debug$GT$3fmt17h6624c0bc755aa54fE (;32;) (type 1) (param i32 i32) (result i32)
       local.get 1
       i32.load offset=20
       i32.const 16888
@@ -3287,16 +3398,16 @@
       i32.load offset=12
       call_indirect (type $.rodata)
     )
-    (func $rust_panic (;32;) (type 7)
+    (func $rust_panic (;33;) (type 7)
       unreachable
       unreachable
     )
-    (func $_ZN3std10sys_common9backtrace26__rust_end_short_backtrace17h04fac26f88d230dfE (;33;) (type 6) (param i32)
+    (func $_ZN3std10sys_common9backtrace26__rust_end_short_backtrace17h04fac26f88d230dfE (;34;) (type 6) (param i32)
       local.get 0
       call $_ZN3std9panicking19begin_panic_handler28_$u7b$$u7b$closure$u7d$$u7d$17he405aaeb801d5772E
       unreachable
     )
-    (func $_ZN3std9panicking19begin_panic_handler28_$u7b$$u7b$closure$u7d$$u7d$17he405aaeb801d5772E (;34;) (type 6) (param i32)
+    (func $_ZN3std9panicking19begin_panic_handler28_$u7b$$u7b$closure$u7d$$u7d$17he405aaeb801d5772E (;35;) (type 6) (param i32)
       (local i32 i32)
       local.get 0
       i32.load
@@ -3325,7 +3436,7 @@
       call $_ZN3std9panicking20rust_panic_with_hook17h7601402c0a383194E
       unreachable
     )
-    (func $_ZN3std9panicking20rust_panic_with_hook17h7601402c0a383194E (;35;) (type 6) (param i32)
+    (func $_ZN3std9panicking20rust_panic_with_hook17h7601402c0a383194E (;36;) (type 6) (param i32)
       (local i32)
       i32.const 0
       i32.const 0
@@ -3370,7 +3481,7 @@
       unreachable
       unreachable
     )
-    (func $_ZN88_$LT$wee_alloc..size_classes..SizeClassAllocPolicy$u20$as$u20$wee_alloc..AllocPolicy$GT$22new_cell_for_free_list17h97ba976da82c5903E (;36;) (type 2) (param i32 i32 i32 i32)
+    (func $_ZN88_$LT$wee_alloc..size_classes..SizeClassAllocPolicy$u20$as$u20$wee_alloc..AllocPolicy$GT$22new_cell_for_free_list17h97ba976da82c5903E (;37;) (type 2) (param i32 i32 i32 i32)
       (local i32 i32)
       global.get $__stack_pointer
       i32.const 16
@@ -3441,59 +3552,6 @@
       i32.const 16
       i32.add
       global.set $__stack_pointer
-    )
-    (func $_ZN9wee_alloc17alloc_with_refill17hc39d399105e67359E (;37;) (type 11) (param i32 i32 i32 i32 i32) (result i32)
-      (local i32 i32)
-      global.get $__stack_pointer
-      i32.const 16
-      i32.sub
-      local.tee 5
-      global.set $__stack_pointer
-      block ;; label = @1
-        local.get 0
-        local.get 1
-        local.get 2
-        local.get 3
-        local.get 4
-        call $_ZN9wee_alloc15alloc_first_fit17hdf51ef068dd0d772E
-        local.tee 6
-        br_if 0 (;@1;)
-        local.get 5
-        i32.const 8
-        i32.add
-        local.get 3
-        local.get 0
-        local.get 1
-        local.get 4
-        i32.load offset=12
-        call_indirect (type 2)
-        i32.const 0
-        local.set 6
-        local.get 5
-        i32.load offset=8
-        br_if 0 (;@1;)
-        local.get 5
-        i32.load offset=12
-        local.tee 6
-        local.get 2
-        i32.load
-        i32.store offset=8
-        local.get 2
-        local.get 6
-        i32.store
-        local.get 0
-        local.get 1
-        local.get 2
-        local.get 3
-        local.get 4
-        call $_ZN9wee_alloc15alloc_first_fit17hdf51ef068dd0d772E
-        local.set 6
-      end
-      local.get 5
-      i32.const 16
-      i32.add
-      global.set $__stack_pointer
-      local.get 6
     )
     (func $_ZN9wee_alloc15alloc_first_fit17hdf51ef068dd0d772E (;38;) (type 11) (param i32 i32 i32 i32 i32) (result i32)
       (local i32 i32 i32 i32 i32 i32 i32 i32)
@@ -3888,7 +3946,7 @@
       i32.const 0
     )
     (func $_ZN4core3ptr66drop_in_place$LT$wee_alloc..size_classes..SizeClassAllocPolicy$GT$17h485e54dcd7c9753aE (;45;) (type 6) (param i32))
-    (func $cabi_realloc (;46;) (type 8) (param i32 i32 i32 i32) (result i32)
+    (func $cabi_realloc (;46;) (type 5) (param i32 i32 i32 i32) (result i32)
       block ;; label = @1
         block ;; label = @2
           block ;; label = @3
@@ -4129,8 +4187,8 @@
   (core module (;1;)
     (type (;0;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)))
     (type (;1;) (func (param i32)))
-    (type (;2;) (func (param f64 i32 i32 i32 i32 i32)))
-    (type (;3;) (func (param i32 i32 i32)))
+    (type (;2;) (func (param i32 f64 i32 i32 i32 i32 i32)))
+    (type (;3;) (func (param i32 i32 i32 i32) (result i32)))
     (func $indirect-zoo:food/food-hide-food (;0;) (type 0) (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)
       local.get 0
       local.get 1
@@ -4154,20 +4212,22 @@
       i32.const 1
       call_indirect (type 1)
     )
-    (func $indirect-zoo:food/food-open-package (;2;) (type 2) (param f64 i32 i32 i32 i32 i32)
+    (func $indirect-zoo:food/food-open-package (;2;) (type 2) (param i32 f64 i32 i32 i32 i32 i32)
       local.get 0
       local.get 1
       local.get 2
       local.get 3
       local.get 4
       local.get 5
+      local.get 6
       i32.const 2
       call_indirect (type 2)
     )
-    (func $indirect-zoo:food/food-trash-package (;3;) (type 3) (param i32 i32 i32)
+    (func $indirect-zoo:food/food-trash-package (;3;) (type 3) (param i32 i32 i32 i32) (result i32)
       local.get 0
       local.get 1
       local.get 2
+      local.get 3
       i32.const 3
       call_indirect (type 3)
     )
@@ -4184,8 +4244,8 @@
   (core module (;2;)
     (type (;0;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)))
     (type (;1;) (func (param i32)))
-    (type (;2;) (func (param f64 i32 i32 i32 i32 i32)))
-    (type (;3;) (func (param i32 i32 i32)))
+    (type (;2;) (func (param i32 f64 i32 i32 i32 i32 i32)))
+    (type (;3;) (func (param i32 i32 i32 i32) (result i32)))
     (import "" "0" (func (;0;) (type 0)))
     (import "" "1" (func (;1;) (type 1)))
     (import "" "2" (func (;2;) (type 2)))

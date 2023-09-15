@@ -48,8 +48,8 @@ interface food {
 
     hide-food: func(food: food-info, message: string)
     consume-food: func(foodinfo: food-info, packageinfo: package-info, message: string)
-    open-package: func(packageinfo: package-info, message: string)
-    trash-package: func(sealingstate: sealing-state, message: string)
+    open-package: func(sealingstate: sealing-state, packageinfo: package-info, message: string)
+    trash-package: func(trashed: list<package-info>, message: string) -> bool
 }
 
 interface eater {

@@ -25,11 +25,13 @@ impl std::fmt::Display for MaterialType {
 impl Guest for Eater {
     fn feed(food_info: FoodInfo, package_info: PackageInfo) {
         if package_info.sealing == SealingState::Closed {
-            open_package(package_info,
+            open_package(package_info.sealing, 
+                package_info,
                 &format!("Package type {} is now opened. Enjoy.", package_info.material));
         }
         else if package_info.sealing == SealingState::Damaged {
-            trash_package(package_info.sealing,
+            let vec = [package_info];
+            let _success = trash_package(&vec,
                 &format!("Package type {} was damaged, you cannot eat this food.", package_info.material));
             return;
         }
