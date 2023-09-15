@@ -28,4 +28,3 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
         }
     });
 }
-

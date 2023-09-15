@@ -84,4 +84,3 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         };
     });
 }
-
