@@ -13,6 +13,7 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
         switch (section.tag) {
             case ModelTag.CanonicalFunctionLift: {
                 const coreFunctionFactory = await prepareCoreFunction(rctx, section.core_func_index);
+                // TODO section.options: CanonicalOption
                 const sectionFunType = rctx.indexes.componentTypes[section.type_index];
                 jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
 

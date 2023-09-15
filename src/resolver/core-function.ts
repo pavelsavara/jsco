@@ -1,3 +1,4 @@
+import { createExportLowering } from '../binding';
 import { ModelTag } from '../model/tags';
 import { memoizePrepare } from './context';
 import { prepareCoreInstance } from './core-instance';
@@ -9,24 +10,31 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
         switch (section.tag) {
             case ModelTag.ComponentAliasCoreInstanceExport: {
                 const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
+
                 return async (ctx, imports) => {
                     const instance = await instanceFactory(ctx, imports);
                     return instance.exports[section.name] as Function;
                 };
             }
             case ModelTag.CanonicalFunctionLower: {
-                const funcFactory = await prepareCoreFunction(rctx, section.func_index);
-                //const funcFactory = prepareComponentFunction(rctx, section.func_index);
-                //const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
+                const componentFunctionFactory = await prepareCoreFunction(rctx, section.func_index);
+                // TODO section.options: CanonicalOption
+                //const sectionFunType = rctx.indexes.coreFunctions[section.func_index];
+                //jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
+                //sectionFunType.tag === ModelTag.ComponentTypeFunc;
+
+                const trampoline = createExportLowering(rctx, {
+                    TODO: section.tag,
+                    params: [],
+                    results: {
+                        tag: ModelTag.ComponentFuncResultNamed,
+                        values: [],
+                    }
+                } as any);
+                console.log('trampoline', trampoline);
                 return async (ctx, imports) => {
-                    const coreFn = await funcFactory(ctx, imports);
-                    console.log('TODO !!!!!!!!!!!!' + section.tag);
-                    //const instance = await instanceFactory(ctx, imports);
-                    //return instance.exports[section.name] as Function;
-                    return {
-                        func_index: section.func_index,
-                        TODO: section.tag
-                    };
+                    const componentFn = await componentFunctionFactory(ctx, imports);
+                    return trampoline(ctx, componentFn);
                 };
             }
             default:

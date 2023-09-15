@@ -1,16 +1,56 @@
 import { FuncType } from '../model/core';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
 import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
+import { createLifting } from './to-abi';
 import { LoweringToJs, BindingContext, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
 
-export function createExportLowering(rctx: ResolverContext, exportModel: FuncType): FnLoweringCallToJs {
+export function createExportLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
-            // TODO
-            throw new Error('Not implemented');
+
+            const paramLowerers: Function[] = [];
+            for (const param of exportModel.params) {
+                const lowerer = createLowering(rctx, param.type);
+                paramLowerers.push(lowerer);
+            }
+            const resultLifters: Function[] = [];
+            switch (exportModel.results.tag) {
+                case ModelTag.ComponentFuncResultNamed: {
+                    for (const res of exportModel.results.values) {
+                        const lifter = createLifting(rctx, res.type);
+                        resultLifters.push(lifter);
+                    }
+                    break;
+                }
+                case ModelTag.ComponentFuncResultUnnamed: {
+                    const lifter = createLifting(rctx, exportModel.results.type);
+                    resultLifters.push(lifter);
+                }
+            }
+
+
+            return (ctx: BindingContext, wasmFunction: JsFunction): WasmFunction => {
+                function loweringTrampoline(...args: any[]): any {
+                    let covertedArgs: any[] = [];
+                    for (let i = 0; i < paramLowerers.length; i++) {
+                        const lifter = paramLowerers[i];
+                        const value = args[i];
+                        const converted = lifter(ctx, value);
+                        // TODO do not alwas spill into stack
+                        covertedArgs = [...covertedArgs, ...converted];
+                    }
+                    const resJs = wasmFunction(...covertedArgs);
+                    if (resultLifters.length === 1) {
+                        resultLifters[0](resJs);
+                    }
+                }
+                return loweringTrampoline as WasmFunction;
+            };
+
+
         };
     });
 }

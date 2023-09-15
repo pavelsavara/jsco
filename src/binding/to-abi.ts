@@ -8,24 +8,24 @@ import { createLowering } from './to-js';
 import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
 
-export function createImportLifting(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLiftingCallFromJs {
-    return memoize(exportModel, () => {
+export function createImportLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+    return memoize(importModel, () => {
         const paramLifters: Function[] = [];
-        for (const param of exportModel.params) {
+        for (const param of importModel.params) {
             const lifter = createLifting(rctx, param.type);
             paramLifters.push(lifter);
         }
         const resultLowerers: Function[] = [];
-        switch (exportModel.results.tag) {
+        switch (importModel.results.tag) {
             case ModelTag.ComponentFuncResultNamed: {
-                for (const res of exportModel.results.values) {
+                for (const res of importModel.results.values) {
                     const lowerer = createLowering(rctx, res.type);
                     resultLowerers.push(lowerer);
                 }
                 break;
             }
             case ModelTag.ComponentFuncResultUnnamed: {
-                const lowerer = createLowering(rctx, exportModel.results.type);
+                const lowerer = createLowering(rctx, importModel.results.type);
                 resultLowerers.push(lowerer);
             }
         }
@@ -45,7 +45,7 @@ export function createImportLifting(rctx: ResolverContext, exportModel: Componen
                     resultLowerers[0](resJs);
                 }
             }
-            return liftingTrampoline as WasmFunction;
+            return liftingTrampoline as JsFunction;
         };
     });
 }
