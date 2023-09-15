@@ -9,10 +9,12 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exports: string[] = [];
+        const other: any[] = [];
         for (const declaration of section.declarations) {
             switch (declaration.tag) {
                 case ModelTag.ComponentTypeDeclarationType:
                     //console.log('TODO ComponentTypeDeclarationType', declaration);
+                    other.push(declaration.value.tag);
                     break;
                 case ModelTag.ComponentImport: {
                     /*
@@ -57,25 +59,28 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         }
 
         return async (ctx, args) => {
-            //console.log('createComponentType', ctx.debugStack);
+            //console.log('createComponentType', ctx.debugStack?.join(' > '));
             const ifc: JsInterface = {
                 TODO: section.tag,
-                TODOArgs: args
+                args,
+                other,
             } as any;
 
+
             // TODO: this is very fake!
-            const fakeRun = () => {
+            /*const fakeRun = () => {
                 const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
                 ctx.rootImports['hello:city/city'].sendMessage(fakeMessage);
-            };
+            };*/
+            const fakeRun = args[0];
 
             for (const exportName of exports) {
                 //console.log('createComponentType', exportName);
                 ifc[exportName] = fakeRun;
             }
 
+            //console.log(JSON.stringify(args, null, 2));
             return ifc;
         };
     });
 }
-

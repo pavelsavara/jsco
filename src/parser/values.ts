@@ -41,8 +41,7 @@ export function readStringArray(src: SyncSource): string[] {
 
     const count = readU32(src);
     const arr: string[] = [];
-    for(let i=0; i<count; i++)
-    {
+    for (let i = 0; i < count; i++) {
         arr.push(readName(src));
     }
     return arr;
@@ -91,42 +90,35 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
     }
 }
 
-export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDeclaration[]
-{
+export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDeclaration[] {
     const count = readU32(src);
     const declarations: InstanceTypeDeclaration[] = [];
-    for(let i = 0; i < count; i++)
-    {
+    for (let i = 0; i < count; i++) {
         const type = src.read();
         let declaration: any;
-        switch (type)
-        {
-            case 0x00:
-            {
+        switch (type) {
+            case 0x00: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationCoreType,
                     value: undefined,
                 };
                 break;
             }
-            case 0x01:
-            {
+            case 0x01: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationType,
                     value: readComponentType(src),
                 };
                 break;
             }
-            case 0x02:
-            {
+            case 0x02: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationAlias,
                     value: undefined,
                 };
                 break;
             }
-            case 0x04:
-            {
+            case 0x04: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationExport,
                     name: readComponentExternName(src),
@@ -157,20 +149,17 @@ export function readComponentExternName(src: SyncSource): ComponentExternName {
     }
 }
 
-export function readDestructor(src: SyncSource) : number | undefined
-{
+export function readDestructor(src: SyncSource): number | undefined {
     const type = src.read();
-    switch (type)
-    {
+    switch (type) {
         case 0x00: return undefined;
         case 0x01: return readU32(src);
         default: throw new Error('Invalid leading byte in resource destructor');
     }
 }
 
-export function readComponentTypeDefined(src: SyncSource, type: number): ComponentTypeDefined{
-    switch (type)
-    {
+export function readComponentTypeDefined(src: SyncSource, type: number): ComponentTypeDefined {
+    switch (type) {
         case 0x68: {
             return {
                 tag: ModelTag.ComponentTypeDefinedBorrow,
@@ -211,8 +200,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         case 0x6f: {
             const count = readU32(src);
             const members: ComponentValType[] = [];
-            for(let i=0; i<count; i++)
-            {
+            for (let i = 0; i < count; i++) {
                 members.push(readComponentValType(src));
             }
             return {
@@ -229,8 +217,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         case 0x71: {
             const count = readU32(src);
             const variants: VariantCase[] = [];
-            for(let i=0; i<count; i++)
-            {
+            for (let i = 0; i < count; i++) {
                 variants.push({
                     name: readName(src),
                     ty: readComponentValType(src),
@@ -245,8 +232,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         case 0x72: {
             const count = readU32(src);
             const members: { name: string, type: ComponentValType }[] = [];
-            for(let i=0; i<count; i++)
-            {
+            for (let i = 0; i < count; i++) {
                 members.push({
                     name: readName(src),
                     type: readComponentValType(src),
@@ -264,8 +250,7 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
 export function readComponentInstantiationArgs(src: SyncSource): ComponentInstantiationArg[] {
     const count = readU32(src);
     const args: ComponentInstantiationArg[] = [];
-    for(let i=0; i<count; i++)
-    {
+    for (let i = 0; i < count; i++) {
         args.push({
             name: readName(src),
             kind: readComponentExternalKind(src),
@@ -275,10 +260,9 @@ export function readComponentInstantiationArgs(src: SyncSource): ComponentInstan
     return args;
 }
 
-export function readCoreInstance(src: SyncSource): CoreInstance{
+export function readCoreInstance(src: SyncSource): CoreInstance {
     const type = src.read();
-    switch (type)
-    {
+    switch (type) {
         case 0x00: {
             const index = readU32(src);
             return {
@@ -297,11 +281,10 @@ export function readCoreInstance(src: SyncSource): CoreInstance{
     }
 }
 
-export function readExports(src: SyncSource): Export[]{
+export function readExports(src: SyncSource): Export[] {
     const count = readU32(src);
     const exports: Export[] = [];
-    for(let i=0; i<count; i++)
-    {
+    for (let i = 0; i < count; i++) {
         const name = readName(src);
         const kind = readU32(src);
         const index = readU32(src);
@@ -317,7 +300,7 @@ export function readExports(src: SyncSource): Export[]{
 export function readInstantiationArgs(src: SyncSource): InstantiationArg[] {
     const count = readU32(src);
     const args: InstantiationArg[] = [];
-    for(let i=0; i<count; i++){
+    for (let i = 0; i < count; i++) {
         const name = readName(src);
         const kind = readInstantiationArgKind(src);
         const index = readU32(src);
@@ -337,10 +320,9 @@ export function readInstantiationArgKind(src: SyncSource): InstantiationArgKind 
     return InstantiationArgKind.Instance;
 }
 
-export function readCanonicalFunction(src: SyncSource): CanonicalFunction{
+export function readCanonicalFunction(src: SyncSource): CanonicalFunction {
     const type = src.read();
-    switch (type)
-    {
+    switch (type) {
         case 0x00: {
             const controlByte = src.read();
             if (controlByte != 0x00)
@@ -378,21 +360,19 @@ export function readCanonicalFunction(src: SyncSource): CanonicalFunction{
     }
 }
 
-export function readCanonicalOptions(src: SyncSource): CanonicalOption[]{
+export function readCanonicalOptions(src: SyncSource): CanonicalOption[] {
 
     const optionsCount = readU32(src);
     const options: CanonicalOption[] = [];
-    for (let i=0; i<optionsCount; i++)
-    {
+    for (let i = 0; i < optionsCount; i++) {
         options.push(readCanonicalOption(src));
     }
     return options;
 }
 
-export function readCanonicalOption(src: SyncSource): CanonicalOption{
+export function readCanonicalOption(src: SyncSource): CanonicalOption {
     const type = src.read();
-    switch (type)
-    {
+    switch (type) {
         case 0x00: return {
             tag: ModelTag.CanonicalOptionUTF8,
         };
@@ -418,11 +398,9 @@ export function readCanonicalOption(src: SyncSource): CanonicalOption{
     }
 }
 
-export function readComponentType(src: SyncSource) : any
-{
+export function readComponentType(src: SyncSource): any {
     const type = src.read();
-    switch (type)
-    {
+    switch (type) {
         case 0x3F: {
             return {
                 tag: ModelTag.ComponentTypeResource,
@@ -446,7 +424,7 @@ export function readComponentType(src: SyncSource) : any
         case 0x42: {
             return {
                 tag: ModelTag.ComponentTypeInstance,
-                declarations:  readInstanceTypeDeclarations(src),
+                declarations: readInstanceTypeDeclarations(src),
             };
         }
         default: {
@@ -487,11 +465,10 @@ export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
     }
 }
 
-export function readNamedValues(src: SyncSource): NamedValue[]{
+export function readNamedValues(src: SyncSource): NamedValue[] {
     const values: NamedValue[] = [];
     const count = readU32(src);
-    for(let i=0; i<count; i++)
-    {
+    for (let i = 0; i < count; i++) {
         values.push({
             name: readName(src),
             type: readComponentValType(src),
@@ -500,45 +477,34 @@ export function readNamedValues(src: SyncSource): NamedValue[]{
     return values;
 }
 
-export function readComponentFuncResult(src: SyncSource) : ComponentFuncResult | undefined
-{
-    try
-    {
-        const type = src.read();
-        switch(type)
-        {
-            case 0x00:
-                return {
-                    tag: ModelTag.ComponentFuncResultUnnamed,
-                    value: readComponentValType(src),
-                };
-            case 0x01:
-                return {
-                    tag: ModelTag.ComponentFuncResultNamed,
-                    value: readNamedValues(src),
-                };
-            default: throw new Error(`unknown ComponentFuncResult type: ${type}`);
-        }
-    }
-    catch
-    {
-        return undefined;
+export function readComponentFuncResult(src: SyncSource): ComponentFuncResult | undefined {
+    const type = src.read();
+    switch (type) {
+        case 0x00:
+            return {
+                tag: ModelTag.ComponentFuncResultUnnamed,
+                type: readComponentValType(src),
+            };
+        case 0x01:
+            return {
+                tag: ModelTag.ComponentFuncResultNamed,
+                values: readNamedValues(src),
+            };
+        default: throw new Error(`unknown ComponentFuncResult type: ${type}`);
     }
 }
 
 export function readComponentValType(src: SyncSource): ComponentValType {
-    const b = src.read();
-    if (0x73 <= b && b <= 0x7f)
-    {
+    const b = readU32(src);
+    if (0x73 <= b && b <= 0x7f) {
         return {
             tag: ModelTag.ComponentValTypePrimitive,
             value: parsePrimitiveValType(b),
         };
     }
-    const val = readU32(src);
     return {
         tag: ModelTag.ComponentValTypeType,
-        value: val,
+        value: b,
     };
 }
 

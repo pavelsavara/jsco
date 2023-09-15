@@ -72,7 +72,7 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                 ],
                 results: {
                     tag: ModelTag.ComponentFuncResultNamed,
-                    value: []//void
+                    values: []//void
                 }
             }
         },
@@ -244,8 +244,10 @@ export const componentTypeFunc2: ComponentTypeFunc = {
             }
         }
     ],
-    results: undefined as any, // no info about the result
-
+    results: {
+        tag: ModelTag.ComponentFuncResultNamed,
+        values: [] // void
+    },
 };
 
 export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
@@ -358,10 +360,9 @@ export const componentTypeComponent0: ComponentTypeComponent = {
                         }
                     }
                 ],
-                results:
-                {
+                results: {
                     tag: ModelTag.ComponentFuncResultUnnamed,
-                    value: undefined as any, // there is no info about the results
+                    type: undefined as any, // there is no info about the results
                 },
             },
         },
@@ -406,7 +407,7 @@ export const componentTypeComponent0: ComponentTypeComponent = {
                 results:
                 {
                     tag: ModelTag.ComponentFuncResultNamed,
-                    value: [] // void
+                    values: [] // void
                 },
             },
         },

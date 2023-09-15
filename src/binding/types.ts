@@ -9,7 +9,7 @@ export type JsFunction = Function;
 export type JsString = string;
 export type JsBoolean = boolean;
 export type JsNumber = number | bigint;
-export type JsValue = JsNumber | JsString | JsBoolean;
+export type JsValue = JsNumber | JsString | JsBoolean | any;
 
 export type BindingContext = {
     rootImports: JsImports
