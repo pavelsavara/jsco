@@ -15,6 +15,7 @@ import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
 import { ModelTag } from '../model/tags';
+import { ComponentExternalKind } from '../model/exports';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -158,11 +159,38 @@ async function parseSectionComponent(
                     });
                     break;
                 case ModelTag.ComponentExport:
-                    model.push({
-                        tag: ModelTag.ComponentTypeDeclarationExport,
-                        name: s.name,
-                        ty: s.ty!
-                    });
+                    switch (s.kind) {
+                        case ComponentExternalKind.Type: {
+                            model.push({
+                                tag: ModelTag.ComponentTypeDeclarationExport,
+                                name: s.name,
+                                ty: {
+                                    tag: ModelTag.ComponentTypeRefType,
+                                    value: {
+                                        tag: ModelTag.TypeBoundsEq,
+                                        value: s.index
+                                    }
+                                }
+                            });
+                            break;
+                        }
+                        case ComponentExternalKind.Func:
+                            model.push({
+                                tag: ModelTag.ComponentTypeDeclarationExport,
+                                name: s.name,
+                                ty: {
+                                    tag: ModelTag.ComponentTypeRefFunc,
+                                    value: s.index
+                                }
+                            });
+                            break;
+                        case ComponentExternalKind.Component:
+                        case ComponentExternalKind.Instance:
+                        case ComponentExternalKind.Module:
+                        case ComponentExternalKind.Value:
+                        default:
+                            throw new Error(`Unexpected kind ${s.kind}`);
+                    }
                     break;
                 case ModelTag.ComponentImport:
                     model.push(s);
