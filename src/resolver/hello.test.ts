@@ -1,5 +1,5 @@
 import { expectedModel } from '../../tests/hello';
-import { resolveTree, expectedContext } from '../../tests/resolve-hello';
+import { resolveTree, expectedContext, resolveJCO } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
 import { createResolverContext, setSelfIndex } from './context';
 import { createComponent, instantiateComponent } from './index';
@@ -22,14 +22,6 @@ describe('resolver hello', () => {
 
     test.failing('component instantiated from fake model could run', async () => {
         let actualMessage: string = undefined as any;
-        const imports: js.NamedImports = {
-            'hello:city/city': {
-                sendMessage: (message: string) => {
-                    actualMessage = message;
-                }
-            }
-        };
-
         // here we need wasm modules from the actual .wasm file
         // but the rest of the model is better to use fake for now
         const parsedModel = await parse('./hello/wasm/hello.wasm');
@@ -38,7 +30,17 @@ describe('resolver hello', () => {
             ...expectedModel.filter(x => x.tag !== ModelTag.CoreModule),
         ];
 
+        const imports: js.NamedImports = {
+            'hello:city/city': {
+                sendMessage: (message: string) => {
+                    actualMessage = message;
+                }
+            }
+        };
+
         const instance = await instantiateComponent(mergedModel, imports);
+
+        // console.log('RUN', instance.exports['hello:city/greeter'].run);
 
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',
@@ -60,5 +62,27 @@ describe('resolver hello', () => {
 
     test('manual resolve tree', async () => {
         resolveTree();
+    });
+
+    test('JCO rewrite works', async () => {
+        const parsedModel = await parse('./hello/wasm/hello.wasm');
+
+        let actualMessage: string = undefined as any;
+        const imports: js.NamedImports = {
+            'hello:city/city': {
+                sendMessage: (message: string) => {
+                    actualMessage = message;
+                }
+            }
+        };
+
+        const instance = await resolveJCO(parsedModel, imports);
+
+        instance.exports['hello:city/greeter'].run({
+            name: 'Prague',
+            headCount: 1_000_000,
+            budget: BigInt(200_000_000),
+        });
+        expect(actualMessage).toBe('Welcome to Prague, we invite you for a drink!');
     });
 });

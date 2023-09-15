@@ -1,4 +1,4 @@
-import { BindingContext } from '../binding/types';
+import { Tcabi_realloc, WasmPointer, WasmSize } from './binding/types';
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
@@ -32,18 +32,8 @@ export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<
 //
 
 export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
-export type ImplComponentExport = (ctx: BindingContext) => Promise<JsInterfaceCollection>
-export type ImplComponentInstance = (ctx: BindingContext) => Promise<JsInterface>
-export type ImplCoreInstance = (ctx: BindingContext, imports: JsImports) => Promise<WebAssembly.Instance>
-export type ImplComponentTypeComponent = (ctx: BindingContext, args: any[]) => Promise<JsInterface>
-export type ImplComponentFunction = (ctx: BindingContext) => Promise<any>
-export type ImplComponentImport = (ctx: BindingContext) => Promise<any>
-export type ImplCoreFunction = (ctx: BindingContext) => Promise<Function>
-export type ImplComponentType = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeResource = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeInstance = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeFunction = (ctx: BindingContext) => Promise<any>
-export type ImplComponentTypeReference = (ctx: BindingContext) => Promise<any>
+export type ImplFactory = (ctx: BindingContext, imports: any) => Promise<any>
+export type NamedImplFactory = { name: string, factory: ImplFactory }
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -75,4 +65,22 @@ export type ResolverContext = {
     wasmInstantiate: typeof WebAssembly.instantiate
     resolveCache: Map<ModelTag, Function[]>
     debugStack?: string[]
+}
+
+export type BindingContext = {
+    rootImports: JsImports
+    coreInstances: WebAssembly.Instance[];
+    componentInstances: WasmComponentInstance<any>[]
+    initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
+    utf8Decoder: TextDecoder;
+    utf8Encoder: TextEncoder;
+    getMemory: () => WebAssembly.Memory;
+    getView: (ptr: WasmPointer, len: WasmSize) => DataView;
+    getViewU8: (ptr: WasmPointer, len: WasmSize) => Uint8Array;
+    alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
+    realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
+    readI32: (ptr: WasmPointer) => number;
+    writeI32: (ptr: WasmPointer, value: number) => void;
+    abort: () => void;
+    debugStack?: string[];
 }
