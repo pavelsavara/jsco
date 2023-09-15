@@ -3,6 +3,7 @@ import { ModelTag } from '../model/tags';
 import { prepareComponentExports } from './component-exports';
 import { prepareComponentFunction } from './component-functions';
 import { prepareComponentSection } from './component-section';
+import { prepareComponentType, prepareComponentTypeRef } from './component-type-ref';
 import { memoizePrepare } from './context';
 import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
@@ -59,23 +60,23 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         const arg = await factory(ctx, imports);
                         args[name] = arg;
                     }
-                    const componentType = await componentFactory(ctx, args);
-                    return componentType;
+                    const componentInstance = await componentFactory(ctx, args);
+                    return componentInstance;
                 };
             }
-            /*
             case ModelTag.ComponentTypeInstance: {
-                const typeFactories: NamesImplFactory[] = [];
+                const typeFactories: ImplFactory[] = [];
+                const exportFactories: NamedImplFactory[] = [];
                 for (const declaration of section.declarations) {
                     switch (declaration.tag) {
-                        case ModelTag.InstanceTypeDeclarationType: {
-                            const type = await prepareComponentType(rctx, declaration.value);
-                            typeFactories.push(type);
+                        case ModelTag.InstanceTypeDeclarationExport: {
+                            const factory = await prepareComponentTypeRef(rctx, declaration.ty);
+                            exportFactories.push({ name: declaration.name.name, factory });
                             break;
                         }
-                        case ModelTag.InstanceTypeDeclarationExport: {
-                            const ref = await prepareComponentTypeReference(rctx, declaration.ty);
-                            typeFactories.push(ref);
+                        case ModelTag.InstanceTypeDeclarationType: {
+                            const factory = await prepareComponentType(rctx, declaration.value);
+                            typeFactories.push(factory);
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationCoreType:
@@ -86,15 +87,18 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 }
 
                 return async (ctx, imports) => {
-                    const exports = [];
-                    for (const { name, factory } of typeFactories) {
+                    const exports: any = {};
+                    for (const { name, factory } of exportFactories) {
                         const value = await factory(ctx, imports);
-                        exports.push(value);
+                        exports[name] = value;
+                    }
+                    for (const [i, factory] of typeFactories.entries()) {
+                        const value = await factory(ctx, imports);
+                        exports['__type' + i] = value;
                     }
                     return exports;
                 };
-                break;
-            }*/
+            }
             default:
                 throw new Error(`${(section as any).tag} not implemented`);
         }

@@ -68,8 +68,12 @@ export async function prepareComponentExports(rctx: ResolverContext, exports: Co
         const exports = {} as any;
         for (const { name, factory } of factories) {
             const ifc = await factory(ctx, imports ?? {});
-            exports[name] = ifc as any;
+            exports[name] = {
+                ...ifc.exports,
+                __imports: ifc.__imports,
+                __importNames: ifc.__importNames,
+            };
         }
+        return exports;
     };
-
 }

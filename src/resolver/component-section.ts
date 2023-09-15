@@ -10,13 +10,13 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exportFactories: NamedImplFactory[] = [];
-        const importNames: string[] = [];
+        const __importNames: string[] = [];
         const other: string[] = [];
         for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
                     const importName = declaration.name.name;//TODO name type
-                    importNames.push(importName);
+                    __importNames.push(importName);
                     break;
                 }
                 case ModelTag.ComponentExport: {
@@ -34,16 +34,16 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
             }
         }
 
-        return async (ctx, imports) => {
+        return async (ctx, __imports) => {
             const exports = {} as any;
             for (const { name, factory } of exportFactories) {
-                const ifc = await factory(ctx, imports ?? {});
+                const ifc = await factory(ctx, __imports ?? {});
                 exports[name] = ifc as any;
             }
 
             const component: any = {
-                importNames,
-                imports,
+                __importNames,
+                __imports,
                 exports,
             };
 

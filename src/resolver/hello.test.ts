@@ -40,6 +40,8 @@ describe('resolver hello', () => {
 
         const instance = await instantiateComponent(mergedModel, imports);
 
+        console.log('RUN', instance.exports['hello:city/greeter'].run);
+
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',
             headCount: 1_000_000,
