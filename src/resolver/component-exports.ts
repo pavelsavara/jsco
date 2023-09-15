@@ -48,7 +48,7 @@ export async function prepareComponentExport(rctx: ResolverContext, exportSectio
         case ComponentExternalKind.Func: {
             const factory = await prepareComponentFunction(rctx, section.index);
             return {
-                name,
+                name: name + '!!1',
                 factory
             };
         }

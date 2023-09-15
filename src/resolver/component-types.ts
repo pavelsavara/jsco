@@ -65,7 +65,7 @@ function resolveComponentTypeIndex(rctx: ResolverContext, componentTypeIndex: nu
     }
 }
 
-async function prepareComponentTypeRef(rctx: ResolverContext, ref: ComponentTypeRef): Promise<ImplFactory> {
+export async function prepareComponentTypeRef(rctx: ResolverContext, ref: ComponentTypeRef): Promise<ImplFactory> {
     switch (ref.tag) {
         case ModelTag.ComponentTypeRefFunc: {
             return prepareCoreFunction(rctx, ref.value);

@@ -34,18 +34,21 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                     }
                     case ComponentExternalKind.Func: {
                         //console.log('TODO ' + section.kind, section.name, rctx.debugStack);
-                        // TODO it's not clean to me if this should be function from core module
-                        const factory = await prepareCoreInstance(rctx, section.instance_index);
+                        // TODO it's not clear to me if this should be function from core module
+                        //const factory = await prepareCoreInstance(rctx, section.instance_index);
+                        //const factory = await prepareCoreFunction(rctx, section.instance_index);
 
                         return async (ctx, args) => {
                             //console.log('TODO ' + section.kind, section.name, args, rctx.debugStack);
-                            const coreInstance: WebAssembly.Instance = await factory(ctx, args);
+                            //const coreInstance: WebAssembly.Instance = await factory(ctx, args);
+                            //const xxx = await factory(ctx, args);
                             return {
-                                TODO: section.kind + ' ' + (new Error().stack)!.split('\n')[1],
-                                coreInstance,
-                                exports: coreInstance.exports,
+                                TODO: section.tag + '< ' + section.kind + '< ' + (new Error().stack)!.split('\n')[1],
+                                //coreInstance,
+                                //exports: coreInstance.exports,
                                 instance_index: section.instance_index,
-                                name: section.name,
+                                name: section.name + '!!3',
+
                             };
                         };
                     }

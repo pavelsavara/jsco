@@ -37,7 +37,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     const instanceArgs = {} as WebAssembly.Imports;
                     for (const { name, factory } of argFactories) {
                         const instance = await factory(ctx, args);
-                        instanceArgs[name] = instance as any;
+                        instanceArgs[name] = instance;
                     }
 
                     instance = await rctx.wasmInstantiate(module, instanceArgs);
@@ -52,8 +52,8 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                         ctx.initialize(memory, cabi_realloc);
                     }
 
-                    //const wasmImports = WebAssembly.Module.imports(module);
-                    //console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports) });
+                    const wasmImports = WebAssembly.Module.imports(module);
+                    //console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports), stack: (new Error().stack) });
 
                     return instance;
                 };
@@ -78,16 +78,8 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     //console.log('CoreInstanceFromExports', section);
                     const exports = {} as any;
                     for (const { name, factory } of exportFactories) {
-                        let value = await factory(ctx, args);
-                        if (typeof value === 'function') {
-                            const orig = value;// TODO remove
-                            value = (...args: any[]) => {
-                                //console.log('CoreInstanceFromExports ' + name + ' called ', args);
-                                return orig(...args);
-                            };
-                        }
-                        //console.log('CoreInstanceFromExports value', value.length);
-                        exports[name] = value as any;
+                        const value = await factory(ctx, args);
+                        exports[name] = value;
                     }
                     //console.log('CoreInstanceFromExports exports', exports);
                     return exports;

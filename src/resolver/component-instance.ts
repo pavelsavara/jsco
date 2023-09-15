@@ -24,7 +24,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     switch (arg.kind) {
                         case ComponentExternalKind.Func: {
                             const factory = await prepareComponentFunction(rctx, arg.index);
-                            importFactories.push({ name: arg.name, factory });
+                            importFactories.push({ name: arg.name + '!!2', factory });
                             break;
                         }
                         case ComponentExternalKind.Instance: {
@@ -56,7 +56,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         componentArgs[name] = arg;
                     }
                     const componentInstance = await componentFactory(ctx, componentArgs);
-                    console.log('PAVEL instance componentArgs', componentArgs);
+                    //console.log('PAVEL instance componentArgs', componentArgs);
                     console.log('PAVEL instance componentInstance', componentInstance);
                     return componentInstance;
                 };
@@ -95,12 +95,15 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     if (instance) {
                         return instance;
                     }
-                    const exports: any = {};
+                    const exports: any = {
+                        TODO: (new Error().stack)!.split('\n')[1],
+                    };
                     for (const { name, factory } of exportFactories) {
                         const value = await factory(ctx, args);
                         exports[name] = value;
                     }
                     instance = {
+                        TODO: (new Error().stack)!.split('\n')[1],
                         abort: ctx.abort,
                         exports,
                     } as any;

@@ -13,11 +13,12 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
 
                 return async (ctx, args) => {
                     const instance = await instanceFactory(ctx, args);
-                    return instance.exports[section.name] as Function;
+                    return instance.exports[section.name];
                 };
             }
             case ModelTag.CanonicalFunctionLower: {
                 const componentFunctionFactory = await prepareCoreFunction(rctx, section.func_index);
+                console.log('AAAAAAAAAAAAAAAAAA');
                 // TODO section.options: CanonicalOption
                 //const sectionFunType = rctx.indexes.coreFunctions[section.func_index];
                 //jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
