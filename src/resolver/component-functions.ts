@@ -18,8 +18,8 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                 jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
 
                 const trampoline = createImportLifting(rctx, sectionFunType);
-                return async (ctx, imports) => {
-                    const coreFn = await coreFunctionFactory(ctx, imports);
+                return async (ctx, args) => {
+                    const coreFn = await coreFunctionFactory(ctx, args);
                     return trampoline(ctx, coreFn);
                 };
             }
@@ -27,15 +27,15 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                 switch (section.kind) {
                     case ComponentExternalKind.Instance: {
                         const factory = await prepareComponentInstance(rctx, section.instance_index);
-                        return async (ctx, imports) => {
-                            return factory(ctx, imports);
+                        return async (ctx, args) => {
+                            return factory(ctx, args);
                         };
                     }
                     case ComponentExternalKind.Func: {
                         //console.log('TODO ' + section.kind, section.name, rctx.debugStack);
                         const factory = await prepareComponentInstance(rctx, section.instance_index);
-                        return async (ctx, imports) => {
-                            const instance = await factory(ctx, imports);
+                        return async (ctx, args) => {
+                            const instance = await factory(ctx, args);
                             return {
                                 instance,
                                 TODO: section.kind,

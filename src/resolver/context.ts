@@ -168,7 +168,6 @@ export function setSelfIndex(rctx: ResolverContext) {
     setSelfIndex(rctx.indexes.coreGlobals);
 }
 
-
 export function createBindingContext(rctx: ResolverContext, imports: JsImports): BindingContext {
     let memory: WebAssembly.Memory = undefined as any;// TODO
     let cabi_realloc: Tcabi_realloc = undefined as any;// TODO
@@ -202,6 +201,7 @@ export function createBindingContext(rctx: ResolverContext, imports: JsImports):
         throw new Error('not implemented');
     }
     const ctx: BindingContext = {
+        coreInstances: [],
         rootImports: imports,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),

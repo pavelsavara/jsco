@@ -13,8 +13,8 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         switch (section.tag) {
             case ModelTag.ComponentInstanceFromExports: {
                 const factory = await prepareComponentExports(rctx, section.exports);
-                return async (ctx, imports) => {
-                    const exports = factory(ctx, imports);
+                return async (ctx, args) => {
+                    const exports = factory(ctx, args);
                     return exports;
                 };
             }
@@ -54,15 +54,15 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     }
                 }
 
-                return async (ctx, imports) => {
-                    const args = {} as any;
+                return async (ctx, args) => {
+                    const componentArgs = {} as any;
                     for (const { name, factory } of importFactories) {
-                        const arg = await factory(ctx, imports);
-                        args[name] = arg;
+                        const arg = await factory(ctx, args);
+                        componentArgs[name] = arg;
                     }
-                    const componentInstance = await componentFactory(ctx, args);
-                    console.log('PAVEL in', args);
-                    console.log('PAVEL out', componentInstance);
+                    const componentInstance = await componentFactory(ctx, componentArgs);
+                    //console.log('PAVEL in', args);
+                    //console.log('PAVEL out', componentInstance);
                     return componentInstance;
                 };
             }
@@ -88,14 +88,14 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                     }
                 }
 
-                return async (ctx, imports) => {
+                return async (ctx, args) => {
                     const exports: any = {};
                     for (const { name, factory } of exportFactories) {
-                        const value = await factory(ctx, imports);
+                        const value = await factory(ctx, args);
                         exports[name] = value;
                     }
                     for (const [i, factory] of typeFactories.entries()) {
-                        const value = await factory(ctx, imports);
+                        const value = await factory(ctx, args);
                         exports['__type' + i] = value;
                     }
                     return exports;

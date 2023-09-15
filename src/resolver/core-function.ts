@@ -11,8 +11,8 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
             case ModelTag.ComponentAliasCoreInstanceExport: {
                 const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
 
-                return async (ctx, imports) => {
-                    const instance = await instanceFactory(ctx, imports);
+                return async (ctx, args) => {
+                    const instance = await instanceFactory(ctx, args);
                     return instance.exports[section.name] as Function;
                 };
             }
@@ -31,9 +31,8 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
                         values: [],
                     }
                 } as any);
-                console.log('trampoline', trampoline);
-                return async (ctx, imports) => {
-                    const componentFn = await componentFunctionFactory(ctx, imports);
+                return async (ctx, args) => {
+                    const componentFn = await componentFunctionFactory(ctx, args);
                     return trampoline(ctx, componentFn);
                 };
             }

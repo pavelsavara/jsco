@@ -27,15 +27,21 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
                 }
 
-                const todoArgs = {}; // TODO where do the imports come from?
-                return async (ctx) => {
-                    const args = {} as WebAssembly.Imports;
+                return async (ctx, args) => {
+                    let instance: WebAssembly.Instance = ctx.coreInstances[coreInstanceIndex];
+                    if (instance) {
+                        // TODO, do I need to validate that all calls got the same args ?
+                        console.log('reusing core instance ' + coreInstanceIndex);
+                        return instance;
+                    }
+                    const instanceArgs = {} as WebAssembly.Imports;
                     for (const { name, factory } of argFactories) {
-                        const instance = await factory(ctx, todoArgs);
-                        args[name] = instance as any;
+                        const instance = await factory(ctx, args);
+                        instanceArgs[name] = instance as any;
                     }
 
-                    const instance = await rctx.wasmInstantiate(module, args);
+                    instance = await rctx.wasmInstantiate(module, instanceArgs);
+                    ctx.coreInstances[coreInstanceIndex] = instance;
                     const exports = instance.exports as any;
 
                     // this is a hack
@@ -69,11 +75,11 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
                 }
 
-                return async (ctx, imports) => {
+                return async (ctx, args) => {
                     //console.log('CoreInstanceFromExports', section);
                     const exports = {} as any;
                     for (const { name, factory } of exportFactories) {
-                        let value = await factory(ctx, imports);
+                        let value = await factory(ctx, args);
                         if (typeof value === 'function') {
                             const orig = value;// TODO remove
                             value = (...args: any[]) => {

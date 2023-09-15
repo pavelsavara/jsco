@@ -64,10 +64,10 @@ export async function prepareComponentExports(rctx: ResolverContext, exports: Co
         factories.push(factory);
     }
 
-    return async function instantiate(ctx, imports): Promise<any> {
+    return async function instantiate(ctx, args): Promise<any> {
         const exports = {} as any;
         for (const { name, factory } of factories) {
-            const ifc = await factory(ctx, imports);
+            const ifc = await factory(ctx, args);
             exports[name] = {
                 ...ifc.exports,
                 __imports: ifc.__imports,

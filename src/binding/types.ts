@@ -13,6 +13,7 @@ export type JsValue = JsNumber | JsString | JsBoolean | any;
 
 export type BindingContext = {
     rootImports: JsImports
+    coreInstances: WebAssembly.Instance[];
     initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;

@@ -20,10 +20,10 @@ export async function instantiateComponent<TJSExports>(
 export async function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): Promise<WasmComponent<TJSExports>> {
     const resolverContext: ResolverContext = createResolverContext(model, options ?? {});
     const factory = await prepareComponentExports(resolverContext, resolverContext.indexes.componentExports);
-    async function instantiate(imports?: JsImports) {
-        imports = imports ?? {};
-        const ctx = createBindingContext(resolverContext, imports);
-        const exports = await factory(ctx, imports);
+    async function instantiate(args?: JsImports) {
+        args = args ?? {};
+        const ctx = createBindingContext(resolverContext, args);
+        const exports = await factory(ctx, args);
         return {
             exports,
             abort: ctx.abort,

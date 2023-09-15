@@ -36,21 +36,21 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
             }
         }
 
-        return async (ctx, imports) => {
-            const args = {} as any;
+        return async (ctx, args) => {
+            const componentArgs = {} as any;
             for (const { name, factory } of importFactories) {
-                const ifc = await factory(ctx, imports);
-                args[name] = ifc as any;
+                const ifc = await factory(ctx, args);
+                componentArgs[name] = ifc as any;
             }
             const exports = {} as any;
             for (const { name, factory } of exportFactories) {
-                const ifc = await factory(ctx, imports);
+                const ifc = await factory(ctx, args);
                 exports[name] = ifc as any;
             }
 
             const component: any = {
-                imports,
-                args,
+                imports: args,
+                args: componentArgs,
                 exports,
                 __other,
             };
