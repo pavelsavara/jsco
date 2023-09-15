@@ -5,9 +5,9 @@ import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
+import { ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
 import { WITModel } from '../parser';
-import { CoreModule, WITSection } from '../parser/types';
+import { ComponentSection, CoreModule } from '../parser/types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -66,7 +66,7 @@ export type IndexedModel = {
     componentInstances: (ComponentInstance | ComponentTypeInstance)[],
     componentTypeResource: ComponentTypeResource[],
     componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[],
-    componentTypes: (ComponentTypeComponent | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[],
+    componentTypes: (ComponentSection | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[],
 }
 
 export type ResolverContext = {

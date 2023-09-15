@@ -4,8 +4,7 @@ import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding
 import { ModelTag } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
-import { ComponentTypeComponent } from '../model/types';
-import { WITSection } from '../parser/types';
+import { ComponentSection, WITSection } from '../parser/types';
 import { jsco_assert, configuration } from '../utils/assert';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
@@ -33,7 +32,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
         rctx.debugStack = [];
     }
 
-    const componentTypeDefinitions: (ComponentTypeComponent)[] = [];
+    const subComponent: (ComponentSection)[] = [];
     const indexes = rctx.indexes;
     for (const section of sections) {
         // TODO: process all sections into model
@@ -97,8 +96,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             case ModelTag.ComponentTypeFunc:
                 indexes.componentTypes.push(section);
                 break;
-            case ModelTag.ComponentTypeComponent:
-                componentTypeDefinitions.push(section);//append later
+            case ModelTag.ComponentSection:
+                subComponent.push(section);//append later
                 break;
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedEnum:
@@ -143,7 +142,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
 
     // indexed with imports first and then function definitions next
     // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
-    indexes.componentTypes = [...componentTypeDefinitions, ...indexes.componentTypes];
+    indexes.componentTypes = [...subComponent, ...indexes.componentTypes];
     setSelfIndex(rctx);
     return rctx;
 }

@@ -2,7 +2,7 @@ import { BindingContext } from '../binding/types';
 import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { prepareComponentFunction } from './component-functions';
-import { prepareComponentTypeComponent } from './component-type-component';
+import { prepareComponentSection } from './component-section';
 import { prepareComponentTypeDefined } from './component-type-defined';
 import { prepareComponentType, prepareComponentTypeReference } from './component-type-reference';
 import { memoizePrepare } from './context';
@@ -14,7 +14,7 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         switch (section.tag) {
             case ModelTag.ComponentInstanceInstantiate: {
                 section.component_index;
-                const typeFactory = await prepareComponentTypeComponent(rctx, section.component_index);
+                const typeFactory = await prepareComponentSection(rctx, section.component_index);
                 const argFactories: ((ctx: BindingContext) => Promise<any>)[] = [];
                 for (const arg of section.args) {
                     switch (arg.kind) {

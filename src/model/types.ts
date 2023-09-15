@@ -1,4 +1,3 @@
-import { WITSection } from '../parser/types';
 import { ComponentAlias } from './aliases';
 import { FuncType, Import, SubType, TypeRef, ValType, u32 } from './core';
 import { ComponentExternName, ComponentImport, ComponentTypeRef } from './imports';
@@ -127,7 +126,7 @@ export type ComponentTypeFunc = ComponentFuncType & {
 /// The type is a component type.
 export type ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent
-    declarations: WITSection[]
+    declarations: ComponentTypeDeclaration[]
 }
 
 /// The type is an instance type.
