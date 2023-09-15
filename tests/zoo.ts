@@ -74,7 +74,14 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                         name: 'cost',
                         type: {
                             tag: ModelTag.ComponentValTypePrimitive,
-                            value: PrimitiveValType.S64
+                            value: PrimitiveValType.U16
+                        }
+                    },
+                    {
+                        name: 'rating',
+                        type: {
+                            tag: ModelTag.ComponentValTypePrimitive,
+                            value: PrimitiveValType.S16
                         }
                     },
                     {
@@ -850,7 +857,14 @@ export const componentTypeComponent0: ComponentSection = {
                     name: 'cost',
                     type: {
                         tag: ModelTag.ComponentValTypePrimitive,
-                        value: PrimitiveValType.S64
+                        value: PrimitiveValType.U16
+                    }
+                },
+                {
+                    name: 'rating',
+                    type: {
+                        tag: ModelTag.ComponentValTypePrimitive,
+                        value: PrimitiveValType.S16
                     }
                 },
                 {
@@ -1111,7 +1125,8 @@ export const componentTypeComponent0: ComponentSection = {
                 name: 'food-info'
             },
             kind: ComponentExternalKind.Type,
-            index: 2
+            index: 2,
+            ty: undefined
         },
         {
             tag: ModelTag.ComponentExport,

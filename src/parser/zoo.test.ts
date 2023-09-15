@@ -2,6 +2,7 @@ import { parse } from './index';
 import { expectPartialModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/zoo';
 import { CoreModule } from './types';
+import { writeToFile } from '../../tests/utils';
 
 describe('zoo', () => {
 

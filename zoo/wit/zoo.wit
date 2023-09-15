@@ -38,7 +38,8 @@ interface food {
         weight: float32,
         healthy: bool,
         calories: u64,
-        cost: s64,
+        cost: u16,
+        rating: s16,
         pieces: u8,
         // tuple (Celcius, Fahrenheit)
         shelf-temperature: tuple<s8, u8>,
