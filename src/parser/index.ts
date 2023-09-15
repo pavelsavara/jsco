@@ -10,9 +10,12 @@ import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
+import { ComponentTypeComponent, ComponentTypeDeclaration } from '../model/types';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
+import { ModelTag } from '../model/tags';
+import { ComponentExternalKind } from '../model/exports';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -85,8 +88,8 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     }
     const size = await readU32Async(src);
     const start = src.pos;
-    const asyncSub: Source | undefined = type == 1 ? src.subSource(size) : undefined; // if this is module, we need to stream it
-    const sub: SyncSource | undefined = type != 1 ? await src.subSyncSource(size) : undefined; // otherwise it's not worth all the async overhead
+    const asyncSub: Source | undefined = type == 1 || type == 4 ? src.subSource(size) : undefined; // if this is module, we need to stream it
+    const sub: SyncSource | undefined = type != 1 && type != 4 ? await src.subSyncSource(size) : undefined; // otherwise it's not worth all the async overhead
     const sections = await (() => {
         switch (type) {
             ///
@@ -95,6 +98,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 0: return parseSectionCustom(ctx, sub!, size);
             case 1: return parseModule(ctx, asyncSub!, size);
             case 2: return parseSectionCoreInstance(ctx, sub!);
+            case 4: return parseSectionComponent(ctx, asyncSub!, size);
             case 5: return parseSectionInstance(ctx, sub!);
             case 6: return parseSectionAlias(ctx, sub!);
             case 7: return parseSectionType(ctx, sub!);
@@ -104,7 +108,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
 
             //TODO: to implement
             case 3: // core type - we don't have it in the sample
-            case 4: // component
+            case 9: // start
                 return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
@@ -123,4 +127,82 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     }
 
     return sections;
+}
+
+async function parseSectionComponent(
+    ctx: ParserContext,
+    src: Source,
+    size: number
+): Promise<ComponentTypeComponent[]> {
+    const bytes = await src.readExact(size);
+    const src2 = newSource(bytes);
+
+    await checkPreamble(src2);
+    const model: ComponentTypeDeclaration[] = [];
+    for (; ;) {
+        const sections = await parseSection(ctx, src2);
+        if (sections === null) {
+            break;
+        }
+        for (const s of sections) {
+            switch (s.tag) {
+                case ModelTag.ComponentTypeDefinedRecord:
+                    model.push({
+                        tag: ModelTag.ComponentTypeDeclarationType,
+                        value: s
+                    });
+                    break;
+                case ModelTag.ComponentTypeFunc:
+                    model.push({
+                        tag: ModelTag.ComponentTypeDeclarationType,
+                        value: s
+                    });
+                    break;
+                case ModelTag.ComponentExport:
+                    switch (s.kind) {
+                        case ComponentExternalKind.Type: {
+                            model.push({
+                                tag: ModelTag.ComponentTypeDeclarationExport,
+                                name: s.name,
+                                ty: {
+                                    tag: ModelTag.ComponentTypeRefType,
+                                    value: {
+                                        tag: ModelTag.TypeBoundsEq,
+                                        value: s.index
+                                    }
+                                }
+                            });
+                            break;
+                        }
+                        case ComponentExternalKind.Func:
+                            model.push({
+                                tag: ModelTag.ComponentTypeDeclarationExport,
+                                name: s.name,
+                                ty: {
+                                    tag: ModelTag.ComponentTypeRefFunc,
+                                    value: s.index
+                                }
+                            });
+                            break;
+                        case ComponentExternalKind.Component:
+                        case ComponentExternalKind.Instance:
+                        case ComponentExternalKind.Module:
+                        case ComponentExternalKind.Value:
+                        default:
+                            throw new Error(`Unexpected kind ${s.kind}`);
+                    }
+                    break;
+                case ModelTag.ComponentImport:
+                    model.push(s);
+                    break;
+                default:
+                    throw new Error(`Unexpected section ${s.tag}`);
+                    break;
+            }
+        }
+    }
+    return [{
+        tag: ModelTag.ComponentTypeComponent,
+        declarations: model
+    }];
 }

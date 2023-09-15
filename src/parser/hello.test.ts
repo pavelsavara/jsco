@@ -11,7 +11,6 @@ describe('hello', () => {
 
         const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as CoreModule[];
 
-
         expect(moduleSections.length).toBe(3);
         expect(moduleSections[0].module).toBeInstanceOf(Promise);
         expect(moduleSections[1].module).toBeInstanceOf(Promise);

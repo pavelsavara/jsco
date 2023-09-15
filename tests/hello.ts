@@ -361,8 +361,8 @@ export const componentTypeComponent0: ComponentTypeComponent = {
                     }
                 ],
                 results: {
-                    tag: ModelTag.ComponentFuncResultUnnamed,
-                    type: undefined as any, // there is no info about the results
+                    tag: ModelTag.ComponentFuncResultNamed,
+                    values: [], //void
                 },
             },
         },
@@ -413,14 +413,14 @@ export const componentTypeComponent0: ComponentTypeComponent = {
         },
         {
             tag: ModelTag.ComponentTypeDeclarationExport,
-            // what about (func 0)?
+            // what about (type 5)?
             name: {
                 tag: ModelTag.ComponentExternNameKebab,
                 name: 'run'
             },
             ty: {
                 tag: ModelTag.ComponentTypeRefFunc,
-                value: 5
+                value: 0
             },
         },
     ]

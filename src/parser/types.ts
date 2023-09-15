@@ -35,7 +35,6 @@ export type SkippedSection = {
     type: number
     data?: Uint8Array
 }
-
 export type WITModel = WITSection[];
 
 export type ParserContext = {
