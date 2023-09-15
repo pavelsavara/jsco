@@ -15,10 +15,10 @@ async function fetchCompile(url) {
     return fetch(u2).then(WebAssembly.compileStreaming);
 }
 
-const expectdMessage="Welcome to Prague, we invite you for a drink!";
+const expectdMessage='Yum, bananas should be hidden for later.';
 let actualMessage;
 const imports = {
-    'zoo:city/city': {
+    'zoo:food/food': {
         sendMessage: (message) => {
             actualMessage = message;
             console.log(message);
@@ -26,11 +26,13 @@ const imports = {
     }
 }
 const component = await instantiate(fetchCompile, imports, WebAssembly.instantiate);
-const exports = component['greeter'];
+const exports = component['eater'];
 exports.run({
-    name: "Prague",
-    headCount: 1000000,
-    budget: BigInt(200000000)
+    name: 'bananas',
+    weight: 10000.5,
+    healthy: true,
+    calories: BigInt(200000000),
+    cost: 1234567,
 });
 
 if (actualMessage !== expectdMessage) {

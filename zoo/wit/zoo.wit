@@ -1,21 +1,23 @@
-package zoo:city
+package zoo:food
 
-interface city {
-    record city-info {
+interface food {
+    record food-info {
         name: string,
-        head-count: u32,
-        budget: s64,
+        weight: float32,
+        healthy: bool,
+        calories: u64,
+        cost: s64,
     }
 
-    send-message: func(message: string)
+    hide-food: func(food: food-info, message: string)
 }
 
-interface greeter {
-    use city.{city-info}
-    run: func(info: city-info)
+interface eater {
+    use food.{food-info}
+    feed: func(info: food-info)
 }
 
 world zoo {
-    import city
-    export greeter
+    import food
+    export eater
 }

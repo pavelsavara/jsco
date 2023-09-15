@@ -12,7 +12,7 @@ wee_alloc = { version = "0.4.5" }
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "zoo:city"
+package = "zoo:food"
 
 [package.metadata.component.target]
 path = "wit"

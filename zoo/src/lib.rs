@@ -2,25 +2,25 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 cargo_component_bindings::generate!({
-    implementor: Greeter,
+    implementor: Eater,
 });
 
-use bindings::exports::zoo::city::greeter::Guest;
-use bindings::zoo::city::city::{send_message, CityInfo};
+use bindings::exports::zoo::food::eater::Guest;
+use bindings::zoo::food::food::{hide_food, FoodInfo};
 
-struct Greeter;
+struct Eater;
 
-impl Guest for Greeter {
-    fn run(info: CityInfo) {
-        if ((info.budget as f64) / (info.head_count as f64)) > 100.0 {
-            send_message(&format!(
-                "Welcome to {}, we invite you for a drink!",
+impl Guest for Eater {
+    fn feed(info: FoodInfo) {
+        if info.healthy && info.calories > 1000 {
+            hide_food(&info, &format!(
+                "Yum, {} should be hidden for later.",
                 info.name
             ));
-        } else if info.head_count > 1_000_000 {
-            send_message(&format!("Welcome to {} mega polis!", info.name));
+        } else if info.cost > 100 {
+            hide_food(&info, &format!("{}, come and have a bear hug!", info.name));
         } else {
-            send_message(&format!("Welcome to {}!", info.name));
+            hide_food(&info, &format!("{}? Yuk!", info.name));
         }
     }
 }
