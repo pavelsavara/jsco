@@ -47,7 +47,6 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         const arg = await argFactory(ctx);
                         args.push(arg);
                     }
-                    //console.log('createComponentInstance', section, argFactories.length);
                     const componentType = await typeFactory(ctx, args);
                     return componentType;
                 };

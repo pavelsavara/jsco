@@ -20,7 +20,7 @@ describe('resolver hello', () => {
         //TODO asserts
     });
 
-    test('component instantiated from fake model could run', async () => {
+    test.only('component instantiated from fake model could run', async () => {
         let actualMessage: string = undefined as any;
         const imports: js.NamedImports = {
             'hello:city/city': {

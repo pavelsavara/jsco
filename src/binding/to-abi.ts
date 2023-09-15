@@ -1,20 +1,58 @@
-import { FuncType } from '../model/core';
+import { ComponentAliasInstanceExport } from '../model/aliases';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedRecord, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefined, ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentTypeInstance, ComponentValType, InstanceTypeDeclaration, InstanceTypeDeclarationType, PrimitiveValType } from '../model/types';
 import { ResolverContext } from '../resolver/types';
+import { jsco_assert } from '../utils/assert';
 import { memoize } from './cache';
+import { createLowering } from './to-js';
 import { LiftingFromJs, BindingContext, WasmPointer, FnLiftingFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
-export function createImportLifting(rctx: ResolverContext, exportModel: FuncType): FnLiftingFromJs {
+
+export function createImportLifting(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLiftingFromJs {
     return memoize(exportModel, () => {
-        return (ctx: BindingContext, jsImport: JsFunction): WasmFunction => {
-            // TODO
-            throw new Error('Not implemented');
+        const paramLifters: Function[] = [];
+        for (const param of exportModel.params) {
+            const lifter = createLifting(rctx, param.type);
+            paramLifters.push(lifter);
+        }
+        const resultLowerers: Function[] = [];
+        switch (exportModel.results.tag) {
+            case ModelTag.ComponentFuncResultNamed: {
+                for (const res of exportModel.results.values) {
+                    const lowerer = createLowering(rctx, res.type);
+                    resultLowerers.push(lowerer);
+                }
+                break;
+            }
+            case ModelTag.ComponentFuncResultUnnamed: {
+                const lowerer = createLowering(rctx, exportModel.results.type);
+                resultLowerers.push(lowerer);
+            }
+        }
+
+        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
+            function liftingTrampoline(...args: any[]): any {
+                let covertedArgs: any[] = Array(paramLifters.length);
+                for (let i = 0; i < paramLifters.length; i++) {
+                    const lifter = paramLifters[i];
+                    const value = args[i];
+                    const converted = lifter(ctx, value);
+                    // TODO do not alwas spill into stack
+                    covertedArgs = [...covertedArgs, ...converted];
+                }
+                console.log('call liftingTrampoline conv', covertedArgs);
+                const resJs = jsFunction(...covertedArgs);
+                if (resultLowerers.length === 1) {
+                    resultLowerers[0](resJs);
+                }
+            }
+            return liftingTrampoline as WasmFunction;
         };
     });
 }
 
-export function createLifting(rctx: ResolverContext, typeModel: ComponentValType): LiftingFromJs {
+
+export function createLifting(rctx: ResolverContext, typeModel: ComponentValType | ComponentTypeInstance | InstanceTypeDeclaration | ComponentTypeDefined | ComponentAliasInstanceExport): LiftingFromJs {
     return memoize(typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
@@ -30,26 +68,48 @@ export function createLifting(rctx: ResolverContext, typeModel: ComponentValType
                     default:
                         throw new Error('Not implemented');
                 }
-            case ModelTag.ComponentValTypeType:
-                //TODO resolve typeModel.value
-                throw new Error('Not implemented');
+            case ModelTag.ComponentAliasInstanceExport: {
+                const resolved = rctx.indexes.componentInstances[typeModel.instance_index];
+                return createLifting(rctx, resolved as any);
+            }
+            case ModelTag.ComponentTypeInstance: {
+                const resolved = typeModel.declarations[0];
+                return createLifting(rctx, resolved as any);
+            }
+            case ModelTag.InstanceTypeDeclarationType: {
+                const resolved = typeModel.value;
+                jsco_assert(resolved.tag === ModelTag.ComponentTypeDefinedRecord, () => `expected ComponentTypeDefinedRecord, got ${resolved.tag}`);
+                return createRecordLifting(rctx, resolved);
+            }
+            case ModelTag.ComponentValTypeType: {
+                const resolved = rctx.indexes.componentTypes[typeModel.value];
+                return createLifting(rctx, resolved as any);
+            }
             default:
-                throw new Error('Not implemented');
+                //return createRecordLifting(rctx, typeModel.value);
+                throw new Error('Not implemented ' + typeModel.tag);
         }
     });
 }
 
 function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDefinedRecord): LiftingFromJs {
-    const liftingMembers: Map<string, LiftingFromJs> = new Map();
+    const lifters: { name: string, lifter: LiftingFromJs }[] = [];
     for (const member of recordModel.members) {
-
-        //member.name
-        const lifting = createLifting(rctx, member.type);
-        liftingMembers.set(member.name, lifting);
+        const lifter = createLifting(rctx, member.type);
+        lifters.push({ name: member.name, lifter });
     }
-    throw new Error('Not implemented');
-    /*
-    return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: Pointer): Pointer => {
+    return (ctx: BindingContext, srcJsRecord: JsValue): WasmValue[] => {
+        // this is spilling into stack
+        // TODO allocate on heap
+        const args: any = [];
+        for (const { name, lifter } of lifters) {
+            const jsValue = srcJsRecord[name];
+            const wasmValue = lifter(ctx, jsValue);
+            args.push(wasmValue);
+        }
+        return args;
+    };
+    /*return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: Pointer): Pointer => {
 
         // TODO in which cases ABI expects folding into parent record ?
         const res = ctx.alloc(recordModel.totalSize, recordModel.alignment);
@@ -57,7 +117,7 @@ function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDe
         let pos = res as any;
         for (let i = 0; i < recordModel.members.length; i++) {
             const member = recordModel.members[i];
-            const lifting = liftingMembers[i];
+            const lifting = lifters[i];
             const alignment = member.type.alignment as any;
             const jsValue = srcJsRecord[member.name];
             // TODO is this correct math ?

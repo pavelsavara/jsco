@@ -5,9 +5,10 @@ import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
 import { LoweringToJs, BindingContext, FnLoweringToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
+
 export function createExportLowering(rctx: ResolverContext, exportModel: FuncType): FnLoweringToJs {
     return memoize(exportModel, () => {
-        return (ctx: BindingContext, abiExport: WasmFunction): JsFunction => {
+        return (ctx: BindingContext, jsImport: JsFunction): WasmFunction => {
             // TODO
             throw new Error('Not implemented');
         };
