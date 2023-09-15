@@ -20,7 +20,7 @@ describe('resolver hello', () => {
         //TODO asserts
     });
 
-    test.failing('component instantiated from fake model could run', async () => {
+    test.only('component instantiated from fake model could run', async () => {
         let actualMessage: string = undefined as any;
         // here we need wasm modules from the actual .wasm file
         // but the rest of the model is better to use fake for now
@@ -40,7 +40,7 @@ describe('resolver hello', () => {
 
         const instance = await instantiateComponent(mergedModel, imports);
 
-        // console.log('RUN', instance.exports['hello:city/greeter'].run);
+        //console.log('RUN', instance.exports['hello:city/greeter'].run);
 
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',

@@ -29,7 +29,6 @@ export type WasmComponent<TJSExports> = {
     instantiate: WasmComponentFactory<TJSExports>
 }
 export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>
-//
 
 export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
 export type ImplFactory = (ctx: BindingContext, imports: any) => Promise<any>

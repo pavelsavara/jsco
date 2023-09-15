@@ -53,7 +53,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
 
                     //const wasmImports = WebAssembly.Module.imports(module);
-                    // console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports) });
+                    //console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports) });
 
                     return instance;
                 };

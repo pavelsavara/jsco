@@ -3,7 +3,7 @@ import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentFunction } from './component-functions';
 import { prepareComponentInstance } from './component-instance';
-import { ResolverContext, NamedImplFactory, ImplFactory } from './types';
+import { ResolverContext, NamedImplFactory, ImplFactory, BindingContext } from './types';
 
 export async function prepareComponentExport(rctx: ResolverContext, exportSectionOrIndex: number | ComponentExport): Promise<NamedImplFactory> {
     const section = typeof exportSectionOrIndex === 'number' ? rctx.indexes.componentExports[exportSectionOrIndex] : exportSectionOrIndex;
@@ -25,15 +25,25 @@ export async function prepareComponentExport(rctx: ResolverContext, exportSectio
     switch (section.kind) {
         case ComponentExternalKind.Type: {
             const typeSection = rctx.indexes.componentTypes[section.index];
-            const factory = async () => {
-                return {
-                    TODO: typeSection.tag
-                };
-            };
-            return {
-                name,
-                factory
-            };
+            switch (typeSection.tag) {
+                case ModelTag.ComponentAliasInstanceExport: {
+                    return {
+                        name, factory: async () => {
+                            return { TODO: typeSection.tag + ' ' + (new Error().stack)!.split('\n')[1] };
+                        }
+                    };
+                    /*const instanceFactory = await prepareComponentInstance(rctx, typeSection.instance_index);
+                    const factory = async (ctx: BindingContext, args: any) => {
+                        const instance = await instanceFactory(ctx, args);
+                        return instance.exports[name];
+                    };
+                    return {
+                        name, factory
+                    };*/
+                }
+                default:
+                    throw new Error(`${typeSection.tag} not implemented`);
+            }
         }
         case ComponentExternalKind.Func: {
             const factory = await prepareComponentFunction(rctx, section.index);

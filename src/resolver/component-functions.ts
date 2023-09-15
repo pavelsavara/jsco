@@ -6,6 +6,7 @@ import { createImportLifting } from './binding';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentInstance } from './component-instance';
 import { ComponentExternalKind } from '../model/exports';
+import { prepareCoreInstance } from './core-instance';
 
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentFunctions[componentFunctionIndex];
@@ -33,12 +34,16 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                     }
                     case ComponentExternalKind.Func: {
                         //console.log('TODO ' + section.kind, section.name, rctx.debugStack);
-                        const factory = await prepareComponentInstance(rctx, section.instance_index);
+                        // TODO it's not clean to me if this should be function from core module
+                        const factory = await prepareCoreInstance(rctx, section.instance_index);
+
                         return async (ctx, args) => {
-                            const instance = await factory(ctx, args);
+                            //console.log('TODO ' + section.kind, section.name, args, rctx.debugStack);
+                            const coreInstance: WebAssembly.Instance = await factory(ctx, args);
                             return {
-                                instance,
-                                TODO: section.kind,
+                                TODO: section.kind + ' ' + (new Error().stack)!.split('\n')[1],
+                                coreInstance,
+                                exports: coreInstance.exports,
                                 instance_index: section.instance_index,
                                 name: section.name,
                             };

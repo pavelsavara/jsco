@@ -3,7 +3,6 @@ import { ModelTag } from '../model/tags';
 import { prepareComponentExports } from './component-exports';
 import { prepareComponentFunction } from './component-functions';
 import { prepareComponentSection } from './component-section';
-import { prepareComponentType, prepareComponentTypeRef } from './component-type-ref';
 import { memoizePrepare } from './context';
 import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
@@ -19,7 +18,6 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 };
             }
             case ModelTag.ComponentInstanceInstantiate: {
-                section.component_index;
                 const componentFactory = await prepareComponentSection(rctx, section.component_index);
                 const importFactories: NamedImplFactory[] = [];
                 for (const arg of section.args) {
@@ -35,15 +33,12 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                             break;
                         }
                         case ComponentExternalKind.Type: {
-                            //const factory = await prepareComponentTypeDefined(rctx, arg.index);
-                            //importFactories.push({ name: arg.name, factory });
-
-                            const factory = async () => {
-                                return {
-                                    TODO: arg.kind
-                                };
-                            };
-                            importFactories.push({ name: arg.name, factory });
+                            //const type = resolveComponentTypeIndex(rctx, arg.index);
+                            importFactories.push({
+                                name: arg.name, factory: async () => {
+                                    return { TODO: section.tag + ' ' + arg.kind + ' ' + (new Error().stack)!.split('\n')[1] };
+                                }
+                            });
                             break;
                         }
                         case ComponentExternalKind.Component:
@@ -61,24 +56,32 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         componentArgs[name] = arg;
                     }
                     const componentInstance = await componentFactory(ctx, componentArgs);
-                    //console.log('PAVEL in', args);
-                    //console.log('PAVEL out', componentInstance);
+                    console.log('PAVEL instance componentArgs', componentArgs);
+                    console.log('PAVEL instance componentInstance', componentInstance);
                     return componentInstance;
                 };
             }
             case ModelTag.ComponentTypeInstance: {
-                const typeFactories: ImplFactory[] = [];
                 const exportFactories: NamedImplFactory[] = [];
                 for (const declaration of section.declarations) {
                     switch (declaration.tag) {
                         case ModelTag.InstanceTypeDeclarationExport: {
-                            const factory = await prepareComponentTypeRef(rctx, declaration.ty);
-                            exportFactories.push({ name: declaration.name.name, factory });
+                            //const factory = await prepareComponentTypeRef(rctx, declaration.ty);
+                            //exportFactories.push({ name: declaration.name.name, factory });
+                            exportFactories.push({
+                                name: declaration.name.name, factory: async () => {
+                                    return { TODO: section.tag + ' ' + declaration.tag + ' ' + (new Error().stack)!.split('\n')[1] };
+                                }
+                            });
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationType: {
-                            const factory = await prepareComponentType(rctx, declaration.value);
-                            typeFactories.push(factory);
+                            //const type = resolveComponentType(rctx, declaration.value);
+                            exportFactories.push({
+                                name: declaration.value.tag, factory: async () => {
+                                    return { TODO: section.tag + ' ' + declaration.tag + ' ' + (new Error().stack)!.split('\n')[1] };
+                                }
+                            });
                             break;
                         }
                         case ModelTag.InstanceTypeDeclarationCoreType:
@@ -97,14 +100,10 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         const value = await factory(ctx, args);
                         exports[name] = value;
                     }
-                    for (const [i, factory] of typeFactories.entries()) {
-                        const value = await factory(ctx, args);
-                        exports['__type' + i] = value;
-                    }
                     instance = {
                         abort: ctx.abort,
                         exports,
-                    };
+                    } as any;
                     ctx.componentInstances[componentInstanceIndex] = instance;
                     return instance;
                 };

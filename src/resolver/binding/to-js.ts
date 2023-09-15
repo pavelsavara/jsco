@@ -30,9 +30,10 @@ export function createExportLowering(rctx: ResolverContext, exportModel: Compone
                 }
             }
 
-
             return (ctx: BindingContext, wasmFunction: JsFunction): WasmFunction => {
                 function loweringTrampoline(...args: any[]): any {
+                    console.log('loweringTrampoline is wrong because it doesnt have model yet ', { args });
+                    throw new Error('loweringTrampoline is wrong because it doesnt have model yet');
                     let covertedArgs: any[] = [];
                     for (let i = 0; i < paramLowerers.length; i++) {
                         const lifter = paramLowerers[i];

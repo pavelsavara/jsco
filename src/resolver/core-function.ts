@@ -24,7 +24,7 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
                 //sectionFunType.tag === ModelTag.ComponentTypeFunc;
 
                 const trampoline = createExportLowering(rctx, {
-                    TODO: section.tag,
+                    TODO: section.tag + ' ' + (new Error().stack)!.split('\n')[1],
                     params: [],
                     results: {
                         tag: ModelTag.ComponentFuncResultNamed,
