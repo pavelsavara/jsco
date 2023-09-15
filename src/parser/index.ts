@@ -1,4 +1,4 @@
-import type { WITModel, ParserContext, WITSection, ParserOptions } from './types';
+import type { WITModel, ParserContext, WITSection, ParserOptions, ComponentSection } from './types';
 export type { WITModel };
 
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
@@ -10,12 +10,10 @@ import { readU32Async } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
-import { ComponentTypeComponent, ComponentTypeDeclaration } from '../model/types';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
 import { ModelTag } from '../model/tags';
-import { ComponentExternalKind } from '../model/exports';
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];
@@ -133,7 +131,7 @@ async function parseSectionComponent(
     ctx: ParserContext,
     src: Source,
     size: number
-): Promise<ComponentTypeComponent[]> {
+): Promise<ComponentSection[]> {
     const end = src.pos + size;
     await checkPreamble(src);
     let model: WITSection[] = [];
@@ -148,7 +146,7 @@ async function parseSectionComponent(
         model = [...model, ...sections];
     }
     return [{
-        tag: ModelTag.ComponentTypeComponent,
-        declarations: model,
+        tag: ModelTag.ComponentSection,
+        sections: model,
     }];
 }

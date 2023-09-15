@@ -1,10 +1,10 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { CoreModule, WITSection } from '../src/parser/types';
+import { ComponentSection, CoreModule, WITSection } from '../src/parser/types';
 import { ComponentExport, ComponentExternalKind } from '../src/model/exports';
 import { ComponentInstanceInstantiate, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArgKind } from '../src/model/instances';
-import { ComponentTypeComponent, ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../src/model/types';
+import { ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../src/model/types';
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../src/model/aliases';
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
 import { ExternalKind } from '../src/model/core';
@@ -283,9 +283,9 @@ export const aliasExportType3: ComponentAliasInstanceExport = {
     name: 'city-info',
 };
 
-export const componentTypeComponent0: ComponentTypeComponent = {
-    tag: ModelTag.ComponentTypeComponent,
-    declarations: [
+export const componentTypeComponent0: ComponentSection = {
+    tag: ModelTag.ComponentSection,
+    sections: [
         {
             tag: ModelTag.ComponentTypeDefinedRecord,
             'members': [

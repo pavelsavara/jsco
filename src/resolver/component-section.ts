@@ -2,16 +2,16 @@ import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { memoizePrepare } from './context';
-import { ResolverContext, ImplComponentTypeComponent, JsInterface } from './types';
+import { ResolverContext, ImplComponentTypeComponent as ImplComponentSection, JsInterface } from './types';
 
-export function prepareComponentTypeComponent(rctx: ResolverContext, componentIndex: number): Promise<ImplComponentTypeComponent> {
+export function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplComponentSection> {
     const section = rctx.indexes.componentTypes[componentIndex];
-    return memoizePrepare<ImplComponentTypeComponent>(rctx, section, async () => {
+    return memoizePrepare<ImplComponentSection>(rctx, section, async () => {
         //console.log('TODO prepareComponentType', section);
-        jsco_assert(section.tag === ModelTag.ComponentTypeComponent, () => `expected ComponentTypeComponent, got ${section.tag}`);
+        jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exports: string[] = [];
         const other: any[] = [];
-        for (const declaration of section.declarations) {
+        for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
                     /*
@@ -36,11 +36,7 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                     */
                     break;
                 }
-                case ModelTag.ComponentTypeFunc:
-                case ModelTag.ComponentTypeDefinedRecord: {
-                    console.log('TODO ' + declaration.tag, declaration);
-                    break;
-                }
+                //case ModelTag.ComponentTypeFunc:
                 case ModelTag.ComponentExport: {
                     switch (declaration.kind) {
                         case ComponentExternalKind.Func: {
@@ -53,6 +49,11 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                         default:
                             throw new Error(`${declaration.kind} not implemented`);
                     }
+                    break;
+                }
+                case ModelTag.ComponentTypeDefinedRecord:
+                case ModelTag.ComponentTypeFunc: {
+                    //console.log('TODO ' + declaration.tag, declaration);
                     break;
                 }
                 default:

@@ -9,14 +9,16 @@ import { ComponentType } from '../model/types';
 export type WITSection = { selfSortIndex?: number } & (
     | CustomSection
     | SkippedSection
-    | CoreModule
-    | ComponentInstance
-    | CoreInstance
+    | ComponentSection
     | ComponentImport
     | ComponentExport
     | ComponentAlias
     | CanonicalFunction
-    | ComponentType)
+    | ComponentType
+    | ComponentInstance
+    | CoreModule
+    | CoreInstance
+)
 
 export type CoreModule = {
     tag: ModelTag.CoreModule
@@ -35,6 +37,12 @@ export type SkippedSection = {
     type: number
     data?: Uint8Array
 }
+
+export type ComponentSection = {
+    tag: ModelTag.ComponentSection
+    sections: WITSection[]
+}
+
 export type WITModel = WITSection[];
 
 export type ParserContext = {
