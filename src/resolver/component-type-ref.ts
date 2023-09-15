@@ -2,11 +2,14 @@ import { BindingContext } from '../binding/types';
 import { ComponentTypeRef } from '../model/imports';
 import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
+import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplFactory } from './types';
 
 export async function prepareComponentTypeRef(rctx: ResolverContext, ref: ComponentTypeRef): Promise<ImplFactory> {
     switch (ref.tag) {
-        case ModelTag.ComponentTypeRefFunc:
+        case ModelTag.ComponentTypeRefFunc: {
+            return prepareCoreFunction(rctx, ref.value);
+        }
         case ModelTag.ComponentTypeRefType: {
             break;
         }

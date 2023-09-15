@@ -61,6 +61,8 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         args[name] = arg;
                     }
                     const componentInstance = await componentFactory(ctx, args);
+                    console.log('PAVEL in', args);
+                    console.log('PAVEL out', componentInstance);
                     return componentInstance;
                 };
             }

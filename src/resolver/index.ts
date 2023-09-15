@@ -21,8 +21,9 @@ export async function createComponent<TJSExports>(model: WITModel, options?: Com
     const resolverContext: ResolverContext = createResolverContext(model, options ?? {});
     const factory = await prepareComponentExports(resolverContext, resolverContext.indexes.componentExports);
     async function instantiate(imports?: JsImports) {
-        const ctx = createBindingContext(resolverContext, imports ?? {});
-        const exports = await factory(ctx, imports ?? {});
+        imports = imports ?? {};
+        const ctx = createBindingContext(resolverContext, imports);
+        const exports = await factory(ctx, imports);
         return {
             exports,
             abort: ctx.abort,

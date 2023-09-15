@@ -1,6 +1,8 @@
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentExport } from './component-exports';
+import { prepareComponentImport } from './component-imports';
+import { prepareComponentTypeRef } from './component-type-ref';
 import { memoizePrepare } from './context';
 import { ImplFactory, NamedImplFactory, ResolverContext, } from './types';
 
@@ -10,13 +12,13 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exportFactories: NamedImplFactory[] = [];
-        const __importNames: string[] = [];
-        const other: string[] = [];
+        const importFactories: NamedImplFactory[] = [];
+        const __other: string[] = [];
         for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
-                    const importName = declaration.name.name;//TODO name type
-                    __importNames.push(importName);
+                    const importFactory = await prepareComponentTypeRef(rctx, declaration.ty);
+                    importFactories.push({ name: declaration.name.name, factory: importFactory });//TODO name type
                     break;
                 }
                 case ModelTag.ComponentExport: {
@@ -26,7 +28,7 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
                 }
                 case ModelTag.ComponentTypeDefinedRecord:
                 case ModelTag.ComponentTypeFunc: {
-                    other.push('TODO ' + declaration.tag);
+                    __other.push('TODO ' + declaration.tag);
                     break;
                 }
                 default:
@@ -34,17 +36,23 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
             }
         }
 
-        return async (ctx, __imports) => {
+        return async (ctx, imports) => {
+            const args = {} as any;
+            for (const { name, factory } of importFactories) {
+                const ifc = await factory(ctx, imports);
+                args[name] = ifc as any;
+            }
             const exports = {} as any;
             for (const { name, factory } of exportFactories) {
-                const ifc = await factory(ctx, __imports ?? {});
+                const ifc = await factory(ctx, imports);
                 exports[name] = ifc as any;
             }
 
             const component: any = {
-                __importNames,
-                __imports,
+                imports,
+                args,
                 exports,
+                __other,
             };
 
             return component;

@@ -37,7 +37,6 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                             const instance = await factory(ctx, imports);
                             return {
                                 instance,
-                                imports,
                                 TODO: section.kind,
                                 instance_index: section.instance_index,
                                 name: section.name,

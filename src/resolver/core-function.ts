@@ -14,7 +14,21 @@ export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: nu
                     return instance.exports[section.name] as Function;
                 };
             }
-            case ModelTag.CanonicalFunctionLower:
+            case ModelTag.CanonicalFunctionLower: {
+                const funcFactory = await prepareCoreFunction(rctx, section.func_index);
+                //const funcFactory = prepareComponentFunction(rctx, section.func_index);
+                //const instanceFactory = await prepareCoreInstance(rctx, section.instance_index);
+                return async (ctx, imports) => {
+                    const coreFn = await funcFactory(ctx, imports);
+                    console.log('TODO !!!!!!!!!!!!' + section.tag);
+                    //const instance = await instanceFactory(ctx, imports);
+                    //return instance.exports[section.name] as Function;
+                    return {
+                        func_index: section.func_index,
+                        TODO: section.tag
+                    };
+                };
+            }
             default:
                 throw new Error(`${(section as any).tag} not implemented`);
         }
