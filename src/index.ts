@@ -3,6 +3,7 @@
 
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
+import { setConfiguration } from './utils/assert';
 
 export type { WITModel } from './parser';
 export { parse } from './parser';
@@ -15,3 +16,5 @@ export function getBuildInfo() {
         configuration,
     };
 }
+
+setConfiguration(configuration);

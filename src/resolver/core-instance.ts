@@ -1,13 +1,13 @@
 import { ExternalKind } from '../model/core';
 import { InstantiationArgKind } from '../model/instances';
 import { ModelTag } from '../model/tags';
-import { cacheFactory } from './context';
+import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplCoreInstance, ImplCoreFunction } from './types';
 
 export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplCoreInstance> {
     const section = rctx.indexes.coreInstances[coreInstanceIndex];
-    return cacheFactory<ImplCoreInstance>(rctx, section, async () => {
+    return memoizePrepare<ImplCoreInstance>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CoreInstanceInstantiate: {
                 const moduleSection = rctx.indexes.coreModules[section.module_index];
@@ -34,9 +34,22 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                         const instance = await factory(ctx, todoArgs);
                         args[name] = instance as any;
                     }
-                    return rctx.wasmInstantiate(module, args);
+
+                    const instance = await rctx.wasmInstantiate(module, args);
+                    const anyExports = instance.exports as any;
+
+                    // this is a hack
+                    // TODO maybe there are WIT instructions about which memory to use?
+                    const memory = anyExports['memory'];
+                    const cabi_realloc = anyExports['cabi_realloc'];
+                    if (memory) {
+                        ctx.initialize(memory, cabi_realloc);
+                    }
+
+                    return instance;
                 };
             }
+
             case ModelTag.CoreInstanceFromExports: {
                 const exportFactories: ({ name: string, factory: ImplCoreFunction })[] = [];
                 for (const exp of section.exports) {

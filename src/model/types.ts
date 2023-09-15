@@ -231,7 +231,7 @@ export type ComponentFuncResult =
 /// The function returns a singular, unnamed type.
 export type ComponentFuncResultUnnamed = {
     tag: ModelTag.ComponentFuncResultUnnamed,
-    value: ComponentValType,
+    type: ComponentValType,
 }
 
 export type NamedValue = {
@@ -242,7 +242,7 @@ export type NamedValue = {
 /// The function returns zero or more named types.
 export type ComponentFuncResultNamed = {
     tag: ModelTag.ComponentFuncResultNamed,
-    value: NamedValue[]
+    values: NamedValue[]
 }
 
 /// Represents a type of a function in a WebAssembly component.

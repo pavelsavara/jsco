@@ -1,7 +1,7 @@
 import { JsImports, ComponentFactoryInput, ComponentFactoryOptions, ResolverContext, JsExports, WasmComponentInstance, WasmComponent } from './types';
 import { WITModel, parse } from '../parser';
 import { ParserOptions } from '../parser/types';
-import { bindingContextFactory, produceResolverContext } from './context';
+import { createBindingContext, createResolverContext } from './context';
 import { prepareComponentExports } from './component-exports';
 
 export async function instantiateComponent<TJSExports>(
@@ -18,10 +18,10 @@ export async function instantiateComponent<TJSExports>(
 }
 
 export async function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): Promise<WasmComponent<TJSExports>> {
-    const resolverContext: ResolverContext = produceResolverContext(model, options ?? {});
+    const resolverContext: ResolverContext = createResolverContext(model, options ?? {});
     const factories = await prepareComponentExports(resolverContext);
     async function instantiate(imports?: JsImports): Promise<WasmComponentInstance<TJSExports>> {
-        const ctx = bindingContextFactory(resolverContext, imports ?? {});
+        const ctx = createBindingContext(resolverContext, imports ?? {});
         const exports: JsExports<TJSExports> = {} as any;
         for (const factory of factories) {
             const ifc = await factory(ctx);

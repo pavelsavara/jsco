@@ -9,7 +9,7 @@ export type JsFunction = Function;
 export type JsString = string;
 export type JsBoolean = boolean;
 export type JsNumber = number | bigint;
-export type JsValue = JsNumber | JsString | JsBoolean;
+export type JsValue = JsNumber | JsString | JsBoolean | any;
 
 export type BindingContext = {
     rootImports: JsImports
@@ -24,10 +24,11 @@ export type BindingContext = {
     readI32: (ptr: WasmPointer) => number;
     writeI32: (ptr: WasmPointer, value: number) => void;
     abort: () => void;
+    debugStack?: string[];
 }
 
-export type FnLoweringToJs = (ctx: BindingContext, abiExport: WasmFunction) => Function;
-export type FnLiftingFromJs = (ctx: BindingContext, jsFunction: JsFunction) => WasmFunction;
+export type FnLoweringCallToJs = (ctx: BindingContext, jsExport: JsFunction) => WasmFunction;
+export type FnLiftingCallFromJs = (ctx: BindingContext, wasmFunction: WasmFunction) => JsFunction;
 
 export type LoweringToJs = (ctx: BindingContext, ...args: WasmValue[]) => JsValue;
 export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue) => WasmValue[];
