@@ -478,13 +478,7 @@ export function readNamedValues(src: SyncSource): NamedValue[] {
 }
 
 export function readComponentFuncResult(src: SyncSource): ComponentFuncResult | undefined {
-    const type = src.read(true);
-    if (type === undefined) {
-        return {
-            tag: ModelTag.ComponentFuncResultNamed,
-            values: [], //void
-        };
-    }
+    const type = src.read();
     switch (type) {
         case 0x00:
             return {
