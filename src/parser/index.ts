@@ -134,13 +134,14 @@ async function parseSectionComponent(
     src: Source,
     size: number
 ): Promise<ComponentTypeComponent[]> {
-    const bytes = await src.readExact(size);
-    const src2 = newSource(bytes);
-
-    await checkPreamble(src2);
+    const end = src.pos + size;
+    await checkPreamble(src);
     const model: ComponentTypeDeclaration[] = [];
     for (; ;) {
-        const sections = await parseSection(ctx, src2);
+        if (src.pos == end) {
+            break;
+        }
+        const sections = await parseSection(ctx, src);
         if (sections === null) {
             break;
         }
