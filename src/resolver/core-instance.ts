@@ -31,7 +31,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     let instance: WebAssembly.Instance = ctx.coreInstances[coreInstanceIndex];
                     if (instance) {
                         // TODO, do I need to validate that all calls got the same args ?
-                        console.log('reusing core instance ' + coreInstanceIndex);
+                        // console.log('reusing core instance ' + coreInstanceIndex);
                         return instance;
                     }
                     const instanceArgs = {} as WebAssembly.Imports;
@@ -54,7 +54,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
 
                     const wasmImports = WebAssembly.Module.imports(module);
 
-                    console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, args, exports: Object.keys(exports) });
+                    console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports) });
 
                     return instance;
                 };
