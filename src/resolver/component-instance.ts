@@ -14,23 +14,24 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
         switch (section.tag) {
             case ModelTag.ComponentInstanceInstantiate: {
                 section.component_index;
-                const typeFactory = await prepareComponentSection(rctx, section.component_index);
-                const argFactories: ((ctx: BindingContext) => Promise<any>)[] = [];
+                const componentFactory = await prepareComponentSection(rctx, section.component_index);
+                const argFactories: { name: string, factory: (ctx: BindingContext) => Promise<any> }[] = [];
                 for (const arg of section.args) {
+
                     switch (arg.kind) {
                         case ComponentExternalKind.Func: {
-                            const func = await prepareComponentFunction(rctx, arg.index);
-                            argFactories.push(func);
+                            const factory = await prepareComponentFunction(rctx, arg.index);
+                            argFactories.push({ name: arg.name, factory });
                             break;
                         }
                         case ComponentExternalKind.Type: {
-                            const type = await prepareComponentTypeDefined(rctx, arg.index);
-                            argFactories.push(type);
+                            const factory = await prepareComponentTypeDefined(rctx, arg.index);
+                            argFactories.push({ name: arg.name, factory });
                             break;
                         }
                         case ComponentExternalKind.Instance: {
-                            const instance = await prepareComponentInstance(rctx, arg.index);
-                            argFactories.push(instance);
+                            const factory = await prepareComponentInstance(rctx, arg.index);
+                            argFactories.push({ name: arg.name, factory });
                             break;
                         }
                         case ComponentExternalKind.Component:
@@ -42,13 +43,13 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                 }
 
                 return async (ctx) => {
-                    const args = [];
-                    for (const argFactory of argFactories) {
-                        const arg = await argFactory(ctx);
-                        args.push(arg);
+                    const args = {} as any;
+                    for (const { name, factory } of argFactories) {
+                        const arg = await factory(ctx);
+                        args[name] = arg;
                     }
-                    //console.log('createComponentInstance', section, argFactories.length);
-                    const componentType = await typeFactory(ctx, args);
+                    console.log(section.tag, args);
+                    const componentType = await componentFactory(ctx, args);
                     return componentType;
                 };
             }

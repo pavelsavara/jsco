@@ -3,7 +3,6 @@ import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplComponentFunction } from './types';
 import { createImportLifting } from '../binding';
-import { js } from '../../tests/hello-component';
 import { jsco_assert } from '../utils/assert';
 
 export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplComponentFunction> {
@@ -22,9 +21,15 @@ export function prepareComponentFunction(rctx: ResolverContext, componentFunctio
                     return trampoline(ctx, coreFn);
                 };
             }
-            case ModelTag.ComponentAliasInstanceExport:
+            case ModelTag.ComponentAliasInstanceExport: {
+                return async (ctx) => {
+                    return {
+                        TODO: section.tag
+                    };
+                };
+            }
             default:
-                throw new Error(`${section.tag} not implemented`);
+                throw new Error(`${(section as any).tag} not implemented`);
         }
     });
 }

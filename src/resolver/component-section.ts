@@ -1,6 +1,8 @@
 import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
+import { prepareComponentFunction } from './component-functions';
+import { prepareComponentImport } from './component-imports';
 import { memoizePrepare } from './context';
 import { ResolverContext, ImplComponentTypeComponent as ImplComponentSection, JsInterface } from './types';
 
@@ -10,80 +12,70 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);
         const exports: string[] = [];
+        const imports: string[] = [];
         const other: any[] = [];
         for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
-                    /*
-                    const importName = declaration.name.name;//TODO name
-                    switch (declaration.ty.tag) {
-                        case ModelTag.ComponentTypeRefType: {
-                            //console.log('TODO ComponentImport', declaration);
-                            break;
-                        }
-                        case ModelTag.ComponentTypeRefFunc: {
-                            //console.log('TODO ComponentImport', declaration);
-                            break;
-                        }
-                        case ModelTag.ComponentTypeRefModule:
-                        case ModelTag.ComponentTypeRefValue:
-                        case ModelTag.ComponentTypeRefInstance:
-                        case ModelTag.ComponentTypeRefComponent:
-                        default:
-                            throw new Error(`${declaration.ty.tag} not implemented`);
-                    }
-                    //await prepareComponentImport(rctx, declaration.ty);
-                    */
+                    const importName = declaration.name.name;//TODO name type
+                    imports.push(importName);
                     break;
                 }
                 //case ModelTag.ComponentTypeFunc:
                 case ModelTag.ComponentExport: {
                     switch (declaration.kind) {
                         case ComponentExternalKind.Func: {
+                            //const type = declaration.ty?.value;
+                            const fnFactory = prepareComponentFunction(rctx, declaration.index);
+                            /*const functionSection = rctx.indexes.componentFunctions[declaration.index];
+                            console.log(declaration.kind, functionSection);
+                            const instanceSection = rctx.indexes.componentInstances[functionSection.];
+                            */
+
                             exports.push(declaration.name.name);
                             break;
                         }
                         case ComponentExternalKind.Type:
-                            //console.log('TODO ComponentTypeRefType declaration', declaration);
+                            exports.push(declaration.name.name);
                             break;
                         default:
                             throw new Error(`${declaration.kind} not implemented`);
                     }
                     break;
                 }
-                case ModelTag.ComponentTypeDefinedRecord:
                 case ModelTag.ComponentTypeFunc: {
-                    //console.log('TODO ' + declaration.tag, declaration);
+                    //console.log('TODO ' + declaration.tag, declaration.params);
                     break;
                 }
-                default:
+                case ModelTag.ComponentTypeDefinedRecord: {
+                    //console.log('TODO ' + declaration.tag, declaration);
+                    break;
+                } default:
                     throw new Error(`${declaration.tag} not implemented`);
             }
         }
 
         return async (ctx, args) => {
             //console.log('createComponentType', ctx.debugStack?.join(' > '));
-            const ifc: JsInterface = {
-                TODO: section.tag,
+            const component: any = {
+                imports,
+                exports,
                 args,
-                other,
-            } as any;
+            };
 
 
             // TODO: this is very fake!
-            /*const fakeRun = () => {
-                const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
-                ctx.rootImports['hello:city/city'].sendMessage(fakeMessage);
-            };*/
+            /*
             const fakeRun = args[0];
+            console.log('createComponentType ', exports, imports, args);
 
             for (const exportName of exports) {
                 //console.log('createComponentType', exportName);
-                ifc[exportName] = fakeRun;
+                component[exportName] = fakeRun;
             }
-
-            //console.log(JSON.stringify(args, null, 2));
-            return ifc;
+*/
+            console.log(section.tag, component);
+            return component;
         };
     });
 }

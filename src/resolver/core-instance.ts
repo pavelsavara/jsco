@@ -36,15 +36,19 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
 
                     const instance = await rctx.wasmInstantiate(module, args);
-                    const anyExports = instance.exports as any;
+                    const exports = instance.exports as any;
 
                     // this is a hack
                     // TODO maybe there are WIT instructions about which memory to use?
-                    const memory = anyExports['memory'];
-                    const cabi_realloc = anyExports['cabi_realloc'];
+                    const memory = exports['memory'];
+                    const cabi_realloc = exports['cabi_realloc'];
                     if (memory) {
                         ctx.initialize(memory, cabi_realloc);
                     }
+
+                    const wasmImports = WebAssembly.Module.imports(module);
+
+                    console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, args, exports: Object.keys(exports) });
 
                     return instance;
                 };
@@ -55,6 +59,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                 for (const exp of section.exports) {
                     switch (exp.kind) {
                         case ExternalKind.Func: {
+                            //console.log('CoreInstanceFromExports FUNC', exp);
                             const factory = await prepareCoreFunction(rctx, exp.index);
                             exportFactories.push({ name: exp.name, factory: factory });
                             break;
@@ -65,11 +70,21 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                 }
 
                 return async (ctx) => {
+                    //console.log('CoreInstanceFromExports', section);
                     const exports = {} as any;
                     for (const { name, factory } of exportFactories) {
-                        const value = await factory(ctx);
+                        let value = await factory(ctx);
+                        if (typeof value === 'function') {
+                            const orig = value;// TODO remove
+                            value = (...args: any[]) => {
+                                //console.log('CoreInstanceFromExports ' + name + ' called ', args);
+                                return orig(...args);
+                            };
+                        }
+                        //console.log('CoreInstanceFromExports value', value.length);
                         exports[name] = value as any;
                     }
+                    //console.log('CoreInstanceFromExports exports', exports);
                     return exports;
                 };
             }
