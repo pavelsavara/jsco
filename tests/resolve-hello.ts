@@ -1,11 +1,11 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { ResolverContext } from '../src/resolver/types';
+import { BindingContext, ResolverContext } from '../src/resolver/types';
 import { ModelTag } from '../src/model/tags';
-import { createLifting, createLowering } from '../src/binding';
+import { createLifting, createLowering } from '../src/resolver/binding';
 import { js, wasm } from './hello-component';
-import { BindingContext, Tcabi_realloc, WasmPointer } from '../src/binding/types';
+import { Tcabi_realloc, WasmPointer } from '../src/resolver/binding/types';
 import { jsco_assert } from '../src/utils/assert';
 import {
     aliasCoreExportFunc0, aliasCoreExportFunc1, aliasCoreExportFunc3,
@@ -17,6 +17,8 @@ import {
     coreModule0, coreModule1, coreModule2
 } from './hello';
 import { PrimitiveValType } from '../src/model/types';
+import { createBindingContext, createResolverContext } from '../src/resolver/context';
+import { WITModel } from '../src/parser';
 
 export const expectedContext: Partial<ResolverContext> = {
     usesNumberForInt64: false,
@@ -121,9 +123,9 @@ export function resolveTree() {
     }
 }
 
-export async function resolveJCO(imports: any) {
-    const rctx: ResolverContext = undefined as any;
-    const ctx: BindingContext = undefined as any;
+export async function resolveJCO(sections: WITModel, imports: any) {
+    const rctx: ResolverContext = createResolverContext(sections, {});
+    const ctx: BindingContext = createBindingContext(rctx, imports);
     const wasmInstantiate = WebAssembly.instantiate;
 
     const componentImports = (imports ? imports : {}) as {
@@ -165,9 +167,16 @@ export async function resolveJCO(imports: any) {
     const instance1 = await wasmInstantiate(module1);
     const exports1 = instance1.exports as wasm.module1Exports;
 
+    const fn0 = exports1['0'];
+    //console.log('fn0', fn0.length);
+
     const imports0: wasm.module0Imports = {
         'hello:city/city': {
-            'send-message': exports1['0'],
+            'send-message': (...args) => {
+                const rr = fn0(...args);
+                //console.log('send-message', args, rr);
+                return rr;
+            },
         },
     };
     const instance0 = await wasmInstantiate(module0, imports0);
@@ -199,5 +208,9 @@ export async function resolveJCO(imports: any) {
         run: runToAbi,
     };
 
-    return greeter0_1_0;
+    return {
+        exports: {
+            'hello:city/greeter': greeter0_1_0,
+        }
+    };
 }

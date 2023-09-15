@@ -28,17 +28,16 @@ export type ComponentTypeRef =
     | ComponentTypeRefComponent
 
 /// The reference is to a core module type.
-///
-/// The index is expected to be core type index to a core module type.
 export type ComponentTypeRefModule = {
     tag: ModelTag.ComponentTypeRefModule,
+    /// The index is expected to be core type index to a core module type.
     value: u32
 }
 /// The reference is to a function type.
 ///
-/// The index is expected to be a type index to a function type.
 export type ComponentTypeRefFunc = {
     tag: ModelTag.ComponentTypeRefFunc
+    /// The index is expected to be a type index to a function type.
     value: u32
 }
 /// The reference is to a value type.

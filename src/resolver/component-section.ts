@@ -1,59 +1,33 @@
-import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
+import { prepareComponentExport } from './component-exports';
+import { prepareComponentTypeRef } from './component-type-ref';
 import { memoizePrepare } from './context';
-import { ResolverContext, ImplComponentTypeComponent as ImplComponentSection, JsInterface } from './types';
+import { ImplFactory, NamedImplFactory, ResolverContext, } from './types';
 
-export function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplComponentSection> {
+export function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentTypes[componentIndex];
-    return memoizePrepare<ImplComponentSection>(rctx, section, async () => {
+    return memoizePrepare<ImplFactory>(rctx, section, async () => {
         //console.log('TODO prepareComponentType', section);
         jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);
-        const exports: string[] = [];
-        const other: any[] = [];
+        const exportFactories: NamedImplFactory[] = [];
+        const importFactories: NamedImplFactory[] = [];
+        const __other: string[] = [];
         for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
-                    /*
-                    const importName = declaration.name.name;//TODO name
-                    switch (declaration.ty.tag) {
-                        case ModelTag.ComponentTypeRefType: {
-                            //console.log('TODO ComponentImport', declaration);
-                            break;
-                        }
-                        case ModelTag.ComponentTypeRefFunc: {
-                            //console.log('TODO ComponentImport', declaration);
-                            break;
-                        }
-                        case ModelTag.ComponentTypeRefModule:
-                        case ModelTag.ComponentTypeRefValue:
-                        case ModelTag.ComponentTypeRefInstance:
-                        case ModelTag.ComponentTypeRefComponent:
-                        default:
-                            throw new Error(`${declaration.ty.tag} not implemented`);
-                    }
-                    //await prepareComponentImport(rctx, declaration.ty);
-                    */
+                    const importFactory = await prepareComponentTypeRef(rctx, declaration.ty);
+                    importFactories.push({ name: declaration.name.name, factory: importFactory });//TODO name type
                     break;
                 }
-                //case ModelTag.ComponentTypeFunc:
                 case ModelTag.ComponentExport: {
-                    switch (declaration.kind) {
-                        case ComponentExternalKind.Func: {
-                            exports.push(declaration.name.name);
-                            break;
-                        }
-                        case ComponentExternalKind.Type:
-                            //console.log('TODO ComponentTypeRefType declaration', declaration);
-                            break;
-                        default:
-                            throw new Error(`${declaration.kind} not implemented`);
-                    }
+                    const factory = await prepareComponentExport(rctx, declaration);
+                    exportFactories.push(factory);
                     break;
                 }
                 case ModelTag.ComponentTypeDefinedRecord:
                 case ModelTag.ComponentTypeFunc: {
-                    //console.log('TODO ' + declaration.tag, declaration);
+                    __other.push('TODO ' + declaration.tag);
                     break;
                 }
                 default:
@@ -62,28 +36,25 @@ export function prepareComponentSection(rctx: ResolverContext, componentIndex: n
         }
 
         return async (ctx, args) => {
-            //console.log('createComponentType', ctx.debugStack?.join(' > '));
-            const ifc: JsInterface = {
-                TODO: section.tag,
-                args,
-                other,
-            } as any;
-
-
-            // TODO: this is very fake!
-            /*const fakeRun = () => {
-                const fakeMessage = 'Welcome to Prague, we invite you for a drink!';
-                ctx.rootImports['hello:city/city'].sendMessage(fakeMessage);
-            };*/
-            const fakeRun = args[0];
-
-            for (const exportName of exports) {
-                //console.log('createComponentType', exportName);
-                ifc[exportName] = fakeRun;
+            const componentArgs = {} as any;
+            for (const { name, factory } of importFactories) {
+                const ifc = await factory(ctx, args);
+                componentArgs[name] = ifc as any;
+            }
+            const exports = {} as any;
+            for (const { name, factory } of exportFactories) {
+                const ifc = await factory(ctx, args);
+                exports[name] = ifc as any;
             }
 
-            //console.log(JSON.stringify(args, null, 2));
-            return ifc;
+            const component: any = {
+                imports: args,
+                args: componentArgs,
+                exports,
+                __other,
+            };
+
+            return component;
         };
     });
 }

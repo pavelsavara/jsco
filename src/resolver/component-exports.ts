@@ -1,48 +1,79 @@
-import { BindingContext } from '../binding/types';
-import { ComponentExternalKind } from '../model/exports';
-import { ComponentExternName } from '../model/imports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
+import { prepareComponentFunction } from './component-functions';
 import { prepareComponentInstance } from './component-instance';
-import { ResolverContext, JsInterfaceCollection, ImplComponentExport, JsInterface } from './types';
+import { ResolverContext, NamedImplFactory, ImplFactory } from './types';
 
-export async function prepareComponentExports(rctx: ResolverContext): Promise<ImplComponentExport[]> {
-    async function createComponentExport(ctx: BindingContext, ifc: JsInterface, resolvedName: string): Promise<JsInterfaceCollection> {
-        //console.log('createComponentExport', resolvedName, ifc);
-        const namedInterface: JsInterfaceCollection = {};
-        namedInterface[resolvedName] = ifc;
-        return namedInterface;
+export async function prepareComponentExport(rctx: ResolverContext, exportSectionOrIndex: number | ComponentExport): Promise<NamedImplFactory> {
+    const section = typeof exportSectionOrIndex === 'number' ? rctx.indexes.componentExports[exportSectionOrIndex] : exportSectionOrIndex;
+    jsco_assert(section.tag === ModelTag.ComponentExport, () => `expected ComponentExport, got ${section.tag}`);
+
+    let name: string;
+    // TODO what is the difference ?
+    switch (section.name.tag) {
+        case ModelTag.ComponentExternNameInterface:
+            name = section.name.name;
+            break;
+        case ModelTag.ComponentExternNameKebab:
+            name = section.name.name;
+            break;
+        default:
+            throw new Error(`${(section as any).name.tag} not implemented`);
     }
 
-    const factories: ImplComponentExport[] = [];
-    for (const section of rctx.indexes.componentExports) {
-        jsco_assert(section.tag === ModelTag.ComponentExport, () => `expected ComponentExport, got ${section.tag}`);
-        let factory: ImplComponentExport;
-
-        const name: ComponentExternName = section.name;
-        let resolvedName: string;
-        switch (name.tag) {
-            case ModelTag.ComponentExternNameInterface:
-                resolvedName = name.name;
-                break;
-            case ModelTag.ComponentExternNameKebab:
-            default:
-                throw new Error(`${name.tag} not implemented`);
-        }
-
-        switch (section.kind) {
-            case ComponentExternalKind.Instance: {
-                const componentInstanceFactory = await prepareComponentInstance(rctx, section.index);
-                factory = async (ctx) => {
-                    const ifc = await componentInstanceFactory(ctx);
-                    return createComponentExport(ctx, ifc, resolvedName);
+    switch (section.kind) {
+        case ComponentExternalKind.Type: {
+            const typeSection = rctx.indexes.componentTypes[section.index];
+            const factory = async () => {
+                return {
+                    TODO: typeSection.tag
                 };
-                factories.push(factory);
-                break;
-            }
-            default:
-                throw new Error(`${section.kind} not implemented`);
+            };
+            return {
+                name,
+                factory
+            };
         }
+        case ComponentExternalKind.Func: {
+            const factory = await prepareComponentFunction(rctx, section.index);
+            return {
+                name,
+                factory
+            };
+        }
+        case ComponentExternalKind.Instance: {
+            const factory = await prepareComponentInstance(rctx, section.index);
+            return {
+                name: name,
+                factory
+            };
+        }
+        case ComponentExternalKind.Component:
+        case ComponentExternalKind.Module:
+        case ComponentExternalKind.Value:
+        default:
+            throw new Error(`${section.kind} not implemented`);
     }
-    return factories;
+}
+
+export async function prepareComponentExports(rctx: ResolverContext, exports: ComponentExport[]): Promise<ImplFactory> {
+    const factories: NamedImplFactory[] = [];
+    for (const section of exports) {
+        const factory = await prepareComponentExport(rctx, section);
+        factories.push(factory);
+    }
+
+    return async function instantiate(ctx, args): Promise<any> {
+        const exports = {} as any;
+        for (const { name, factory } of factories) {
+            const ifc = await factory(ctx, args);
+            exports[name] = {
+                ...ifc.exports,
+                __imports: ifc.__imports,
+                __importNames: ifc.__importNames,
+            };
+        }
+        return exports;
+    };
 }

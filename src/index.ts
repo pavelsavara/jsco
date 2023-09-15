@@ -8,7 +8,7 @@ import { setConfiguration } from './utils/assert';
 export type { WITModel } from './parser';
 export { parse } from './parser';
 export { instantiateComponent as createComponent, createComponent as createComponentFactory } from './resolver';
-export { createLifting, createLowering } from './binding';
+export { createLifting, createLowering } from './resolver/binding';
 
 export function getBuildInfo() {
     return {

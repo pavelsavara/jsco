@@ -21,6 +21,7 @@ export type CoreType =
 export type CoreTypeFunc = FuncType & {
     tag: ModelTag.CoreTypeFunc
 }
+
 /// The type is for a core module.
 export type CoreTypeModule = {
     tag: ModelTag.CoreTypeModule
