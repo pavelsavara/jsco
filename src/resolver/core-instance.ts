@@ -5,11 +5,12 @@ import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
-export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplFactory> {
+export async function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.coreInstances[coreInstanceIndex];
     return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {
             case ModelTag.CoreInstanceInstantiate: {
+                console.log('CoreInstanceFromExports', section);
                 const moduleSection = rctx.indexes.coreModules[section.module_index];
                 // TODO make lazy compilation from moduleSection.data
                 const module = await moduleSection.module!;
@@ -53,7 +54,7 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                     }
 
                     const wasmImports = WebAssembly.Module.imports(module);
-                    //console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports), stack: (new Error().stack) });
+                    console.log('rctx.wasmInstantiate ' + section.module_index, { wasmImports, instanceArgs, exports: Object.keys(exports), stack: ctx.debugStack });
 
                     return instance;
                 };
@@ -64,7 +65,6 @@ export function prepareCoreInstance(rctx: ResolverContext, coreInstanceIndex: nu
                 for (const exp of section.exports) {
                     switch (exp.kind) {
                         case ExternalKind.Func: {
-                            //console.log('CoreInstanceFromExports FUNC', exp);
                             const factory = await prepareCoreFunction(rctx, exp.index);
                             exportFactories.push({ name: exp.name, factory: factory });
                             break;

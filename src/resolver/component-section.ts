@@ -5,7 +5,7 @@ import { prepareComponentTypeRef } from './component-types';
 import { memoizePrepare } from './context';
 import { ImplFactory, NamedImplFactory, ResolverContext, } from './types';
 
-export function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplFactory> {
+export async function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentTypes[componentIndex];
     return memoizePrepare<ImplFactory>(rctx, section, async () => {
         jsco_assert(section.tag === ModelTag.ComponentSection, () => `expected ComponentTypeComponent, got ${section.tag}`);

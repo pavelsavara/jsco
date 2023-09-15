@@ -222,46 +222,52 @@ export function createBindingContext(rctx: ResolverContext, imports: JsImports):
     return ctx;
 }
 
-export async function memoizePrepare<TFactory extends ((ctx: BindingContext, ...args: any[]) => Promise<any>)>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
+export function memoizePrepare<TFactory extends ((ctx: BindingContext, ...args: any[]) => Promise<any>)>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
     jsco_assert(section.selfSortIndex !== undefined, 'expectd selfSortIndex');
     jsco_assert(section.tag !== undefined, 'expected tag');
     const cacheIndex = section.selfSortIndex;
     let cache = rctx.resolveCache.get(section.tag);
     if (cache === undefined) {
         cache = [];
+        rctx.resolveCache.set(section.tag, cache);
     }
     if (cache[cacheIndex] !== undefined) {
         //console.warn('cacheFactory hit', section);
-        return cache[cacheIndex] as TFactory;
+        return cache[cacheIndex] as Promise<TFactory>;
     }
-    //console.log('cacheFactory mis', cacheIndex);
-    try {
-        if (configuration === 'Debug') {
-            rctx.debugStack!.unshift(`PREPARE ${section.tag}[${cacheIndex}]`);
+    const res = new Promise<Function>((resolve, reject) => {
+        const w = async () => {
+            try {
+                if (configuration === 'Debug') {
+                    rctx.debugStack!.unshift(`PREPARE ${section.tag}[${cacheIndex}]`);
 
-            const factory = await ff();
-            const wrap = async (ctx: BindingContext, ...args: any[]) => {
-                try {
-                    ctx.debugStack!.unshift(`CREATE  ${section.tag}[${cacheIndex}] args:${args.length}`); //(${args.length != 0 ? JSON.stringify(args) : ''})
-                    const res = await factory(ctx, ...args);
-                    //console.log(`CREATE returned ${section.tag}[${cacheIndex}]`, res);
-                    return res;
+                    const factory = await ff();
+                    const wrap = async (ctx: BindingContext, ...args: any[]) => {
+                        try {
+                            ctx.debugStack!.unshift(`CREATE  ${section.tag}[${cacheIndex}] args:${args.length}`); //(${args.length != 0 ? JSON.stringify(args) : ''})
+                            const res = await factory(ctx, ...args);
+                            //console.log(`CREATE returned ${section.tag}[${cacheIndex}]`, res);
+                            return res;
+                        }
+                        finally {
+                            ctx.debugStack!.shift();
+                        }
+                    };
+                    return wrap as TFactory;
+                } else {
+                    const factory = await ff();
+                    return factory;
                 }
-                finally {
-                    ctx.debugStack!.shift();
+            }
+            finally {
+                if (configuration === 'Debug') {
+                    rctx.debugStack!.pop();
                 }
-            };
-            cache[cacheIndex] = wrap;
-            return wrap as TFactory;
-        } else {
-            const factory = await ff();
-            cache[cacheIndex] = factory;
-            return factory;
-        }
-    }
-    finally {
-        if (configuration === 'Debug') {
-            rctx.debugStack!.pop();
-        }
-    }
+            }
+        };
+
+        return w().then((d) => resolve(d));
+    });
+    cache[cacheIndex] = res;
+    return res as Promise<TFactory>;
 }

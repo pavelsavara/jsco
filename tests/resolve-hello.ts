@@ -168,13 +168,13 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     const exports1 = instance1.exports as wasm.module1Exports;
 
     const fn0 = exports1['0'];
-    //console.log('fn0', fn0.length);
+    console.log('fn0', fn0.length);
 
     const imports0: wasm.module0Imports = {
         'hello:city/city': {
             'send-message': (...args) => {
                 const rr = fn0(...args);
-                //console.log('send-message', args, rr);
+                console.log('send-message', args, rr);
                 return rr;
             },
         },

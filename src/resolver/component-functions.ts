@@ -8,7 +8,7 @@ import { prepareComponentInstance } from './component-instance';
 import { ComponentExternalKind } from '../model/exports';
 import { prepareCoreInstance } from './core-instance';
 
-export function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplFactory> {
+export async function prepareComponentFunction(rctx: ResolverContext, componentFunctionIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentFunctions[componentFunctionIndex];
     return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {

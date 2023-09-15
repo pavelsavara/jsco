@@ -6,7 +6,7 @@ import { prepareComponentSection } from './component-section';
 import { memoizePrepare } from './context';
 import { ResolverContext, ImplFactory, NamedImplFactory } from './types';
 
-export function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplFactory> {
+export async function prepareComponentInstance(rctx: ResolverContext, componentInstanceIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentInstances[componentInstanceIndex];
     return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {

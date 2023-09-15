@@ -61,8 +61,8 @@ export type IndexedModel = {
 export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
-    wasmInstantiate: typeof WebAssembly.instantiate
-    resolveCache: Map<ModelTag, Function[]>
+    wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
+    resolveCache: Map<ModelTag, Promise<Function>[]>
     debugStack?: string[]
 }
 

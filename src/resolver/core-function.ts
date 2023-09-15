@@ -4,7 +4,7 @@ import { memoizePrepare } from './context';
 import { prepareCoreInstance } from './core-instance';
 import { ResolverContext, ImplFactory } from './types';
 
-export function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): Promise<ImplFactory> {
+export async function prepareCoreFunction(rctx: ResolverContext, coreFunctionIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.coreFunctions[coreFunctionIndex];
     return memoizePrepare<ImplFactory>(rctx, section, async () => {
         switch (section.tag) {
