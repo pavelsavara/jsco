@@ -1,0 +1,5 @@
+[toolchain]
+channel = "stable"
+components = ["rustc", "rustfmt", "rust-std", "cargo" ]
+targets = [ "wasm32-unknown-unknown", "wasm32-wasi" ]
+profile = "default"
