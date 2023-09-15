@@ -80,8 +80,6 @@ export async function prepareComponentExports(rctx: ResolverContext, exports: Co
             const ifc = await factory(ctx, args);
             exports[name] = {
                 ...ifc.exports,
-                __imports: ifc.__imports,
-                __importNames: ifc.__importNames,
             };
         }
         return exports;

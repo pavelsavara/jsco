@@ -3,7 +3,7 @@ import { jsco_assert } from '../utils/assert';
 import { prepareComponentExport } from './component-exports';
 import { prepareComponentTypeRef } from './component-types';
 import { memoizePrepare } from './context';
-import { ImplFactory, NamedImplFactory, ResolverContext, } from './types';
+import { BindingContext, ImplFactory, NamedImplFactory, ResolverContext, } from './types';
 
 export async function prepareComponentSection(rctx: ResolverContext, componentIndex: number): Promise<ImplFactory> {
     const section = rctx.indexes.componentTypes[componentIndex];
@@ -14,11 +14,19 @@ export async function prepareComponentSection(rctx: ResolverContext, componentIn
         for (const declaration of section.sections) {
             switch (declaration.tag) {
                 case ModelTag.ComponentImport: {
+                    console.log('PAVEL section import', declaration);
                     const importFactory = await prepareComponentTypeRef(rctx, declaration.ty);
-                    /*const importFactory = async () => {
-                        return { TODO: section.tag + ' ' + declaration.tag + ' ' + (new Error().stack)!.split('\n')[1] };
-                    };*/
-                    importFactories.push({ name: declaration.name.name, factory: importFactory });
+                    console.log('PAVEL section import', declaration);
+                    const importFactory2 = async (ctx: BindingContext, args: any) => {
+                        const xx = await importFactory(ctx, args);
+                        console.log('PAVEL33 section import', xx);
+                        return {
+                            TODO: section.tag + ' ' + declaration.tag + ' ' + (new Error().stack)!.split('\n')[1],
+                            ...xx
+                        };
+                    };
+
+                    importFactories.push({ name: declaration.name.name, factory: importFactory2 });
                     break;
                 }
                 case ModelTag.ComponentExport: {

@@ -38,8 +38,9 @@ describe('resolver hello', () => {
             }
         };
 
+        console.log('BEFORE INSTANCE');
         const instance = await instantiateComponent(mergedModel, imports);
-
+        console.log('INSTANCE', instance);
         //console.log('RUN', instance.exports['hello:city/greeter'].run);
 
         instance.exports['hello:city/greeter'].run({
