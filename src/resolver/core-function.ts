@@ -1,4 +1,4 @@
-import { createExportLowering } from '../binding';
+import { createExportLowering } from './binding';
 import { ModelTag } from '../model/tags';
 import { memoizePrepare } from './context';
 import { prepareCoreInstance } from './core-instance';

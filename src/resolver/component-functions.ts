@@ -2,7 +2,7 @@ import { ModelTag } from '../model/tags';
 import { memoizePrepare } from './context';
 import { prepareCoreFunction } from './core-function';
 import { ResolverContext, ImplFactory } from './types';
-import { createImportLifting } from '../binding';
+import { createImportLifting } from './binding';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentInstance } from './component-instance';
 import { ComponentExternalKind } from '../model/exports';

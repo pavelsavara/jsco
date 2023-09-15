@@ -1,11 +1,11 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { ResolverContext } from '../src/resolver/types';
+import { BindingContext, ResolverContext } from '../src/resolver/types';
 import { ModelTag } from '../src/model/tags';
-import { createLifting, createLowering } from '../src/binding';
+import { createLifting, createLowering } from '../src/resolver/binding';
 import { js, wasm } from './hello-component';
-import { BindingContext, Tcabi_realloc, WasmPointer } from '../src/binding/types';
+import { Tcabi_realloc, WasmPointer } from '../src/resolver/binding/types';
 import { jsco_assert } from '../src/utils/assert';
 import {
     aliasCoreExportFunc0, aliasCoreExportFunc1, aliasCoreExportFunc3,

@@ -1,4 +1,4 @@
-import { BindingContext } from '../binding/types';
+import { Tcabi_realloc, WasmPointer, WasmSize } from './binding/types';
 import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
@@ -65,4 +65,22 @@ export type ResolverContext = {
     wasmInstantiate: typeof WebAssembly.instantiate
     resolveCache: Map<ModelTag, Function[]>
     debugStack?: string[]
+}
+
+export type BindingContext = {
+    rootImports: JsImports
+    coreInstances: WebAssembly.Instance[];
+    componentInstances: WasmComponentInstance<any>[]
+    initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
+    utf8Decoder: TextDecoder;
+    utf8Encoder: TextEncoder;
+    getMemory: () => WebAssembly.Memory;
+    getView: (ptr: WasmPointer, len: WasmSize) => DataView;
+    getViewU8: (ptr: WasmPointer, len: WasmSize) => Uint8Array;
+    alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
+    realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
+    readI32: (ptr: WasmPointer) => number;
+    writeI32: (ptr: WasmPointer, value: number) => void;
+    abort: () => void;
+    debugStack?: string[];
 }

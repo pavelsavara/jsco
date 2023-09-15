@@ -1,6 +1,6 @@
 import { WITModel } from '../parser';
-import { ComponentFactoryOptions, JsImports, ResolverContext } from './types';
-import { WasmPointer, WasmSize, BindingContext, Tcabi_realloc } from '../binding/types';
+import { BindingContext, ComponentFactoryOptions, JsImports, ResolverContext } from './types';
+import { WasmPointer, WasmSize, Tcabi_realloc } from './binding/types';
 import { ModelTag } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
@@ -202,6 +202,7 @@ export function createBindingContext(rctx: ResolverContext, imports: JsImports):
     }
     const ctx: BindingContext = {
         coreInstances: [],
+        componentInstances: [],
         rootImports: imports,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
@@ -230,7 +231,7 @@ export async function memoizePrepare<TFactory extends ((ctx: BindingContext, ...
         cache = [];
     }
     if (cache[cacheIndex] !== undefined) {
-        console.warn('cacheFactory hit', section);
+        //console.warn('cacheFactory hit', section);
         return cache[cacheIndex] as TFactory;
     }
     //console.log('cacheFactory mis', cacheIndex);

@@ -1,7 +1,6 @@
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { prepareComponentExport } from './component-exports';
-import { prepareComponentImport } from './component-imports';
 import { prepareComponentTypeRef } from './component-type-ref';
 import { memoizePrepare } from './context';
 import { ImplFactory, NamedImplFactory, ResolverContext, } from './types';

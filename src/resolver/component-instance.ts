@@ -87,8 +87,11 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                             throw new Error(`"${declaration.tag}" not implemented, ${rctx.debugStack}`);
                     }
                 }
-
                 return async (ctx, args) => {
+                    let instance = ctx.componentInstances[componentInstanceIndex];
+                    if (instance) {
+                        return instance;
+                    }
                     const exports: any = {};
                     for (const { name, factory } of exportFactories) {
                         const value = await factory(ctx, args);
@@ -98,7 +101,12 @@ export function prepareComponentInstance(rctx: ResolverContext, componentInstanc
                         const value = await factory(ctx, args);
                         exports['__type' + i] = value;
                     }
-                    return exports;
+                    instance = {
+                        abort: ctx.abort,
+                        exports,
+                    };
+                    ctx.componentInstances[componentInstanceIndex] = instance;
+                    return instance;
                 };
             }
             default:

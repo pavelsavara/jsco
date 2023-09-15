@@ -1,10 +1,9 @@
-import { FuncType } from '../model/core';
-import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
-import { ResolverContext } from '../resolver/types';
+import { ModelTag } from '../../model/tags';
+import { ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../../model/types';
+import { BindingContext, ResolverContext } from '../types';
 import { memoize } from './cache';
 import { createLifting } from './to-abi';
-import { LoweringToJs, BindingContext, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
+import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
 
 export function createExportLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
