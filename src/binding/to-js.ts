@@ -3,12 +3,12 @@ import { ModelTag } from '../model/tags';
 import { ComponentTypeDefinedRecord, ComponentValType, PrimitiveValType } from '../model/types';
 import { ResolverContext } from '../resolver/types';
 import { memoize } from './cache';
-import { LoweringToJs, BindingContext, FnLoweringToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
+import { LoweringToJs, BindingContext, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
 
-export function createExportLowering(rctx: ResolverContext, exportModel: FuncType): FnLoweringToJs {
+export function createExportLowering(rctx: ResolverContext, exportModel: FuncType): FnLoweringCallToJs {
     return memoize(exportModel, () => {
-        return (ctx: BindingContext, jsImport: JsFunction): WasmFunction => {
+        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
             // TODO
             throw new Error('Not implemented');
         };

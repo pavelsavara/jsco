@@ -27,8 +27,8 @@ export type BindingContext = {
     debugStack?: string[];
 }
 
-export type FnLoweringToJs = (ctx: BindingContext, abiExport: WasmFunction) => Function;
-export type FnLiftingFromJs = (ctx: BindingContext, jsFunction: JsFunction) => WasmFunction;
+export type FnLoweringCallToJs = (ctx: BindingContext, jsExport: JsFunction) => WasmFunction;
+export type FnLiftingCallFromJs = (ctx: BindingContext, wasmFunction: WasmFunction) => JsFunction;
 
 export type LoweringToJs = (ctx: BindingContext, ...args: WasmValue[]) => JsValue;
 export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue) => WasmValue[];
