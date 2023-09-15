@@ -1,3 +1,4 @@
+import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { memoizePrepare } from './context';
@@ -12,10 +13,6 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
         const other: any[] = [];
         for (const declaration of section.declarations) {
             switch (declaration.tag) {
-                case ModelTag.ComponentTypeDeclarationType:
-                    //console.log('TODO ComponentTypeDeclarationType', declaration);
-                    other.push(declaration.value.tag);
-                    break;
                 case ModelTag.ComponentImport: {
                     /*
                     const importName = declaration.name.name;//TODO name
@@ -39,17 +36,22 @@ export function prepareComponentTypeComponent(rctx: ResolverContext, componentIn
                     */
                     break;
                 }
-                case ModelTag.ComponentTypeDeclarationExport: {
-                    switch (declaration.ty.tag) {
-                        case ModelTag.ComponentTypeRefFunc: {
+                case ModelTag.ComponentTypeFunc:
+                case ModelTag.ComponentTypeDefinedRecord: {
+                    console.log('TODO ' + declaration.tag, declaration);
+                    break;
+                }
+                case ModelTag.ComponentExport: {
+                    switch (declaration.kind) {
+                        case ComponentExternalKind.Func: {
                             exports.push(declaration.name.name);
                             break;
                         }
-                        case ModelTag.ComponentTypeRefType:
+                        case ComponentExternalKind.Type:
                             //console.log('TODO ComponentTypeRefType declaration', declaration);
                             break;
                         default:
-                            throw new Error(`${declaration.ty.tag} not implemented`);
+                            throw new Error(`${declaration.kind} not implemented`);
                     }
                     break;
                 }

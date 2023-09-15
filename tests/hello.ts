@@ -287,35 +287,30 @@ export const componentTypeComponent0: ComponentTypeComponent = {
     tag: ModelTag.ComponentTypeComponent,
     declarations: [
         {
-            tag: ModelTag.ComponentTypeDeclarationType,
-            value: {
-                tag: ModelTag.ComponentTypeDefinedRecord,
-                members:
-                    [
-                        {
-                            name: 'name',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.String
-                            }
-                        },
-                        {
-                            name: 'head-count',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.U32
-                            }
-                        },
-                        {
-                            name: 'budget',
-                            type: {
-                                tag: ModelTag.ComponentValTypePrimitive,
-                                value: PrimitiveValType.S64
-                            }
-                        }
-                    ]
-
-            },
+            tag: ModelTag.ComponentTypeDefinedRecord,
+            'members': [
+                {
+                    'name': 'name',
+                    'type': {
+                        tag: ModelTag.ComponentValTypePrimitive,
+                        value: PrimitiveValType.String
+                    }
+                },
+                {
+                    'name': 'head-count',
+                    'type': {
+                        tag: ModelTag.ComponentValTypePrimitive,
+                        value: PrimitiveValType.U32
+                    }
+                },
+                {
+                    'name': 'budget',
+                    'type': {
+                        tag: ModelTag.ComponentValTypePrimitive,
+                        value: PrimitiveValType.S64
+                    }
+                }
+            ]
         },
         {
             tag: ModelTag.ComponentImport,
@@ -348,22 +343,19 @@ export const componentTypeComponent0: ComponentTypeComponent = {
             },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationType,
-            value: {
-                tag: ModelTag.ComponentTypeFunc,
-                params: [
-                    {
-                        name: 'info',
-                        type: {
-                            tag: ModelTag.ComponentValTypeType,
-                            value: 2
-                        }
+            tag: ModelTag.ComponentTypeFunc,
+            params: [
+                {
+                    name: 'info',
+                    type: {
+                        tag: ModelTag.ComponentValTypeType,
+                        value: 2
                     }
-                ],
-                results: {
-                    tag: ModelTag.ComponentFuncResultNamed,
-                    values: [], //void
-                },
+                }
+            ],
+            results: {
+                tag: ModelTag.ComponentFuncResultNamed,
+                values: [], //void
             },
         },
         {
@@ -378,51 +370,44 @@ export const componentTypeComponent0: ComponentTypeComponent = {
             },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationExport,
+            tag: ModelTag.ComponentExport,
             name: {
                 tag: ModelTag.ComponentExternNameKebab,
                 name: 'city-info'
             },
-            ty: {
-                tag: ModelTag.ComponentTypeRefType,
-                value: {
-                    tag: ModelTag.TypeBoundsEq,
-                    value: 1 // you sure? Here we don't have eq
-                }
-            },
+            kind: ComponentExternalKind.Type,
+            index: 1
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationType,
-            value: {
-                tag: ModelTag.ComponentTypeFunc,
-                params: [
-                    {
-                        name: 'info',
-                        type: {
-                            tag: ModelTag.ComponentValTypeType,
-                            value: 4
-                        }
-                    }
-                ],
-                results:
+            tag: ModelTag.ComponentTypeFunc,
+            params: [
                 {
-                    tag: ModelTag.ComponentFuncResultNamed,
-                    values: [] // void
-                },
+                    name: 'info',
+                    type: {
+                        tag: ModelTag.ComponentValTypeType,
+                        value: 4
+                    }
+                }
+            ],
+            results:
+            {
+                tag: ModelTag.ComponentFuncResultNamed,
+                values: [] // void
             },
         },
         {
-            tag: ModelTag.ComponentTypeDeclarationExport,
-            // what about (type 5)?
+            tag: ModelTag.ComponentExport,
             name: {
                 tag: ModelTag.ComponentExternNameKebab,
                 name: 'run'
             },
+            kind: ComponentExternalKind.Func,
+            index: 0,
             ty: {
                 tag: ModelTag.ComponentTypeRefFunc,
-                value: 0
-            },
-        },
+                value: 5
+            }
+        }
     ]
 };
 
