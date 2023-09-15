@@ -136,7 +136,7 @@ async function parseSectionComponent(
 ): Promise<ComponentTypeComponent[]> {
     const end = src.pos + size;
     await checkPreamble(src);
-    const model: ComponentTypeDeclaration[] = [];
+    let model: WITSection[] = [];
     for (; ;) {
         if (src.pos == end) {
             break;
@@ -145,65 +145,10 @@ async function parseSectionComponent(
         if (sections === null) {
             break;
         }
-        for (const s of sections) {
-            switch (s.tag) {
-                case ModelTag.ComponentTypeDefinedRecord:
-                    model.push({
-                        tag: ModelTag.ComponentTypeDeclarationType,
-                        value: s
-                    });
-                    break;
-                case ModelTag.ComponentTypeFunc:
-                    model.push({
-                        tag: ModelTag.ComponentTypeDeclarationType,
-                        value: s
-                    });
-                    break;
-                case ModelTag.ComponentExport:
-                    switch (s.kind) {
-                        case ComponentExternalKind.Type: {
-                            model.push({
-                                tag: ModelTag.ComponentTypeDeclarationExport,
-                                name: s.name,
-                                ty: {
-                                    tag: ModelTag.ComponentTypeRefType,
-                                    value: {
-                                        tag: ModelTag.TypeBoundsEq,
-                                        value: s.index
-                                    }
-                                }
-                            });
-                            break;
-                        }
-                        case ComponentExternalKind.Func:
-                            model.push({
-                                tag: ModelTag.ComponentTypeDeclarationExport,
-                                name: s.name,
-                                ty: {
-                                    tag: ModelTag.ComponentTypeRefFunc,
-                                    value: s.index
-                                }
-                            });
-                            break;
-                        case ComponentExternalKind.Component:
-                        case ComponentExternalKind.Instance:
-                        case ComponentExternalKind.Module:
-                        case ComponentExternalKind.Value:
-                        default:
-                            throw new Error(`Unexpected kind ${s.kind}`);
-                    }
-                    break;
-                case ModelTag.ComponentImport:
-                    model.push(s);
-                    break;
-                default:
-                    throw new Error(`Unexpected section ${s.tag}`);
-                    break;
-            }
-        }
+        model = [...model, ...sections];
     }
     return [{
         tag: ModelTag.ComponentTypeComponent,
-        declarations: model
+        declarations: model,
     }];
 }
