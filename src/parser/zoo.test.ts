@@ -1,7 +1,8 @@
 import { parse } from './index';
-// import { expectPartialModelToEqual } from './jest-utils';
-// import { expectedModel } from '../../tests/zoo';
+import { expectPartialModelToEqual } from './jest-utils';
+import { expectedModel } from '../../tests/zoo';
 import { CoreModule } from './types';
+import { writeToFile } from '../../tests/utils';
 
 describe('zoo', () => {
 
@@ -20,5 +21,12 @@ describe('zoo', () => {
         expect(modules[0]).toBeInstanceOf(WebAssembly.Module);
         expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
         expect(modules[1]).toBeInstanceOf(WebAssembly.Module);
+    });
+
+    test('parsed model matches hand written zoo model', async () => {
+        const actualModel = await parse('./zoo/wasm/zoo.wasm');
+        // writeToFile('actual-zoo.json', JSON.stringify(actualModel, null, 2));
+        //writeToFile('expected-zoo.json', JSON.stringify(expectedModel, null, 2));
+        expectPartialModelToEqual(actualModel, expectedModel);
     });
 });
