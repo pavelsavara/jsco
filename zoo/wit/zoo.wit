@@ -1,0 +1,23 @@
+package zoo:food
+
+interface food {
+    record food-info {
+        name: string,
+        weight: float32,
+        healthy: bool,
+        calories: u64,
+        cost: s64,
+    }
+
+    hide-food: func(food: food-info, message: string)
+}
+
+interface eater {
+    use food.{food-info}
+    feed: func(info: food-info)
+}
+
+world zoo {
+    import food
+    export eater
+}
