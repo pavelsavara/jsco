@@ -1,7 +1,7 @@
 import { instantiateComponent } from './index';
 import { setConfiguration } from '../utils/assert';
-import type { ZooFoodFood } from '../../zoo/target/js-jco/exports/zoo-food-food';
-import { ZooFoodEater } from '../../zoo/target/js-jco/exports/zoo-food-eater';
+import type { ZooFoodFood } from '../../zoo/target/js-jco/exports/zoo-food-food.d.ts';
+import type { ZooFoodEater } from '../../zoo/target/js-jco/exports/zoo-food-eater.d.ts';
 
 type TFeed = typeof ZooFoodEater.feed
 type TZooFoodFood = typeof ZooFoodFood
