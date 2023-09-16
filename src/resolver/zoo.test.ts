@@ -1,6 +1,5 @@
 import { instantiateComponent } from './index';
 import { setConfiguration } from '../utils/assert';
-import type { } from '../../zoo/target/js-jco/imports/zoo-food-food.d.ts';
 import type { ZooFoodFood } from '../../zoo/target/js-jco/exports/zoo-food-food';
 import { ZooFoodEater } from '../../zoo/target/js-jco/exports/zoo-food-eater';
 
