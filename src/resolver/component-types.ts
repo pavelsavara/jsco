@@ -9,6 +9,9 @@ import { BinderRes, Resolver, ResolverRes } from './types';
 
 export const resolveComponentType: Resolver<ComponentType, any, any> = (rctx, rargs) => {
     const coreInstance = rargs.element;
+    if (!coreInstance) {
+        throw new Error('Wrong element type ');
+    }
     switch (coreInstance.tag) {
         case ModelTag.ComponentSection: return resolveComponentSection(rctx, rargs as any);
         case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
@@ -38,6 +41,9 @@ export const resolveComponentSection: Resolver<ComponentSection, any, any> = (rc
             }
             case ModelTag.ComponentTypeFunc:
             case ModelTag.ComponentTypeDefinedRecord:
+            case ModelTag.ComponentTypeDefinedTuple:
+            case ModelTag.ComponentTypeDefinedEnum:
+            case ModelTag.ComponentTypeDefinedVariant:
                 // TODO types
                 break;
             default:

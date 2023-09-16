@@ -125,10 +125,8 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
     switch (tag) {
         case ModelTag.CoreModule:
             return rctx.indexes.coreModules;
-            break;
         case ModelTag.ComponentExport:
             return rctx.indexes.componentExports;
-            break;
         case ModelTag.ComponentImport:
             return rctx.indexes.componentImports;
             break;
@@ -136,16 +134,12 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
             switch (kind) {
                 case ExternalKind.Func:
                     return rctx.indexes.coreFunctions;
-                    break;
                 case ExternalKind.Table:
                     return rctx.indexes.coreTables;
-                    break;
                 case ExternalKind.Memory:
                     return rctx.indexes.coreMemories;
-                    break;
                 case ExternalKind.Global:
                     return rctx.indexes.coreGlobals;
-                    break;
                 case ExternalKind.Tag:
                 default:
                     throw new Error(`unexpected section tag: ${kind}`);
@@ -156,13 +150,10 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
             switch (kind) {
                 case ComponentExternalKind.Func:
                     return rctx.indexes.componentFunctions;
-                    break;
                 case ComponentExternalKind.Component:
                     return rctx.indexes.componentTypes;
-                    break;
                 case ComponentExternalKind.Type:
                     return rctx.indexes.componentTypes;
-                    break;
                 case ComponentExternalKind.Module:
                 case ComponentExternalKind.Value:
                 case ComponentExternalKind.Instance:
