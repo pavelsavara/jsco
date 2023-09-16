@@ -8,7 +8,7 @@ import { createLowering } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
 
-export function createImportLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+export function createFunctionLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(importModel, () => {
         const paramLifters: Function[] = [];
         for (const param of importModel.params) {
@@ -37,7 +37,7 @@ export function createImportLifting(rctx: ResolverContext, importModel: Componen
                     const lifter = paramLifters[i];
                     const value = args[i];
                     const converted = lifter(ctx, value);
-                    // TODO do not alwas spill into stack
+                    // TODO do not always spill into stack
                     covertedArgs = [...covertedArgs, ...converted];
                 }
                 const resJs = wasmFunction(...covertedArgs);

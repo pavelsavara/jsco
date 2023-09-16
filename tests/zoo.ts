@@ -1,7 +1,7 @@
 // this is a model written by hand, so that we can test the parser and resolver early on
 // it should match ./hello.wat (delta mistakes)
 
-import { ComponentSection, CoreModule, CustomSection, WITSection } from '../src/parser/types';
+import { ComponentSection, CoreModule, CustomSection } from '../src/parser/types';
 import { ComponentExport, ComponentExternalKind } from '../src/model/exports';
 import { ComponentInstanceInstantiate, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArgKind } from '../src/model/instances';
 import { ComponentTypeFunc, ComponentTypeInstance, PrimitiveValType } from '../src/model/types';
@@ -9,7 +9,7 @@ import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
 import { ExternalKind } from '../src/model/core';
 import { ComponentImport } from '../src/model/imports';
-import { ModelTag } from '../src/model/tags';
+import { ModelTag, WITSection } from '../src/model/tags';
 
 export const componentTypeInstance0: ComponentTypeInstance = {
     tag: ModelTag.ComponentTypeInstance,

@@ -3,9 +3,8 @@
 
 import { BindingContext, ResolverContext } from '../src/resolver/types';
 import { ModelTag } from '../src/model/tags';
-import { createLifting, createLowering } from '../src/resolver/binding';
 import { js, wasm } from './hello-component';
-import { Tcabi_realloc, WasmPointer } from '../src/resolver/binding/types';
+import { TCabiRealloc, WasmPointer } from '../src/resolver/binding/types';
 import { jsco_assert } from '../src/utils/assert';
 import {
     aliasCoreExportFunc0, aliasCoreExportFunc1, aliasCoreExportFunc3,
@@ -19,6 +18,7 @@ import {
 import { PrimitiveValType } from '../src/model/types';
 import { createBindingContext, createResolverContext } from '../src/resolver/context';
 import { WITModel } from '../src/parser';
+import { createLifting, createLowering } from '../src/resolver/binding';
 
 export const expectedContext: Partial<ResolverContext> = {
     usesNumberForInt64: false,
@@ -36,92 +36,9 @@ export const expectedContext: Partial<ResolverContext> = {
         coreMemories: [aliasCoreExportMemory0],
         coreTables: [aliasCoreExportTable0],
         coreGlobals: [],
+        componentSections: [componentTypeComponent0],
     },
-    resolveCache: new Map(),
 };
-
-
-export function resolveTree() {
-    const rctx: ResolverContext = expectedContext as ResolverContext;
-    const indexes = rctx.indexes;
-    const instantiateMock = (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => {
-        return {
-            exports: {
-                // dummy
-            }
-        };
-    };
-
-    let exports0: any = {};
-    const imports0: any = {};
-    let exports1: any = {};
-    const exports2: any = {};
-    const imports2: any = {};
-
-    jsco_assert(componentExport0 === indexes.componentExports[0], 'aww, snap! 1');
-    {
-        jsco_assert(componentInstance1 === indexes.componentInstances[componentExport0.index], 'aww, snap! 2');
-        {
-            const runArgIndex = componentInstance1.args[0].index;// import-func-run
-            {
-                jsco_assert(canonicalFuncLift1 === indexes.componentFunctions[runArgIndex], 'aww, snap! 3');
-                {
-                    jsco_assert(aliasCoreExportFunc3 === indexes.coreFunctions[canonicalFuncLift1.core_func_index], 'aww, snap! 4');
-                    {
-                        jsco_assert(coreInstance2 === indexes.coreInstances[aliasCoreExportFunc3.instance_index], 'aww, snap! 5');
-                        {
-                            const argIndex = coreInstance2.args[0].index;// hello:city/city 1 
-                            jsco_assert(coreInstance1 === indexes.coreInstances[argIndex], 'aww, snap!');
-                            {
-                                const exportIndex = coreInstance1.exports[0].index;// send-message 0
-                                jsco_assert(aliasCoreExportFunc0 === indexes.coreFunctions[exportIndex], 'aww, snap!');
-                                {
-                                    jsco_assert(coreInstance0 === indexes.coreInstances[aliasCoreExportFunc0.instance_index], 'aww, snap!');
-                                    {
-                                        jsco_assert(coreModule1 === indexes.coreModules[coreInstance0.module_index], 'aww, snap!');
-                                        {
-                                            // NO imports1 coreInstance0.args == []
-                                            exports1 = instantiateMock(coreModule1.module!);
-                                        }
-
-                                    }
-                                }
-                            }
-                        }
-                        // both are returns from nested calls
-                        const funcName = coreInstance1.exports[0].name; //'send-message';
-                        const exportName = aliasCoreExportFunc0.name; //'0';
-
-                        // coreInstance2.args[0].index;//1
-                        const interfaceName = coreInstance2.args[0].name;//'hello:city/city';
-                        imports0[interfaceName] = {};
-                        imports0[interfaceName][funcName] = exports1[exportName];
-
-                        jsco_assert(coreModule0 === indexes.coreModules[coreInstance2.module_index], 'aww, snap!');
-
-                        exports0 = instantiateMock(coreModule1.module!, imports0);
-
-                    }
-                }
-
-                jsco_assert(componentTypeFunc2 === indexes.componentTypes[canonicalFuncLift1.type_index], 'aww, snap!');
-            }
-        }
-
-        const cityInfoIndex = componentInstance1.args[1].index;// import-type-city-info
-        {
-            jsco_assert(aliasExportType3 === indexes.componentTypes[cityInfoIndex], 'aww, snap! ');
-        }
-        const cityInfo0Index = componentInstance1.args[2].index;// import-type-city-info0
-        {
-            jsco_assert(aliasExportType1 === indexes.componentTypes[cityInfo0Index], 'aww, snap!');
-        }
-
-
-        jsco_assert(componentTypeComponent0 === indexes.componentTypes[componentInstance1.component_index], 'aww, snap!');
-
-    }
-}
 
 export async function resolveJCO(sections: WITModel, imports: any) {
     const rctx: ResolverContext = createResolverContext(sections, {});
@@ -182,9 +99,10 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     const instance0 = await wasmInstantiate(module0, imports0);
     const exports0 = instance0.exports as wasm.module0Exports;
 
-    const cabi_realloc: Tcabi_realloc = exports0.cabi_realloc;
     const memory0 = exports0.memory as WebAssembly.Memory;
-    ctx.initialize(memory0, cabi_realloc);
+    ctx.initializeMemory(memory0);
+    const cabi_realloc: TCabiRealloc = exports0.cabi_realloc;
+    ctx.initializeRealloc(cabi_realloc);
 
     const imports2: wasm.module2Imports = {
         '': {

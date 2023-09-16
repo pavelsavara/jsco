@@ -1,6 +1,6 @@
 import { u32 } from './core';
 import { ComponentExternName, ComponentTypeRef } from './imports';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
 /// Represents the kind of an external items of a WebAssembly component.
 export const enum ComponentExternalKind {
@@ -19,7 +19,7 @@ export const enum ComponentExternalKind {
 }
 
 /// Represents an export in a WebAssembly component.
-export type ComponentExport = {
+export type ComponentExport = IndexedElement & {
     tag: ModelTag.ComponentExport,
     /// The name of the exported item.
     name: ComponentExternName,

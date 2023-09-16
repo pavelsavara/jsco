@@ -1,7 +1,7 @@
 import { u32 } from './core';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
-export type ComponentStartFunction = {
+export type ComponentStartFunction = IndexedElement & {
     tag: ModelTag.ComponentStartFunction
     /// The index to the start function.
     func_index: u32,

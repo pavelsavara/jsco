@@ -1,79 +1,97 @@
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
-import { jsco_assert } from '../utils/assert';
-import { prepareComponentFunction } from './component-functions';
-import { prepareComponentInstance } from './component-instance';
-import { ResolverContext, NamedImplFactory, ImplFactory } from './types';
+import { debugStack, isDebug, jsco_assert } from '../utils/assert';
+import { JsInterfaceCollection } from './api-types';
+import { resolveComponentFunction } from './component-functions';
+import { resolveComponentInstance } from './component-instances';
+import { resolveComponentType } from './component-types';
+import { Resolver } from './types';
 
-export async function prepareComponentExport(rctx: ResolverContext, exportSectionOrIndex: number | ComponentExport): Promise<NamedImplFactory> {
-    const section = typeof exportSectionOrIndex === 'number' ? rctx.indexes.componentExports[exportSectionOrIndex] : exportSectionOrIndex;
-    jsco_assert(section.tag === ModelTag.ComponentExport, () => `expected ComponentExport, got ${section.tag}`);
+export const resolveComponentExport: Resolver<ComponentExport, any, JsInterfaceCollection> = (rctx, rargs) => {
+    const componentExport = rargs.element;
+    jsco_assert(componentExport && componentExport.tag == ModelTag.ComponentExport, () => `Wrong element type '${componentExport?.tag}'`);
 
-    let name: string;
-    // TODO what is the difference ?
-    switch (section.name.tag) {
-        case ModelTag.ComponentExternNameInterface:
-            name = section.name.name;
-            break;
-        case ModelTag.ComponentExternNameKebab:
-            name = section.name.name;
-            break;
-        default:
-            throw new Error(`${(section as any).name.tag} not implemented`);
-    }
-
-    switch (section.kind) {
-        case ComponentExternalKind.Type: {
-            const typeSection = rctx.indexes.componentTypes[section.index];
-            const factory = async () => {
-                return {
-                    TODO: typeSection.tag
-                };
-            };
-            return {
-                name,
-                factory
-            };
-        }
+    // TODO componentExport.ty ?
+    switch (componentExport.kind) {
         case ComponentExternalKind.Func: {
-            const factory = await prepareComponentFunction(rctx, section.index);
+            const func = rctx.indexes.componentFunctions[componentExport.index];
+            const functionResolution = resolveComponentFunction(rctx, { element: func, callerElement: componentExport });
             return {
-                name,
-                factory
+                callerElement: rargs.callerElement,
+                element: componentExport,
+                binder: async (bctx, bargs) => {
+                    const args = {
+                        arguments: bargs.arguments,
+                        callerArgs: bargs,
+                    };
+                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
+
+                    const exportResult = await functionResolution.binder(bctx, args);
+                    const binderResult = {
+                        // missingRes: rargs.element.tag,
+                        result: exportResult.result
+                    };
+                    if (isDebug) (binderResult as any)['bargs'] = bargs;
+                    if (isDebug) (binderResult as any)['exportResult'] = exportResult;
+                    return binderResult;
+                }
             };
         }
         case ComponentExternalKind.Instance: {
-            const factory = await prepareComponentInstance(rctx, section.index);
+            const instance = rctx.indexes.componentInstances[componentExport.index];
+            const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentExport });
             return {
-                name: name,
-                factory
+                callerElement: rargs.callerElement,
+                element: componentExport,
+                binder: async (bctx, bargs) => {
+                    const args = {
+                        arguments: bargs.arguments,
+                        callerArgs: bargs,
+                    };
+                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
+
+                    const instanceResult = await instanceResolution.binder(bctx, args);
+                    const ifc: any = {};
+                    ifc[componentExport.name.name] = instanceResult.result;
+                    const binderResult = {
+                        // missingRes: rargs.element.tag,
+                        result: ifc
+                    };
+                    if (isDebug) (binderResult as any)['bargs'] = bargs;
+                    if (isDebug) (binderResult as any)['exportResult'] = instanceResult;
+                    return binderResult;
+                }
+            };
+        }
+        case ComponentExternalKind.Type: {
+            const type = rctx.indexes.componentTypes[componentExport.index];
+            const typeResolution = resolveComponentType(rctx, { element: type, callerElement: componentExport });
+            return {
+                callerElement: rargs.callerElement,
+                element: componentExport,
+                binder: async (bctx, bargs) => {
+                    const args = {
+                        arguments: bargs.arguments,
+                        callerArgs: bargs,
+                    };
+                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
+                    const exportResult = await typeResolution.binder(bctx, args);
+                    const ifc: any = {};
+                    ifc[componentExport.name.name] = exportResult.result;
+                    const binderResult = {
+                        // missingRes: rargs.element.tag,
+                        result: ifc
+                    };
+                    if (isDebug) (binderResult as any)['bargs'] = bargs;
+                    if (isDebug) (binderResult as any)['exportResult'] = exportResult;
+                    return binderResult;
+                }
             };
         }
         case ComponentExternalKind.Component:
         case ComponentExternalKind.Module:
         case ComponentExternalKind.Value:
         default:
-            throw new Error(`${section.kind} not implemented`);
+            throw new Error(`${componentExport.kind} not implemented`);
     }
-}
-
-export async function prepareComponentExports(rctx: ResolverContext, exports: ComponentExport[]): Promise<ImplFactory> {
-    const factories: NamedImplFactory[] = [];
-    for (const section of exports) {
-        const factory = await prepareComponentExport(rctx, section);
-        factories.push(factory);
-    }
-
-    return async function instantiate(ctx, args): Promise<any> {
-        const exports = {} as any;
-        for (const { name, factory } of factories) {
-            const ifc = await factory(ctx, args);
-            exports[name] = {
-                ...ifc.exports,
-                __imports: ifc.__imports,
-                __importNames: ifc.__importNames,
-            };
-        }
-        return exports;
-    };
-}
+};

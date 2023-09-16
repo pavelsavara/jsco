@@ -1,9 +1,18 @@
+import { CustomSection, SkippedSection, ComponentSection, CoreModule } from '../parser/types';
+import { ComponentAlias } from './aliases';
+import { CanonicalFunction } from './canonicals';
+import { ComponentExport } from './exports';
+import { ComponentImport } from './imports';
+import { ComponentInstance, CoreInstance } from './instances';
+import { ComponentType } from './types';
+
 export const enum ModelTag {
     Model = 'Model',
+    ModelElement = 'ModelElement',
 
     /// sections
     CustomSection = 'CustomSection',
-    CoreModule = 'ComponentModule',
+    CoreModule = 'CoreModule',
     SkippedSection = 'SkippedSection',
     ComponentSection = 'ComponentSection',
     ComponentStartFunction = 'ComponentStartFunction',
@@ -104,3 +113,31 @@ export const enum ModelTag {
     ValTypeRef = 'ValTypeRef',
     ValTypeV128 = 'ValTypeV128',
 }
+
+export type ModelElement = any;
+
+export type TaggedElement = {
+    tag: ModelTag
+}
+
+export type BrandedElement = {
+    __brand: string // this is purely TS type system trickery, it has no runtime effect
+}
+
+export type IndexedElement = {
+    selfSortIndex?: number
+}
+
+export type WITSection =
+    | CustomSection
+    | SkippedSection
+    | ComponentSection
+    | ComponentImport
+    | ComponentExport
+    | ComponentAlias
+    | CanonicalFunction
+    | ComponentType
+    | ComponentInstance
+    | CoreModule
+    | CoreInstance
+
