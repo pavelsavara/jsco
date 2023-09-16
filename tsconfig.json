@@ -28,8 +28,9 @@
         "src/**/*",
         "src/.types.d.ts",
         "hello/**/*.ts", 
-        "tests/hello.ts", 
-        "tests/hello-component.d.ts"
+        "zoo/**/*.ts", 
+        "tests/*.ts", 
+        "tests/*.d.ts"
     ],
     "exclude": [
         "node_modules",
