@@ -10,7 +10,7 @@ describe('zoo', () => {
         // build it with `npm run build:zoo`
         const actualModel = await parse('./zoo/wasm/zoo.wasm');
 
-        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as CoreModule[];
+        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'CoreModule') as CoreModule[];
 
         expect(moduleSections.length).toBe(3);
         expect(moduleSections[0].module).toBeInstanceOf(Promise);

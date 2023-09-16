@@ -1,11 +1,11 @@
 import { WITModel } from '../parser';
-import { BindingContext, ComponentFactoryOptions, JsImports, ResolverContext } from './types';
-import { WasmPointer, WasmSize, Tcabi_realloc } from './binding/types';
-import { ModelTag } from '../model/tags';
+import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
-import { ComponentSection, WITSection } from '../parser/types';
-import { jsco_assert, configuration } from '../utils/assert';
+import { configuration } from '../utils/assert';
+import { BindingContext, ComponentFactoryOptions, ResolverContext } from './types';
+import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
+import { JsImports } from './api-types';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
@@ -25,130 +25,26 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             coreMemories: [],
             coreTables: [],
             coreGlobals: [],
+            componentSections: [],
         },
-        resolveCache: new Map(),
     };
-    if (configuration === 'Debug') {
-        rctx.debugStack = [];
-    }
 
-    const subComponent: (ComponentSection)[] = [];
     const indexes = rctx.indexes;
     for (const section of sections) {
         // TODO: process all sections into model
-        switch (section.tag) {
-            case ModelTag.CoreModule:
-                indexes.coreModules.push(section);
-                break;
-            case ModelTag.ComponentExport:
-                indexes.componentExports.push(section);
-                break;
-            case ModelTag.ComponentImport:
-                indexes.componentImports.push(section);
-                break;
-            case ModelTag.ComponentAliasCoreInstanceExport: {
-                switch (section.kind) {
-                    case ExternalKind.Func:
-                        indexes.coreFunctions.push(section);
-                        break;
-                    case ExternalKind.Table:
-                        indexes.coreTables.push(section);
-                        break;
-                    case ExternalKind.Memory:
-                        indexes.coreMemories.push(section);
-                        break;
-                    case ExternalKind.Global:
-                        indexes.coreGlobals.push(section);
-                        break;
-                    case ExternalKind.Tag:
-                    default:
-                        throw new Error(`unexpected section tag: ${section.kind}`);
-                }
-                break;
-            }
-            case ModelTag.ComponentAliasInstanceExport: {
-                switch (section.kind) {
-                    case ComponentExternalKind.Func:
-                        indexes.componentFunctions.push(section);
-                        break;
-                    case ComponentExternalKind.Component:
-                        indexes.componentTypes.push(section);
-                        break;
-                    case ComponentExternalKind.Type:
-                        indexes.componentTypes.push(section);
-                        break;
-                    case ComponentExternalKind.Module:
-                    case ComponentExternalKind.Value:
-                    case ComponentExternalKind.Instance:
-                    default:
-                        throw new Error(`unexpected section tag: ${section.kind}`);
-                }
-                break;
-            }
-            case ModelTag.CoreInstanceFromExports:
-            case ModelTag.CoreInstanceInstantiate:
-                indexes.coreInstances.push(section);
-                break;
-            case ModelTag.ComponentInstanceFromExports:
-            case ModelTag.ComponentInstanceInstantiate:
-                indexes.componentInstances.push(section);
-                break;
-            case ModelTag.ComponentTypeFunc:
-                indexes.componentTypes.push(section);
-                break;
-            case ModelTag.ComponentSection:
-                subComponent.push(section);//append later
-                break;
-            case ModelTag.ComponentTypeDefinedBorrow:
-            case ModelTag.ComponentTypeDefinedEnum:
-            case ModelTag.ComponentTypeDefinedFlags:
-            case ModelTag.ComponentTypeDefinedList:
-            case ModelTag.ComponentTypeDefinedOption:
-            case ModelTag.ComponentTypeDefinedOwn:
-            case ModelTag.ComponentTypeDefinedPrimitive:
-            case ModelTag.ComponentTypeDefinedRecord:
-            case ModelTag.ComponentTypeDefinedResult:
-            case ModelTag.ComponentTypeDefinedTuple:
-            case ModelTag.ComponentTypeDefinedVariant:
-                indexes.componentTypes.push(section);
-                break;
-            case ModelTag.ComponentTypeInstance:
-                indexes.componentInstances.push(section);
-                break;
-            case ModelTag.ComponentTypeResource:
-                indexes.componentTypeResource.push(section);
-                break;
-            case ModelTag.CanonicalFunctionLower: {
-                indexes.coreFunctions.push(section);
-                break;
-            }
-            case ModelTag.CanonicalFunctionLift: {
-                indexes.componentFunctions.push(section);
-                break;
-            }
-
-            case ModelTag.SkippedSection:
-            case ModelTag.CustomSection:
-                //drop
-                break;
-            case ModelTag.ComponentAliasOuter:
-            case ModelTag.CanonicalFunctionResourceDrop:
-            case ModelTag.CanonicalFunctionResourceNew:
-            case ModelTag.CanonicalFunctionResourceRep:
-            default:
-                throw new Error(`unexpected section tag: ${(section as any).tag}`);
-        }
+        const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
+        bucket.push(section);
     }
 
     // indexed with imports first and then function definitions next
     // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
-    indexes.componentTypes = [...subComponent, ...indexes.componentTypes];
+    rctx.indexes.componentTypes = [...rctx.indexes.componentSections, ...indexes.componentTypes];
     setSelfIndex(rctx);
     return rctx;
 }
 
 export function setSelfIndex(rctx: ResolverContext) {
-    function setSelfIndex(sort: WITSection[]) {
+    function setSelfIndex(sort: IndexedElement[]) {
         for (let i = 0; i < sort.length; i++) {
             sort[i].selfSortIndex = i;
         }
@@ -168,13 +64,15 @@ export function setSelfIndex(rctx: ResolverContext) {
     setSelfIndex(rctx.indexes.coreGlobals);
 }
 
-export function createBindingContext(rctx: ResolverContext, imports: JsImports): BindingContext {
-    let memory: WebAssembly.Memory = undefined as any;// TODO
-    let cabi_realloc: Tcabi_realloc = undefined as any;// TODO
+export function createBindingContext(rctx: ResolverContext, componentImports: JsImports): BindingContext {
+    let memory: WebAssembly.Memory = undefined as any;
+    let cabi_realloc: TCabiRealloc = undefined as any;
 
-    function initialize(m: WebAssembly.Memory, cr: Tcabi_realloc) {
+    function initializeMemory(m: WebAssembly.Memory) {
         memory = m;
-        cabi_realloc = cr;
+    }
+    function initializeRealloc(realloc: TCabiRealloc) {
+        cabi_realloc = realloc;
     }
     function getView(pointer?: number, len?: number) {
         return new DataView(memory.buffer, pointer, len);
@@ -201,12 +99,13 @@ export function createBindingContext(rctx: ResolverContext, imports: JsImports):
         throw new Error('not implemented');
     }
     const ctx: BindingContext = {
+        componentImports,
         coreInstances: [],
         componentInstances: [],
-        rootImports: imports,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
-        initialize,
+        initializeMemory,
+        initializeRealloc,
         getView,
         getViewU8,
         getMemory,
@@ -222,46 +121,103 @@ export function createBindingContext(rctx: ResolverContext, imports: JsImports):
     return ctx;
 }
 
-export async function memoizePrepare<TFactory extends ((ctx: BindingContext, ...args: any[]) => Promise<any>)>(rctx: ResolverContext, section: WITSection, ff: () => Promise<TFactory>): Promise<TFactory> {
-    jsco_assert(section.selfSortIndex !== undefined, 'expectd selfSortIndex');
-    jsco_assert(section.tag !== undefined, 'expected tag');
-    const cacheIndex = section.selfSortIndex;
-    let cache = rctx.resolveCache.get(section.tag);
-    if (cache === undefined) {
-        cache = [];
-    }
-    if (cache[cacheIndex] !== undefined) {
-        //console.warn('cacheFactory hit', section);
-        return cache[cacheIndex] as TFactory;
-    }
-    //console.log('cacheFactory mis', cacheIndex);
-    try {
-        if (configuration === 'Debug') {
-            rctx.debugStack!.unshift(`PREPARE ${section.tag}[${cacheIndex}]`);
+export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean, kind?: ComponentExternalKind | ExternalKind): TaggedElement[] {
+    switch (tag) {
+        case ModelTag.CoreModule:
+            return rctx.indexes.coreModules;
+            break;
+        case ModelTag.ComponentExport:
+            return rctx.indexes.componentExports;
+            break;
+        case ModelTag.ComponentImport:
+            return rctx.indexes.componentImports;
+            break;
+        case ModelTag.ComponentAliasCoreInstanceExport: {
+            switch (kind) {
+                case ExternalKind.Func:
+                    return rctx.indexes.coreFunctions;
+                    break;
+                case ExternalKind.Table:
+                    return rctx.indexes.coreTables;
+                    break;
+                case ExternalKind.Memory:
+                    return rctx.indexes.coreMemories;
+                    break;
+                case ExternalKind.Global:
+                    return rctx.indexes.coreGlobals;
+                    break;
+                case ExternalKind.Tag:
+                default:
+                    throw new Error(`unexpected section tag: ${kind}`);
+            }
+            break;
+        }
+        case ModelTag.ComponentAliasInstanceExport: {
+            switch (kind) {
+                case ComponentExternalKind.Func:
+                    return rctx.indexes.componentFunctions;
+                    break;
+                case ComponentExternalKind.Component:
+                    return rctx.indexes.componentTypes;
+                    break;
+                case ComponentExternalKind.Type:
+                    return rctx.indexes.componentTypes;
+                    break;
+                case ComponentExternalKind.Module:
+                case ComponentExternalKind.Value:
+                case ComponentExternalKind.Instance:
+                default:
+                    throw new Error(`unexpected section tag: ${kind}`);
+            }
+        }
+        case ModelTag.CoreInstanceFromExports:
+        case ModelTag.CoreInstanceInstantiate:
+            return rctx.indexes.coreInstances;
+        case ModelTag.ComponentInstanceFromExports:
+        case ModelTag.ComponentInstanceInstantiate:
+            return rctx.indexes.componentInstances;
+        case ModelTag.ComponentTypeFunc:
+            return rctx.indexes.componentTypes;
+        case ModelTag.ComponentSection:
+            return read
+                ? rctx.indexes.componentTypes
+                : rctx.indexes.componentSections;//append later
+        case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedEnum:
+        case ModelTag.ComponentTypeDefinedFlags:
+        case ModelTag.ComponentTypeDefinedList:
+        case ModelTag.ComponentTypeDefinedOption:
+        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedPrimitive:
+        case ModelTag.ComponentTypeDefinedRecord:
+        case ModelTag.ComponentTypeDefinedResult:
+        case ModelTag.ComponentTypeDefinedTuple:
+        case ModelTag.ComponentTypeDefinedVariant:
+            return rctx.indexes.componentTypes;
+        case ModelTag.ComponentTypeInstance:
+            return rctx.indexes.componentInstances;
+        case ModelTag.ComponentTypeResource:
+            return rctx.indexes.componentTypeResource;
+        case ModelTag.CanonicalFunctionLower: {
+            return rctx.indexes.coreFunctions;
+        }
+        case ModelTag.CanonicalFunctionLift: {
+            return rctx.indexes.componentFunctions;
+        }
 
-            const factory = await ff();
-            const wrap = async (ctx: BindingContext, ...args: any[]) => {
-                try {
-                    ctx.debugStack!.unshift(`CREATE  ${section.tag}[${cacheIndex}] args:${args.length}`); //(${args.length != 0 ? JSON.stringify(args) : ''})
-                    const res = await factory(ctx, ...args);
-                    //console.log(`CREATE returned ${section.tag}[${cacheIndex}]`, res);
-                    return res;
-                }
-                finally {
-                    ctx.debugStack!.shift();
-                }
-            };
-            cache[cacheIndex] = wrap;
-            return wrap as TFactory;
-        } else {
-            const factory = await ff();
-            cache[cacheIndex] = factory;
-            return factory;
-        }
+        case ModelTag.SkippedSection:
+        case ModelTag.CustomSection:
+            return [];//drop
+        case ModelTag.ComponentAliasOuter:
+        case ModelTag.CanonicalFunctionResourceDrop:
+        case ModelTag.CanonicalFunctionResourceNew:
+        case ModelTag.CanonicalFunctionResourceRep:
+        default:
+            throw new Error(`unexpected section tag: ${tag}`);
     }
-    finally {
-        if (configuration === 'Debug') {
-            rctx.debugStack!.pop();
-        }
-    }
+}
+
+export function elementByIndex<TTag extends ModelTag, TResult extends { tag: TTag, kind?: ComponentExternalKind | ExternalKind }>(rctx: ResolverContext, template: TResult, index: number): TResult {
+    const bucket = bucketByTag(rctx, template.tag, true, template.kind);
+    return bucket[index] as TResult;
 }

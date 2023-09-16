@@ -1,7 +1,8 @@
-import { ComponentAlias } from './aliases';
+import { ComponentSection } from '../parser/types';
+import { ComponentAlias, ComponentAliasInstanceExport } from './aliases';
 import { FuncType, Import, SubType, TypeRef, ValType, u32 } from './core';
 import { ComponentExternName, ComponentImport, ComponentTypeRef } from './imports';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
 /// Represents the kind of an outer core alias in a WebAssembly component.
 export type OuterAliasKind =
@@ -117,27 +118,28 @@ export type ComponentType =
     | ComponentTypeComponent
     | ComponentTypeInstance
     | ComponentTypeResource
-
+    | ComponentSection
+    | ComponentAliasInstanceExport
 
 /// The type is a function type.
-export type ComponentTypeFunc = ComponentFuncType & {
+export type ComponentTypeFunc = IndexedElement & ComponentFuncType & {
     tag: ModelTag.ComponentTypeFunc
 }
 
 /// The type is a component type.
-export type ComponentTypeComponent = {
+export type ComponentTypeComponent = IndexedElement & {
     tag: ModelTag.ComponentTypeComponent
     declarations: ComponentTypeDeclaration[]
 }
 
 /// The type is an instance type.
-export type ComponentTypeInstance = {
+export type ComponentTypeInstance = IndexedElement & {
     tag: ModelTag.ComponentTypeInstance
     declarations: InstanceTypeDeclaration[]
 }
 
 /// The type is a fresh new resource type.
-export type ComponentTypeResource = {
+export type ComponentTypeResource = IndexedElement & {
     tag: ModelTag.ComponentTypeResource
     /// The representation of this resource type in core WebAssembly.
     rep: ValType,
@@ -279,54 +281,54 @@ export type ComponentTypeDefined =
     | ComponentTypeDefinedBorrow
 
 /// The type is one of the primitive value types.
-export type ComponentTypeDefinedPrimitive = {
+export type ComponentTypeDefinedPrimitive = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedPrimitive,
     value: PrimitiveValType,
 }
 
 /// The type is a record with the given fields.
-export type ComponentTypeDefinedRecord = {
+export type ComponentTypeDefinedRecord = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedRecord,
     members: { name: string, type: ComponentValType }[],
 }
 
 /// The type is a variant with the given cases.
-export type ComponentTypeDefinedVariant = {
+export type ComponentTypeDefinedVariant = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedVariant,
     variants: VariantCase[],
 }
 
 /// The type is a list of the given value type.
-export type ComponentTypeDefinedList = {
+export type ComponentTypeDefinedList = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedList,
     value: ComponentValType,
 }
 
 /// The type is a tuple of the given value types.
-export type ComponentTypeDefinedTuple = {
+export type ComponentTypeDefinedTuple = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedTuple,
     members: ComponentValType[],
 }
 
 /// The type is flags with the given names.
-export type ComponentTypeDefinedFlags = {
+export type ComponentTypeDefinedFlags = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedFlags,
     members: string[],
 }
 /// The type is an enum with the given tags.
-export type ComponentTypeDefinedEnum = {
+export type ComponentTypeDefinedEnum = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedEnum,
     members: string[],
 }
 
 /// The type is an option of the given value type.
-export type ComponentTypeDefinedOption = {
+export type ComponentTypeDefinedOption = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedOption,
     value: ComponentValType,
 }
 
 /// The type is a result type.
-export type ComponentTypeDefinedResult = {
+export type ComponentTypeDefinedResult = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedResult,
     /// The type returned for success.
     ok?: ComponentValType,
@@ -335,13 +337,13 @@ export type ComponentTypeDefinedResult = {
 }
 
 /// An owned handle to a resource.
-export type ComponentTypeDefinedOwn = {
+export type ComponentTypeDefinedOwn = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedOwn,
     value: u32,
 }
 
 /// A borrowed handle to a resource.
-export type ComponentTypeDefinedBorrow = {
+export type ComponentTypeDefinedBorrow = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedBorrow,
     value: u32,
 }

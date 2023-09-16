@@ -1,4 +1,4 @@
-import { AbiPointer, Tcabi_realloc } from '../src/resolver/binding/types';
+import { AbiPointer, TCabiRealloc } from '../src/resolver/binding/types';
 
 declare module js {
     export type CityInfo = {
@@ -27,7 +27,7 @@ declare module js {
 declare module wasm {
     export type module0Exports = {
         memory: WebAssembly.Memory
-        cabi_realloc: Tcabi_realloc
+        cabi_realloc: TCabiRealloc
         '__data_end': WebAssembly.Global
         '__heap_base': WebAssembly.Global
         // TODO budget: number is wrong, should be BigInt

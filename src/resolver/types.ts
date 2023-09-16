@@ -1,39 +1,19 @@
-import { Tcabi_realloc, WasmPointer, WasmSize } from './binding/types';
-import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '../model/aliases';
-import { CanonicalFunctionLift, CanonicalFunctionLower } from '../model/canonicals';
+import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
+import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport, ComponentFunction, CoreFunction } from '../model/aliases';
+import { CanonicalFunctionLower, CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { ComponentInstance, CoreInstance as CoreInstance } from '../model/instances';
-import { ModelTag } from '../model/tags';
-import { ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource } from '../model/types';
+import { CoreInstance, ComponentInstance } from '../model/instances';
+import { ComponentTypeInstance, ComponentTypeResource, ComponentTypeFunc, ComponentTypeDefined, ComponentType } from '../model/types';
 import { WITModel } from '../parser';
-import { ComponentSection, CoreModule } from '../parser/types';
+import { CoreModule, ComponentSection } from '../parser/types';
+import { ModelElement } from '../model/tags';
+import { JsImports, WasmComponentInstance } from './api-types';
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
     wasmInstantiate?: typeof WebAssembly.instantiate
 }
-
-export type JsInterface = Record<string, Function>;
-export type JsInterfaceCollection = Record<string, JsInterface>;
-
-export type WasmComponentInstance<TJSExports> = {
-    exports: JsExports<TJSExports>
-    abort: () => void
-}
-export type JsExports<TJSExports> = TJSExports & JsInterfaceCollection
-export type JsImports = JsInterfaceCollection
-
-export type WasmComponent<TJSExports> = {
-    resolverContext: any; // ResolverContext is not public type
-    instantiate: WasmComponentFactory<TJSExports>
-}
-export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>
-//
-
-export type ImplComponentFactory = () => Promise<WasmComponentInstance<any>>
-export type ImplFactory = (ctx: BindingContext, imports: any) => Promise<any>
-export type NamedImplFactory = { name: string, factory: ImplFactory }
 
 export type ComponentFactoryInput = WITModel
     | string
@@ -46,32 +26,32 @@ export type ComponentFactoryInput = WITModel
 export type IndexedModel = {
     coreModules: CoreModule[]
     coreInstances: CoreInstance[],
-    coreFunctions: (ComponentAliasCoreInstanceExport | CanonicalFunctionLower)[]
-    coreMemories: (ComponentAliasCoreInstanceExport)[]
-    coreGlobals: (ComponentAliasCoreInstanceExport)[]
-    coreTables: (ComponentAliasCoreInstanceExport)[]
+    coreFunctions: CoreFunction[]
+    coreMemories: ComponentAliasCoreInstanceExport[]
+    coreGlobals: ComponentAliasCoreInstanceExport[]
+    coreTables: ComponentAliasCoreInstanceExport[]
 
     componentImports: ComponentImport[]
     componentExports: ComponentExport[]
-    componentInstances: (ComponentInstance | ComponentTypeInstance)[],
+    componentInstances: ComponentInstance[],
     componentTypeResource: ComponentTypeResource[],
-    componentFunctions: (ComponentAliasInstanceExport | CanonicalFunctionLift)[],
-    componentTypes: (ComponentSection | ComponentTypeFunc | ComponentTypeDefined | ComponentAliasInstanceExport)[],
+    componentFunctions: ComponentFunction[],
+    componentTypes: ComponentType[],
+    componentSections: ComponentSection[]// append to componentTypes
 }
 
 export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
-    wasmInstantiate: typeof WebAssembly.instantiate
-    resolveCache: Map<ModelTag, Function[]>
-    debugStack?: string[]
+    wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
 }
 
 export type BindingContext = {
-    rootImports: JsImports
-    coreInstances: WebAssembly.Instance[];
-    componentInstances: WasmComponentInstance<any>[]
-    initialize(memory: WebAssembly.Memory, cabi_realloc: Tcabi_realloc): void;
+    componentImports: JsImports
+    coreInstances: BinderRes<WebAssembly.Instance>[];
+    componentInstances: BinderRes<WasmComponentInstance<any>>[]
+    initializeMemory(memory: WebAssembly.Memory): void;
+    initializeRealloc(cabi_realloc: TCabiRealloc): void;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
     getMemory: () => WebAssembly.Memory;
@@ -83,4 +63,29 @@ export type BindingContext = {
     writeI32: (ptr: WasmPointer, value: number) => void;
     abort: () => void;
     debugStack?: string[];
+}
+
+export type Resolver<TModelElement, TBinderArguments, TBinderResult> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes<TModelElement, TBinderArguments, TBinderResult>
+export type Binder<TArguments, TResult> = (bctx: BindingContext, args: BinderArgs<TArguments>) => Promise<BinderRes<TResult>>
+
+export type ResolverArgs<TModelElement> = {
+    callerElement: ModelElement
+    element: TModelElement
+}
+
+export type ResolverRes<TModelElement, TBinderArguments, TBinderResult> = {
+    callerElement: ModelElement
+    element: TModelElement
+    binder: Binder<TBinderArguments, TBinderResult>
+}
+
+export type BinderArgs<TArguments> = {
+    callerArgs?: BinderArgs<any>
+    arguments: TArguments
+    imports?: any
+    debugStack?: string[]
+}
+
+export type BinderRes<TResult> = {
+    result: TResult
 }

@@ -1,5 +1,5 @@
 import { expectedModel } from '../../tests/hello';
-import { resolveTree, expectedContext, resolveJCO } from '../../tests/resolve-hello';
+import { expectedContext, resolveJCO } from '../../tests/resolve-hello';
 import { js } from '../../tests/hello-component';
 import { createResolverContext, setSelfIndex } from './context';
 import { createComponent, instantiateComponent } from './index';
@@ -20,27 +20,19 @@ describe('resolver hello', () => {
         //TODO asserts
     });
 
-    test.failing('component instantiated from fake model could run', async () => {
+    test('component hello.wasm could run', async () => {
         let actualMessage: string = undefined as any;
-        // here we need wasm modules from the actual .wasm file
-        // but the rest of the model is better to use fake for now
-        const parsedModel = await parse('./hello/wasm/hello.wasm');
-        const mergedModel = [
-            ...parsedModel.filter(x => x.tag === ModelTag.CoreModule),
-            ...expectedModel.filter(x => x.tag !== ModelTag.CoreModule),
-        ];
 
         const imports: js.NamedImports = {
             'hello:city/city': {
                 sendMessage: (message: string) => {
+                    //console.log('sendMessage in test ', message);
                     actualMessage = message;
                 }
             }
         };
 
-        const instance = await instantiateComponent(mergedModel, imports);
-
-        // console.log('RUN', instance.exports['hello:city/greeter'].run);
+        const instance = await instantiateComponent('./hello/wasm/hello.wasm', imports);
 
         instance.exports['hello:city/greeter'].run({
             name: 'Prague',
@@ -58,10 +50,6 @@ describe('resolver hello', () => {
         const expectedContextCpy = { ...expectedContext } as ResolverContext;
         setSelfIndex(expectedContextCpy);
         expect(actualContext.indexes).toEqual(expectedContext.indexes);
-    });
-
-    test('manual resolve tree', async () => {
-        resolveTree();
     });
 
     test('JCO rewrite works', async () => {
