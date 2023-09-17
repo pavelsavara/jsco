@@ -1,2 +1,4 @@
-# jsco
-browser polyfill for runing WASM components
+# jsco demo
+
+
+See [project page](https://github.com/pavelsavara/jsco)
