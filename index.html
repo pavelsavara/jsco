@@ -2,14 +2,28 @@
 <html>
 
 <head>
-  <title>Wasm Component Browser Sample with JSCO</title>
+  <title>Wasm Components with JSCO</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type='module' src="./main.js"></script>
 </head>
 
 <body>
-  <h3 id="header">Wasm Component Browser Sample with JSCO</h3>
+  <h3 id="header">JSCO Wasm Component Host for Browser - Demo</h3>
+  <p>For the project page see <a href="https://github.com/pavelsavara/jsco">https://github.com/pavelsavara/jsco</a></p>
+  <p>For the source of this demo see <a href="https://github.com/pavelsavara/jsco/tree/demo-page">https://github.com/pavelsavara/jsco/tree/demo-page</a></p>
+
+  City name: <input type="text" value="Kladno" id="city"/><br/>
+  Head count: <input type="number" value="100000" id="headCount"/><br/>
+  City budget: <input type="number" value="0" id="budget"/><br/>
+  <br/>
+  <input type="button" value="Say Hi" id="say-hi" /><br/>
+  <br/>
+
+  <p id="messages">
+    ...
+  </p>
+
 </body>
 
 </html>
