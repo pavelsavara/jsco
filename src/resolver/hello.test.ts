@@ -5,7 +5,6 @@ import { createResolverContext, setSelfIndex } from './context';
 import { createComponent, instantiateComponent } from './index';
 import { ResolverContext } from './types';
 import { parse } from '../parser';
-import { ModelTag } from '../model/tags';
 import { setConfiguration } from '../utils/assert';
 // import { writeToFile } from '../../tests/utils';
 
@@ -20,7 +19,7 @@ describe('resolver hello', () => {
         //TODO asserts
     });
 
-    test('component hello.wasm could run', async () => {
+    test.only('component hello.wasm could run', async () => {
         let actualMessage: string = undefined as any;
 
         const imports: js.NamedImports = {
@@ -33,14 +32,23 @@ describe('resolver hello', () => {
         };
 
         const instance = await instantiateComponent('./hello/wasm/hello.wasm', imports);
+        const run = instance.exports['hello:city/greeter'].run;
 
-        instance.exports['hello:city/greeter'].run({
+        run({
             name: 'Prague',
             headCount: 1_000_000,
             budget: BigInt(200_000_000),
         });
-
         expect(actualMessage).toBe('Welcome to Prague, we invite you for a drink!');
+
+        actualMessage = undefined as any;
+        run({
+            name: 'Kladno',
+            headCount: 100_000,
+            budget: 0n,
+        });
+        expect(actualMessage).toBe('Welcome to Kladno!');
+
     });
 
     test('manual resolve indexes', async () => {

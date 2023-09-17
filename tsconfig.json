@@ -31,7 +31,7 @@
         "zoo/**/*.ts", 
         "tests/*.ts", 
         "tests/*.d.ts"
-    ],
+, "usage.ts"    ],
     "exclude": [
         "node_modules",
         "dist",
