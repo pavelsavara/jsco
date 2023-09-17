@@ -32,7 +32,7 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 - just JS (no rust dependency), TypeScript, RollupJS
 
 ## Status
-This is demo-ware quality right now!
+🚧 This is demo-ware quality right now: There are still few things **hardcoded and fake** 🚧
 
 See [./TODO.md](./TODO.md), contributors are welcome!
 
