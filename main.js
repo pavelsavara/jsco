@@ -25,19 +25,17 @@ async function createGreeter(sendMessage) {
 }
 
 const greeter = await createGreeter(sendMessage);
+const cityInput = document.querySelector('#city');
+const headCountInput = document.querySelector('#headCount');
+const budgetInput = document.querySelector('#budget');
+const messages = document.querySelector('#messages');
 
-function runGreeter(cityInfo){
-    greeter.run(cityInfo);
-}
-
-function onClick(event){
-    console.log('onClick', event);
-
+document.querySelector('#say-hi').addEventListener('click', onClick)
+function onClick(){
     const name = cityInput.value;
     const headCount = parseInt(headCountInput.value);
     const budget = BigInt(budgetInput.value);
-
-    runGreeter({
+    greeter.run(cityInfo)({
         name,
         headCount,
         budget,
@@ -45,7 +43,6 @@ function onClick(event){
 }
 
 let dropDots = true;
-
 function sendMessage(message) {
     console.log(message);
     
@@ -58,9 +55,3 @@ function sendMessage(message) {
     div.innerText = message;
     messages.appendChild(div);
 }
-
-document.querySelector('#say-hi').addEventListener('click', onClick)
-const cityInput = document.querySelector('#city');
-const headCountInput = document.querySelector('#headCount');
-const budgetInput = document.querySelector('#budget');
-const messages = document.querySelector('#messages');
