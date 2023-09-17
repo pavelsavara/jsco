@@ -13,6 +13,10 @@ Prints `Welcome to Kladno!` to the console.
 
 See [./usage.mjs](./usage.mjs) for full commented sample.
 
+### Demo
+
+See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](https://github.com/pavelsavara/jsco/tree/demo-page)
+
 ## Goals
 - browser polyfill for running WASM components.
 - streaming parser of binary WIT
@@ -38,23 +42,28 @@ See [./TODO.md](./TODO.md), contributors are welcome!
 - hello world demo [hello.wit](./hello/wit/hello.wit) [hello.wat](./hello/wat/hello.wat) [lib.rs](./hello/src/lib.rs)
 - this is just small attempt in limited time. It may grow into something larger ...
 - binding for `string` and `i32`, `record` just one direction. Only necessary resolver.
+- as a hackathon week project in 2023
+- to learn more about WASM component model
 
 ## Why
-- as a hackathon week project: https://hackbox.microsoft.com/hackathons/hackathon2023/project/32678
-- to learn more about WASM component model
 - to provide host which could do the binding in the browser
-- JCO is great, really. But it is too large to use in the browser as dynamic host. (Download size matters to browser folks)
-- because independent implementation will help the WASM/WIT/WASI to make progress
 - browsers currently don't implement built-in WASM component model host
+- because independent implementation will help the WASM/WIT/WASI to make progress
+- [JCO](https://github.com/bytecodealliance/jco) is great alternative, really. 
+    - But it is too large to use as dynamic host, because download size matters to browser folks.
+    - When you have all your components available at dev machine, JCO transpiler could be better choice.
 
 ## Contribute
 - install [rust](https://www.rust-lang.org/tools/install)
 - install [nodejs + npm](https://nodejs.org/en/download)
-- `npm install`
-- `npm run setup:rust`
-- `npm run build`
-- `npm run build:hello && npm run build:hello-wat && npm run build:hello-js`
-- `npm run test:jco`
-- `npm run test:win` or `npm run test:unix`
-- see "scripts" in package.json
 - use eslint plugin to VS code, with format on save
+- see "scripts" in package.json
+
+```bash
+npm install
+npm run setup:rust
+npm run build
+npm run build:hello && npm run build:hello-wat && npm run build:hello-js
+npm run test:jco
+npm run test:unix
+```
