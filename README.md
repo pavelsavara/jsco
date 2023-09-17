@@ -13,6 +13,10 @@ Prints `Welcome to Kladno!` to the console.
 
 See [./usage.mjs](./usage.mjs) for full commented sample.
 
+### Demo
+
+See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](https://github.com/pavelsavara/jsco/tree/demo-page)
+
 ## Goals
 - browser polyfill for running WASM components.
 - streaming parser of binary WIT
