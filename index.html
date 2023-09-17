@@ -10,20 +10,31 @@
 
 <body>
   <h3 id="header">JSCO Wasm Component Host for Browser - Demo</h3>
+
+  <div style="font-family: monospace; margin-left: 10em;">
+    <span>City name: &nbsp;&nbsp;&nbsp;&nbsp;<input type="text" value="Kladno" id="city"/><br/></span>
+    <span>Head count: &nbsp;&nbsp;&nbsp;<input type="number" value="100000" id="headCount"/><br/></span>
+    <span>City budget: &nbsp;&nbsp;<input type="number" value="0" id="budget"/><br/></span>
+    <br/>
+    <span></span><input type="button" value="Say Hi" id="say-hi" /><br/></span>
+    <br/>
+    <p id="messages">...</p>
+  </div>
+
+  <h3 id="header">Simplified code</h3>
+  <div style="width: 60%; display: flex; background-color: black;">
+    <pre style="font-family: monospace; color: white;"><code class="language-javascript">  import { instantiateComponent } from &#39;@pavelsavara/jsco&#39;;
+
+  const instance = await instantiateComponent(&#39;./hello/wasm/hello.wasm&#39;, {
+      &#39;hello:city/city&#39;: { sendMessage: console.log }
+  });
+
+  const run = instance.exports[&#39;hello:city/greeter&#39;].run;
+
+  run({ name: &#39;Kladno&#39;, headCount: 100000, budget: 0n});</code></pre>
+  </div>
   <p>For the project page see <a href="https://github.com/pavelsavara/jsco">https://github.com/pavelsavara/jsco</a></p>
   <p>For the source of this demo see <a href="https://github.com/pavelsavara/jsco/tree/demo-page">https://github.com/pavelsavara/jsco/tree/demo-page</a></p>
 
-  City name: <input type="text" value="Kladno" id="city"/><br/>
-  Head count: <input type="number" value="100000" id="headCount"/><br/>
-  City budget: <input type="number" value="0" id="budget"/><br/>
-  <br/>
-  <input type="button" value="Say Hi" id="say-hi" /><br/>
-  <br/>
-
-  <p id="messages">
-    ...
-  </p>
-
 </body>
-
 </html>
