@@ -35,7 +35,7 @@ function onClick(){
     const name = cityInput.value;
     const headCount = parseInt(headCountInput.value);
     const budget = BigInt(budgetInput.value);
-    greeter.run(cityInfo)({
+    greeter.run({
         name,
         headCount,
         budget,
