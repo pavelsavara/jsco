@@ -1,9 +1,9 @@
 import { ComponentImport } from '../model/imports';
 import { ModelTag } from '../model/tags';
-import { isDebug, jsco_assert } from '../utils/assert';
+import { jsco_assert } from '../utils/assert';
 import { Resolver } from './types';
 
-export const resolveComponentImport: Resolver<ComponentImport, any, any> = (rctx, rargs) => {
+export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) => {
     const componentImport = rargs.element;
     jsco_assert(componentImport && componentImport.tag == ModelTag.ComponentImport, () => `Wrong element type '${componentImport?.tag}'`);
 
@@ -25,11 +25,8 @@ export const resolveComponentImport: Resolver<ComponentImport, any, any> = (rctx
         binder: async (bctx, bargs) => {
             const binderResult = {
                 missingRes: rargs.element.tag,
-                result: {
-                    missingResRes: rargs.element.tag,
-                } as any
+                result: {}
             };
-            if (isDebug) (binderResult as any)['bargs'] = bargs;
             return binderResult;
         }
     };

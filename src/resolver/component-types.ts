@@ -1,13 +1,13 @@
-import { ComponentExport } from '../model/exports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag, WITSection } from '../model/tags';
 import { ComponentType } from '../model/types';
 import { ComponentSection } from '../parser/types';
-import { debugStack, isDebug, jsco_assert } from '../utils/assert';
+import { debugStack, jsco_assert } from '../utils/assert';
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
 import { BinderRes, Resolver, ResolverRes } from './types';
 
-export const resolveComponentType: Resolver<ComponentType, any, any> = (rctx, rargs) => {
+export const resolveComponentType: Resolver<ComponentType> = (rctx, rargs) => {
     const coreInstance = rargs.element;
     if (!coreInstance) {
         throw new Error('Wrong element type ');
@@ -19,24 +19,27 @@ export const resolveComponentType: Resolver<ComponentType, any, any> = (rctx, ra
     }
 };
 
-export const resolveComponentSection: Resolver<ComponentSection, any, any> = (rctx, rargs) => {
+export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs) => {
     const componentSection = rargs.element;
     jsco_assert(componentSection && componentSection.tag == ModelTag.ComponentSection, () => `Wrong element type '${componentSection?.tag}'`);
 
-    const exportResolutions: ResolverRes<WITSection, any, any>[] = [];
-    // const importResolutions: ResolverRes<WITSection, any, any>[] = [];
+    const exportResolutions: ResolverRes[] = [];
     for (const declaration of componentSection.sections) {
         switch (declaration.tag) {
             case ModelTag.ComponentExport: {
-                const exportResolution = resolveComponentExport(rctx, { element: declaration, callerElement: declaration });
-                exportResolutions.push(exportResolution);
+                if (declaration.kind === ComponentExternalKind.Func) {
+                    const exportResolution = resolveComponentExport(rctx, { element: declaration, callerElement: declaration });
+                    exportResolutions.push(exportResolution);
+                } else if (declaration.kind !== ComponentExternalKind.Type) {
+                    throw new Error('Not implemented');
+                }
                 break;
             }
             case ModelTag.ComponentImport: {
-                /* TODO types ?
-                const importResolution = resolveComponentImport(rctx, { element: declaration, callerElement: declaration });
-                importResolutions.push(importResolution);
-                */
+                // declaration.name
+                // declaration.name.name
+                // rctx.indexes.componentTypes[declaration.ty.value];
+                // throw new Error('Not implemented' + declaration.name.name);
                 break;
             }
             case ModelTag.ComponentTypeFunc:
@@ -60,6 +63,7 @@ export const resolveComponentSection: Resolver<ComponentSection, any, any> = (rc
                 const callerElement = exportResolution.callerElement as ComponentExport;
                 const args = {
                     arguments: bargs.arguments,
+                    imports: bargs.imports,
                     callerArgs: bargs,
                     debugSource: callerElement.tag + ':' + callerElement.name.name
                 };
@@ -69,27 +73,9 @@ export const resolveComponentSection: Resolver<ComponentSection, any, any> = (rc
                 const argResult = await exportResolution.binder(bctx, args);
                 exports[callerElement.name.name] = argResult.result as any;
             }
-            /* TODO types ?
-            const imports = {} as any;
-            for (const importResolution of importResolutions) {
-                const callerElement = importResolution.callerElement as ComponentImport;
-                const args = {
-                    arguments: bargs.arguments,
-                    callerArgs: bargs,
-                };
-                debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
-                debugStack(args, args, callerElement.tag + ':' + callerElement.name.name);
-
-                const argResult = await importResolution.binder(bctx, args);
-                imports[callerElement.name.name] = argResult.result as any;
-            }
-            */
-            const binderResult: BinderRes<any> = {
-                result: {
-                    ...exports
-                } as any
+            const binderResult: BinderRes = {
+                result: exports
             };
-            if (isDebug) (binderResult as any)['arguments'] = bargs;
             return binderResult;
         }
     };

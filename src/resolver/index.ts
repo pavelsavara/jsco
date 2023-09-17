@@ -1,8 +1,7 @@
-import { TaggedElement } from '../model/tags';
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
 import { isDebug } from '../utils/assert';
-import { JsImports, WasmComponentInstance, WasmComponent, JsInterfaceCollection } from './api-types';
+import { JsImports, WasmComponentInstance, WasmComponent } from './api-types';
 import { resolveComponentExport } from './component-exports';
 import { createBindingContext, createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
@@ -32,17 +31,12 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     for (const coreModule of rctx.indexes.coreModules) {
         await coreModule.module;
     }
-    const coreInstanceResolutions: ResolverRes<TaggedElement, WebAssembly.Imports, WebAssembly.Instance>[] = [];
+    const coreInstanceResolutions: ResolverRes[] = [];
     for (const coreInstance of rctx.indexes.coreInstances) {
         const resolution = resolveCoreInstance(rctx, { element: coreInstance, callerElement: undefined });
         coreInstanceResolutions.push(resolution);
     }
-    /*const componentImportResolutions: ResolverRes<TaggedElement, JsInterfaceCollection, JsInterfaceCollection>[] = [];
-    for (const componentExport of rctx.indexes.componentImports) {
-        const resolution = resolveComponentImport(rctx, { element: componentExport, callerElement: undefined });
-        componentImportResolutions.push(resolution);
-    }*/
-    const componentExportResolutions: ResolverRes<TaggedElement, JsInterfaceCollection, JsInterfaceCollection>[] = [];
+    const componentExportResolutions: ResolverRes[] = [];
     for (const componentExport of rctx.indexes.componentExports) {
         const resolution = resolveComponentExport(rctx, { element: componentExport, callerElement: undefined });
         componentExportResolutions.push(resolution);
@@ -53,18 +47,9 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
         const ctx = createBindingContext(rctx, componentImports);
 
         const exports = {};
-        /*const imports = {};
-        for (const componentImportResolution of componentImportResolutions) {
-            const args = {
-                arguments: componentImports
-            };
-            if (isDebug) (args as any)['debugStack'] = [];
-            const componentExportResult = await componentImportResolution.binder(ctx, args);
-            Object.assign(imports, componentExportResult.result);
-        }*/
         for (const componentExportResolution of componentExportResolutions) {
             const args = {
-                arguments: componentImports
+                imports: componentImports
             };
             if (isDebug) (args as any)['debugStack'] = [];
             const componentExportResult = await componentExportResolution.binder(ctx, args);
@@ -75,7 +60,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
         // I think this is about $imports
         for (const instanceResolution of coreInstanceResolutions) {
             const args = {
-                arguments: componentImports
+                imports: componentImports
             };
             if (isDebug) (args as any)['debugStack'] = [];
             await instanceResolution.binder(ctx, args);

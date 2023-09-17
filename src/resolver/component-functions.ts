@@ -2,12 +2,13 @@ import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliase
 import { CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
-import { debugStack, isDebug, jsco_assert } from '../utils/assert';
+import { debugStack, jsco_assert } from '../utils/assert';
 import { createFunctionLifting } from './binding';
+import { resolveComponentInstance } from './component-instances';
 import { resolveCoreFunction } from './core-functions';
 import { Resolver } from './types';
 
-export const resolveComponentFunction: Resolver<ComponentFunction, any, Function> = (rctx, rargs) => {
+export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const coreInstance = rargs.element;
     switch (coreInstance.tag) {
         case ModelTag.CanonicalFunctionLift: return resolveCanonicalFunctionLift(rctx, rargs as any);
@@ -16,7 +17,7 @@ export const resolveComponentFunction: Resolver<ComponentFunction, any, Function
     }
 };
 
-export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift, any, Function> = (rctx, rargs) => {
+export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rctx, rargs) => {
     const canonicalFunctionLift = rargs.element;
     jsco_assert(canonicalFunctionLift && canonicalFunctionLift.tag == ModelTag.CanonicalFunctionLift, () => `Wrong element type '${canonicalFunctionLift?.tag}'`);
 
@@ -35,6 +36,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift, any, 
         binder: async (bctx, bargs) => {
             const args = {
                 arguments: bargs.arguments,
+                imports: bargs.imports,
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
@@ -46,13 +48,12 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift, any, 
                 // missingRes: rargs.element.tag,
                 result: jsFunction
             };
-            if (isDebug) (binderResult as any)['bargs'] = bargs;
             return binderResult;
         }
     };
 };
 
-export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanceExport, any, any> = (rctx, rargs) => {
+export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanceExport> = (rctx, rargs) => {
     const componentAliasInstanceExport = rargs.element;
     jsco_assert(componentAliasInstanceExport && componentAliasInstanceExport.tag == ModelTag.ComponentAliasInstanceExport, () => `Wrong element type '${componentAliasInstanceExport?.tag}'`);
 
@@ -69,7 +70,6 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
                         missingResTypes: rargs.element.tag,
                     }
                 };
-                if (isDebug) (binderResult as any)['bargs'] = bargs;
                 return binderResult;
             }
         };
@@ -79,7 +79,6 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     }
 
     //componentAliasInstanceExport.instance_index;
-    //componentAliasInstanceExport.name;
     //componentAliasInstanceExport.kind;
 
     //const instance = rctx.indexes.componentInstances[componentAliasInstanceExport.instance_index];
@@ -89,23 +88,25 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         callerElement: rargs.callerElement,
         element: componentAliasInstanceExport,
         binder: async (bctx, bargs) => {
-
+            //console.log('componentAliasInstanceExport', componentAliasInstanceExport, bargs.arguments);
             const args = {
                 arguments: bargs.arguments,
+                imports: bargs.imports,
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
-            // const moduleResult = await instanceResolution.binder(bctx, args);
+            //const moduleResult = await instanceResolution.binder(bctx, args);
+
+            //componentAliasInstanceExport.name;
 
             // TODO this is very fake, how do it know this ?
-            const fn = bargs.arguments['import-func-run'] ?? bargs.arguments['hello:city/city']['sendMessage'];
+            const fn = bargs.imports['import-func-run'] ?? bargs.imports['hello:city/city']['sendMessage'];
 
             const binderResult = {
                 missingRes: rargs.element.tag,
                 confused: 3,
                 result: fn
             };
-            if (isDebug) (binderResult as any)['bargs'] = bargs;
             return binderResult;
         }
     };

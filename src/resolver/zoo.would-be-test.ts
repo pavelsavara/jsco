@@ -1,7 +1,7 @@
 import { instantiateComponent } from './index';
 import { setConfiguration } from '../utils/assert';
-import type { ZooFoodFood } from '../../tests/zoo-food-food.d.ts';
-import type { ZooFoodEater } from '../../tests/zoo-food-eater.d.ts';
+import type { ZooFoodFood } from '../../tests/zoo-food-food';
+import type { ZooFoodEater } from '../../tests/zoo-food-eater';
 
 type TFeed = typeof ZooFoodEater.feed
 type TZooFoodFood = typeof ZooFoodFood

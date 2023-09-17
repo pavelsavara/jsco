@@ -108,30 +108,6 @@ function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDe
         }
         return args;
     };
-    /*return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: Pointer): Pointer => {
-
-        // TODO in which cases ABI expects folding into parent record ?
-        const res = ctx.alloc(recordModel.totalSize, recordModel.alignment);
-
-        let pos = res as any;
-        for (let i = 0; i < recordModel.members.length; i++) {
-            const member = recordModel.members[i];
-            const lifting = lifters[i];
-            const alignment = member.type.alignment as any;
-            const jsValue = srcJsRecord[member.name];
-            // TODO is this correct math ?
-            pos += alignment - 1;
-            pos -= pos % alignment;
-            lifting(ctx, jsValue, pos as Pointer);
-            pos += member.type.totalSize as any;
-        }
-        // write pointer to parent in component model layout
-        if (tgtPointer !== 0) {
-            ctx.writeI32(tgtPointer, res);
-        }
-
-        return [res, recordModel.totalSize];
-    };*/
 }
 
 function createU32Lifting(): LiftingFromJs {

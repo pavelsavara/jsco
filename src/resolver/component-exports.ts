@@ -1,13 +1,11 @@
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
-import { debugStack, isDebug, jsco_assert } from '../utils/assert';
-import { JsInterfaceCollection } from './api-types';
+import { debugStack, jsco_assert } from '../utils/assert';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentInstance } from './component-instances';
-import { resolveComponentType } from './component-types';
 import { Resolver } from './types';
 
-export const resolveComponentExport: Resolver<ComponentExport, any, JsInterfaceCollection> = (rctx, rargs) => {
+export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) => {
     const componentExport = rargs.element;
     jsco_assert(componentExport && componentExport.tag == ModelTag.ComponentExport, () => `Wrong element type '${componentExport?.tag}'`);
 
@@ -22,17 +20,17 @@ export const resolveComponentExport: Resolver<ComponentExport, any, JsInterfaceC
                 binder: async (bctx, bargs) => {
                     const args = {
                         arguments: bargs.arguments,
+                        imports: bargs.imports,
                         callerArgs: bargs,
                     };
                     debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
 
                     const exportResult = await functionResolution.binder(bctx, args);
+                    //const ifc: any = {};
+                    //ifc[componentExport.name.name] = exportResult.result;
                     const binderResult = {
-                        // missingRes: rargs.element.tag,
                         result: exportResult.result
                     };
-                    if (isDebug) (binderResult as any)['bargs'] = bargs;
-                    if (isDebug) (binderResult as any)['exportResult'] = exportResult;
                     return binderResult;
                 }
             };
@@ -46,6 +44,7 @@ export const resolveComponentExport: Resolver<ComponentExport, any, JsInterfaceC
                 binder: async (bctx, bargs) => {
                     const args = {
                         arguments: bargs.arguments,
+                        imports: bargs.imports,
                         callerArgs: bargs,
                     };
                     debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
@@ -54,39 +53,14 @@ export const resolveComponentExport: Resolver<ComponentExport, any, JsInterfaceC
                     const ifc: any = {};
                     ifc[componentExport.name.name] = instanceResult.result;
                     const binderResult = {
-                        // missingRes: rargs.element.tag,
                         result: ifc
                     };
-                    if (isDebug) (binderResult as any)['bargs'] = bargs;
-                    if (isDebug) (binderResult as any)['exportResult'] = instanceResult;
                     return binderResult;
                 }
             };
         }
         case ComponentExternalKind.Type: {
-            const type = rctx.indexes.componentTypes[componentExport.index];
-            const typeResolution = resolveComponentType(rctx, { element: type, callerElement: componentExport });
-            return {
-                callerElement: rargs.callerElement,
-                element: componentExport,
-                binder: async (bctx, bargs) => {
-                    const args = {
-                        arguments: bargs.arguments,
-                        callerArgs: bargs,
-                    };
-                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
-                    const exportResult = await typeResolution.binder(bctx, args);
-                    const ifc: any = {};
-                    ifc[componentExport.name.name] = exportResult.result;
-                    const binderResult = {
-                        // missingRes: rargs.element.tag,
-                        result: ifc
-                    };
-                    if (isDebug) (binderResult as any)['bargs'] = bargs;
-                    if (isDebug) (binderResult as any)['exportResult'] = exportResult;
-                    return binderResult;
-                }
-            };
+            throw new Error('TODO types');
         }
         case ComponentExternalKind.Component:
         case ComponentExternalKind.Module:

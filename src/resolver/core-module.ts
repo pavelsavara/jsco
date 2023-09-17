@@ -1,16 +1,16 @@
 import { ModelTag } from '../model/tags';
 import { CoreModule } from '../parser/types';
-import { isDebug, jsco_assert } from '../utils/assert';
+import { jsco_assert } from '../utils/assert';
 import { Resolver, BinderRes } from './types';
 
-export const resolveCoreModule: Resolver<CoreModule, WebAssembly.Imports, WebAssembly.Instance> = (rctx, rargs) => {
+export const resolveCoreModule: Resolver<CoreModule> = (rctx, rargs) => {
     const coreModule = rargs.element;
     jsco_assert(coreModule && coreModule.tag == ModelTag.CoreModule, () => `Wrong element type '${coreModule?.tag}'`);
     const coreInstanceIndex = rargs.callerElement.selfSortIndex!;
     return {
         callerElement: rargs.callerElement,
         element: coreModule,
-        binder: async (bctx, bargs): Promise<BinderRes<WebAssembly.Instance>> => {
+        binder: async (bctx, bargs): Promise<BinderRes> => {
             let binderResult = bctx.coreInstances[coreInstanceIndex];
             if (binderResult) {
                 // TODO, do I need to validate that all calls got the same args ?
@@ -18,7 +18,7 @@ export const resolveCoreModule: Resolver<CoreModule, WebAssembly.Imports, WebAss
             }
             const module = await coreModule.module!;
 
-            const instance = await rctx.wasmInstantiate(module, bargs.arguments);
+            const instance = await rctx.wasmInstantiate(module, bargs.imports!);
             //console.log('rctx.wasmInstantiate ' + coreInstanceIndex, Object.keys(instance.exports));
 
             const exports = instance.exports;
@@ -36,10 +36,6 @@ export const resolveCoreModule: Resolver<CoreModule, WebAssembly.Imports, WebAss
             if (cabi_realloc) {
                 bctx.initializeRealloc(cabi_realloc);
             }
-
-            if (isDebug) (binderResult as any)['bargs'] = bargs;
-            if (isDebug) (binderResult as any)['coreInstanceIndex'] = coreInstanceIndex;
-            if (isDebug) (binderResult as any)['coreModuleIndex'] = coreModule.selfSortIndex;
             return binderResult;
         }
     };

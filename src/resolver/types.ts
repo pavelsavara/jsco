@@ -1,10 +1,9 @@
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
-import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport, ComponentFunction, CoreFunction } from '../model/aliases';
-import { CanonicalFunctionLower, CanonicalFunctionLift } from '../model/canonicals';
+import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../model/aliases';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { CoreInstance, ComponentInstance } from '../model/instances';
-import { ComponentTypeInstance, ComponentTypeResource, ComponentTypeFunc, ComponentTypeDefined, ComponentType } from '../model/types';
+import { ComponentTypeResource, ComponentType } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, ComponentSection } from '../parser/types';
 import { ModelElement } from '../model/tags';
@@ -48,8 +47,8 @@ export type ResolverContext = {
 
 export type BindingContext = {
     componentImports: JsImports
-    coreInstances: BinderRes<WebAssembly.Instance>[];
-    componentInstances: BinderRes<WasmComponentInstance<any>>[]
+    coreInstances: BinderRes[];
+    componentInstances: BinderRes[]
     initializeMemory(memory: WebAssembly.Memory): void;
     initializeRealloc(cabi_realloc: TCabiRealloc): void;
     utf8Decoder: TextDecoder;
@@ -65,27 +64,27 @@ export type BindingContext = {
     debugStack?: string[];
 }
 
-export type Resolver<TModelElement, TBinderArguments, TBinderResult> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes<TModelElement, TBinderArguments, TBinderResult>
-export type Binder<TArguments, TResult> = (bctx: BindingContext, args: BinderArgs<TArguments>) => Promise<BinderRes<TResult>>
+export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes
+export type Binder = (bctx: BindingContext, args: BinderArgs) => Promise<BinderRes>
 
 export type ResolverArgs<TModelElement> = {
     callerElement: ModelElement
     element: TModelElement
 }
 
-export type ResolverRes<TModelElement, TBinderArguments, TBinderResult> = {
+export type ResolverRes = {
     callerElement: ModelElement
-    element: TModelElement
-    binder: Binder<TBinderArguments, TBinderResult>
+    element: ModelElement
+    binder: Binder
 }
 
-export type BinderArgs<TArguments> = {
-    callerArgs?: BinderArgs<any>
-    arguments: TArguments
+export type BinderArgs = {
+    callerArgs?: BinderArgs
+    arguments?: any[]
     imports?: any
     debugStack?: string[]
 }
 
-export type BinderRes<TResult> = {
-    result: TResult
+export type BinderRes = {
+    result: any
 }
