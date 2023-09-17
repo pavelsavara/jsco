@@ -8,17 +8,17 @@ const instance = await instantiateComponent('./hello/wasm/hello.wasm', {
 });
 const run = instance.exports['hello:city/greeter'].run;
 run({ name: 'Kladno', headCount: 100000, budget: 0n});
-// prints 'Welcome to Kladno!' to the console
 ```
+Prints `Welcome to Kladno!` to the console.
 
-See [./usage.mjs](./usage.mjs) for commented sample
+See [./usage.mjs](./usage.mjs) for full commented sample.
 
 ## Goals
-- [ ] create browser polyfill for running WASM components, see [TODO.md](./TODO.md)
-- [x] streaming parser of binary WIT
-- [x] streaming compilation of WASM module during .wasm file download
-- [x] in-the-browser creation of instances and necessary JavaScript interop
-- [x] small download size, fast enough (current prototype is 35 KB)
+- browser polyfill for running WASM components.
+- streaming parser of binary WIT
+- streaming compilation of WASM module during .wasm file download
+- in-the-browser creation of instances and necessary JavaScript interop
+- small download size, fast enough (current prototype is 35 KB)
 
 ## How
 - parser: read binary WIT to produce model of the component, it's sub components, modules and types
@@ -27,10 +27,17 @@ See [./usage.mjs](./usage.mjs) for commented sample
 - JS binding: for component's imports and exports
 - just JS (no rust dependency), TypeScript, RollupJS
 
-## Scope
-- hello world demo [wit](hello/wit/hello.wit) [wat](hello/wat/hello.wat)
+## Status
+This is demo-ware quality right now!
+
+See [./TODO.md](./TODO.md), contributors are welcome!
+
+[![test](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml/badge.svg)](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml)
+
+### Demo scope
+- hello world demo [hello.wit](./hello/wit/hello.wit) [hello.wat](./hello/wat/hello.wat) [lib.rs](./hello/src/lib.rs)
 - this is just small attempt in limited time. It may grow into something larger ...
-- binding for `string` and `i32`, `record`. Only necessary resolver.
+- binding for `string` and `i32`, `record` just one direction. Only necessary resolver.
 
 ## Why
 - as a hackathon week project: https://hackbox.microsoft.com/hackathons/hackathon2023/project/32678
