@@ -1,5 +1,5 @@
 import { parse } from './index';
-import { expectPartialModelToEqual } from './jest-utils';
+import { expectModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/hello';
 import { CoreModule } from './types';
 //import { writeToFile } from '../../tests/utils';
@@ -27,6 +27,6 @@ describe('hello', () => {
         const actualModel = await parse('./hello/wasm/hello.wasm');
         //writeToFile('actual-hello.json', JSON.stringify(actualModel, null, 2));
         //writeToFile('expected-hello.json', JSON.stringify(expectedModel, null, 2));
-        expectPartialModelToEqual(actualModel, expectedModel);
+        expectModelToEqual(actualModel, expectedModel);
     });
 });

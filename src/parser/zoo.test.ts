@@ -1,5 +1,5 @@
 import { parse } from './index';
-import { expectPartialModelToEqual } from './jest-utils';
+import { expectModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/zoo';
 import { CoreModule } from './types';
 import { writeToFile } from '../../tests/utils';
@@ -27,6 +27,6 @@ describe('zoo', () => {
         const actualModel = await parse('./zoo/wasm/zoo.wasm');
         // writeToFile('actual-zoo.json', JSON.stringify(actualModel, null, 2));
         //writeToFile('expected-zoo.json', JSON.stringify(expectedModel, null, 2));
-        expectPartialModelToEqual(actualModel, expectedModel);
+        expectModelToEqual(actualModel, expectedModel);
     });
 });
