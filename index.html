@@ -11,7 +11,7 @@
 <body>
   <h3 id="header">JSCO Wasm Component Host for Browser - Demo</h3>
 
-  <div style="font-family: monospace; margin-left: 10em;">
+  <div style="font-family: monospace; margin-left: 5em;">
     <span>City name: &nbsp;&nbsp;&nbsp;&nbsp;<input type="text" value="Kladno" id="city"/><br/></span>
     <span>Head count: &nbsp;&nbsp;&nbsp;<input type="number" value="100000" id="headCount"/><br/></span>
     <span>City budget: &nbsp;&nbsp;<input type="number" value="0" id="budget"/><br/></span>
@@ -22,7 +22,7 @@
   </div>
 
   <h3 id="header">Simplified code</h3>
-  <div style="width: 60%; display: flex; background-color: black;">
+  <div style="width: 60%; display: flex; background-color: black; margin-left: 1em;">
     <pre style="font-family: monospace; color: white;"><code class="language-javascript">  import { instantiateComponent } from &#39;@pavelsavara/jsco&#39;;
 
   const instance = await instantiateComponent(&#39;./hello/wasm/hello.wasm&#39;, {
