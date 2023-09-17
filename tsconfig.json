@@ -27,11 +27,12 @@
     "include": [
         "src/**/*",
         "src/.types.d.ts",
-        "hello/**/*.ts", 
-        "zoo/**/*.ts", 
-        "tests/*.ts", 
-        "tests/*.d.ts"
-, "usage.ts"    ],
+        "hello/**/*.ts",
+        "zoo/**/*.ts",
+        "tests/*.ts",
+        "tests/*.d.ts",
+        "usage.ts"
+    ],
     "exclude": [
         "node_modules",
         "dist",

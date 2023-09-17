@@ -1,5 +1,5 @@
 {
-    "name": "jsco",
+    "name": "@pavelsavara/jsco",
     "version": "0.1.0",
     "description": "browser polyfill for running WASM components",
     "main": "index.js",

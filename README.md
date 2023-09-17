@@ -2,7 +2,7 @@
 
 ## Usage
 ```js
-import { instantiateComponent } from './dist/index.js';
+import { instantiateComponent } from '@pavelsavara/jsco';
 const instance = await instantiateComponent('./hello/wasm/hello.wasm', {
     'hello:city/city': { sendMessage: console.log }
 });
