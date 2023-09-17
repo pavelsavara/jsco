@@ -26,6 +26,10 @@ jobs:
       working-directory: ./hello
       run: npm run build:npm
 
+    - name: Run hello sample as sanity check
+      working-directory: ./hello
+      run: npm run test:usage
+
     - name: Rollup artifact
       uses: actions/upload-artifact@v3
       with:

@@ -57,7 +57,7 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     jsco_assert(componentAliasInstanceExport && componentAliasInstanceExport.tag == ModelTag.ComponentAliasInstanceExport, () => `Wrong element type '${componentAliasInstanceExport?.tag}'`);
 
     if (componentAliasInstanceExport.kind === ComponentExternalKind.Type) {
-
+        // TODO types
         return {
             callerElement: rargs.callerElement,
             element: componentAliasInstanceExport,

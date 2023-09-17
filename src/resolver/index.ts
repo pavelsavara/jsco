@@ -1,5 +1,5 @@
 import { TaggedElement } from '../model/tags';
-import { WITModel, parse } from '../parser';
+import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
 import { isDebug } from '../utils/assert';
 import { JsImports, WasmComponentInstance, WasmComponent, JsInterfaceCollection } from './api-types';
@@ -21,8 +21,13 @@ export async function instantiateComponent<TJSExports>(
     return component.instantiate(imports);
 }
 
-export async function createComponent<TJSExports>(model: WITModel, options?: ComponentFactoryOptions): Promise<WasmComponent<TJSExports>> {
-    const rctx: ResolverContext = createResolverContext(model, options ?? {});
+export async function createComponent<TJSExports>(modelOrComponentOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
+    let input = modelOrComponentOrUrl as any;
+    if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
+        input = await parse(input, options ?? {});
+    }
+
+    const rctx: ResolverContext = createResolverContext(input, options ?? {});
 
     for (const coreModule of rctx.indexes.coreModules) {
         await coreModule.module;
