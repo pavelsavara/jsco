@@ -1,11 +1,11 @@
 import { ComponentAliasCoreInstanceExport } from '../model/aliases';
-import { debugStack, isDebug } from '../utils/assert';
+import { debugStack } from '../utils/assert';
 import { resolveCoreInstance } from './core-instance';
 import { Resolver, BinderRes } from './types';
 
 type ExportResult = Function | WebAssembly.Memory | WebAssembly.Table
 
-export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCoreInstanceExport, any, ExportResult> = (rctx, rargs) => {
+export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCoreInstanceExport> = (rctx, rargs) => {
     const componentAliasCoreInstanceExport = rargs.element;
     const coreInstanceIndex = componentAliasCoreInstanceExport.instance_index;
     const coreInstance = rctx.indexes.coreInstances[coreInstanceIndex];
@@ -14,9 +14,9 @@ export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCor
     return {
         callerElement: rargs.callerElement,
         element: componentAliasCoreInstanceExport,
-        binder: async (bctx, bargs): Promise<BinderRes<ExportResult>> => {
+        binder: async (bctx, bargs): Promise<BinderRes> => {
             const args = {
-                arguments: { missingArgEx: rargs.element.tag } as any as WebAssembly.Imports,
+                missing: rargs.element.tag,
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
@@ -26,10 +26,6 @@ export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCor
             const binderResult = {
                 result
             };
-            if (isDebug) (binderResult as any)['bargs'] = bargs;
-            if (isDebug) (binderResult as any)['moduleResult'] = moduleResult;
-            if (isDebug) (binderResult as any)['fromExportName'] = componentAliasCoreInstanceExport.name;
-            if (isDebug) (binderResult as any)['fromCoreInstanceIndex'] = coreInstanceIndex;
             return binderResult;
         }
     };

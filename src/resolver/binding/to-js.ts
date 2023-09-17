@@ -1,5 +1,5 @@
 import { ModelTag } from '../../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../../model/types';
+import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../../model/types';
 import { BindingContext, ResolverContext } from '../types';
 import { memoize } from './cache';
 import { createLifting } from './to-abi';
@@ -77,16 +77,4 @@ function createStringLowering(rctx: ResolverContext): LoweringToJs {
     };
     fn.spill = 2;
     return fn;
-}
-
-function createRecordLowering(recordModel: ComponentTypeDefinedRecord): LoweringToJs {
-    // receives pointer to record in component model layout
-    return (ctx: BindingContext, ...args: WasmValue[]) => {
-        // return JS record
-        throw new Error('Not implemented');
-        /* return {
-            ... members 
-        } as TRecord
-        */
-    };
 }

@@ -5,21 +5,27 @@
 - resolve data types, `TODO types`
 - `resolveCanonicalFunctionLower` need to load function type without cheating
 - remove or simplify debugging helpers
+- simplify Resolver types
 - be able to run `zoo` sample
 - invoke start section ?
 - nested modules
-- export and import ABI interfaces for direct binding without JS. Something needs to copy the bytes ...
+- export and import ABI interfaces for direct binding without JS. Something needs to copy the bytes ... "fused adapters" ?
 - bind WASI preview 2 `@bytecodealliance/preview2-shim` npm package when necessary
 - make sure we don't keep references to model after component was created. To not leak memory. How to test this ?
+- consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
 
 # Binder todo
 - implement all data types
 - implement argument spilling
-- implement record flattening
+- implement record flattening 
+    - https://github.com/bytecodealliance/wasmtime/blob/2ad057d735edc43f8ba89428d483f2b2430c1068/crates/environ/src/component.rs#L29-L38
+    - https://github.com/WebAssembly/component-model/blob/673d5c43c3cc0f4aeb8996a5c0931af623f16808/design/mvp/canonical-abi/definitions.py#L788
 - implement size and alignment
 - implement `CallContext` and own/borrow
 - respect model options (UTF8/UTF16)
 - trap exceptions and kill the component or marshall the error
+- option to bind lazily only when methods all called
+- fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
 
 # Parser todo
 - load start section
@@ -32,8 +38,9 @@
 - create sample app with nested modules
 - create sample app in go
 - create sample app in JS
-- use JSCO to bind 2 components on the runtime
+- use JSCO to bind multiple components at runtime
 - improve test coverage
+- add test with Chrome, FF
 
 # Build
 - add coverage to CI, fail if lower than some %
@@ -50,3 +57,5 @@
 - attract more contributors
 - review license & add CoC
 - donate this project to @bytecodealliance
+- write article on how it works
+- multi-memory https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/core.rs
