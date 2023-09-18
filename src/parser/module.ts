@@ -31,8 +31,9 @@ function toWasmResponse(
     size: number,
     resolveWhenDoneReading: (_: any) => void
 ) {
+    let remaining = size;
     const pull = async (controller: ReadableByteStreamController): Promise<void> => {
-        const data = await src.readAvailable(size);
+        const data = await src.readAvailable(remaining);
         if (data === null) {
             resolveWhenDoneReading(undefined);
             controller.close();
@@ -41,6 +42,11 @@ function toWasmResponse(
             // copy, otherwise WebAssembly.compileStreaming will detach the underlying buffer.
             const copy = data.slice();
             controller.enqueue(copy);
+            remaining -= data.length;
+            if (remaining === 0) {
+                resolveWhenDoneReading(undefined);
+                controller.close();
+            }
         }
     };
     const rs = new ReadableStream({

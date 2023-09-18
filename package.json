@@ -1,5 +1,5 @@
 {
-    "name": "jsco",
+    "name": "@pavelsavara/jsco",
     "version": "0.1.0",
     "description": "browser polyfill for running WASM components",
     "main": "index.js",
@@ -26,12 +26,12 @@
         "setup:rust:rustup": "rustup toolchain install stable --profile default --no-self-update && rustup target add wasm32-unknown-unknown && rustup target add wasm32-wasi",
         "setup:rust:cargo": "cargo install --git https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8 --locked cargo-component",
         "test:jco": "node ./hello/hello-test.mjs",
+        "test:usage": "node ./usage.mjs && node ./usage2.mjs",
         "test:ci": "jest",
         "test:unix": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
         "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
         "test:cover": "set NODE_OPTIONS=--experimental-vm-modules && jest --coverage"
     },
-
     "repository": {
         "type": "git",
         "url": "git+https://github.com/pavelsavara/jsco.git"
@@ -40,7 +40,9 @@
         "WASM",
         "WIT",
         "WASI",
-        "Component"
+        "Component",
+        "WebAssembly",
+        "polyfill"
     ],
     "author": "Pavel Savara <pavel.savara@gmail.com>",
     "license": "MIT",
@@ -70,6 +72,7 @@
         "typescript": "^5.2.2"
     },
     "dependencies": {
-        "@thi.ng/leb128": "^3.0.34"
+        "@thi.ng/leb128": "^3.0.34",
+        "just-camel-case": "^6.2.0"
     }
 }

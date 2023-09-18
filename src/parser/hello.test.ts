@@ -1,7 +1,8 @@
 import { parse } from './index';
-import { expectPartialModelToEqual } from './jest-utils';
+import { expectModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/hello';
 import { CoreModule } from './types';
+import { ModelTag } from '../model/tags';
 //import { writeToFile } from '../../tests/utils';
 
 describe('hello', () => {
@@ -10,7 +11,7 @@ describe('hello', () => {
         // build it with `npm run build:hello`
         const actualModel = await parse('./hello/wasm/hello.wasm');
 
-        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as CoreModule[];
+        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === ModelTag.CoreModule) as CoreModule[];
 
         expect(moduleSections.length).toBe(3);
         expect(moduleSections[0].module).toBeInstanceOf(Promise);
@@ -27,6 +28,6 @@ describe('hello', () => {
         const actualModel = await parse('./hello/wasm/hello.wasm');
         //writeToFile('actual-hello.json', JSON.stringify(actualModel, null, 2));
         //writeToFile('expected-hello.json', JSON.stringify(expectedModel, null, 2));
-        expectPartialModelToEqual(actualModel, expectedModel);
+        expectModelToEqual(actualModel, expectedModel);
     });
 });

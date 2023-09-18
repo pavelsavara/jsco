@@ -16,6 +16,15 @@
 - https://github.com/bytecodealliance/jco/blob/main/src/cmd/transpile.js
 - https://github.com/WebAssembly/component-model/blob/main/design/mvp/canonical-abi/definitions.py
 
+### resolver
+- https://github.com/bytecodealliance/wasm-interface-types/blob/main/SEMANTICS.md
+- https://github.com/bytecodealliance/jco/blob/177f295422db38ddd7853bd371fd096c6bb70965/crates/js-component-bindgen/src/lib.rs#L101-L114
+- https://github.com/bytecodealliance/wasmtime/blob/2ad057d735edc43f8ba89428d483f2b2430c1068/crates/environ/src/component/translate.rs#L277
+
+### binding
+- https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/intrinsics.rs
+- https://github.com/WebAssembly/component-model/blob/673d5c43c3cc0f4aeb8996a5c0931af623f16808/design/mvp/canonical-abi/definitions.py
+
 ## WASI
 - https://github.com/WebAssembly/wasi-cli/tree/main/wit
 - https://github.com/bytecodealliance/wasmtime/blob/main/crates/wasi/wit/main.wit

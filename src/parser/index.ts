@@ -1,6 +1,4 @@
-import type { WITModel, ParserContext, WITSection, ParserOptions, ComponentSection } from './types';
-export type { WITModel };
-
+import type { WITModel, ParserContext, ParserOptions, ComponentSection } from './types';
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
 import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';
 import { parseSectionCustom, skipSection } from './otherSection';
@@ -13,7 +11,9 @@ import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
-import { ModelTag } from '../model/tags';
+import { ModelTag, WITSection } from '../model/tags';
+
+export type { WITModel };
 
 export const WIT_MAGIC = [0x00, 0x61, 0x73, 0x6d];
 export const WIT_VERSION = [0x0D, 0x00];

@@ -1,5 +1,5 @@
 import { u32 } from './core';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
 /// Represents options for component functions.
 export type CanonicalOption =
@@ -57,7 +57,7 @@ export type CanonicalFunction =
     | CanonicalFunctionResourceRep
 
 /// The function lifts a core WebAssembly function to the canonical ABI.
-export type CanonicalFunctionLift = {
+export type CanonicalFunctionLift = IndexedElement & {
     tag: ModelTag.CanonicalFunctionLift
     /// The index of the core WebAssembly function to lift.
     core_func_index: u32,
@@ -68,7 +68,7 @@ export type CanonicalFunctionLift = {
 }
 
 /// The function lowers a canonical ABI function to a core WebAssembly function.
-export type CanonicalFunctionLower = {
+export type CanonicalFunctionLower = IndexedElement & {
     tag: ModelTag.CanonicalFunctionLower
     /// The index of the function to lower.
     func_index: u32,

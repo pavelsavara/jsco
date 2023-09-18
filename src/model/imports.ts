@@ -1,6 +1,6 @@
 import { u32 } from './core';
 import { ComponentValType } from './types';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
 /// Represents the type bounds for imports and exports.
 export type TypeBounds =
@@ -68,7 +68,7 @@ export type ComponentTypeRefComponent = {
 }
 
 /// Represents an import in a WebAssembly component
-export type ComponentImport = {
+export type ComponentImport = IndexedElement & {
     tag: ModelTag.ComponentImport,
     /// The name of the imported item.
     name: ComponentExternName,

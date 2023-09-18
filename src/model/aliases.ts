@@ -1,6 +1,7 @@
+import { CanonicalFunctionLift, CanonicalFunctionLower } from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
-import { ModelTag } from './tags';
+import { IndexedElement, ModelTag } from './tags';
 
 /// Represents the kind of an outer alias in a WebAssembly component.
 export const enum ComponentOuterAliasKind {
@@ -20,8 +21,12 @@ export type ComponentAlias =
     | ComponentAliasCoreInstanceExport
     | ComponentAliasOuter
 
+export type ComponentFunction =
+    | CanonicalFunctionLift
+    | ComponentAliasInstanceExport
+
 /// The alias is to an export of a component instance.
-export type ComponentAliasInstanceExport = {
+export type ComponentAliasInstanceExport = IndexedElement & {
     tag: ModelTag.ComponentAliasInstanceExport,
     /// The alias kind.
     kind: ComponentExternalKind,
@@ -32,7 +37,7 @@ export type ComponentAliasInstanceExport = {
 }
 
 /// The alias is to an export of a module instance.
-export type ComponentAliasCoreInstanceExport = {
+export type ComponentAliasCoreInstanceExport = IndexedElement & {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     /// The alias kind.
     kind: ExternalKind,
@@ -41,6 +46,10 @@ export type ComponentAliasCoreInstanceExport = {
     /// The export name.
     name: string,
 }
+
+export type CoreFunction =
+    | ComponentAliasCoreInstanceExport
+    | CanonicalFunctionLower
 
 /// The alias is to an outer item.
 export type ComponentAliasOuter = {

@@ -1,8 +1,9 @@
 import { parse } from './index';
-import { expectPartialModelToEqual } from './jest-utils';
+import { expectModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/zoo';
 import { CoreModule } from './types';
 import { writeToFile } from '../../tests/utils';
+import { ModelTag } from '../model/tags';
 
 describe('zoo', () => {
 
@@ -10,7 +11,7 @@ describe('zoo', () => {
         // build it with `npm run build:zoo`
         const actualModel = await parse('./zoo/wasm/zoo.wasm');
 
-        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === 'ComponentModule') as CoreModule[];
+        const moduleSections: CoreModule[] = actualModel.filter((section) => section.tag === ModelTag.CoreModule) as CoreModule[];
 
         expect(moduleSections.length).toBe(3);
         expect(moduleSections[0].module).toBeInstanceOf(Promise);
@@ -27,6 +28,6 @@ describe('zoo', () => {
         const actualModel = await parse('./zoo/wasm/zoo.wasm');
         // writeToFile('actual-zoo.json', JSON.stringify(actualModel, null, 2));
         //writeToFile('expected-zoo.json', JSON.stringify(expectedModel, null, 2));
-        expectPartialModelToEqual(actualModel, expectedModel);
+        expectModelToEqual(actualModel, expectedModel);
     });
 });

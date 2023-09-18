@@ -8,7 +8,7 @@ import { createLowering } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 
 
-export function createImportLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+export function createFunctionLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(importModel, () => {
         const paramLifters: Function[] = [];
         for (const param of importModel.params) {
@@ -37,7 +37,7 @@ export function createImportLifting(rctx: ResolverContext, importModel: Componen
                     const lifter = paramLifters[i];
                     const value = args[i];
                     const converted = lifter(ctx, value);
-                    // TODO do not alwas spill into stack
+                    // TODO do not always spill into stack
                     covertedArgs = [...covertedArgs, ...converted];
                 }
                 const resJs = wasmFunction(...covertedArgs);
@@ -108,30 +108,6 @@ function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDe
         }
         return args;
     };
-    /*return (ctx: BindingContext, srcJsRecord: JsRecord, tgtPointer: Pointer): Pointer => {
-
-        // TODO in which cases ABI expects folding into parent record ?
-        const res = ctx.alloc(recordModel.totalSize, recordModel.alignment);
-
-        let pos = res as any;
-        for (let i = 0; i < recordModel.members.length; i++) {
-            const member = recordModel.members[i];
-            const lifting = lifters[i];
-            const alignment = member.type.alignment as any;
-            const jsValue = srcJsRecord[member.name];
-            // TODO is this correct math ?
-            pos += alignment - 1;
-            pos -= pos % alignment;
-            lifting(ctx, jsValue, pos as Pointer);
-            pos += member.type.totalSize as any;
-        }
-        // write pointer to parent in component model layout
-        if (tgtPointer !== 0) {
-            ctx.writeI32(tgtPointer, res);
-        }
-
-        return [res, recordModel.totalSize];
-    };*/
 }
 
 function createU32Lifting(): LiftingFromJs {

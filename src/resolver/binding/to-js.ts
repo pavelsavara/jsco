@@ -1,12 +1,12 @@
 import { ModelTag } from '../../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../../model/types';
+import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../../model/types';
 import { BindingContext, ResolverContext } from '../types';
 import { memoize } from './cache';
 import { createLifting } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 
 
-export function createExportLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
+export function createFunctionLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(exportModel, () => {
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
@@ -30,26 +30,23 @@ export function createExportLowering(rctx: ResolverContext, exportModel: Compone
                 }
             }
 
-
-            return (ctx: BindingContext, wasmFunction: JsFunction): WasmFunction => {
-                function loweringTrampoline(...args: any[]): any {
-                    let covertedArgs: any[] = [];
-                    for (let i = 0; i < paramLowerers.length; i++) {
-                        const lifter = paramLowerers[i];
-                        const value = args[i];
-                        const converted = lifter(ctx, value);
-                        // TODO do not alwas spill into stack
-                        covertedArgs = [...covertedArgs, ...converted];
-                    }
-                    const resJs = wasmFunction(...covertedArgs);
-                    if (resultLifters.length === 1) {
-                        resultLifters[0](resJs);
-                    }
+            function loweringTrampoline(...args: any[]): any {
+                let covertedArgs: any[] = [];
+                // TODO do not always read spilled stack
+                for (let i = 0; i < paramLowerers.length;) {
+                    const lowerer = paramLowerers[i];
+                    const spill = (lowerer as any).spill;
+                    const values = args.slice(i, i + spill);
+                    const converted = lowerer(ctx, ...values);
+                    i += spill;
+                    covertedArgs = [...covertedArgs, converted];
                 }
-                return loweringTrampoline as WasmFunction;
-            };
-
-
+                const resJs = jsFunction(...covertedArgs);
+                if (resultLifters.length === 1) {
+                    resultLifters[0](resJs);
+                }
+            }
+            return loweringTrampoline as WasmFunction;
         };
     });
 }
@@ -71,22 +68,13 @@ export function createLowering(rctx: ResolverContext, typeModel: ComponentValTyp
 }
 
 function createStringLowering(rctx: ResolverContext): LoweringToJs {
-    return (ctx: BindingContext, ...args: WasmValue[]) => {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const pointer = args[0] as WasmPointer;
         const len = args[1] as WasmSize;
         const view = ctx.getView(pointer, len);
-        return ctx.utf8Decoder.decode(view);
+        const res = ctx.utf8Decoder.decode(view);
+        return res;
     };
-}
-
-function createRecordLowering(recordModel: ComponentTypeDefinedRecord): LoweringToJs {
-    // receives pointer to record in component model layout
-    return (ctx: BindingContext, ...args: WasmValue[]) => {
-        // return JS record
-        throw new Error('Not implemented');
-        /* return {
-            ... members 
-        } as TRecord
-        */
-    };
+    fn.spill = 2;
+    return fn;
 }

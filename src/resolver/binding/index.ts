@@ -1,3 +1,3 @@
-export { createLifting, createImportLifting } from './to-abi';
-export { createLowering, createExportLowering } from './to-js';
+export { createLifting, createFunctionLifting } from './to-abi';
+export { createLowering, createFunctionLowering } from './to-js';
 
