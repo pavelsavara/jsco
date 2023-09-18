@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["pavel.savara@gmail.com"]
 
 [dependencies]
-cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component?rev=e57d1d14#e57d1d1405ed2d76f1f3d8647480dea700379ff8#36c221e4", version = "0.1.0" }
+cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component", rev = "36c221e41db3e87dec4c82eadcb9bc8f37626533" }
 wee_alloc = { version = "0.4.5" }
 
 [lib]

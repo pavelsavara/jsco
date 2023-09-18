@@ -55,11 +55,16 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
         callerElement: rargs.callerElement,
         element: componentInstanceInstantiate,
         binder: async (bctx, bargs) => {
-            if (bctx.componentInstances[componentInstanceInstantiate.selfSortIndex!]) {
-                throw new Error(`Component instance already instantiated: ${componentInstanceInstantiate.selfSortIndex}`);
+            const componentInstanceIndex = componentInstanceInstantiate.selfSortIndex!;
+            let binderResult = bctx.componentInstances[componentInstanceIndex] as BinderRes;
+            if (!binderResult) {
+                binderResult = {
+                    result: {}
+                    // types: componentTypeInstance.declarations
+                };
+                bctx.componentInstances[componentInstanceIndex] = binderResult;
             }
-            const binderResult: BinderRes = {} as any;
-            bctx.componentInstances[componentInstanceInstantiate.selfSortIndex!] = binderResult;
+            Object.assign(binderResult.result, bargs.imports);
 
             const componentArgs = {} as any;
             for (const argResolution of argResolutions) {
@@ -75,6 +80,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 const argResult = await argResolution.binder(bctx, args);
                 componentArgs[callerElement.name] = argResult.result;
             }
+            Object.assign(binderResult.result, componentArgs);
 
             const args = {
                 imports: componentArgs,
@@ -93,16 +99,23 @@ export const resolveComponentTypeInstance: Resolver<ComponentTypeInstance> = (rc
     const componentTypeInstance = rargs.element;
     jsco_assert(componentTypeInstance && componentTypeInstance.tag == ModelTag.ComponentTypeInstance, () => `Wrong element type '${componentTypeInstance?.tag}'`);
 
-    // TODO componentTypeInstance.declarations
-
     return {
         callerElement: rargs.callerElement,
         element: componentTypeInstance,
         binder: async (bctx, bargs) => {
-            const binderResult = {
-                missingRes: rargs.element.tag,
-                result: {}
-            };
+            const instanceIndex = componentTypeInstance.selfSortIndex!;
+            let binderResult = bctx.componentInstances[instanceIndex];
+            if (!binderResult) {
+                binderResult = {
+                    result: {}
+                };
+                bctx.componentInstances[instanceIndex] = binderResult;
+            }
+            Object.assign(binderResult.result, bargs.imports);
+            Object.assign(binderResult, {
+                declarations: componentTypeInstance.declarations,
+                instanceIndex
+            });
             return binderResult;
         }
     };

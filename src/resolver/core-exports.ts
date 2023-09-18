@@ -22,7 +22,7 @@ export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCor
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
 
             const moduleResult = await coreModuleResolution.binder(bctx, args);
-            const result = moduleResult.result.exports[componentAliasCoreInstanceExport.name] as ExportResult;
+            const result = moduleResult.result[componentAliasCoreInstanceExport.name] as ExportResult;
             const binderResult = {
                 result
             };

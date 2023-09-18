@@ -67,6 +67,7 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
 
 export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> = (rctx, rargs) => {
     const coreInstanceInstantiate = rargs.element;
+    const coreInstanceIndex = coreInstanceInstantiate.selfSortIndex!;
     jsco_assert(coreInstanceInstantiate && coreInstanceInstantiate.tag == ModelTag.CoreInstanceInstantiate, () => `Wrong element type '${coreInstanceInstantiate?.tag}'`);
     const coreModuleIndex = coreInstanceInstantiate.module_index;
     const coreModule = rctx.indexes.coreModules[coreModuleIndex];
@@ -92,6 +93,14 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
         element: coreInstanceInstantiate,
         callerElement: rargs.callerElement,
         binder: async (bctx, bargs): Promise<BinderRes> => {
+            let binderResult = bctx.coreInstances[coreInstanceIndex];
+            if (binderResult) {
+                // TODO, do I need to validate that all calls got the same args ?
+                return binderResult;
+            }
+            binderResult = {} as BinderRes;
+            bctx.coreInstances[coreInstanceIndex] = binderResult;
+
             const wasmImports = {
                 debugSource: rargs.element.tag
             } as any as WebAssembly.Imports;
@@ -107,21 +116,31 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
                 debugStack(args, args, callerElement.index + ':' + callerElement.name);
 
                 const argResult = await argResolution.binder(bctx, args);
-
-                const parent = argResolution.callerElement as InstantiationArg;
-                wasmImports[parent.name] = argResult.result as any;
+                console.log('callerElement.name', callerElement.name);
+                wasmImports[callerElement.name] = argResult.result as any;
             }
 
             const args: BinderArgs = {
-                imports: wasmImports,
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
             const moduleResult = await coreModuleResolution.binder(bctx, args);
+            const module = moduleResult.result;
+            const instance = await rctx.wasmInstantiate(module, wasmImports);
+            // console.log('rctx.wasmInstantiate ' + coreInstanceIndex, Object.keys(instance.exports));
+            const exports = instance.exports;
 
-            const binderResult: BinderRes = {
-                result: moduleResult.result
-            };
+            // TODO maybe there are WIT instructions telling that explicitly ?
+            const memory = exports['memory'] as WebAssembly.Memory;
+            if (memory) {
+                bctx.initializeMemory(memory);
+            }
+            const cabi_realloc = exports['cabi_realloc'] as any;
+            if (cabi_realloc) {
+                bctx.initializeRealloc(cabi_realloc);
+            }
+
+            binderResult.result = exports;
             return binderResult;
         }
     };

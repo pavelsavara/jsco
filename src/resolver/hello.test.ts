@@ -19,7 +19,7 @@ describe('resolver hello', () => {
         //TODO asserts
     });
 
-    test.only('component hello.wasm could run', async () => {
+    test('component hello.wasm could run', async () => {
         let actualMessage: string = undefined as any;
 
         const imports: js.NamedImports = {

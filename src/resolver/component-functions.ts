@@ -7,6 +7,8 @@ import { createFunctionLifting } from './binding';
 import { resolveComponentInstance } from './component-instances';
 import { resolveCoreFunction } from './core-functions';
 import { Resolver } from './types';
+import camelCase from 'just-camel-case';
+import kebabCase from 'just-kebab-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const coreInstance = rargs.element;
@@ -78,11 +80,8 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         throw new Error(`"${componentAliasInstanceExport.kind}" not implemented`);
     }
 
-    //componentAliasInstanceExport.instance_index;
-    //componentAliasInstanceExport.kind;
-
-    //const instance = rctx.indexes.componentInstances[componentAliasInstanceExport.instance_index];
-    //const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentAliasInstanceExport });
+    const instance = rctx.indexes.componentInstances[componentAliasInstanceExport.instance_index];
+    const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentAliasInstanceExport });
 
     return {
         callerElement: rargs.callerElement,
@@ -95,16 +94,20 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
-            //const moduleResult = await instanceResolution.binder(bctx, args);
+            const instanceResult = await instanceResolution.binder(bctx, args);
 
-            //componentAliasInstanceExport.name;
-
+            let fn;
             // TODO this is very fake, how do it know this ?
-            const fn = bargs.imports['import-func-run'] ?? bargs.imports['hello:city/city']['sendMessage'];
+            const askedName = args.arguments?.[0] as string;
+            if (askedName) {
+                const kbName = kebabCase(askedName);
+                fn = instanceResult.result['import-func-' + kbName];
+            } else {
+                const ccName = camelCase(componentAliasInstanceExport.name);
+                fn = instanceResult.result['hello:city/city'][ccName];
+            }
 
             const binderResult = {
-                missingRes: rargs.element.tag,
-                confused: 3,
                 result: fn
             };
             return binderResult;

@@ -461,17 +461,14 @@ export const componentImport0: ComponentImport = {
 
 export const coreModule0: CoreModule = {
     tag: ModelTag.CoreModule,
-    data: 'M0' as any,
 };
 
 export const coreModule1: CoreModule = {
     tag: ModelTag.CoreModule,
-    data: 'M1' as any,
 };
 
 export const coreModule2: CoreModule = {
     tag: ModelTag.CoreModule,
-    data: 'M1' as any,
 };
 
 export const coreInstance0: CoreInstanceInstantiate = {

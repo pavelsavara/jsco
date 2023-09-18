@@ -32,7 +32,6 @@
         "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
         "test:cover": "set NODE_OPTIONS=--experimental-vm-modules && jest --coverage"
     },
-
     "repository": {
         "type": "git",
         "url": "git+https://github.com/pavelsavara/jsco.git"
@@ -73,6 +72,8 @@
         "typescript": "^5.2.2"
     },
     "dependencies": {
-        "@thi.ng/leb128": "^3.0.34"
+        "@thi.ng/leb128": "^3.0.34",
+        "just-camel-case": "^6.2.0",
+        "just-kebab-case": "^4.2.0"
     }
 }
