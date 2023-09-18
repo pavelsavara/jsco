@@ -8,7 +8,6 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveCoreFunction } from './core-functions';
 import { Resolver } from './types';
 import camelCase from 'just-camel-case';
-import kebabCase from 'just-kebab-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const coreInstance = rargs.element;
@@ -47,7 +46,6 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             const jsFunction = liftingBinder(bctx, functionResult.result);
 
             const binderResult = {
-                // missingRes: rargs.element.tag,
                 result: jsFunction
             };
             return binderResult;
@@ -87,24 +85,22 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         callerElement: rargs.callerElement,
         element: componentAliasInstanceExport,
         binder: async (bctx, bargs) => {
-            //console.log('componentAliasInstanceExport', componentAliasInstanceExport, bargs.arguments);
             const args = {
                 arguments: bargs.arguments,
                 imports: bargs.imports,
                 callerArgs: bargs,
             };
             debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
-            const instanceResult = await instanceResolution.binder(bctx, args);
+            const instanceResult = await instanceResolution.binder(bctx, args) as any;
 
+            // TODO resolve type as well
             let fn;
-            // TODO this is very fake, how do it know this ?
             const askedName = args.arguments?.[0] as string;
             if (askedName) {
-                const kbName = kebabCase(askedName);
-                fn = instanceResult.result['import-func-' + kbName];
+                fn = instanceResult.result.exports[askedName];
             } else {
                 const ccName = camelCase(componentAliasInstanceExport.name);
-                fn = instanceResult.result['hello:city/city'][ccName];
+                fn = instanceResult.result.imports[ccName];
             }
 
             const binderResult = {

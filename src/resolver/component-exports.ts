@@ -26,8 +26,6 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
                     debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
 
                     const exportResult = await functionResolution.binder(bctx, args);
-                    //const ifc: any = {};
-                    //ifc[componentExport.name.name] = exportResult.result;
                     const binderResult = {
                         result: exportResult.result
                     };

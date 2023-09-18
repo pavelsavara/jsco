@@ -116,7 +116,6 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
                 debugStack(args, args, callerElement.index + ':' + callerElement.name);
 
                 const argResult = await argResolution.binder(bctx, args);
-                console.log('callerElement.name', callerElement.name);
                 wasmImports[callerElement.name] = argResult.result as any;
             }
 
