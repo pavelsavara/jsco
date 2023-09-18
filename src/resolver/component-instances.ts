@@ -1,3 +1,4 @@
+import camelCase from 'just-camel-case';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentInstance, ComponentInstanceInstantiate, ComponentInstantiationArg } from '../model/instances';
 import { ModelTag } from '../model/tags';
@@ -6,7 +7,7 @@ import { debugStack, jsco_assert } from '../utils/assert';
 import { JsInterfaceCollection } from './api-types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
-import { BinderRes, Resolver, ResolverRes } from './types';
+import { BinderRes, BindingContext, Resolver, ResolverRes } from './types';
 
 export const resolveComponentInstance: Resolver<ComponentInstance> = (rctx, rargs) => {
     const coreInstance = rargs.element;
@@ -55,15 +56,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
         callerElement: rargs.callerElement,
         element: componentInstanceInstantiate,
         binder: async (bctx, bargs) => {
-            const componentInstanceIndex = componentInstanceInstantiate.selfSortIndex!;
-            let binderResult = bctx.componentInstances[componentInstanceIndex] as BinderRes;
-            if (!binderResult) {
-                binderResult = {
-                    result: {}
-                    // types: componentTypeInstance.declarations
-                };
-                bctx.componentInstances[componentInstanceIndex] = binderResult;
-            }
+            const binderResult = lookupComponentInstance(bctx, componentInstanceInstantiate.selfSortIndex!);
             Object.assign(binderResult.result, bargs.imports);
 
             const componentArgs = {} as any;
@@ -78,9 +71,15 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
                 debugStack(args, args, 'ComponentInstantiationArg:' + callerElement.index + ':' + callerElement.name);
                 const argResult = await argResolution.binder(bctx, args);
-                componentArgs[callerElement.name] = argResult.result;
+                let argName = callerElement.name;
+                // TODO is this prefix a convention ?
+                if (argName.startsWith('import-func-')) {
+                    argName = argName.substring('import-func-'.length);
+                }
+                argName = camelCase(argName);
+                componentArgs[argName] = argResult.result;
             }
-            Object.assign(binderResult.result, componentArgs);
+            Object.assign(binderResult.result.exports, componentArgs);
 
             const args = {
                 imports: componentArgs,
@@ -103,21 +102,26 @@ export const resolveComponentTypeInstance: Resolver<ComponentTypeInstance> = (rc
         callerElement: rargs.callerElement,
         element: componentTypeInstance,
         binder: async (bctx, bargs) => {
-            const instanceIndex = componentTypeInstance.selfSortIndex!;
-            let binderResult = bctx.componentInstances[instanceIndex];
-            if (!binderResult) {
-                binderResult = {
-                    result: {}
-                };
-                bctx.componentInstances[instanceIndex] = binderResult;
-            }
-            Object.assign(binderResult.result, bargs.imports);
-            Object.assign(binderResult, {
-                declarations: componentTypeInstance.declarations,
-                instanceIndex
-            });
+            const binderResult = lookupComponentInstance(bctx, componentTypeInstance.selfSortIndex!);
+            Object.assign(binderResult.result.exports, bargs.imports);
+            Object.assign(binderResult.result.types, componentTypeInstance.declarations);
             return binderResult;
         }
     };
 };
 
+export function lookupComponentInstance(bctx: BindingContext, instanceIndex: number): BinderRes {
+    let binderResult = bctx.componentInstances[instanceIndex] as any;
+    if (!binderResult) {
+        binderResult = {
+            result: {
+                instanceIndex,
+                imports: {},
+                exports: {},
+                types: {}
+            }
+        };
+        bctx.componentInstances[instanceIndex] = binderResult;
+    }
+    return binderResult;
+}

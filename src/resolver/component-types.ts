@@ -71,6 +71,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
                 debugStack(args, args, callerElement.tag + ':' + callerElement.name.name);
 
                 const argResult = await exportResolution.binder(bctx, args);
+
                 exports[callerElement.name.name] = argResult.result as any;
             }
             const binderResult: BinderRes = {
