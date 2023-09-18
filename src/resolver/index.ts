@@ -84,7 +84,6 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
         } as any as WasmComponentInstance<TJSExports>;
     }
     const component: WasmComponent<TJSExports> = {
-        resolverContext: rctx,
         instantiate,
     };
     return component;

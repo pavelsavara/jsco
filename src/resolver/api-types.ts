@@ -10,7 +10,6 @@ export type JsExports<TJSExports> = TJSExports & JsInterfaceCollection
 export type JsImports = JsInterfaceCollection
 
 export type WasmComponent<TJSExports> = {
-    resolverContext: any; // ResolverContext is not public type
     instantiate: WasmComponentFactory<TJSExports>
 }
 export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>

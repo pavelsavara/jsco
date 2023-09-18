@@ -1,18 +1,5 @@
 # jsco - Browser polyfill for running WASM components
 
-## Usage
-```js
-import { instantiateComponent } from '@pavelsavara/jsco';
-const instance = await instantiateComponent('./hello/wasm/hello.wasm', {
-    'hello:city/city': { sendMessage: console.log }
-});
-const run = instance.exports['hello:city/greeter'].run;
-run({ name: 'Kladno', headCount: 100000, budget: 0n});
-```
-Prints `Welcome to Kladno!` to the console.
-
-See [./usage.mjs](./usage.mjs) for full commented sample.
-
 ### Demo
 
 See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](https://github.com/pavelsavara/jsco/tree/demo-page)
@@ -34,6 +21,8 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 ## Status
 🚧 This is demo-ware quality right now: There are still few things **hardcoded and fake** 🚧
 
+🚧 Parser: 90%,  Resolver: 50%, Lifting/Lowering: 5% 🚧
+
 See [./TODO.md](./TODO.md), contributors are welcome!
 
 [![test](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml/badge.svg)](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml)
@@ -52,6 +41,19 @@ See [./TODO.md](./TODO.md), contributors are welcome!
 - [JCO](https://github.com/bytecodealliance/jco) is great alternative, really. 
     - But it is too large to use as dynamic host, because download size matters to browser folks.
     - When you have all your components available at dev machine, JCO transpiler could be better choice.
+
+## Usage
+```js
+import { instantiateComponent } from '@pavelsavara/jsco';
+const instance = await instantiateComponent('./hello/wasm/hello.wasm', {
+    'hello:city/city': { sendMessage: console.log }
+});
+const run = instance.exports['hello:city/greeter'].run;
+run({ name: 'Kladno', headCount: 100000, budget: 0n});
+```
+Prints `Welcome to Kladno!` to the console.
+
+See [./usage.mjs](./usage.mjs) for full commented sample.
 
 ## Contribute
 - install [rust](https://www.rust-lang.org/tools/install)

@@ -24,10 +24,19 @@ const constants = {
     'env:gitHash': `export default "${gitHash}"`,
 };
 const plugins = isDebug ? [] : [terser({
+    ecma: 2022,
     compress: {
         defaults: true,
+        module: true,
+        ecma: 2022,
+        toplevel : true,
+        passes: 4
     },
-    mangle: {},
+    mangle: {
+        module: true,
+        toplevel : true,
+        // TODO properties:{ reserved:['leb128DecodeU64', 'leb128DecodeI64', 'leb128EncodeU64', 'leb128EncodeI64', 'buf', 'memory'] }
+    },
 })];
 const banner = '//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash'];

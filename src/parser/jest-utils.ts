@@ -1,9 +1,10 @@
 import * as jco from '@bytecodealliance/jco';
 import { WITModel, parse } from '.';
+import { ModelTag } from '../model/tags';
 
 export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
     const noModules = actualModel.map((section) => {
-        if (section.tag === 'CoreModule') {
+        if (section.tag === ModelTag.CoreModule) {
             delete section.module;
         }
         return section;

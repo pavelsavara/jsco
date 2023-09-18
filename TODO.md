@@ -1,9 +1,7 @@
 # Resolver todo
-- cache component instance
-- `resolveComponentAliasInstanceExport` should not be cheating about function names
-- cleanup `confused:`
+- `resolveCanonicalFunctionLower` has **hardcoded lookup of the data type**, this would not work outside of this demo!
+- handling of the import/export names/namespaces is probably wrong
 - resolve data types, `TODO types`
-- `resolveCanonicalFunctionLower` need to load function type without cheating
 - remove or simplify debugging helpers
 - simplify Resolver types
 - be able to run `zoo` sample
@@ -13,6 +11,7 @@
 - bind WASI preview 2 `@bytecodealliance/preview2-shim` npm package when necessary
 - make sure we don't keep references to model after component was created. To not leak memory. How to test this ?
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
+- all `export const enum` could be converted to numeric, which will be faster and save few KB of the download. But debugging and JSON would have numbers. Maybe regexp in rollup.
 
 # Binder todo
 - implement all data types
