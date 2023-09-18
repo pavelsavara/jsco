@@ -12,11 +12,8 @@ setConfiguration('Debug');
 
 describe('resolver hello', () => {
     test('resolver compiles component from fake model', async () => {
-        //TODO const wasm = './hello/wasm/hello.wasm';
         const component = await createComponent<js.NamedExports>(expectedModel);
-        const rctx = component.resolverContext as ResolverContext;
-
-        //TODO asserts
+        expect(component).toBeDefined();
     });
 
     test('component hello.wasm could run', async () => {
