@@ -309,9 +309,9 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                         }
                     }
                 ],
-                'results': {
+                results: {
                     tag: ModelTag.ComponentFuncResultNamed,
-                    'values': []
+                    values: []
                 }
             }
         },
@@ -353,9 +353,9 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                         }
                     }
                 ],
-                'results': {
+                results: {
                     tag: ModelTag.ComponentFuncResultNamed,
-                    'values': []
+                    values: []
                 }
             }
         },
@@ -376,6 +376,13 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                 tag: ModelTag.ComponentTypeFunc,
                 params: [
                     {
+                        name: 'sealingstate',
+                        type: {
+                            tag: ModelTag.ComponentValTypeType,
+                            value: 10
+                        }
+                    },
+                    {
                         name: 'packageinfo',
                         type: {
                             tag: ModelTag.ComponentValTypeType,
@@ -390,9 +397,9 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                         }
                     }
                 ],
-                'results': {
+                results: {
                     tag: ModelTag.ComponentFuncResultNamed,
-                    'values': []
+                    values: []
                 }
             }
         },
@@ -410,13 +417,23 @@ export const componentTypeInstance0: ComponentTypeInstance = {
         {
             tag: ModelTag.InstanceTypeDeclarationType,
             value: {
+                tag: ModelTag.ComponentTypeDefinedList,
+                value: {
+                    tag: ModelTag.ComponentValTypeType,
+                    value: 12
+                }
+            },
+        },
+        {
+            tag: ModelTag.InstanceTypeDeclarationType,
+            value: {
                 tag: ModelTag.ComponentTypeFunc,
                 params: [
                     {
-                        name: 'sealingstate',
+                        name: 'trashed',
                         type: {
                             tag: ModelTag.ComponentValTypeType,
-                            value: 10
+                            value: 16
                         }
                     },
                     {
@@ -425,12 +442,15 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                             tag: ModelTag.ComponentValTypePrimitive,
                             value: PrimitiveValType.String
                         }
-                    }
+                    },
                 ],
-                'results': {
-                    tag: ModelTag.ComponentFuncResultNamed,
-                    'values': []
-                }
+                results: {
+                    tag: ModelTag.ComponentFuncResultUnnamed,
+                    type: {
+                        tag: ModelTag.ComponentValTypePrimitive,
+                        value: PrimitiveValType.Bool
+                    }
+                },
             }
         },
         {
@@ -441,7 +461,7 @@ export const componentTypeInstance0: ComponentTypeInstance = {
             },
             ty: {
                 tag: ModelTag.ComponentTypeRefFunc,
-                value: 16
+                value: 17
             }
         }
     ]
@@ -1083,7 +1103,7 @@ export const componentTypeComponent0: ComponentSection = {
         },
         {
             tag: ModelTag.ComponentTypeFunc,
-            'params': [
+            params: [
                 {
                     name: 'foodinfo',
                     type: {
@@ -1099,9 +1119,9 @@ export const componentTypeComponent0: ComponentSection = {
                     }
                 }
             ],
-            'results': {
+            results: {
                 tag: ModelTag.ComponentFuncResultNamed,
-                'values': []
+                values: []
             }
         },
         {
@@ -1132,11 +1152,12 @@ export const componentTypeComponent0: ComponentSection = {
                 name: 'package-info'
             },
             kind: ComponentExternalKind.Type,
-            index: 12
+            index: 12,
+            ty: undefined
         },
         {
             tag: ModelTag.ComponentTypeFunc,
-            'params': [
+            params: [
                 {
                     name: 'foodinfo',
                     type: {
@@ -1152,9 +1173,9 @@ export const componentTypeComponent0: ComponentSection = {
                     }
                 }
             ],
-            'results': {
+            results: {
                 tag: ModelTag.ComponentFuncResultNamed,
-                'values': []
+                values: []
             }
         },
         {
