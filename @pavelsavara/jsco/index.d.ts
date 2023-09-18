@@ -613,7 +613,6 @@ type WasmComponentInstance<TJSExports> = {
 type JsExports<TJSExports> = TJSExports & JsInterfaceCollection;
 type JsImports = JsInterfaceCollection;
 type WasmComponent<TJSExports> = {
-    resolverContext: any;
     instantiate: WasmComponentFactory<TJSExports>;
 };
 type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>;
@@ -657,8 +656,8 @@ type ResolverContext = {
 };
 type BindingContext = {
     componentImports: JsImports;
-    coreInstances: BinderRes<WebAssembly.Instance>[];
-    componentInstances: BinderRes<WasmComponentInstance<any>>[];
+    coreInstances: BinderRes[];
+    componentInstances: BinderRes[];
     initializeMemory(memory: WebAssembly.Memory): void;
     initializeRealloc(cabi_realloc: TCabiRealloc): void;
     utf8Decoder: TextDecoder;
@@ -673,8 +672,8 @@ type BindingContext = {
     abort: () => void;
     debugStack?: string[];
 };
-type BinderRes<TResult> = {
-    result: TResult;
+type BinderRes = {
+    result: any;
 };
 
 declare function instantiateComponent<TJSExports>(modelOrComponentOrUrl: ComponentFactoryInput, imports?: JsImports, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponentInstance<TJSExports>>;
