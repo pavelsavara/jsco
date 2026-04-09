@@ -305,8 +305,8 @@ describe('function trampolines', () => {
             const mockWasm = (a: number) => {
                 const ptr = 256;
                 const dv = new DataView(buffer);
-                dv.setUint32(ptr, a * 2, true);      // x = a * 2
-                dv.setUint32(ptr + 4, a * 3, true);  // y = a * 3
+                dv.setUint32(ptr, a * 2, true); // x = a * 2
+                dv.setUint32(ptr + 4, a * 3, true); // y = a * 3
                 return ptr;
             };
 
@@ -353,7 +353,7 @@ describe('function trampolines', () => {
 
             // Read back from memory at retptr
             const dv = new DataView(buffer);
-            expect(dv.getUint32(retptr, true)).toBe(11);     // x = 10 + 1
+            expect(dv.getUint32(retptr, true)).toBe(11); // x = 10 + 1
             expect(dv.getUint32(retptr + 4, true)).toBe(12); // y = 10 + 2
         });
 
@@ -419,8 +419,8 @@ describe('function trampolines', () => {
                 }
                 // Write result to a known location
                 const resPtr = 1024;
-                dv.setUint32(resPtr, sum, true);      // sum
-                dv.setUint32(resPtr + 4, 18, true);    // count
+                dv.setUint32(resPtr, sum, true); // sum
+                dv.setUint32(resPtr + 4, 18, true); // count
                 return resPtr;
             };
 
@@ -450,7 +450,7 @@ describe('function trampolines', () => {
 
             const args = Array.from({ length: 16 }, (_, i) => i + 1);
             const result = jsFunc(...args);
-            expect(argCount).toBe(16);  // All 16 passed flat
+            expect(argCount).toBe(16); // All 16 passed flat
             expect(result).toBe(1 + 16); // first + last
         });
 
@@ -472,8 +472,8 @@ describe('function trampolines', () => {
 
             const args = Array.from({ length: 17 }, (_, i) => i + 100);
             const result = jsFunc(...args);
-            expect(argCount).toBe(1);   // spilled: single ptr arg
-            expect(result).toBe(100);   // first value
+            expect(argCount).toBe(1); // spilled: single ptr arg
+            expect(result).toBe(100); // first value
         });
     });
 });

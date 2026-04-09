@@ -1619,8 +1619,8 @@ describe('multi-word flags (>32 members)', () => {
         flags['f32'] = true;
         const result = lifter(bctx, flags);
         expect(result).toHaveLength(2);
-        expect(result[0]).toBe(0);     // first word: no bits set
-        expect(result[1]).toBe(1);     // second word: bit 0 set (f32)
+        expect(result[0]).toBe(0); // first word: no bits set
+        expect(result[1]).toBe(1); // second word: bit 0 set (f32)
     });
 
     test('64 flags: all set in both words', () => {
@@ -1631,8 +1631,8 @@ describe('multi-word flags (>32 members)', () => {
         for (const m of members) flags[m] = true;
         const result = lifter(bctx, flags);
         expect(result).toHaveLength(2);
-        expect(result[0]).toBe(-1);    // 0xFFFFFFFF as signed i32
-        expect(result[1]).toBe(-1);    // 0xFFFFFFFF as signed i32
+        expect(result[0]).toBe(-1); // 0xFFFFFFFF as signed i32
+        expect(result[1]).toBe(-1); // 0xFFFFFFFF as signed i32
     });
 
     test('64 flags lowering round-trip', () => {

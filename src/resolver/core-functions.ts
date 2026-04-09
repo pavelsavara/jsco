@@ -24,14 +24,14 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     const canonicalFunctionLowerElem = rargs.element;
     jsco_assert(canonicalFunctionLowerElem && canonicalFunctionLowerElem.tag == ModelTag.CanonicalFunctionLower, () => `Wrong element type '${canonicalFunctionLowerElem?.tag}'`);
 
-    const componentFuntion = getComponentFunction(rctx, canonicalFunctionLowerElem.func_index);
-    const componentFunctionResolution = resolveComponentFunction(rctx, { element: componentFuntion, callerElement: canonicalFunctionLowerElem });
+    const componentFunction = getComponentFunction(rctx, canonicalFunctionLowerElem.func_index);
+    const componentFunctionResolution = resolveComponentFunction(rctx, { element: componentFunction, callerElement: canonicalFunctionLowerElem });
 
     // Resolve function type by following the component function chain:
     // CanonicalFunctionLower.func_index → componentFunction →
     //   CanonicalFunctionLift.type_index → ComponentTypeFunc
     //   ComponentAliasInstanceExport → resolvedTypes lookup
-    const funcType = resolveLoweredFuncType(rctx, componentFuntion);
+    const funcType = resolveLoweredFuncType(rctx, componentFunction);
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
     jsco_assert(canonOpts.stringEncoding === StringEncoding.Utf8,
@@ -49,7 +49,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
-            debugStack(args, args, componentFuntion.tag + ':' + componentFuntion.selfSortIndex);
+            debugStack(args, args, componentFunction.tag + ':' + componentFunction.selfSortIndex);
             const functionResult = await componentFunctionResolution.binder(bctx, args);
 
             const wasmFunction = loweringBinder(bctx, functionResult.result as JsFunction);
@@ -103,5 +103,5 @@ function resolveLoweredFuncType(rctx: import('./types').ResolverContext, compone
         throw new Error(`Could not resolve function type for ComponentAliasInstanceExport '${componentFunction.name}'`);
     }
 
-    throw new Error(`Cannot resolve function type for component function tag '${componentFunction.tag}'`);
+    throw new Error(`Cannot resolve function type for component function tag '${(componentFunction as any).tag}'`);
 }

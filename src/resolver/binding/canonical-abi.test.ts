@@ -561,7 +561,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setUint8(16, 1); // discriminant = Some
         // padding to align list (ptr, len are 4-byte aligned) → offset 20
         dv.setInt32(20, 200, true); // list ptr
-        dv.setInt32(24, 3, true);   // list len
+        dv.setInt32(24, 3, true); // list len
 
         const result = loadFromMemory(ctx, rctx, 16, optionModel);
         expect(result).toEqual([1, 2, 3]);
@@ -603,7 +603,7 @@ describe('C3: nested compound types through memory', () => {
         // result layout: discriminant(4 bytes) + payload at offset 4
         // ok case: discriminant=0, payload=u32
         const dv = new DataView(buffer);
-        dv.setInt32(16, 0, true);  // discriminant = ok
+        dv.setInt32(16, 0, true); // discriminant = ok
         dv.setUint32(20, 42, true); // payload = 42
 
         const result = loadFromMemory(ctx, rctx, 16, resultModel);
@@ -627,9 +627,9 @@ describe('C3: nested compound types through memory', () => {
         // result layout: discriminant(4 bytes) + payload
         // err case: discriminant=1, payload=string (ptr+len)
         const dv = new DataView(buffer);
-        dv.setInt32(16, 1, true);    // discriminant = err
-        dv.setInt32(20, 200, true);  // string ptr
-        dv.setInt32(24, 4, true);    // string len
+        dv.setInt32(16, 1, true); // discriminant = err
+        dv.setInt32(20, 200, true); // string ptr
+        dv.setInt32(24, 4, true); // string len
 
         const result = loadFromMemory(ctx, rctx, 16, resultModel);
         expect(result).toEqual({ tag: 'err', val: 'oops' });
@@ -730,7 +730,7 @@ describe('C3: nested compound types through memory', () => {
         // Now set up list pointer: ptr=200, len=2
         const dv = new DataView(buffer);
         dv.setInt32(16, 200, true); // ptr
-        dv.setInt32(20, 2, true);   // len
+        dv.setInt32(20, 2, true); // len
 
         // Load the list using lowerer
         const lowerer = createLowering(rctx, listModel);
@@ -761,12 +761,12 @@ describe('C3: nested compound types through memory', () => {
         // [Some(10), None, Some(20)]
         const dv = new DataView(buffer);
         // Element 0: Some(10) at 200
-        dv.setUint8(200, 1);       // discriminant = Some
+        dv.setUint8(200, 1); // discriminant = Some
         dv.setUint32(204, 10, true); // payload
         // Element 1: None at 208
-        dv.setUint8(208, 0);       // discriminant = None
+        dv.setUint8(208, 0); // discriminant = None
         // Element 2: Some(20) at 216
-        dv.setUint8(216, 1);       // discriminant = Some
+        dv.setUint8(216, 1); // discriminant = Some
         dv.setUint32(220, 20, true); // payload
 
         const lowerer = createLowering(rctx, listModel);
@@ -1035,9 +1035,9 @@ describe('C-integration: full round-trip with validation', () => {
         new Uint8Array(buffer).set(nameBytes, 200);
 
         const dv = new DataView(buffer);
-        dv.setUint32(32, 42, true);   // id
-        dv.setInt32(36, 200, true);    // name ptr
-        dv.setInt32(40, 5, true);      // name len
+        dv.setUint32(32, 42, true); // id
+        dv.setInt32(36, 200, true); // name ptr
+        dv.setInt32(40, 5, true); // name len
 
         const result = loadFromMemory(ctx, rctx, 32, recordModel);
         expect(result.id).toBe(42);

@@ -1,9 +1,9 @@
 export function memoize<K, V>(cache: Map<unknown, unknown>, key: K, factory: () => V): V {
-    let res = cache.get(key);
+    const res = cache.get(key);
     if (res !== undefined) {
-        return res;
+        return res as V;
     }
-    res = factory();
-    cache.set(key, res!);
-    return res!;
+    const value = factory();
+    cache.set(key, value!);
+    return value!;
 }

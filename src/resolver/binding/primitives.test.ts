@@ -175,15 +175,15 @@ describe('primitive lifting (JS → WASM)', () => {
     });
 
     describe('char', () => {
-        test("'A' lifts to [65]", () => {
+        test('\'A\' lifts to [65]', () => {
             const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
             expect(lifter(bctx, 'A')).toEqual([65]);
         });
-        test("'€' lifts to [8364]", () => {
+        test('\'€\' lifts to [8364]', () => {
             const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '€')).toEqual([8364]);
         });
-        test("'🎉' lifts to [127881]", () => {
+        test('\'🎉\' lifts to [127881]', () => {
             const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '🎉')).toEqual([127881]);
         });
@@ -301,15 +301,15 @@ describe('primitive lowering (WASM → JS)', () => {
     });
 
     describe('char', () => {
-        test("65 lowers to 'A'", () => {
+        test('65 lowers to \'A\'', () => {
             const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
             expect(lowerer(bctx, 65)).toBe('A');
         });
-        test("8364 lowers to '€'", () => {
+        test('8364 lowers to \'€\'', () => {
             const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
             expect(lowerer(bctx, 8364)).toBe('€');
         });
-        test("127881 lowers to '🎉'", () => {
+        test('127881 lowers to \'🎉\'', () => {
             const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
             expect(lowerer(bctx, 127881)).toBe('🎉');
         });
