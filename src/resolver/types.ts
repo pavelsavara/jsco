@@ -6,8 +6,58 @@ import { CoreInstance, ComponentInstance } from '../model/instances';
 import { ComponentTypeResource, ComponentType } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, ComponentSection } from '../parser/types';
-import { ModelElement } from '../model/tags';
+import { TaggedElement } from '../model/tags';
 import { JsImports, WasmComponentInstance } from './api-types';
+import type { ComponentTypeIndex } from '../model/indices';
+import type { ResolvedType } from './type-resolution';
+import type { CanonicalOption } from '../model/canonicals';
+import { ModelTag } from '../model/tags';
+import { jsco_assert } from '../utils/assert';
+
+export const enum StringEncoding {
+    Utf8 = 'utf-8',
+    Utf16 = 'utf-16',
+    CompactUtf16 = 'compact-utf-16',
+}
+
+export type ResolvedCanonicalOptions = {
+    stringEncoding: StringEncoding;
+    memoryIndex?: number;
+    reallocIndex?: number;
+    postReturnIndex?: number;
+}
+
+export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCanonicalOptions {
+    let stringEncoding: StringEncoding = StringEncoding.Utf8;
+    let memoryIndex: number | undefined;
+    let reallocIndex: number | undefined;
+    let postReturnIndex: number | undefined;
+
+    for (const opt of options) {
+        switch (opt.tag) {
+            case ModelTag.CanonicalOptionUTF8:
+                stringEncoding = StringEncoding.Utf8;
+                break;
+            case ModelTag.CanonicalOptionUTF16:
+                stringEncoding = StringEncoding.Utf16;
+                break;
+            case ModelTag.CanonicalOptionCompactUTF16:
+                stringEncoding = StringEncoding.CompactUtf16;
+                break;
+            case ModelTag.CanonicalOptionMemory:
+                memoryIndex = opt.value;
+                break;
+            case ModelTag.CanonicalOptionRealloc:
+                reallocIndex = opt.value;
+                break;
+            case ModelTag.CanonicalOptionPostReturn:
+                postReturnIndex = opt.value;
+                break;
+        }
+    }
+
+    return { stringEncoding, memoryIndex, reallocIndex, postReturnIndex };
+}
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
@@ -43,48 +93,73 @@ export type ResolverContext = {
     indexes: IndexedModel;
     usesNumberForInt64: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
+    memoizeCache: Map<unknown, unknown>
+    resolvedTypes: ReadonlyMap<ComponentTypeIndex, ResolvedType>
 }
 
-export type BindingContext = {
-    componentImports: JsImports
+export type InstanceTable = {
     coreInstances: BinderRes[];
-    componentInstances: BinderRes[]
-    initializeMemory(memory: WebAssembly.Memory): void;
-    initializeRealloc(cabi_realloc: TCabiRealloc): void;
-    utf8Decoder: TextDecoder;
-    utf8Encoder: TextEncoder;
+    componentInstances: BinderRes[];
+}
+
+export type MemoryView = {
+    initialize(memory: WebAssembly.Memory): void;
     getMemory: () => WebAssembly.Memory;
     getView: (ptr: WasmPointer, len: WasmSize) => DataView;
     getViewU8: (ptr: WasmPointer, len: WasmSize) => Uint8Array;
-    alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
-    realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
     readI32: (ptr: WasmPointer) => number;
     writeI32: (ptr: WasmPointer, value: number) => void;
+}
+
+export type Allocator = {
+    initialize(cabi_realloc: TCabiRealloc): void;
+    alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
+    realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
+}
+
+export type ResourceTable = {
+    add(resourceTypeIdx: number, obj: unknown): number;
+    get(resourceTypeIdx: number, handle: number): unknown;
+    remove(resourceTypeIdx: number, handle: number): unknown;
+    has(resourceTypeIdx: number, handle: number): boolean;
+}
+
+export type BindingContext = {
+    componentImports: JsImports;
+    instances: InstanceTable;
+    memory: MemoryView;
+    allocator: Allocator;
+    resources: ResourceTable;
+    utf8Decoder: TextDecoder;
+    utf8Encoder: TextEncoder;
     abort: () => void;
     debugStack?: string[];
+    poisoned?: boolean;
+    inExport?: boolean;
+    postReturnFn?: Function;
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes
 export type Binder = (bctx: BindingContext, args: BinderArgs) => Promise<BinderRes>
 
 export type ResolverArgs<TModelElement> = {
-    callerElement: ModelElement
+    callerElement: TaggedElement | undefined
     element: TModelElement
 }
 
 export type ResolverRes = {
-    callerElement: ModelElement
-    element: ModelElement
+    callerElement: TaggedElement | undefined
+    element: TaggedElement
     binder: Binder
 }
 
 export type BinderArgs = {
     callerArgs?: BinderArgs
-    arguments?: any[]
-    imports?: any
+    arguments?: unknown[]
+    imports?: JsImports
     debugStack?: string[]
 }
 
 export type BinderRes = {
-    result: any
+    result: unknown
 }

@@ -3,6 +3,7 @@ import { ComponentAlias, ComponentAliasInstanceExport, ComponentAliasCoreInstanc
 import { ParserContext } from './types';
 import { readU32, parseAsExternalKind, parseAsComponentExternalKind, parseAsComponentOuterAliasKind, readName } from './values';
 import { ModelTag } from '../model/tags';
+import { ComponentInstanceIndex, CoreInstanceIndex } from '../model/indices';
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
 // https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#alias-definitions
@@ -29,14 +30,14 @@ function parseAliasTarget(src: SyncSource, b1: number, b2?: number,) {
             return {
                 tag: ModelTag.ComponentAliasInstanceExport,
                 kind: parseAsComponentExternalKind(b1, b2),
-                instance_index: readU32(src),
+                instance_index: readU32(src) as ComponentInstanceIndex,
                 name: readName(src)
             } as ComponentAliasInstanceExport;
         case 0x01:
             return {
                 tag: ModelTag.ComponentAliasCoreInstanceExport,
                 kind: parseAsExternalKind(b2!),
-                instance_index: readU32(src),
+                instance_index: readU32(src) as CoreInstanceIndex,
                 name: readName(src)
             } as ComponentAliasCoreInstanceExport;
         case 0x02:

@@ -100,9 +100,9 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     const exports0 = instance0.exports as wasm.module0Exports;
 
     const memory0 = exports0.memory as WebAssembly.Memory;
-    ctx.initializeMemory(memory0);
+    ctx.memory.initialize(memory0);
     const cabi_realloc: TCabiRealloc = exports0.cabi_realloc;
-    ctx.initializeRealloc(cabi_realloc);
+    ctx.allocator.initialize(cabi_realloc);
 
     const imports2: wasm.module2Imports = {
         '': {

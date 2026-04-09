@@ -20,3 +20,11 @@ export function debugStack(src: any, target: any, position: string) {
     const orig = src['debugStack'] ?? [];
     target['debugStack'] = [position, ...(orig)];
 }
+
+export function withDebugTrace<T extends Function>(binder: T, label: string): T {
+    if (!isDebug) return binder;
+    return ((async (bctx: any, bargs: any) => {
+        const tracedArgs = { ...bargs, debugStack: [label, ...(bargs.debugStack ?? [])] };
+        return (binder as any)(bctx, tracedArgs);
+    }) as any) as T;
+}

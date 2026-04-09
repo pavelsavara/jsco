@@ -12,8 +12,7 @@ export const resolveTemp: Resolver<ModelElement> = (rctx, rargs) => {
         callerElement: rargs.callerElement,
         element: tempElem,
         binder: async (bctx, bargs): Promise<BinderRes> => {
-            const binderResult = {
-                missingRes: rargs.element.tag,
+            const binderResult: BinderRes = {
                 result: {
                     missingResRes: rargs.element.tag,
                 } as TempRes

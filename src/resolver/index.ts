@@ -1,12 +1,12 @@
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
-import { isDebug } from '../utils/assert';
 import { JsImports, WasmComponentInstance, WasmComponent } from './api-types';
+import { PlanOp, PlanOpKind, executePlan } from './binding-plan';
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentImport } from './component-imports';
-import { createBindingContext, createResolverContext } from './context';
+import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
-import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext, ResolverRes } from './types';
+import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
 
 export async function instantiateComponent<TJSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -32,59 +32,59 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     for (const coreModule of rctx.indexes.coreModules) {
         await coreModule.module;
     }
-    const coreInstanceResolutions: ResolverRes[] = [];
+
+    // Build the binding plan — an inspectable IR of operations
+    const plan: PlanOp[] = [];
+
+    // Resolve core instances (resolution phase only — execution deferred to plan)
     for (const coreInstance of rctx.indexes.coreInstances) {
         const resolution = resolveCoreInstance(rctx, { element: coreInstance, callerElement: undefined });
-        coreInstanceResolutions.push(resolution);
+        plan.push({
+            kind: PlanOpKind.CoreInstantiate,
+            resolution,
+            label: `CoreInstance:${coreInstance.tag}:${coreInstance.selfSortIndex}`,
+        });
     }
-    const componentImportResolutions: ResolverRes[] = [];
+
+    // Resolve component imports
     for (const componentImport of rctx.indexes.componentImports) {
         const resolution = resolveComponentImport(rctx, { element: componentImport, callerElement: undefined });
-        componentImportResolutions.push(resolution);
+        plan.push({
+            kind: PlanOpKind.ImportBind,
+            resolution,
+            label: `Import:${componentImport.name.name}`,
+        });
     }
-    const componentExportResolutions: ResolverRes[] = [];
+
+    // Resolve component exports
     for (const componentExport of rctx.indexes.componentExports) {
         const resolution = resolveComponentExport(rctx, { element: componentExport, callerElement: undefined });
-        componentExportResolutions.push(resolution);
+        plan.push({
+            kind: PlanOpKind.ExportBind,
+            resolution,
+            label: `Export:${componentExport.name.name}`,
+        });
     }
 
-    async function instantiate(componentImports?: JsImports) {
-        componentImports = componentImports ?? {};
-        const ctx = createBindingContext(rctx, componentImports);
+    // Sort plan into execution order: imports → exports → core instances
+    // This preserves the original execution semantics where core instances
+    // are instantiated last ("magic" — some core instances like $imports
+    // are not exported but still needed)
+    const sortedPlan = sortPlanForExecution(plan);
 
-        const imports = {};
-        for (const componentImportResolution of componentImportResolutions) {
-            const args = {
-                imports: componentImports
-            };
-            if (isDebug) (args as any)['debugStack'] = [];
-            const componentImportResult = await componentImportResolution.binder(ctx, args);
-            Object.assign(imports, componentImportResult.result);
-        }
-
-        const exports = {};
-        for (const componentExportResolution of componentExportResolutions) {
-            const args = {};
-            if (isDebug) (args as any)['debugStack'] = [];
-            const componentExportResult = await componentExportResolution.binder(ctx, args);
-            Object.assign(exports, componentExportResult.result);
-        }
-
-        // this is magic, because some core instances are not exported, but they are still needed
-        // I think this is about $imports
-        for (const instanceResolution of coreInstanceResolutions) {
-            const args = {};
-            if (isDebug) (args as any)['debugStack'] = [];
-            await instanceResolution.binder(ctx, args);
-        }
-
-        return {
-            exports,
-            abort: ctx.abort,
-        } as any as WasmComponentInstance<TJSExports>;
-    }
     const component: WasmComponent<TJSExports> = {
-        instantiate,
+        instantiate: (imports) => executePlan(rctx, sortedPlan, imports),
+        plan: sortedPlan,
     };
     return component;
+}
+
+const executionOrder: Record<PlanOpKind, number> = {
+    [PlanOpKind.ImportBind]: 0,
+    [PlanOpKind.ExportBind]: 1,
+    [PlanOpKind.CoreInstantiate]: 2,
+};
+
+function sortPlanForExecution(plan: PlanOp[]): PlanOp[] {
+    return [...plan].sort((a, b) => executionOrder[a.kind] - executionOrder[b.kind]);
 }

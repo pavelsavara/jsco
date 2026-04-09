@@ -9,6 +9,7 @@ import { ComponentAliasCoreInstanceExport, ComponentAliasInstanceExport } from '
 import { CanonicalFunctionLift, CanonicalFunctionLower } from '../src/model/canonicals';
 import { ExternalKind } from '../src/model/core';
 import { ComponentImport } from '../src/model/imports';
+import { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../src/model/indices';
 import { ModelTag, WITSection } from '../src/model/tags';
 
 export const componentTypeInstance0: ComponentTypeInstance = {
@@ -493,35 +494,35 @@ export const coreModule2: CoreModule = {
 
 export const coreInstance0: CoreInstanceInstantiate = {
     tag: ModelTag.CoreInstanceInstantiate,
-    module_index: 1,
+    module_index: 1 as CoreModuleIndex,
     args: [],
 };
 
 export const aliasCoreExportFunc0: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as CoreInstanceIndex,
     name: '0',
 };
 
 export const aliasCoreExportFunc1: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as CoreInstanceIndex,
     name: '1',
 };
 
 export const aliasCoreExportFunc2: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as CoreInstanceIndex,
     name: '2',
 };
 
 export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as CoreInstanceIndex,
     name: '3',
 };
 
@@ -553,7 +554,7 @@ export const coreInstance1: CoreInstanceFromExports = {
 
 export const coreInstance2: CoreInstanceInstantiate = {
     tag: ModelTag.CoreInstanceInstantiate,
-    module_index: 0,
+    module_index: 0 as CoreModuleIndex,
     args: [
         {
             name: 'zoo:food/food',
@@ -566,34 +567,34 @@ export const coreInstance2: CoreInstanceInstantiate = {
 export const aliasCoreExportMemory0: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Memory,
-    instance_index: 2,
+    instance_index: 2 as CoreInstanceIndex,
     name: 'memory',
 };
 
 export const aliasCoreExportFunc4: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 2,
+    instance_index: 2 as CoreInstanceIndex,
     name: 'cabi_realloc',
 };
 
 export const aliasCoreExportTable0: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Table,
-    instance_index: 0,
+    instance_index: 0 as CoreInstanceIndex,
     name: '$imports',
 };
 
 export const aliasExport0: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'hide-food',
 };
 
 export const canonicalFuncLower5: CanonicalFunctionLower = {
     tag: ModelTag.CanonicalFunctionLower,
-    func_index: 0,
+    func_index: 0 as ComponentFuncIndex,
     options: [
         {
             tag: ModelTag.CanonicalOptionMemory,
@@ -608,13 +609,13 @@ export const canonicalFuncLower5: CanonicalFunctionLower = {
 export const aliasExport1: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'consume-food',
 };
 
 export const canonicalFuncLower6: CanonicalFunctionLower = {
     tag: ModelTag.CanonicalFunctionLower,
-    func_index: 1,
+    func_index: 1 as ComponentFuncIndex,
     options: [
         {
             tag: ModelTag.CanonicalOptionMemory,
@@ -629,13 +630,13 @@ export const canonicalFuncLower6: CanonicalFunctionLower = {
 export const aliasExport2: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'open-package',
 };
 
 export const canonicalFuncLower7: CanonicalFunctionLower = {
     tag: ModelTag.CanonicalFunctionLower,
-    func_index: 2,
+    func_index: 2 as ComponentFuncIndex,
     options: [
         {
             tag: ModelTag.CanonicalOptionMemory,
@@ -650,13 +651,13 @@ export const canonicalFuncLower7: CanonicalFunctionLower = {
 export const aliasExport3: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'trash-package',
 };
 
 export const canonicalFuncLower8: CanonicalFunctionLower = {
     tag: ModelTag.CanonicalFunctionLower,
-    func_index: 3,
+    func_index: 3 as ComponentFuncIndex,
     options: [
         {
             tag: ModelTag.CanonicalOptionMemory,
@@ -701,7 +702,7 @@ export const coreInstance3: CoreInstanceFromExports = {
 
 export const coreInstance4: CoreInstanceInstantiate = {
     tag: ModelTag.CoreInstanceInstantiate,
-    module_index: 2,
+    module_index: 2 as CoreModuleIndex,
     args: [
         {
             name: '',
@@ -714,14 +715,14 @@ export const coreInstance4: CoreInstanceInstantiate = {
 export const aliasExportType1: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'food-info',
 };
 
 export const aliasExportType2: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'package-info',
 };
 export const componentTypeFunc3: ComponentTypeFunc = {
@@ -751,14 +752,14 @@ export const componentTypeFunc3: ComponentTypeFunc = {
 export const aliasCoreExportFunc9: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
-    instance_index: 2,
+    instance_index: 2 as CoreInstanceIndex,
     name: 'zoo:food/eater#feed',
 };
 
 export const canonicalFuncLift4: CanonicalFunctionLift = {
     tag: ModelTag.CanonicalFunctionLift,
-    core_func_index: 9,
-    type_index: 3,
+    core_func_index: 9 as CoreFuncIndex,
+    type_index: 3 as ComponentTypeIndex,
     options: [
         {
             tag: ModelTag.CanonicalOptionMemory,
@@ -777,42 +778,42 @@ export const canonicalFuncLift4: CanonicalFunctionLift = {
 export const aliasExportType4: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'food-info',
 };
 
 export const aliasExportType5: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'nutrition-type',
 };
 
 export const aliasExportType6: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'nutrition-info',
 };
 
 export const aliasExportType7: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'material-type',
 };
 
 export const aliasExportType8: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'sealing-state',
 };
 
 export const aliasExportType9: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Type,
-    instance_index: 0,
+    instance_index: 0 as ComponentInstanceIndex,
     name: 'package-info',
 };
 
@@ -1196,7 +1197,7 @@ export const componentTypeComponent0: ComponentSection = {
 
 export const componentInstance1: ComponentInstanceInstantiate = {
     tag: ModelTag.ComponentInstanceInstantiate,
-    component_index: 0,
+    component_index: 0 as ComponentTypeIndex,
     args: [
         {
             name: 'import-func-feed',

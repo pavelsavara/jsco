@@ -3,6 +3,7 @@ import { ParserContext } from './types';
 import { readU32, readComponentInstantiationArgs } from './values';
 import { ComponentInstance } from '../model/instances';
 import { ModelTag } from '../model/tags';
+import { ComponentTypeIndex } from '../model/indices';
 import { parseSectionExport } from './export';
 
 export function parseSectionInstance(
@@ -14,12 +15,11 @@ export function parseSectionInstance(
     for (let i = 0; i < count; i++) {
         const section: ComponentInstance = (() => {
             const type = readU32(src);
-            switch (type)
-            {
+            switch (type) {
                 case 0x00: {
                     return {
                         tag: ModelTag.ComponentInstanceInstantiate,
-                        component_index: readU32(src),
+                        component_index: readU32(src) as ComponentTypeIndex,
                         args: readComponentInstantiationArgs(src),
                     };
                 }
