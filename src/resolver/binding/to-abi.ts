@@ -198,8 +198,10 @@ function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDe
         lifters.push({ name: member.name, lifter });
     }
     return (ctx: BindingContext, srcJsRecord: JsValue): WasmValue[] => {
-        // this is spilling into stack
-        // TODO allocate on heap
+        // Flatten all record fields into a flat array of WASM values.
+        // This is used in the Flat calling convention path. When the function's
+        // total param flat count exceeds MAX_FLAT_PARAMS, the Spilled convention
+        // is used instead and storeToMemory() handles memory layout directly.
         let args: any = [];
         for (const { name, lifter } of lifters) {
             const jsValue = srcJsRecord[name];

@@ -43,6 +43,7 @@ export type ModuleTypeDeclarationType = SubType & {
 
 /// The module type definition is for an export.
 export type ModuleTypeDeclarationExport = {
+    tag: ModelTag.ModuleTypeDeclarationExport
     /// The name of the exported item.
     name: string,
     /// The type reference of the export.
@@ -51,6 +52,7 @@ export type ModuleTypeDeclarationExport = {
 
 /// The module type declaration is for an outer alias.
 export type ModuleTypeDeclarationOuterAlias = {
+    tag: ModelTag.ModuleTypeDeclarationOuterAlias
     /// The alias kind.
     kind: OuterAliasKind,
     /// The outward count, starting at zero for the current type.

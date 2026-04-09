@@ -81,17 +81,27 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     jsco_assert(componentAliasInstanceExport && componentAliasInstanceExport.tag == ModelTag.ComponentAliasInstanceExport, () => `Wrong element type '${componentAliasInstanceExport?.tag}'`);
 
     if (componentAliasInstanceExport.kind === ComponentExternalKind.Type) {
-        // TODO types
+        // Type aliases from an instance export. These establish entries in the
+        // component's type index space but have no runtime behavior — they are
+        // structural declarations used for type-checking. We resolve the instance
+        // to expose its type declarations in case downstream consumers need them.
+        const instance = getComponentInstance(rctx, componentAliasInstanceExport.instance_index);
+        const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentAliasInstanceExport });
         return {
             callerElement: rargs.callerElement,
             element: componentAliasInstanceExport,
             binder: async (bctx, bargs) => {
-                const binderResult: BinderRes = {
-                    result: {
-                        missingResTypes: rargs.element.tag,
-                    }
-                };
-                return binderResult;
+                const instanceResult = await instanceResolution.binder(bctx, {
+                    arguments: bargs.arguments,
+                    imports: bargs.imports,
+                    callerArgs: bargs,
+                    debugStack: bargs.debugStack,
+                });
+                const instanceData = instanceResult.result as { exports: Record<string, unknown>; types: Record<string, unknown> };
+                // Return the type from the instance's type declarations
+                const typeValue = instanceData.types?.[componentAliasInstanceExport.name]
+                    ?? instanceData.exports?.[componentAliasInstanceExport.name];
+                return { result: typeValue };
             }
         };
     }
@@ -120,9 +130,19 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
             const askedName = args.arguments?.[0] as string;
             if (askedName) {
                 fn = instanceData.exports[askedName];
-            } else {
+            }
+            if (fn === undefined) {
+                // Try the original name first (kebab-case, e.g., '[method]output-stream.blocking-write-and-flush')
+                fn = instanceData.exports[componentAliasInstanceExport.name];
+            }
+            if (fn === undefined) {
+                // Try camelCase conversion (e.g., 'get-stdout' → 'getStdout')
                 const ccName = camelCase(componentAliasInstanceExport.name);
                 fn = instanceData.exports[ccName];
+            }
+
+            if (fn === undefined) {
+                // Function not found in any naming convention
             }
 
             const binderResult = {

@@ -36,17 +36,12 @@ export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) =
 
     switch (componentImport.ty.tag) {
         case ModelTag.ComponentTypeRefComponent: {
+            const instanceIndex = rctx.importToInstanceIndex.get(componentImport.selfSortIndex!) ?? componentImport.selfSortIndex!;
             return {
                 callerElement: rargs.callerElement,
                 element: componentImport,
                 binder: async (bctx, bargs) => {
-                    // The import's selfSortIndex within componentImports currently aligns with
-                    // the component instance index space because the parser inserts a matching
-                    // ComponentTypeInstance into componentInstances at the same position.
-                    // TODO: For multi-import components, verify this alignment holds or compute
-                    // the correct unified instance index from the import's position in the
-                    // component instance index space (imports first, then local instances).
-                    const binderResult = lookupComponentInstance(bctx, componentImport.selfSortIndex!);
+                    const binderResult = lookupComponentInstance(bctx, instanceIndex);
                     const imprt = bargs.imports?.[componentImport.name.name];
                     // Imported functions are "exports" of this instance from the
                     // Component Model perspective — ComponentAliasInstanceExport reads from .exports
@@ -75,9 +70,26 @@ export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) =
                 }
             };
         }
-        case ModelTag.ComponentTypeRefType:
         case ModelTag.ComponentTypeRefInstance: {
-            // Type and instance imports: declarations that establish type information.
+            // Instance import: the component imports an instance (interface).
+            // The JS imports object should have the interface functions at the import name key.
+            // Use the import→instance mapping because componentImports[] indices don't
+            // necessarily equal componentInstances[] indices (interleaved type definitions,
+            // non-instance imports, etc. shift the instance sort).
+            const instanceIndex = rctx.importToInstanceIndex.get(componentImport.selfSortIndex!) ?? componentImport.selfSortIndex!;
+            return {
+                callerElement: rargs.callerElement,
+                element: componentImport,
+                binder: async (bctx, bargs) => {
+                    const binderResult = lookupComponentInstance(bctx, instanceIndex);
+                    const imprt = bargs.imports?.[componentImport.name.name];
+                    Object.assign(binderResult.result.exports, imprt);
+                    return binderResult;
+                }
+            };
+        }
+        case ModelTag.ComponentTypeRefType: {
+            // Type imports: declarations that establish type information.
             // The actual wiring happens through other mechanisms (aliases, instantiation args).
             return {
                 callerElement: rargs.callerElement,

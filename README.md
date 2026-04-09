@@ -19,14 +19,16 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 - just JS (no rust dependency), TypeScript, RollupJS
 
 ## Status
-🚧 Work in progress — foundational layers are solid, higher-level integration still maturing 🚧
+🚧 Work in progress — core engine is solid, integration still maturing 🚧
 
 | Layer | Progress | Notes |
 |-------|----------|-------|
-| Parser | 90% | Binary WIT streaming parser, most sections covered |
-| Resolver | 65% | Type resolution, instances, imports/exports; missing: nested components, fused adapters |
-| Lifting/Lowering | 70% | All CM types implemented (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); calling convention with param/result spilling; missing: UTF-16 option, lazy binding |
-| Testing | 60% | ~4400 lines of unit tests covering binding engine; Playwright browser test; missing: broader integration coverage |
+| Parser | 90% | Binary WIT streaming parser, all sections covered |
+| Resolver | 65% | Type resolution, instances, imports/exports, type graph; missing: nested components, fused adapters |
+| Lifting/Lowering | 70% | All CM types (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); calling convention with param/result spilling; spec compliance audit done |
+| WASI Host | 100% | All preview 2 interfaces: random, clocks, I/O, CLI, filesystem, HTTP, sockets (stubs) |
+| Integration | E2 | First WASI CLI component runs end-to-end with JSPI |
+| Testing | 70% | 759 tests across 24 suites; Playwright browser test; missing: broader integration coverage |
 
 See [./TODO.md](./TODO.md), contributors are welcome!
 

@@ -4,7 +4,8 @@ import { CanonicalFunction } from './canonicals';
 import { ComponentExport } from './exports';
 import { ComponentImport } from './imports';
 import { ComponentInstance, CoreInstance } from './instances';
-import { ComponentType } from './types';
+import { ComponentStartFunction } from './start';
+import { ComponentType, CoreType } from './types';
 
 export const enum ModelTag {
     Model = 'Model',
@@ -141,4 +142,6 @@ export type WITSection =
     | ComponentInstance
     | CoreModule
     | CoreInstance
+    | CoreType
+    | ComponentStartFunction
 

@@ -1,4 +1,4 @@
-package zoo:food
+package zoo:food;
 
 interface food {
     enum nutrition-type {
@@ -8,7 +8,7 @@ interface food {
     }
 
     record nutrition-info {
-        percentage: float64,
+        percentage: f64,
         nutrition-type: nutrition-type,
     }
 
@@ -35,7 +35,7 @@ interface food {
     record food-info {
         name: string,
         iso-code: char,
-        weight: float32,
+        weight: f32,
         healthy: bool,
         calories: u64,
         cost: u16,
@@ -46,18 +46,18 @@ interface food {
         cook-time-in-minutes: s32,
     }
 
-    hide-food: func(food: food-info, message: string)
-    consume-food: func(foodinfo: food-info, packageinfo: package-info, message: string)
-    open-package: func(sealingstate: sealing-state, packageinfo: package-info, message: string)
-    trash-package: func(trashed: list<package-info>, message: string) -> bool
+    hide-food: func(food: food-info, message: string);
+    consume-food: func(foodinfo: food-info, packageinfo: package-info, message: string);
+    open-package: func(sealingstate: sealing-state, packageinfo: package-info, message: string);
+    trash-package: func(trashed: list<package-info>, message: string) -> bool;
 }
 
 interface eater {
-    use food.{food-info, package-info}
-    feed: func(foodinfo: food-info, packageinfo: package-info)
+    use food.{food-info, package-info};
+    feed: func(foodinfo: food-info, packageinfo: package-info);
 }
 
 world zoo {
-    import food
-    export eater
+    import food;
+    export eater;
 }

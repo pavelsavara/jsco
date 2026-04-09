@@ -1,4 +1,4 @@
-import { CanonicalFunctionLift, CanonicalFunctionLower } from './canonicals';
+import { CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
 import { ComponentInstanceIndex, CoreInstanceIndex } from './indices';
@@ -51,6 +51,9 @@ export type ComponentAliasCoreInstanceExport = IndexedElement & {
 export type CoreFunction =
     | ComponentAliasCoreInstanceExport
     | CanonicalFunctionLower
+    | CanonicalFunctionResourceDrop
+    | CanonicalFunctionResourceNew
+    | CanonicalFunctionResourceRep
 
 /// The alias is to an outer item.
 export type ComponentAliasOuter = {

@@ -33,7 +33,10 @@ export const resolveComponentInstance: Resolver<ComponentInstance> = (rctx, rarg
 export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInstantiate> = (rctx, rargs) => {
     const componentInstanceInstantiate = rargs.element;
     jsco_assert(componentInstanceInstantiate && componentInstanceInstantiate.tag == ModelTag.ComponentInstanceInstantiate, () => `Wrong element type '${componentInstanceInstantiate?.tag}'`);
-    const componentSection = getComponentType(rctx, componentInstanceInstantiate.component_index);
+    // component_index references the COMPONENT sort (componentSections), NOT the TYPE sort
+    const componentSection = rctx.indexes.componentSections[componentInstanceInstantiate.component_index];
+    jsco_assert(componentSection && componentSection.tag === ModelTag.ComponentSection,
+        () => `Expected ComponentSection at component sort index ${componentInstanceInstantiate.component_index}, got ${componentSection?.tag}`);
     const componentSectionResolution = resolveComponentType(rctx, { element: componentSection, callerElement: componentInstanceInstantiate });
     const argResolutions: ResolverRes[] = [];
     for (const arg of componentInstanceInstantiate.args) {
@@ -51,7 +54,11 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 break;
             }
             case ComponentExternalKind.Type: {
-                // TODO types
+                // Type arguments to component instantiation are structural —
+                // they carry type information for validation but don't produce
+                // runtime values. We skip resolution since the child component
+                // references types by their local indices, and the type graph
+                // is already constructed during parsing.
                 break;
             }
             case ComponentExternalKind.Component:
@@ -150,7 +157,10 @@ export const resolveComponentInstanceFromExports: Resolver<ComponentInstanceFrom
                 break;
             }
             case ComponentExternalKind.Type: {
-                // TODO: handle type exports
+                // Type exports from an instance are structural — they establish
+                // type entries visible to the parent scope but don't produce
+                // runtime values. The type information is already captured in
+                // the instance's type declarations during parsing.
                 break;
             }
             case ComponentExternalKind.Component:

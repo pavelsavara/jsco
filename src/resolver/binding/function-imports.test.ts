@@ -10,6 +10,7 @@ function createMinimalRctx(): ResolverContext {
     return {
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
+        importToInstanceIndex: new Map(),
         usesNumberForInt64: false,
         indexes: {
             componentTypes: [],
@@ -184,23 +185,27 @@ describe('ComponentTypeRefInstance import resolution', () => {
     beforeEach(() => {
         rctx = createMinimalRctx();
         bctx = createMinimalBctx();
+        bctx.instances = { coreInstances: [], componentInstances: [] };
     });
 
-    test('returns result undefined', async () => {
+    test('stores imports in instance table', async () => {
         const imp = makeImport('my-instance', ModelTag.ComponentTypeRefInstance);
         const resolved = resolveComponentImport(rctx, { callerElement: undefined, element: imp });
+        const instanceFuncs = { sendMessage: () => { } };
         const bargs: BinderArgs = {
-            imports: { 'my-instance': {} } as any,
+            imports: { 'my-instance': instanceFuncs } as any,
         };
         const result = await resolved.binder(bctx, bargs);
-        expect(result.result).toBeUndefined();
+        expect(result.result).toBeDefined();
+        expect((result.result as any).exports.sendMessage).toBe(instanceFuncs.sendMessage);
     });
 
-    test('does not throw when imports missing', async () => {
+    test('creates empty instance when imports missing', async () => {
         const imp = makeImport('my-instance', ModelTag.ComponentTypeRefInstance);
         const resolved = resolveComponentImport(rctx, { callerElement: undefined, element: imp });
         const bargs: BinderArgs = {};
         const result = await resolved.binder(bctx, bargs);
-        expect(result.result).toBeUndefined();
+        expect(result.result).toBeDefined();
+        expect((result.result as any).exports).toEqual({});
     });
 });

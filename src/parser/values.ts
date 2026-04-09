@@ -1,16 +1,18 @@
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
 import * as leb from '@thi.ng/leb128';
-import { Export, ExternalKind } from '../model/core';
+import { Export, ExternalKind, ValType, Import, TypeRef } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
 import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
+import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, CoreType, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
 import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
+import { readAlias } from './alias';
+import { ComponentStartFunction } from '../model/start';
 
 const textDecoder = new TextDecoder();
 
@@ -91,6 +93,184 @@ export function parseAsComponentExternalKind(k1: number, k2?: number): Component
     }
 }
 
+export function readCoreValType(src: SyncSource): ValType {
+    const b = src.read();
+    switch (b) {
+        case 0x7F: return { tag: ModelTag.ValTypeI32 };
+        case 0x7E: return { tag: ModelTag.ValTypeI64 };
+        case 0x7D: return { tag: ModelTag.ValTypeF32 };
+        case 0x7C: return { tag: ModelTag.ValTypeF64 };
+        case 0x7B: return { tag: ModelTag.ValTypeV128 };
+        case 0x70: // funcref
+        case 0x6F: // externref
+            return { tag: ModelTag.ValTypeRef, value: b };
+        default: throw new Error(`unknown core val type: 0x${b.toString(16)}`);
+    }
+}
+
+export function readCoreTypeRef(src: SyncSource): TypeRef {
+    const kind = src.read();
+    switch (kind) {
+        case 0x00: return { tag: ModelTag.TypeRefFunc, value: readU32(src) };
+        case 0x01: {
+            const element_type = src.read();
+            const initial = readU32(src);
+            const hasMax = src.read();
+            const maximum = hasMax ? readU32(src) : undefined;
+            return { tag: ModelTag.TypeRefTable, element_type, initial, maximum };
+        }
+        case 0x02: {
+            const flags = src.read();
+            const memory64 = (flags & 0x04) !== 0;
+            const shared = (flags & 0x02) !== 0;
+            const hasMax = (flags & 0x01) !== 0;
+            const initial = readU32(src);
+            const maximum = hasMax ? readU32(src) : undefined;
+            return { tag: ModelTag.TypeRefMemory, memory64, shared, initial, maximum };
+        }
+        case 0x03: {
+            const content_type = readCoreValType(src);
+            const mutable = src.read() !== 0;
+            return { tag: ModelTag.TypeRefGlobal, content_type, mutable };
+        }
+        case 0x04: return { tag: ModelTag.TypeRefTag, value: readU32(src) };
+        default: throw new Error(`unknown core type ref kind: 0x${kind.toString(16)}`);
+    }
+}
+
+export function readCoreImport(src: SyncSource): Import {
+    const module = readName(src);
+    const name = readName(src);
+    const ty = readCoreTypeRef(src);
+    return { module, name, ty };
+}
+
+export function readModuleTypeDeclarations(src: SyncSource): ModuleTypeDeclaration[] {
+    const count = readU32(src);
+    const declarations: ModuleTypeDeclaration[] = [];
+    for (let i = 0; i < count; i++) {
+        const kind = src.read();
+        switch (kind) {
+            case 0x00: {
+                // import
+                const imp = readCoreImport(src);
+                declarations.push({
+                    tag: ModelTag.ModuleTypeDeclarationImport,
+                    ...imp,
+                });
+                break;
+            }
+            case 0x01: {
+                // type (SubType wrapping a structural type)
+                const funcTag = src.read();
+                if (funcTag !== 0x60) {
+                    throw new Error(`expected core func type 0x60 in module type declaration, got 0x${funcTag.toString(16)}`);
+                }
+                const paramCount = readU32(src);
+                const params: ValType[] = [];
+                for (let j = 0; j < paramCount; j++) {
+                    params.push(readCoreValType(src));
+                }
+                const resultCount = readU32(src);
+                const results: ValType[] = [];
+                for (let j = 0; j < resultCount; j++) {
+                    results.push(readCoreValType(src));
+                }
+                declarations.push({
+                    tag: ModelTag.ModuleTypeDeclarationType,
+                    is_final: true,
+                    supertype_idx: undefined,
+                    structural_type: {
+                        tag: ModelTag.StructuralTypeFunc,
+                        params_results: [...params, ...results],
+                        len_params: paramCount,
+                    },
+                });
+                break;
+            }
+            case 0x02: {
+                // outer alias
+                const aliasSort = src.read();
+                if (aliasSort !== 0x10) {
+                    throw new Error(`expected core type sort 0x10 in module type alias, got 0x${aliasSort.toString(16)}`);
+                }
+                const count = readU32(src);
+                const index = readU32(src);
+                declarations.push({
+                    tag: ModelTag.ModuleTypeDeclarationOuterAlias,
+                    kind: { tag: ModelTag.OuterAliasKindType },
+                    count,
+                    index,
+                });
+                break;
+            }
+            case 0x03: {
+                // export
+                const name = readName(src);
+                const ty = readCoreTypeRef(src);
+                declarations.push({
+                    tag: ModelTag.ModuleTypeDeclarationExport,
+                    name,
+                    ty,
+                });
+                break;
+            }
+            default:
+                throw new Error(`unknown module type declaration kind: 0x${kind.toString(16)}`);
+        }
+    }
+    return declarations;
+}
+
+export function readCoreType(src: SyncSource): CoreType {
+    const tag = src.read();
+    switch (tag) {
+        case 0x60: {
+            // core func type
+            const paramCount = readU32(src);
+            const params: ValType[] = [];
+            for (let i = 0; i < paramCount; i++) {
+                params.push(readCoreValType(src));
+            }
+            const resultCount = readU32(src);
+            const results: ValType[] = [];
+            for (let i = 0; i < resultCount; i++) {
+                results.push(readCoreValType(src));
+            }
+            return {
+                tag: ModelTag.CoreTypeFunc,
+                params_results: [...params, ...results],
+                len_params: paramCount,
+            };
+        }
+        case 0x50: {
+            // core module type
+            return {
+                tag: ModelTag.CoreTypeModule,
+                declarations: readModuleTypeDeclarations(src),
+            };
+        }
+        default:
+            throw new Error(`unknown core type tag: 0x${tag.toString(16)}`);
+    }
+}
+
+export function readStartFunction(src: SyncSource): ComponentStartFunction {
+    const func_index = readU32(src);
+    const argCount = readU32(src);
+    const args: number[] = [];
+    for (let i = 0; i < argCount; i++) {
+        args.push(readU32(src));
+    }
+    const results = readU32(src);
+    return {
+        tag: ModelTag.ComponentStartFunction,
+        func_index,
+        arguments: args,
+        results,
+    };
+}
+
 export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDeclaration[] {
     const count = readU32(src);
     const declarations: InstanceTypeDeclaration[] = [];
@@ -101,7 +281,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
             case 0x00: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationCoreType,
-                    value: undefined,
+                    value: readCoreType(src),
                 };
                 break;
             }
@@ -115,7 +295,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
             case 0x02: {
                 declaration = {
                     tag: ModelTag.InstanceTypeDeclarationAlias,
-                    value: undefined,
+                    value: readAlias(src),
                 };
                 break;
             }
@@ -176,8 +356,8 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
         case 0x6a: {
             return {
                 tag: ModelTag.ComponentTypeDefinedResult,
-                ok: readComponentValType(src),
-                err: readComponentValType(src),
+                ok: readOptionalComponentValType(src),
+                err: readOptionalComponentValType(src),
             };
         }
         case 0x6b: {
@@ -221,8 +401,8 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
             for (let i = 0; i < count; i++) {
                 variants.push({
                     name: readName(src),
-                    ty: readComponentValType(src),
-                    refines: readU32(src),
+                    ty: readOptionalComponentValType(src),
+                    refines: readOptionalRefinement(src),
                 });
             }
             return {
@@ -454,11 +634,11 @@ export function readComponentTypeRef(src: SyncSource): ComponentTypeRef {
             value: readTypeBounds(src),
         };
         case 0x04: return {
-            tag: ModelTag.ComponentTypeRefInstance,
+            tag: ModelTag.ComponentTypeRefComponent,
             value: readU32(src),
         };
         case 0x05: return {
-            tag: ModelTag.ComponentTypeRefComponent,
+            tag: ModelTag.ComponentTypeRefInstance,
             value: readU32(src),
         };
         default:
@@ -507,6 +687,22 @@ export function readComponentValType(src: SyncSource): ComponentValType {
         tag: ModelTag.ComponentValTypeType,
         value: b,
     };
+}
+
+/** Read an optional valtype? field (0x00 = absent, 0x01 = present + valtype). */
+export function readOptionalComponentValType(src: SyncSource): ComponentValType | undefined {
+    const flag = src.read();
+    if (flag === 0x00) return undefined;
+    if (flag === 0x01) return readComponentValType(src);
+    throw new Error(`invalid optional valtype flag: ${flag}`);
+}
+
+/** Read an optional refinement? field (0x00 = absent, 0x01 = present + u32). */
+export function readOptionalRefinement(src: SyncSource): number | undefined {
+    const flag = src.read();
+    if (flag === 0x00) return undefined;
+    if (flag === 0x01) return readU32(src);
+    throw new Error(`invalid optional refinement flag: ${flag}`);
 }
 
 export function readTypeBounds(src: SyncSource): TypeBounds {

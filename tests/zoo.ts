@@ -191,19 +191,13 @@ export const componentTypeInstance0: ComponentTypeInstance = {
                 variants: [
                     {
                         name: 'plastic-bag',
-                        ty: {
-                            tag: ModelTag.ComponentValTypeType,
-                            value: 0
-                        },
-                        'refines': 0
+                        ty: undefined,
+                        refines: undefined
                     },
                     {
                         name: 'metal-can',
-                        ty: {
-                            tag: ModelTag.ComponentValTypeType,
-                            value: 0
-                        },
-                        'refines': 0
+                        ty: undefined,
+                        refines: undefined
                     }
                 ]
             }
@@ -475,7 +469,7 @@ export const componentImport0: ComponentImport = {
         name: 'zoo:food/food'
     },
     ty: {
-        tag: ModelTag.ComponentTypeRefComponent,
+        tag: ModelTag.ComponentTypeRefInstance,
         value: 0
     },
 };
@@ -982,19 +976,13 @@ export const componentTypeComponent0: ComponentSection = {
             variants: [
                 {
                     name: 'plastic-bag',
-                    ty: {
-                        tag: ModelTag.ComponentValTypeType,
-                        value: 0
-                    },
-                    refines: 0
+                    ty: undefined,
+                    refines: undefined
                 },
                 {
                     name: 'metal-can',
-                    ty: {
-                        tag: ModelTag.ComponentValTypeType,
-                        value: 0
-                    },
-                    refines: 0
+                    ty: undefined,
+                    refines: undefined
                 }
             ]
         },
@@ -1257,7 +1245,8 @@ export const componentExport2: ComponentExport = {
 
 export const customSection: CustomSection = {
     tag: ModelTag.CustomSection,
-    name: 'producers'
+    name: 'producers',
+    data: undefined
 };
 
 export const expectedModel: WITSection[] = [

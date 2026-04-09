@@ -1,5 +1,6 @@
 import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
+import { ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
@@ -11,9 +12,10 @@ import { buildResolvedTypeMap } from './type-resolution';
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        wasmInstantiate: options.wasmInstantiate ?? WebAssembly.instantiate,
+        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
+        importToInstanceIndex: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -36,11 +38,38 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     for (const section of sections) {
         const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
         bucket.push(section);
+
+        // ComponentImport with Instance kind creates an entry in the instance sort.
+        // The instance sort is built from imports (instance kind) + instance sections,
+        // in binary order. The imported instance's type definition (ComponentTypeInstance)
+        // is looked up from componentTypes and pushed to componentInstances.
+        if (section.tag === ModelTag.ComponentImport) {
+            const imp = section as import('../model/imports').ComponentImport;
+            if (imp.ty.tag === ModelTag.ComponentTypeRefInstance) {
+                // The ty.value is a type sort index pointing to a ComponentTypeInstance
+                const instanceType = indexes.componentTypes[imp.ty.value];
+                if (instanceType) {
+                    const instanceIndex = indexes.componentInstances.length;
+                    // Shallow clone: the same object lives in componentTypes[] too.
+                    // setSelfIndex runs on both arrays, so a shared reference would
+                    // get its selfSortIndex clobbered by whichever array runs last.
+                    // Cloning lets each array track its own position.
+                    indexes.componentInstances.push({ ...instanceType } as import('../model/types').ComponentTypeInstance);
+                    // Track import→instance mapping: import's position in componentImports
+                    // may differ from its position in componentInstances when there are
+                    // non-instance imports or other entries in the instance sort.
+                    const importIndex = indexes.componentImports.length - 1;
+                    rctx.importToInstanceIndex.set(importIndex, instanceIndex);
+                }
+            }
+        }
     }
 
-    // indexed with imports first and then function definitions next
-    // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
-    rctx.indexes.componentTypes = [...rctx.indexes.componentSections, ...indexes.componentTypes];
+    // componentSections (section id 4) are in the COMPONENT sort — separate from TYPE sort.
+    // Previously merged into componentTypes, but this is incorrect: the TYPE sort should
+    // only contain entries from section id 7 (type definitions) and type aliases.
+    // ComponentInstanceInstantiate.component_index references componentSections (COMPONENT sort),
+    // while type_index references componentTypes (TYPE sort).
     setSelfIndex(rctx);
     rctx.resolvedTypes = buildResolvedTypeMap(rctx);
     return rctx;
@@ -114,41 +143,35 @@ export function createInstanceTable(): InstanceTable {
 }
 
 export function createResourceTable(): ResourceTable {
-    const tables = new Map<number, Map<number, unknown>>();
     let nextHandle = 1;
 
-    function getTable(resourceTypeIdx: number): Map<number, unknown> {
-        let table = tables.get(resourceTypeIdx);
-        if (!table) {
-            table = new Map();
-            tables.set(resourceTypeIdx, table);
-        }
-        return table;
-    }
+    // Resource handle table. Handles are globally unique (monotonic counter).
+    // The resourceTypeIdx is currently ignored for lookup because own/borrow types
+    // inside different instance type definitions use LOCAL type indices that may
+    // not match the same canonical resource definition. Until we implement full
+    // resource identity resolution (mapping local indices → canonical resource ID),
+    // we use a flat handle→object map. This is safe because handle IDs never collide.
+    const handles = new Map<number, unknown>();
 
     return {
-        add(resourceTypeIdx: number, obj: unknown): number {
-            const table = getTable(resourceTypeIdx);
+        add(_resourceTypeIdx: number, obj: unknown): number {
             const handle = nextHandle++;
-            table.set(handle, obj);
+            handles.set(handle, obj);
             return handle;
         },
-        get(resourceTypeIdx: number, handle: number): unknown {
-            const table = getTable(resourceTypeIdx);
-            const obj = table.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle} for type ${resourceTypeIdx}`);
+        get(_resourceTypeIdx: number, handle: number): unknown {
+            const obj = handles.get(handle);
+            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
             return obj;
         },
-        remove(resourceTypeIdx: number, handle: number): unknown {
-            const table = getTable(resourceTypeIdx);
-            const obj = table.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle} for type ${resourceTypeIdx}`);
-            table.delete(handle);
+        remove(_resourceTypeIdx: number, handle: number): unknown {
+            const obj = handles.get(handle);
+            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+            handles.delete(handle);
             return obj;
         },
-        has(resourceTypeIdx: number, handle: number): boolean {
-            const table = getTable(resourceTypeIdx);
-            return table.has(handle);
+        has(_resourceTypeIdx: number, handle: number): boolean {
+            return handles.has(handle);
         }
     };
 }
@@ -243,7 +266,7 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
         case ModelTag.ComponentTypeDefinedVariant:
             return rctx.indexes.componentTypes;
         case ModelTag.ComponentTypeInstance:
-            return rctx.indexes.componentInstances;
+            return rctx.indexes.componentTypes;
         case ModelTag.ComponentTypeResource:
             return rctx.indexes.componentTypeResource;
         case ModelTag.CanonicalFunctionLower: {
@@ -256,10 +279,25 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
         case ModelTag.SkippedSection:
         case ModelTag.CustomSection:
             return [];//drop
-        case ModelTag.ComponentAliasOuter:
+        case ModelTag.ComponentAliasOuter: {
+            // Outer aliases go to the bucket matching their outer alias kind
+            switch (kind as unknown as ComponentOuterAliasKind) {
+                case ComponentOuterAliasKind.Type:
+                    return rctx.indexes.componentTypes;
+                case ComponentOuterAliasKind.CoreModule:
+                    return rctx.indexes.coreModules;
+                case ComponentOuterAliasKind.CoreType:
+                    return rctx.indexes.componentTypes;// core types share the type index
+                case ComponentOuterAliasKind.Component:
+                    return rctx.indexes.componentTypes;
+                default:
+                    throw new Error(`unexpected outer alias kind: ${kind}`);
+            }
+        }
         case ModelTag.CanonicalFunctionResourceDrop:
         case ModelTag.CanonicalFunctionResourceNew:
         case ModelTag.CanonicalFunctionResourceRep:
+            return rctx.indexes.coreFunctions;
         default:
             throw new Error(`unexpected section tag: ${tag}`);
     }

@@ -1,9 +1,8 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-cargo_component_bindings::generate!({
-    implementor: Eater,
-});
+#[allow(warnings)]
+mod bindings;
 
 use bindings::exports::zoo::food::eater::Guest;
 use bindings::zoo::food::food::{
@@ -58,3 +57,5 @@ impl Guest for Eater {
         }
     }
 }
+
+bindings::export!(Eater with_types_in bindings);

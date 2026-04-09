@@ -52,7 +52,17 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentTypeDefinedTuple:
             case ModelTag.ComponentTypeDefinedEnum:
             case ModelTag.ComponentTypeDefinedVariant:
-                // TODO types
+            case ModelTag.ComponentTypeDefinedResult:
+            case ModelTag.ComponentTypeDefinedList:
+            case ModelTag.ComponentTypeDefinedOption:
+            case ModelTag.ComponentTypeDefinedFlags:
+            case ModelTag.ComponentTypeDefinedOwn:
+            case ModelTag.ComponentTypeDefinedBorrow:
+            case ModelTag.ComponentTypeDefinedPrimitive:
+                // Type declarations within a component section define the
+                // component's type graph (records, enums, functions, etc.).
+                // These are structural — consumed by the type resolution pass
+                // and the resolved type map, not by runtime binding.
                 break;
             default:
                 throw new Error(`${declaration.tag} not implemented`);

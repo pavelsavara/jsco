@@ -9,6 +9,10 @@ export type { WITModel } from './parser';
 export { parse } from './parser';
 export { instantiateComponent, createComponent } from './resolver';
 export { createLifting, createLowering } from './resolver/binding';
+export { createWasiHost } from './host/wasip2';
+export { instantiateWasiComponent } from './host/wasip2/instantiate';
+export type { WasiInstantiateOptions } from './host/wasip2/instantiate';
+export type { WasiConfig } from './host/wasip2/types';
 
 export function getBuildInfo() {
     return {

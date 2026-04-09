@@ -1,10 +1,10 @@
 import type { WITModel, ParserContext, ParserOptions, ComponentSection } from './types';
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
 import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';
-import { parseSectionCustom, skipSection } from './otherSection';
+import { parseSectionCustom } from './otherSection';
 import { parseSectionExport } from './export';
 import { parseModule } from './module';
-import { readU32Async } from './values';
+import { readU32Async, readU32, readCoreType, readStartFunction } from './values';
 import { parseSectionAlias } from './alias';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
@@ -96,18 +96,15 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
             case 0: return parseSectionCustom(ctx, sub!, size);
             case 1: return parseModule(ctx, asyncSub!, size);
             case 2: return parseSectionCoreInstance(ctx, sub!);
+            case 3: return parseSectionCoreType(sub!);
             case 4: return parseSectionComponent(ctx, asyncSub!, size);
             case 5: return parseSectionInstance(ctx, sub!);
             case 6: return parseSectionAlias(ctx, sub!);
             case 7: return parseSectionType(ctx, sub!);
             case 8: return parseSectionCanon(ctx, sub!);
+            case 9: return parseSectionStart(sub!);
             case 10: return parseSectionImport(ctx, sub!);
             case 11: return parseSectionExport(ctx, sub!);
-
-            //TODO: to implement
-            case 3: // core type - we don't have it in the sample
-            case 9: // start
-                return skipSection(ctx, sub!, type, size); // this is all TODO
             default:
                 throw new Error(`unknown section: ${type}`);
         }
@@ -125,6 +122,19 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     }
 
     return sections;
+}
+
+function parseSectionCoreType(src: SyncSource): WITSection[] {
+    const count = readU32(src);
+    const types: WITSection[] = [];
+    for (let i = 0; i < count; i++) {
+        types.push(readCoreType(src));
+    }
+    return types;
+}
+
+function parseSectionStart(src: SyncSource): WITSection[] {
+    return [readStartFunction(src)];
 }
 
 async function parseSectionComponent(

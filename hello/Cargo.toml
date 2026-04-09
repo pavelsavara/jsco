@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["pavel.savara@gmail.com"]
 
 [dependencies]
-cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component", rev = "36c221e41db3e87dec4c82eadcb9bc8f37626533" }
+wit-bindgen-rt = { version = "0.24.0" }
 wee_alloc = { version = "0.4.5" }
 
 [lib]
@@ -23,5 +23,3 @@ path = "wit"
 lto = true
 opt-level = 's'
 
-[build]
-incremental = true
