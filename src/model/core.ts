@@ -8,15 +8,15 @@ import { ModelTag } from './tags';
 /// External types as defined https://webassembly.github.io/spec/core/syntax/types.html#external-types.
 export const enum ExternalKind {
     /// The external kind is a function.
-    Func = 'func',
+    Func,
     /// The external kind if a table.
-    Table = 'table',
+    Table,
     /// The external kind is a memory.
-    Memory = 'memory',
+    Memory,
     /// The external kind is a global.
-    Global = 'global',
+    Global,
     /// The external kind is a tag.
-    Tag = 'tag',
+    Tag,
 }
 
 /// Represents a reference to a type definition in a WebAssembly module.

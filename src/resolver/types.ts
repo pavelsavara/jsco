@@ -15,9 +15,9 @@ import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 
 export const enum StringEncoding {
-    Utf8 = 'utf-8',
-    Utf16 = 'utf-16',
-    CompactUtf16 = 'compact-utf-16',
+    Utf8,
+    Utf16,
+    CompactUtf16,
 }
 
 export type ResolvedCanonicalOptions = {

@@ -86,31 +86,31 @@ export type ComponentValTypeType = {
 /// Represents a primitive value type.
 export const enum PrimitiveValType {
     /// The type is a boolean.
-    Bool = 'bool',
+    Bool,
     /// The type is a signed 8-bit integer.
-    S8 = 's8',
+    S8,
     /// The type is an unsigned 8-bit integer.
-    U8 = 'u8',
+    U8,
     /// The type is a signed 16-bit integer.
-    S16 = 's16',
+    S16,
     /// The type is an unsigned 16-bit integer.
-    U16 = 'u16',
+    U16,
     /// The type is a signed 32-bit integer.
-    S32 = 's32',
+    S32,
     /// The type is an unsigned 32-bit integer.
-    U32 = 'u32',
+    U32,
     /// The type is a signed 64-bit integer.
-    S64 = 's64',
+    S64,
     /// The type is an unsigned 64-bit integer.
-    U64 = 'u64',
+    U64,
     /// The type is a 32-bit floating point number.
-    Float32 = 'f32',
+    Float32,
     /// The type is a 64-bit floating point number.
-    Float64 = 'f64',
+    Float64,
     /// The type is a Unicode character.
-    Char = 'char',
+    Char,
     /// The type is a string.
-    String = 'string',
+    String,
 }
 
 /// Represents a type in a WebAssembly component.

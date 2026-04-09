@@ -172,7 +172,7 @@ describe('wasi:io/streams', () => {
             const data = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
             const stream = createInputStream(data);
             const chunks: Uint8Array[] = [];
-            for (;;) {
+            for (; ;) {
                 const result = stream.read(3n);
                 if (result.tag === 'err') break;
                 chunks.push(result.val);
