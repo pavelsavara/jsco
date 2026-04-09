@@ -290,7 +290,7 @@ describe('wasi:filesystem', () => {
             const dir = unwrap(root.openAt({}, 'dir', { directory: true }, { read: true }));
             const stream = unwrap(dir.readDirectory());
             const entries: DirectoryEntry[] = [];
-            while (true) {
+            for (;;) {
                 const entry = unwrap(stream.readDirectoryEntry());
                 if (entry === undefined) break;
                 entries.push(entry);
@@ -791,7 +791,7 @@ describe('wasi:filesystem', () => {
             const dir = unwrap(root.openAt({}, 'prefix', { directory: true }, { read: true }));
             const stream = unwrap(dir.readDirectory());
             const entries: DirectoryEntry[] = [];
-            while (true) {
+            for (;;) {
                 const entry = unwrap(stream.readDirectoryEntry());
                 if (entry === undefined) break;
                 entries.push(entry);

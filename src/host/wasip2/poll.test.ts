@@ -25,7 +25,7 @@ describe('wasi:io/poll', () => {
             const p = createSyncPollable(() => ++count >= 3);
             expect(p.ready()).toBe(false); // count=1
             expect(p.ready()).toBe(false); // count=2
-            expect(p.ready()).toBe(true);  // count=3
+            expect(p.ready()).toBe(true); // count=3
         });
     });
 
