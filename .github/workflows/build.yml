@@ -30,7 +30,7 @@ jobs:
       run: npm run test:usage
 
     - name: Rollup artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: jsco.${{github.sha}}
         path: |

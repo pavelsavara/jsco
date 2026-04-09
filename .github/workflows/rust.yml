@@ -24,7 +24,7 @@ jobs:
         override: true
         components: rustc, rustfmt, rust-std, cargo
 
-    - uses: Swatinem/rust-cache@v2.6.2
+    - uses: Swatinem/rust-cache@v2.9.1
       with:
         cache-all-crates: true
         cache-targets: true
@@ -58,19 +58,19 @@ jobs:
       run: npm run test:jco
 
     - name: WASM hello component artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: hello.${{github.sha}}
         path: hello/target/wasm32-unknown-unknown/release/hello.wa*
 
     - name: WASM zoo component artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: zoo.${{github.sha}}
         path: zoo/target/wasm32-unknown-unknown/release/zoo.wa*
 
     - name: JCO component artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: hello-jco.${{github.sha}}
         path: hello/target/js-jco/**/*.*
