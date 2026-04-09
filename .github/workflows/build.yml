@@ -4,7 +4,6 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,7 +17,7 @@ jobs:
       Configuration: Release
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Install npm dependencies
       run: npm install -ci
 
@@ -31,7 +30,7 @@ jobs:
       run: npm run test:usage
 
     - name: Rollup artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v6
       with:
         name: jsco.${{github.sha}}
         path: |

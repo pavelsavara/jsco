@@ -1,11 +1,11 @@
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ModelTag, WITSection } from '../model/tags';
+import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
 import { ComponentSection } from '../parser/types';
-import { debugStack, jsco_assert } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
-import { BinderRes, Resolver, ResolverRes } from './types';
+import { BinderArgs, BinderRes, Resolver, ResolverRes } from './types';
 
 export const resolveComponentType: Resolver<ComponentType> = (rctx, rargs) => {
     const coreInstance = rargs.element;
@@ -13,7 +13,7 @@ export const resolveComponentType: Resolver<ComponentType> = (rctx, rargs) => {
         throw new Error('Wrong element type ');
     }
     switch (coreInstance.tag) {
-        case ModelTag.ComponentSection: return resolveComponentSection(rctx, rargs as any);
+        case ModelTag.ComponentSection: return resolveComponentSection(rctx, { element: rargs.element as ComponentSection, callerElement: rargs.callerElement });
         case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
@@ -36,10 +36,15 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
                 break;
             }
             case ModelTag.ComponentImport: {
-                // declaration.name
-                // declaration.name.name
-                // rctx.indexes.componentTypes[declaration.ty.value];
-                // throw new Error('Not implemented' + declaration.name.name);
+                // ComponentImport within a ComponentSection is a type declaration.
+                // It establishes what imports this nested component requires.
+                // The actual import wiring happens through ComponentInstanceInstantiate's
+                // instantiation args — the ComponentSection binder receives resolved
+                // functions via bargs.imports, NOT through this declaration.
+                //
+                // For ComponentTypeRefFunc: the import declares a function requirement.
+                // For ComponentTypeRefType: the import declares a type requirement.
+                // Both are satisfied when the component is instantiated with matching args.
                 break;
             }
             case ModelTag.ComponentTypeFunc:
@@ -57,28 +62,27 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
     return {
         callerElement: rargs.callerElement,
         element: componentSection,
-        binder: async (bctx, bargs) => {
-            const exports = {} as any;
+        binder: withDebugTrace(async (bctx, bargs) => {
+            const exports: Record<string, unknown> = {};
             for (const exportResolution of exportResolutions) {
                 const callerElement = exportResolution.callerElement as ComponentExport;
-                const args = {
+                const args: BinderArgs = {
                     arguments: bargs.arguments,
                     imports: bargs.imports,
                     callerArgs: bargs,
-                    debugSource: callerElement.tag + ':' + callerElement.name.name
+                    debugStack: bargs.debugStack,
                 };
-                debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
                 debugStack(args, args, callerElement.tag + ':' + callerElement.name.name);
 
                 const argResult = await exportResolution.binder(bctx, args);
 
-                exports[callerElement.name.name] = argResult.result as any;
+                exports[callerElement.name.name] = argResult.result;
             }
             const binderResult: BinderRes = {
                 result: exports
             };
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };
 

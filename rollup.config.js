@@ -59,7 +59,9 @@ const jsco = {
         nodeResolve({
             extensions: ['.ts'],
         }),
-        typescript()
+        typescript({
+            exclude: ['**/*.test.ts', '**/*.spec.ts', 'tests/**'],
+        })
     ]
 };
 const jscoTypes = {

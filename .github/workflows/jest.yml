@@ -1,26 +1,47 @@
-name: jest
+name: test
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  unit-tests:
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --experimental-vm-modules
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 20
+
     - name: Install npm dependencies
-      run: npm install -ci
+      run: npm ci
 
     - name: Run Jest unit tests
-      working-directory: ./hello
       run: npm run test:ci
+
+  browser-tests:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --experimental-vm-modules
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 20
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Build
+      run: npm run build
+
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+
+    - name: Run Playwright browser tests
+      run: npm run test:browser

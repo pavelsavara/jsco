@@ -1,12 +1,15 @@
 import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
 import { CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
+import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { debugStack, jsco_assert } from '../utils/assert';
+import { withDebugTrace, jsco_assert } from '../utils/assert';
 import { createFunctionLifting } from './binding';
+import { WasmFunction } from './binding/types';
 import { resolveComponentInstance } from './component-instances';
 import { resolveCoreFunction } from './core-functions';
-import { Resolver } from './types';
+import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
+import { BinderRes, Resolver, resolveCanonicalOptions, StringEncoding } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -22,34 +25,54 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     const canonicalFunctionLift = rargs.element;
     jsco_assert(canonicalFunctionLift && canonicalFunctionLift.tag == ModelTag.CanonicalFunctionLift, () => `Wrong element type '${canonicalFunctionLift?.tag}'`);
 
-    const coreFuntion = rctx.indexes.coreFunctions[canonicalFunctionLift.core_func_index];
+    const coreFuntion = getCoreFunction(rctx, canonicalFunctionLift.core_func_index);
     const coreFunctionResolution = resolveCoreFunction(rctx, { element: coreFuntion, callerElement: canonicalFunctionLift });
 
-    const sectionFunType = rctx.indexes.componentTypes[canonicalFunctionLift.type_index];
+    const sectionFunType = getComponentType(rctx, canonicalFunctionLift.type_index);
     jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
 
-    // TODO canonicalFunctionLift.options
+    const canonOpts = resolveCanonicalOptions(canonicalFunctionLift.options);
+    jsco_assert(canonOpts.stringEncoding === StringEncoding.Utf8,
+        () => `String encoding '${canonOpts.stringEncoding}' not yet supported, only UTF-8`);
+
+    // Resolve the post-return core function if specified in canonical options
+    let postReturnResolution: import('./types').ResolverRes | undefined;
+    if (canonOpts.postReturnIndex !== undefined) {
+        const postReturnFunc = getCoreFunction(rctx, canonOpts.postReturnIndex as CoreFuncIndex);
+        postReturnResolution = resolveCoreFunction(rctx, { element: postReturnFunc, callerElement: canonicalFunctionLift });
+    }
+
     const liftingBinder = createFunctionLifting(rctx, sectionFunType);
 
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLift,
-        binder: async (bctx, bargs) => {
+        binder: withDebugTrace(async (bctx, bargs) => {
+            // Wire up post-return function from canonical options
+            if (postReturnResolution) {
+                const postReturnResult = await postReturnResolution.binder(bctx, {
+                    callerArgs: bargs,
+                    debugStack: bargs.debugStack,
+                });
+                const postReturnWasm = postReturnResult.result as Function;
+                bctx.postReturnFn = postReturnWasm;
+            }
+
             const args = {
                 arguments: bargs.arguments,
                 imports: bargs.imports,
                 callerArgs: bargs,
+                debugStack: bargs.debugStack,
             };
-            debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
             const functionResult = await coreFunctionResolution.binder(bctx, args);
 
-            const jsFunction = liftingBinder(bctx, functionResult.result);
+            const jsFunction = liftingBinder(bctx, functionResult.result as WasmFunction);
 
             const binderResult = {
                 result: jsFunction
             };
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };
 
@@ -63,9 +86,7 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
             callerElement: rargs.callerElement,
             element: componentAliasInstanceExport,
             binder: async (bctx, bargs) => {
-                const binderResult = {
-                    missingRes: rargs.element.tag,
-                    confused: 1,
+                const binderResult: BinderRes = {
                     result: {
                         missingResTypes: rargs.element.tag,
                     }
@@ -78,35 +99,36 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         throw new Error(`"${componentAliasInstanceExport.kind}" not implemented`);
     }
 
-    const instance = rctx.indexes.componentInstances[componentAliasInstanceExport.instance_index];
+    const instance = getComponentInstance(rctx, componentAliasInstanceExport.instance_index);
     const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentAliasInstanceExport });
 
     return {
         callerElement: rargs.callerElement,
         element: componentAliasInstanceExport,
-        binder: async (bctx, bargs) => {
+        binder: withDebugTrace(async (bctx, bargs) => {
             const args = {
                 arguments: bargs.arguments,
                 imports: bargs.imports,
                 callerArgs: bargs,
+                debugStack: bargs.debugStack,
             };
-            debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
-            const instanceResult = await instanceResolution.binder(bctx, args) as any;
+            const instanceResult = await instanceResolution.binder(bctx, args);
+            const instanceData = instanceResult.result as { exports: Record<string, unknown>; imports: Record<string, unknown> };
 
             // TODO resolve type as well
             let fn;
             const askedName = args.arguments?.[0] as string;
             if (askedName) {
-                fn = instanceResult.result.exports[askedName];
+                fn = instanceData.exports[askedName];
             } else {
                 const ccName = camelCase(componentAliasInstanceExport.name);
-                fn = instanceResult.result.imports[ccName];
+                fn = instanceData.exports[ccName];
             }
 
             const binderResult = {
                 result: fn
             };
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };

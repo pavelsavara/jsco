@@ -1,32 +1,31 @@
 import { ComponentAliasCoreInstanceExport } from '../model/aliases';
-import { debugStack } from '../utils/assert';
+import { withDebugTrace } from '../utils/assert';
 import { resolveCoreInstance } from './core-instance';
-import { Resolver, BinderRes } from './types';
+import { getCoreInstance } from './indices';
+import { Resolver, BinderRes, BinderArgs } from './types';
 
 type ExportResult = Function | WebAssembly.Memory | WebAssembly.Table
 
 export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCoreInstanceExport> = (rctx, rargs) => {
     const componentAliasCoreInstanceExport = rargs.element;
-    const coreInstanceIndex = componentAliasCoreInstanceExport.instance_index;
-    const coreInstance = rctx.indexes.coreInstances[coreInstanceIndex];
+    const coreInstance = getCoreInstance(rctx, componentAliasCoreInstanceExport.instance_index);
     const coreModuleResolution = resolveCoreInstance(rctx, { element: coreInstance, callerElement: componentAliasCoreInstanceExport });
 
     return {
         callerElement: rargs.callerElement,
         element: componentAliasCoreInstanceExport,
-        binder: async (bctx, bargs): Promise<BinderRes> => {
-            const args = {
-                missing: rargs.element.tag,
+        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+            const args: BinderArgs = {
                 callerArgs: bargs,
+                debugStack: bargs.debugStack,
             };
-            debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
 
             const moduleResult = await coreModuleResolution.binder(bctx, args);
-            const result = moduleResult.result[componentAliasCoreInstanceExport.name] as ExportResult;
+            const result = (moduleResult.result as Record<string, ExportResult>)[componentAliasCoreInstanceExport.name];
             const binderResult = {
                 result
             };
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };

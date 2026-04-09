@@ -114,7 +114,8 @@ export const enum ModelTag {
     ValTypeV128 = 'ValTypeV128',
 }
 
-export type ModelElement = any;
+/** @deprecated Use TaggedElement instead */
+export type ModelElement = TaggedElement;
 
 export type TaggedElement = {
     tag: ModelTag

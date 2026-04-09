@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>jsco browser test</title>
+</head>
+
+<body>
+    <script type="module">
+        import { createComponent } from '/dist/index.js';
+
+        window.__testResults = {};
+        try {
+            const component = await createComponent('/hello/wasm/hello.wasm');
+            const messages = [];
+            const imports = {
+                'hello:city/city': {
+                    sendMessage: (msg) => messages.push(msg)
+                }
+            };
+            const instance = await component.instantiate(imports);
+            const run = instance.exports['hello:city/greeter'].run;
+            run({ name: 'Prague', headCount: 1000000, budget: BigInt(200000000) });
+
+            window.__testResults = {
+                success: true,
+                message: messages[0],
+                exportKeys: Object.keys(instance.exports),
+            };
+        } catch (e) {
+            window.__testResults = {
+                success: false,
+                error: e.message,
+                stack: e.stack,
+            };
+        }
+    </script>
+</body>
+
+</html>

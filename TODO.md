@@ -1,29 +1,17 @@
 # Resolver todo
-- `resolveCanonicalFunctionLower` has **hardcoded lookup of the data type**, this would not work outside of this demo!
-- handling of the import/export names/namespaces is probably wrong
-- resolve data types, `TODO types`
-- remove or simplify debugging helpers
-- simplify Resolver types
 - be able to run `zoo` sample
-- invoke start section ?
-- nested modules
-- export and import ABI interfaces for direct binding without JS. Something needs to copy the bytes ... "fused adapters" ?
+- invoke start section
+- nested components/modules
+- fused adapters — direct binding without JS, something needs to copy the bytes
 - bind WASI preview 2 `@bytecodealliance/preview2-shim` npm package when necessary
-- make sure we don't keep references to model after component was created. To not leak memory. How to test this ?
+- make sure we don't keep references to model after component was created, to not leak memory
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
-- all `export const enum` could be converted to numeric, which will be faster and save few KB of the download. But debugging and JSON would have numbers. Maybe regexp in rollup.
+- convert `export const enum` to numeric literals via rollup transform to save download size
 
 # Binder todo
-- implement all data types
-- implement argument spilling
-- implement record flattening 
-    - https://github.com/bytecodealliance/wasmtime/blob/2ad057d735edc43f8ba89428d483f2b2430c1068/crates/environ/src/component.rs#L29-L38
-    - https://github.com/WebAssembly/component-model/blob/673d5c43c3cc0f4aeb8996a5c0931af623f16808/design/mvp/canonical-abi/definitions.py#L788
-- implement size and alignment
-- implement `CallContext` and own/borrow
-- respect model options (UTF8/UTF16)
-- trap exceptions and kill the component or marshall the error
-- option to bind lazily only when methods all called
+- respect model options for UTF-16 encoding (currently UTF-8 only)
+- trap exceptions and poison the component instance, or marshall the error
+- option to bind lazily only when methods are called
 - fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
 
 # Parser todo
@@ -32,14 +20,14 @@
 - add options to skip parsing/storing custom sections
 
 # Testing
-- add more WIT text based test scenarios into parser tests like[](src/parser/alias.test.ts)
+- add more WIT text based test scenarios into parser tests
 - change `zoo` to be program with main, not lib
 - create sample app with nested modules
 - create sample app in go
 - create sample app in JS
 - use JSCO to bind multiple components at runtime
-- improve test coverage
-- add test with Chrome, FF
+- improve test coverage — currently ~4400 lines of binding tests, needs broader integration coverage
+- add Firefox browser test (Chrome done via Playwright)
 
 # Build
 - add coverage to CI, fail if lower than some %

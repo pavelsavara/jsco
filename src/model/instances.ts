@@ -1,5 +1,6 @@
 import { Export, u32 } from './core';
 import { ComponentExport, ComponentExternalKind } from './exports';
+import { CoreModuleIndex, ComponentTypeIndex } from './indices';
 import { IndexedElement, ModelTag } from './tags';
 import { ComponentTypeInstance } from './types';
 
@@ -29,7 +30,7 @@ export type CoreInstance =
 export type CoreInstanceInstantiate = IndexedElement & {
     tag: ModelTag.CoreInstanceInstantiate,
     /// The module index.
-    module_index: u32,
+    module_index: CoreModuleIndex,
     /// The module's instantiation arguments.
     args: InstantiationArg[],
 }
@@ -60,7 +61,7 @@ export type ComponentInstance =
 export type ComponentInstanceInstantiate = IndexedElement & {
     tag: ModelTag.ComponentInstanceInstantiate,
     /// The component index.
-    component_index: u32,
+    component_index: ComponentTypeIndex,
     /// The component's instantiation arguments.
     args: ComponentInstantiationArg[],
 }

@@ -3,14 +3,17 @@ import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, ResolverContext } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolverContext, ResourceTable } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
+import { buildResolvedTypeMap } from './type-resolution';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
         wasmInstantiate: options.wasmInstantiate ?? WebAssembly.instantiate,
+        memoizeCache: new Map(),
+        resolvedTypes: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -31,7 +34,6 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
 
     const indexes = rctx.indexes;
     for (const section of sections) {
-        // TODO: process all sections into model
         const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
         bucket.push(section);
     }
@@ -40,6 +42,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     // See https://github.com/bytecodealliance/wasm-interface-types/blob/main/BINARY.md
     rctx.indexes.componentTypes = [...rctx.indexes.componentSections, ...indexes.componentTypes];
     setSelfIndex(rctx);
+    rctx.resolvedTypes = buildResolvedTypeMap(rctx);
     return rctx;
 }
 
@@ -64,15 +67,11 @@ export function setSelfIndex(rctx: ResolverContext) {
     setSelfIndex(rctx.indexes.coreGlobals);
 }
 
-export function createBindingContext(rctx: ResolverContext, componentImports: JsImports): BindingContext {
+export function createMemoryView(): MemoryView {
     let memory: WebAssembly.Memory = undefined as any;
-    let cabi_realloc: TCabiRealloc = undefined as any;
 
-    function initializeMemory(m: WebAssembly.Memory) {
+    function initialize(m: WebAssembly.Memory) {
         memory = m;
-    }
-    function initializeRealloc(realloc: TCabiRealloc) {
-        cabi_realloc = realloc;
     }
     function getView(pointer?: number, len?: number) {
         return new DataView(memory.buffer, pointer, len);
@@ -83,36 +82,94 @@ export function createBindingContext(rctx: ResolverContext, componentImports: Js
     function getMemory() {
         return memory;
     }
-    function realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) {
-        return cabi_realloc(oldPtr, oldSize, align, newSize);
-    }
-    function alloc(newSize: WasmSize, align: WasmSize) {
-        return cabi_realloc(0 as any, 0 as any, align, newSize);
-    }
     function readI32(ptr: WasmPointer) {
         return getView().getInt32(ptr);
     }
     function writeI32(ptr: WasmPointer, value: number) {
         return getView().setInt32(ptr, value);
     }
+    return { initialize, getMemory, getView, getViewU8, readI32, writeI32 };
+}
+
+export function createAllocator(): Allocator {
+    let cabi_realloc: TCabiRealloc = undefined as any;
+
+    function initialize(realloc: TCabiRealloc) {
+        cabi_realloc = realloc;
+    }
+    function realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) {
+        return cabi_realloc(oldPtr, oldSize, align, newSize);
+    }
+    function alloc(newSize: WasmSize, align: WasmSize) {
+        return cabi_realloc(0 as any, 0 as any, align, newSize);
+    }
+    return { initialize, alloc, realloc };
+}
+
+export function createInstanceTable(): InstanceTable {
+    return {
+        coreInstances: [],
+        componentInstances: [],
+    };
+}
+
+export function createResourceTable(): ResourceTable {
+    const tables = new Map<number, Map<number, unknown>>();
+    let nextHandle = 1;
+
+    function getTable(resourceTypeIdx: number): Map<number, unknown> {
+        let table = tables.get(resourceTypeIdx);
+        if (!table) {
+            table = new Map();
+            tables.set(resourceTypeIdx, table);
+        }
+        return table;
+    }
+
+    return {
+        add(resourceTypeIdx: number, obj: unknown): number {
+            const table = getTable(resourceTypeIdx);
+            const handle = nextHandle++;
+            table.set(handle, obj);
+            return handle;
+        },
+        get(resourceTypeIdx: number, handle: number): unknown {
+            const table = getTable(resourceTypeIdx);
+            const obj = table.get(handle);
+            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle} for type ${resourceTypeIdx}`);
+            return obj;
+        },
+        remove(resourceTypeIdx: number, handle: number): unknown {
+            const table = getTable(resourceTypeIdx);
+            const obj = table.get(handle);
+            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle} for type ${resourceTypeIdx}`);
+            table.delete(handle);
+            return obj;
+        },
+        has(resourceTypeIdx: number, handle: number): boolean {
+            const table = getTable(resourceTypeIdx);
+            return table.has(handle);
+        }
+    };
+}
+
+export function createBindingContext(rctx: ResolverContext, componentImports: JsImports): BindingContext {
+    const memory = createMemoryView();
+    const allocator = createAllocator();
+    const instances = createInstanceTable();
+    const resources = createResourceTable();
+
     function abort() {
         throw new Error('not implemented');
     }
     const ctx: BindingContext = {
         componentImports,
-        coreInstances: [],
-        componentInstances: [],
+        instances,
+        memory,
+        allocator,
+        resources,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
-        initializeMemory,
-        initializeRealloc,
-        getView,
-        getViewU8,
-        getMemory,
-        realloc,
-        alloc,
-        readI32,
-        writeI32,
         abort,
     };
     if (configuration === 'Debug') {

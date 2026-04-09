@@ -5,6 +5,7 @@ import { Export, ExternalKind } from '../model/core';
 import { SyncSource, Source } from '../utils/streaming';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentOuterAliasKind } from '../model/aliases';
+import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
 import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, InstanceTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
@@ -267,7 +268,7 @@ export function readCoreInstance(src: SyncSource): CoreInstance {
             const index = readU32(src);
             return {
                 tag: ModelTag.CoreInstanceInstantiate,
-                module_index: index,
+                module_index: index as CoreModuleIndex,
                 args: readInstantiationArgs(src),
             };
         }
@@ -329,9 +330,9 @@ export function readCanonicalFunction(src: SyncSource): CanonicalFunction {
                 throw new Error(`Unrecognized byte for CanonicalFunctionLift in readCanonicalFunction: ${controlByte}`);
             return {
                 tag: ModelTag.CanonicalFunctionLift,
-                core_func_index: readU32(src),
+                core_func_index: readU32(src) as CoreFuncIndex,
                 options: readCanonicalOptions(src),
-                type_index: readU32(src),
+                type_index: readU32(src) as ComponentTypeIndex,
             };
         }
         case 0x01: {
@@ -340,7 +341,7 @@ export function readCanonicalFunction(src: SyncSource): CanonicalFunction {
                 throw new Error(`Unrecognized byte for CanonicalFunctionLower in readCanonicalFunction: ${controlByte}`);
             return {
                 tag: ModelTag.CanonicalFunctionLower, // here
-                func_index: readU32(src),
+                func_index: readU32(src) as ComponentFuncIndex,
                 options: readCanonicalOptions(src),
             };
         }

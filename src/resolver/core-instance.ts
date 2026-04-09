@@ -1,9 +1,12 @@
 import { Export, ExternalKind } from '../model/core';
+import { CoreInstanceIndex } from '../model/indices';
 import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArg, InstantiationArgKind } from '../model/instances';
-import { ModelTag } from '../model/tags';
-import { debugStack, jsco_assert } from '../utils/assert';
+import { ModelTag, TaggedElement } from '../model/tags';
+import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
+import { TCabiRealloc } from './binding/types';
 import { resolveCoreFunction } from './core-functions';
 import { resolveCoreModule } from './core-module';
+import { getCoreInstance, getCoreModule } from './indices';
 import { Resolver, ResolverRes, BinderRes, BinderArgs } from './types';
 
 export const resolveCoreInstance: Resolver<CoreInstance> = (rctx, rargs) => {
@@ -24,13 +27,13 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
         switch (exp.kind) {
             case ExternalKind.Func: {
                 const func = rctx.indexes.coreFunctions[exp.index];
-                const exportResolution = resolveCoreFunction(rctx, { element: func, callerElement: exp });
+                const exportResolution = resolveCoreFunction(rctx, { element: func, callerElement: exp as unknown as TaggedElement });
                 exportResolutions.push(exportResolution);
                 break;
             }
             case ExternalKind.Table: {
                 const table = rctx.indexes.coreTables[exp.index];
-                const exportResolution = resolveCoreFunction(rctx, { element: table, callerElement: exp });
+                const exportResolution = resolveCoreFunction(rctx, { element: table, callerElement: exp as unknown as TaggedElement });
                 exportResolutions.push(exportResolution);
                 break;
             }
@@ -42,26 +45,26 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
     return {
         element: coreInstanceFromExports,
         callerElement: rargs.callerElement,
-        binder: async (bctx, bargs) => {
-            const exports = {} as WebAssembly.Imports;
+        binder: withDebugTrace(async (bctx, bargs) => {
+            const exports: Record<string, unknown> = {};
             for (const exportResolution of exportResolutions) {
-                const callerElement = exportResolution.callerElement as Export;
+                const callerElement = exportResolution.callerElement as unknown as Export;
                 const args = {
                     arguments: bargs.arguments,
                     imports: bargs.imports,
                     callerArgs: bargs,
+                    debugStack: bargs.debugStack,
                 };
-                debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
                 debugStack(args, args, callerElement.kind + ':' + callerElement.name);
 
                 const argResult = await exportResolution.binder(bctx, args);
-                exports[callerElement.name] = argResult.result as any;
+                exports[callerElement.name] = argResult.result;
             }
             const binderResult: BinderRes = {
-                result: exports as any as WebAssembly.Instance
+                result: exports
             };
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };
 
@@ -69,16 +72,15 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
     const coreInstanceInstantiate = rargs.element;
     const coreInstanceIndex = coreInstanceInstantiate.selfSortIndex!;
     jsco_assert(coreInstanceInstantiate && coreInstanceInstantiate.tag == ModelTag.CoreInstanceInstantiate, () => `Wrong element type '${coreInstanceInstantiate?.tag}'`);
-    const coreModuleIndex = coreInstanceInstantiate.module_index;
-    const coreModule = rctx.indexes.coreModules[coreModuleIndex];
+    const coreModule = getCoreModule(rctx, coreInstanceInstantiate.module_index);
     const coreModuleResolution = resolveCoreModule(rctx, { element: coreModule, callerElement: coreInstanceInstantiate });
     const argResolutions: ResolverRes[] = [];
     for (const arg of coreInstanceInstantiate.args) {
         switch (arg.kind) {
             case InstantiationArgKind.Instance: {
-                const argInstance = rctx.indexes.coreInstances[arg.index];
+                const argInstance = getCoreInstance(rctx, arg.index as CoreInstanceIndex);
                 const resolution = resolveCoreInstance(rctx, {
-                    callerElement: arg,
+                    callerElement: arg as unknown as TaggedElement,
                     element: argInstance
                 });
                 argResolutions.push(resolution);
@@ -92,56 +94,59 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
     return {
         element: coreInstanceInstantiate,
         callerElement: rargs.callerElement,
-        binder: async (bctx, bargs): Promise<BinderRes> => {
-            let binderResult = bctx.coreInstances[coreInstanceIndex];
+        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+            let binderResult = bctx.instances.coreInstances[coreInstanceIndex];
             if (binderResult) {
-                // TODO, do I need to validate that all calls got the same args ?
+                // Core instances are deduplicated by index — multiple references to the same
+                // core instance return the cached result. The canonical ABI guarantees that
+                // a given core instance index is always instantiated with the same arguments.
                 return binderResult;
             }
             binderResult = {} as BinderRes;
-            bctx.coreInstances[coreInstanceIndex] = binderResult;
+            bctx.instances.coreInstances[coreInstanceIndex] = binderResult;
 
-            const wasmImports = {
-                debugSource: rargs.element.tag
-            } as any as WebAssembly.Imports;
+            const wasmImports: Record<string, WebAssembly.ModuleImports> = {};
             for (const argResolution of argResolutions) {
-                const callerElement = argResolution.callerElement as InstantiationArg;
+                const callerElement = argResolution.callerElement as unknown as InstantiationArg;
 
                 const args = {
                     arguments: bargs.arguments,
                     imports: bargs.imports,
                     callerArgs: bargs,
+                    debugStack: bargs.debugStack,
                 };
-                debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
                 debugStack(args, args, callerElement.index + ':' + callerElement.name);
 
                 const argResult = await argResolution.binder(bctx, args);
-                wasmImports[callerElement.name] = argResult.result as any;
+                wasmImports[callerElement.name] = argResult.result as WebAssembly.ModuleImports;
             }
 
             const args: BinderArgs = {
                 callerArgs: bargs,
+                debugStack: bargs.debugStack,
             };
-            debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.selfSortIndex);
             const moduleResult = await coreModuleResolution.binder(bctx, args);
-            const module = moduleResult.result;
+            const module = moduleResult.result as WebAssembly.Module;
             const instance = await rctx.wasmInstantiate(module, wasmImports);
             // console.log('rctx.wasmInstantiate ' + coreInstanceIndex, Object.keys(instance.exports));
             const exports = instance.exports;
 
-            // TODO maybe there are WIT instructions telling that explicitly ?
+            // The canonical ABI specifies memory and realloc via CanonicalOption entries
+            // (CanonicalOptionMemory, CanonicalOptionRealloc) on each lift/lower function.
+            // Here we initialize from well-known export names as a fallback; per-function
+            // options are plumbed through the canonical options in the resolver.
             const memory = exports['memory'] as WebAssembly.Memory;
             if (memory) {
-                bctx.initializeMemory(memory);
+                bctx.memory.initialize(memory);
             }
-            const cabi_realloc = exports['cabi_realloc'] as any;
+            const cabi_realloc = exports['cabi_realloc'] as TCabiRealloc | undefined;
             if (cabi_realloc) {
-                bctx.initializeRealloc(cabi_realloc);
+                bctx.allocator.initialize(cabi_realloc);
             }
 
             binderResult.result = exports;
             return binderResult;
-        }
+        }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };
 

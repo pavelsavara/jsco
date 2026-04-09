@@ -1,8 +1,10 @@
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
+import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { debugStack, jsco_assert } from '../utils/assert';
+import { withDebugTrace, jsco_assert } from '../utils/assert';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentInstance } from './component-instances';
+import { getComponentFunction, getComponentInstance } from './indices';
 import { Resolver } from './types';
 
 export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) => {
@@ -12,49 +14,49 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
     // TODO componentExport.ty ?
     switch (componentExport.kind) {
         case ComponentExternalKind.Func: {
-            const func = rctx.indexes.componentFunctions[componentExport.index];
+            const func = getComponentFunction(rctx, componentExport.index as ComponentFuncIndex);
             const functionResolution = resolveComponentFunction(rctx, { element: func, callerElement: componentExport });
             return {
                 callerElement: rargs.callerElement,
                 element: componentExport,
-                binder: async (bctx, bargs) => {
+                binder: withDebugTrace(async (bctx, bargs) => {
                     const args = {
                         arguments: [componentExport.name.name],
                         imports: bargs.imports,
                         callerArgs: bargs,
+                        debugStack: bargs.debugStack,
                     };
-                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
 
                     const exportResult = await functionResolution.binder(bctx, args);
                     const binderResult = {
                         result: exportResult.result
                     };
                     return binderResult;
-                }
+                }, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind)
             };
         }
         case ComponentExternalKind.Instance: {
-            const instance = rctx.indexes.componentInstances[componentExport.index];
+            const instance = getComponentInstance(rctx, componentExport.index as ComponentInstanceIndex);
             const instanceResolution = resolveComponentInstance(rctx, { element: instance, callerElement: componentExport });
             return {
                 callerElement: rargs.callerElement,
                 element: componentExport,
-                binder: async (bctx, bargs) => {
+                binder: withDebugTrace(async (bctx, bargs) => {
                     const args = {
                         arguments: bargs.arguments,
                         imports: bargs.imports,
                         callerArgs: bargs,
+                        debugStack: bargs.debugStack,
                     };
-                    debugStack(bargs, args, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind);
 
                     const instanceResult = await instanceResolution.binder(bctx, args);
-                    const ifc: any = {};
+                    const ifc: Record<string, unknown> = {};
                     ifc[componentExport.name.name] = instanceResult.result;
                     const binderResult = {
                         result: ifc
                     };
                     return binderResult;
-                }
+                }, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind)
             };
         }
         case ComponentExternalKind.Type: {

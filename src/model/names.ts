@@ -1,6 +1,11 @@
 import { NameMap, u8 } from './core';
 import { ModelTag } from './tags';
 
+export type ByteRange = {
+    start: number,
+    end: number,
+}
+
 /// Represents a name read from the names custom section.
 export type ComponentName =
     | ComponentNameComponent
@@ -21,7 +26,7 @@ export type ComponentName =
 
 export type ComponentNameComponent = {
     name: string,
-    name_range: any // TODO type
+    nameRange: ByteRange
 }
 export type ComponentNameCoreFuncs = {
     tag: ModelTag.ComponentNameCoreFuncs,
@@ -80,6 +85,6 @@ export type ComponentNameUnknown = {
     data: u8[],
     /// The range of bytes, relative to the start of the original data
     /// stream, that the contents of this subsection reside in.
-    range: any // TODO type
+    range: ByteRange
 }
 
