@@ -11,7 +11,10 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
     const componentExport = rargs.element;
     jsco_assert(componentExport && componentExport.tag == ModelTag.ComponentExport, () => `Wrong element type '${componentExport?.tag}'`);
 
-    // TODO componentExport.ty ?
+    // componentExport.ty is the optional type annotation on the export.
+    // When present, it could be used to validate that the exported item
+    // matches the declared type. For now we trust the binary is well-formed
+    // (validated by wasm-tools) and skip runtime type checking.
     switch (componentExport.kind) {
         case ComponentExternalKind.Func: {
             const func = getComponentFunction(rctx, componentExport.index as ComponentFuncIndex);
@@ -60,7 +63,16 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
             };
         }
         case ComponentExternalKind.Type: {
-            throw new Error('TODO types');
+            // Type exports are structural — they make a type visible to the
+            // host/consumer but don't produce a runtime value. Return a
+            // no-op binder that records the type export exists.
+            return {
+                callerElement: rargs.callerElement,
+                element: componentExport,
+                binder: withDebugTrace(async (_bctx, _bargs) => {
+                    return { result: undefined };
+                }, rargs.element.tag + ':' + rargs.element.name.name + ':Type')
+            };
         }
         case ComponentExternalKind.Component:
         case ComponentExternalKind.Module:

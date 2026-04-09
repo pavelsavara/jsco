@@ -1,4 +1,4 @@
-import { CanonicalFunctionLift, CanonicalFunctionLower } from './canonicals';
+import { CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
 import { ComponentInstanceIndex, CoreInstanceIndex } from './indices';
@@ -7,13 +7,13 @@ import { IndexedElement, ModelTag } from './tags';
 /// Represents the kind of an outer alias in a WebAssembly component.
 export const enum ComponentOuterAliasKind {
     /// The alias is to an outer core module.
-    CoreModule = 'coremodule',
+    CoreModule,
     /// The alias is to an outer core type.
-    CoreType = 'coretype',
+    CoreType,
     /// The alias is to an outer type.
-    Type = 'type',
+    Type,
     /// The alias is to an outer component.
-    Component = 'component',
+    Component,
 }
 
 /// Represents an alias in a WebAssembly component.
@@ -51,6 +51,9 @@ export type ComponentAliasCoreInstanceExport = IndexedElement & {
 export type CoreFunction =
     | ComponentAliasCoreInstanceExport
     | CanonicalFunctionLower
+    | CanonicalFunctionResourceDrop
+    | CanonicalFunctionResourceNew
+    | CanonicalFunctionResourceRep
 
 /// The alias is to an outer item.
 export type ComponentAliasOuter = {

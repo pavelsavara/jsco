@@ -1,9 +1,8 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-cargo_component_bindings::generate!({
-    implementor: Greeter,
-});
+#[allow(warnings)]
+mod bindings;
 
 use bindings::exports::hello::city::greeter::Guest;
 use bindings::hello::city::city::{send_message, CityInfo};
@@ -24,3 +23,5 @@ impl Guest for Greeter {
         }
     }
 }
+
+bindings::export!(Greeter with_types_in bindings);

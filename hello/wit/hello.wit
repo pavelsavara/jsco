@@ -1,4 +1,4 @@
-package hello:city
+package hello:city;
 
 interface city {
     record city-info {
@@ -7,15 +7,15 @@ interface city {
         budget: s64,
     }
 
-    send-message: func(message: string)
+    send-message: func(message: string);
 }
 
 interface greeter {
-    use city.{city-info}
-    run: func(info: city-info)
+    use city.{city-info};
+    run: func(info: city-info);
 }
 
 world hello {
-    import city
-    export greeter
+    import city;
+    export greeter;
 }

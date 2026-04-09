@@ -98,7 +98,7 @@ export const componentImport0: ComponentImport = {
         name: 'hello:city/city'
     },
     ty: {
-        tag: ModelTag.ComponentTypeRefComponent,
+        tag: ModelTag.ComponentTypeRefInstance,
         value: 0
     },
 };

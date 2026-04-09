@@ -37,6 +37,42 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 exportResolutions.push(exportResolution);
                 break;
             }
+            case ExternalKind.Memory: {
+                // Memory exports reference a core memory alias which tracks the source
+                // core instance and export name. Resolve from the source instance's exports
+                // rather than the global bctx.memory singleton — this handles components
+                // with multiple core modules where memory flows between them.
+                const coreMemoryAlias = rctx.indexes.coreMemories[exp.index];
+                const sourceInstanceIndex = coreMemoryAlias.instance_index;
+                const sourceExportName = coreMemoryAlias.name;
+                const sourceInstance = rctx.indexes.coreInstances[sourceInstanceIndex];
+                const sourceResolution = resolveCoreInstance(rctx, { element: sourceInstance, callerElement: exp as unknown as TaggedElement });
+                exportResolutions.push({
+                    element: exp as unknown as TaggedElement,
+                    callerElement: exp as unknown as TaggedElement,
+                    binder: withDebugTrace(async (bctx, bargs) => {
+                        const sourceResult = await sourceResolution.binder(bctx, bargs);
+                        const sourceExports = sourceResult.result as Record<string, unknown>;
+                        return { result: sourceExports[sourceExportName] };
+                    }, `memory:${exp.index}:from-instance-${sourceInstanceIndex}:${sourceExportName}`)
+                });
+                break;
+            }
+            case ExternalKind.Global: {
+                // Global exports are resolved at binding time
+                exportResolutions.push({
+                    element: exp as unknown as TaggedElement,
+                    callerElement: exp as unknown as TaggedElement,
+                    binder: withDebugTrace(async (bctx, bargs) => {
+                        // Globals from core instances — look up in the binding context
+                        const globals = bctx.instances.coreInstances
+                            .flatMap(inst => Object.entries((inst?.result as Record<string, unknown>) ?? {}))
+                            .filter(([, v]) => v instanceof WebAssembly.Global);
+                        return { result: globals[exp.index]?.[1] };
+                    }, `global:${exp.index}`)
+                });
+                break;
+            }
             default:
                 throw new Error(`"${exp.kind}" not implemented`);
         }

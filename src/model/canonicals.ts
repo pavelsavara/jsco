@@ -78,14 +78,14 @@ export type CanonicalFunctionLower = IndexedElement & {
 }
 
 /// A function which creates a new owned handle to a resource.
-export type CanonicalFunctionResourceNew = {
+export type CanonicalFunctionResourceNew = IndexedElement & {
     tag: ModelTag.CanonicalFunctionResourceNew
     /// The type index of the resource that's being created.
     resource: u32,
 }
 
 /// A function which is used to drop resource handles of the specified type.
-export type CanonicalFunctionResourceDrop = {
+export type CanonicalFunctionResourceDrop = IndexedElement & {
     tag: ModelTag.CanonicalFunctionResourceDrop
     /// The type index of the resource that's being dropped.
     resource: u32,
@@ -93,7 +93,7 @@ export type CanonicalFunctionResourceDrop = {
 
 /// A function which returns the underlying i32-based representation of the
 /// specified resource.
-export type CanonicalFunctionResourceRep = {
+export type CanonicalFunctionResourceRep = IndexedElement & {
     tag: ModelTag.CanonicalFunctionResourceRep
     /// The type index of the resource that's being accessed.
     resource: u32,

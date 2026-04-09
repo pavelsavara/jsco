@@ -6,9 +6,10 @@ export default {
         '**/?(*.)+(spec|test).+(ts|js)'
     ],
     'transform': {
-    //"^.+\\.(ts|tsx)$": "esbuild-jest"
-        '^.+\\.(ts|tsx)$': ['@swc/jest'],
-    //"^.+\\.(ts|tsx)$": "ts-jest"
+        //"^.+\\.(ts|tsx)$": "esbuild-jest"
+        '^.+\\.(ts|tsx|js|jsx)$': ['@swc/jest'],
+        //"^.+\\.(ts|tsx)$": "ts-jest"
     },
+    transformIgnorePatterns: [],
     extensionsToTreatAsEsm: ['.ts'],
 };

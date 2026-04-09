@@ -15,9 +15,9 @@ import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 
 export const enum StringEncoding {
-    Utf8 = 'utf-8',
-    Utf16 = 'utf-16',
-    CompactUtf16 = 'compact-utf-16',
+    Utf8,
+    Utf16,
+    CompactUtf16,
 }
 
 export type ResolvedCanonicalOptions = {
@@ -61,7 +61,7 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
-    wasmInstantiate?: typeof WebAssembly.instantiate
+    wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
 }
 
 export type ComponentFactoryInput = WITModel
@@ -91,10 +91,12 @@ export type IndexedModel = {
 
 export type ResolverContext = {
     indexes: IndexedModel;
+    /** Maps componentImports[] index → componentInstances[] index for instance imports */
+    importToInstanceIndex: Map<number, number>;
     usesNumberForInt64: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
     memoizeCache: Map<unknown, unknown>
-    resolvedTypes: ReadonlyMap<ComponentTypeIndex, ResolvedType>
+    resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
 }
 
 export type InstanceTable = {

@@ -1,4 +1,3 @@
-import * as jco from '@bytecodealliance/jco';
 import { WITModel, parse } from '.';
 import { ModelTag } from '../model/tags';
 
@@ -12,7 +11,8 @@ export function expectModelToEqual(actualModel: WITModel, expectedModel: WITMode
     expect(noModules).toEqual(expectedModel);
 }
 
-export function jcoCompileWat(wat: string): Promise<Uint8Array> {
+export async function jcoCompileWat(wat: string): Promise<Uint8Array> {
+    const jco = await import('@bytecodealliance/jco');
     return jco.parse(wat);
 }
 

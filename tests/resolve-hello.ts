@@ -27,7 +27,7 @@ export const expectedContext: Partial<ResolverContext> = {
         componentImports: [componentImport0],
         componentFunctions: [aliasExport0, canonicalFuncLift1],
         componentInstances: [componentTypeInstance0, componentInstance1],
-        componentTypes: [componentTypeComponent0, aliasExportType1, componentTypeFunc2, aliasExportType3],
+        componentTypes: [componentTypeInstance0, aliasExportType1, componentTypeFunc2, aliasExportType3],
         componentTypeResource: [],
 
         coreModules: [coreModule0, coreModule1, coreModule2],

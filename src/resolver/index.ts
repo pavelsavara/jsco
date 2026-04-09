@@ -81,8 +81,8 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
 
 const executionOrder: Record<PlanOpKind, number> = {
     [PlanOpKind.ImportBind]: 0,
-    [PlanOpKind.ExportBind]: 1,
-    [PlanOpKind.CoreInstantiate]: 2,
+    [PlanOpKind.CoreInstantiate]: 1,
+    [PlanOpKind.ExportBind]: 2,
 };
 
 function sortPlanForExecution(plan: PlanOp[]): PlanOp[] {

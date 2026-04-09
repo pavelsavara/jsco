@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    paths: [ "hello/**", "zoo/**" ]
+    paths: [ "hello/**", "zoo/**", ".github/workflows/rust.yml" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,23 +18,27 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Install latest stable
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        override: true
-        components: rustc, rustfmt, rust-std, cargo
+        targets: wasm32-unknown-unknown
 
     - uses: Swatinem/rust-cache@v2.9.1
       with:
         cache-all-crates: true
         cache-targets: true
-        workspaces: "hello"
+        workspaces: |
+          hello
+          zoo
+        cache-on-failure: true
+
+    - name: Install cargo-component
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-component
+        locked: true
 
     - name: Install JCO
       run: npm install
-
-    - name: Install cargo components
-      run: npm run setup:rust:ci
 
     - name: Build rust demo
       run: npm run build:hello

@@ -5,17 +5,17 @@ import { IndexedElement, ModelTag } from './tags';
 /// Represents the kind of an external items of a WebAssembly component.
 export const enum ComponentExternalKind {
     /// The external kind is a core module.
-    Module = 'module',
+    Module,
     /// The external kind is a function.
-    Func = 'func',
+    Func,
     /// The external kind is a value.
-    Value = 'value',
+    Value,
     /// The external kind is a type.
-    Type = 'type',
+    Type,
     /// The external kind is an instance.
-    Instance = 'instance',
+    Instance,
     /// The external kind is a component.
-    Component = 'component',
+    Component,
 }
 
 /// Represents an export in a WebAssembly component.
