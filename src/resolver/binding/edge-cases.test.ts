@@ -3,10 +3,10 @@ setConfiguration('Debug');
 
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext } from '../types';
+import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
-import { createLifting, storeToMemory } from './to-abi';
-import { createLowering, loadFromMemory } from './to-js';
+import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
+import { createLowering, createFunctionLowering, loadFromMemory } from './to-js';
 import { WasmPointer, WasmSize } from './types';
 
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
@@ -14,6 +14,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
         usesNumberForInt64,
+        stringEncoding: StringEncoding.Utf8,
     } as any as ResolverContext;
 }
 
@@ -21,8 +22,8 @@ function createMinimalBctx(): BindingContext {
     return {} as any as BindingContext;
 }
 
-function createMockMemoryContext(): { ctx: BindingContext, buffer: ArrayBuffer } {
-    const buffer = new ArrayBuffer(4096);
+function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buffer: ArrayBuffer } {
+    const buffer = new ArrayBuffer(bufferSize);
     let nextAlloc = 16; // start at 16 so ptr is never 0 for valid allocations
 
     const memory = {
@@ -2117,5 +2118,281 @@ describe('nested types via memory round-trips', () => {
         expect(new DataView(buffer, 200).getUint8(0)).toBe(1);
         const errResult = loadFromMemory(ctx, rctx, 200, model as any);
         expect(errResult).toEqual({ tag: 'err', val: 7 });
+    });
+});
+
+// ─── Function trampoline edge cases ────────────────────────────────────────
+
+describe('function trampoline edge cases', () => {
+    function createFuncRctx(): ResolverContext {
+        return {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.Utf8,
+            indexes: {
+                coreModules: [],
+                coreInstances: [],
+                coreFunctions: [],
+                coreMemories: [],
+                coreGlobals: [],
+                coreTables: [],
+                componentImports: [],
+                componentExports: [],
+                componentInstances: [],
+                componentTypeResource: [],
+                componentFunctions: [],
+                componentTypes: [],
+                componentSections: [],
+            },
+        } as any as ResolverContext;
+    }
+
+    function createFuncBctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
+        const buffer = new ArrayBuffer(4096);
+        let nextAlloc = 64;
+        const memory = {
+            initialize() { },
+            getMemory: () => ({ buffer } as any),
+            getView(ptr: WasmPointer, len: WasmSize): DataView { return new DataView(buffer, ptr as number, len as number); },
+            getViewU8(ptr: WasmPointer, len: WasmSize): Uint8Array { return new Uint8Array(buffer, ptr as number, len as number); },
+            readI32(ptr: WasmPointer): number { return new DataView(buffer).getInt32(ptr as number, true); },
+            writeI32(ptr: WasmPointer, val: number): void { new DataView(buffer).setInt32(ptr as number, val, true); },
+        };
+        const allocator = {
+            initialize() { },
+            alloc(newSize: WasmSize, align: WasmSize): WasmPointer {
+                const aligned = ((nextAlloc + (align as number) - 1) & ~((align as number) - 1));
+                nextAlloc = aligned + (newSize as number);
+                return aligned as WasmPointer;
+            },
+            realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize): WasmPointer {
+                if ((newSize as number) === 0) return 0 as WasmPointer;
+                const aligned = ((nextAlloc + (align as number) - 1) & ~((align as number) - 1));
+                nextAlloc = aligned + (newSize as number);
+                if ((oldPtr as number) !== 0 && (oldSize as number) > 0) {
+                    const copyLen = Math.min(oldSize as number, newSize as number);
+                    new Uint8Array(buffer, aligned, copyLen).set(new Uint8Array(buffer, oldPtr as number, copyLen));
+                }
+                return aligned as WasmPointer;
+            },
+        };
+        const ctx = {
+            memory,
+            allocator,
+            utf8Encoder: new TextEncoder(),
+            utf8Decoder: new TextDecoder(),
+            instances: { coreInstances: [], componentInstances: [] },
+            componentImports: {},
+            abort: () => { },
+        } as any as BindingContext;
+        return { ctx, buffer };
+    }
+
+    test('lowering trampoline with named results (empty values = void)', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [{ name: 'a', type: prim(PrimitiveValType.U32) }],
+            results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
+        } as any;
+        const lowerer = createFunctionLowering(rctx, func);
+
+        let received: number | undefined;
+        const mockJs = (x: number) => { received = x; };
+        const wasmFunc = lowerer(ctx, mockJs as any);
+        const result = wasmFunc(42);
+        expect(received).toBe(42);
+        expect(result).toBeUndefined();
+    });
+
+    test('lifting trampoline: exception poisons instance', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [],
+            results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
+        } as any;
+        const lifter = createFunctionLifting(rctx, func);
+
+        const mockWasm = () => { throw new Error('trap!'); };
+        const jsFunc = lifter(ctx, mockWasm as any);
+        expect(() => jsFunc()).toThrow('trap!');
+        expect(ctx.poisoned).toBe(true);
+    });
+
+    test('lifting trampoline: poisoned instance blocks further calls', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [],
+            results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
+        } as any;
+        const lifter = createFunctionLifting(rctx, func);
+
+        ctx.poisoned = true;
+        const mockWasm = () => { };
+        const jsFunc = lifter(ctx, mockWasm as any);
+        expect(() => jsFunc()).toThrow('poisoned');
+    });
+
+    test('lifting trampoline: reentrant call is trapped', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [],
+            results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
+        } as any;
+        const lifter = createFunctionLifting(rctx, func);
+
+        ctx.inExport = true; // simulate already in export
+        const mockWasm = () => { };
+        const jsFunc = lifter(ctx, mockWasm as any);
+        expect(() => jsFunc()).toThrow('reenter');
+    });
+
+    test('lowering trampoline with bool params and result', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [
+                { name: 'a', type: prim(PrimitiveValType.Bool) },
+                { name: 'b', type: prim(PrimitiveValType.Bool) },
+            ],
+            results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.Bool) },
+        } as any;
+        const lowerer = createFunctionLowering(rctx, func);
+
+        const mockJs = (a: boolean, b: boolean) => a && b;
+        const wasmFunc = lowerer(ctx, mockJs as any);
+        // WASM passes i32 values, JS receives booleans
+        expect(wasmFunc(1, 1)).toEqual([1]); // true && true = true → lifted back to 1
+        expect(wasmFunc(1, 0)).toEqual([0]); // true && false = false → lifted back to 0
+    });
+
+    test('lowering trampoline with 0-param function', () => {
+        const rctx = createFuncRctx();
+        const { ctx } = createFuncBctx();
+        const func = {
+            tag: ModelTag.ComponentTypeFunc,
+            params: [],
+            results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
+        } as any;
+        const lowerer = createFunctionLowering(rctx, func);
+
+        const mockJs = () => 42;
+        const wasmFunc = lowerer(ctx, mockJs as any);
+        expect(wasmFunc()).toEqual([42]);
+    });
+});
+
+// ─── Variant lowering edge cases ───────────────────────────────────────────
+
+describe('variant lowering validation', () => {
+    let rctx: ResolverContext;
+    let bctx: BindingContext;
+
+    beforeEach(() => {
+        rctx = createMinimalRctx();
+        bctx = createMinimalBctx();
+    });
+
+    test('variant lowering with out-of-range discriminant throws', () => {
+        const model = {
+            tag: ModelTag.ComponentTypeDefinedVariant as const,
+            variants: [
+                { name: 'a', ty: prim(PrimitiveValType.U32) },
+                { name: 'b' },
+            ],
+        };
+        const lowerer = createLowering(rctx, model);
+        // discriminant 5 is out of range — throws
+        expect(() => lowerer(bctx, 5, 42)).toThrow('Invalid variant discriminant');
+    });
+
+    test('variant lifting with unknown tag name throws', () => {
+        const model = {
+            tag: ModelTag.ComponentTypeDefinedVariant as const,
+            variants: [
+                { name: 'a', ty: prim(PrimitiveValType.U32) },
+                { name: 'b' },
+            ],
+        };
+        const lifter = createLifting(rctx, model);
+        expect(() => lifter(bctx, { tag: 'nonexistent', val: 0 })).toThrow();
+    });
+
+    test('variant with no-payload case lifts without val', () => {
+        const model = {
+            tag: ModelTag.ComponentTypeDefinedVariant as const,
+            variants: [
+                { name: 'empty' },
+                { name: 'data', ty: prim(PrimitiveValType.U32) },
+            ],
+        };
+        const lifter = createLifting(rctx, model);
+        const rctx2 = createMinimalRctx();
+        const lowerer = createLowering(rctx2, model);
+        const lifted = lifter(bctx, { tag: 'empty' });
+        const lowered = lowerer(bctx, ...lifted);
+        expect(lowered).toEqual({ tag: 'empty' });
+    });
+});
+
+// ─── CompactUTF-16 encoding error ──────────────────────────────────────────
+
+describe('CompactUTF-16 encoding', () => {
+    test('lifting with CompactUTF-16 throws not-supported', () => {
+        const rctx = {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.CompactUtf16,
+        } as any as ResolverContext;
+        expect(() => createLifting(rctx, prim(PrimitiveValType.String)))
+            .toThrow('CompactUTF-16');
+    });
+
+    test('lowering with CompactUTF-16 throws not-supported', () => {
+        const rctx = {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.CompactUtf16,
+        } as any as ResolverContext;
+        expect(() => createLowering(rctx, prim(PrimitiveValType.String)))
+            .toThrow('CompactUTF-16');
+    });
+});
+
+// ─── UTF-16 string out-of-bounds ───────────────────────────────────────────
+
+describe('UTF-16 string bounds checking', () => {
+    test('UTF-16 lowering out-of-bounds traps', () => {
+        const rctx = {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.Utf16,
+        } as any as ResolverContext;
+        const { ctx } = createMockMemoryContext(64);
+        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        // 100 code units = 200 bytes, but buffer is only 64 bytes
+        expect(() => (lowerer as any)(ctx, 0, 100))
+            .toThrow('out of bounds');
+    });
+
+    test('UTF-8 lowering out-of-bounds traps', () => {
+        const rctx = createMinimalRctx();
+        const { ctx } = createMockMemoryContext(64);
+        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        // 100 bytes but buffer is only 64
+        expect(() => (lowerer as any)(ctx, 0, 100))
+            .toThrow('out of bounds');
     });
 });

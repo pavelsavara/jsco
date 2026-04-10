@@ -10,7 +10,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, resolveCanonicalOptions, StringEncoding } from './types';
+import { Resolver, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -34,8 +34,10 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLift.options);
-    jsco_assert(canonOpts.stringEncoding === StringEncoding.Utf8,
-        () => `String encoding '${canonOpts.stringEncoding}' not yet supported, only UTF-8`);
+
+    // Set string encoding for this canonical function — read by createLifting/createLowering
+    const savedEncoding = rctx.stringEncoding;
+    rctx.stringEncoding = canonOpts.stringEncoding;
 
     // Resolve the post-return core function if specified in canonical options
     let postReturnResolution: import('./types').ResolverRes | undefined;
@@ -45,6 +47,8 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     }
 
     const liftingBinder = createFunctionLifting(rctx, sectionFunType);
+
+    rctx.stringEncoding = savedEncoding;
 
     return {
         callerElement: rargs.callerElement,

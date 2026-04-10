@@ -99,6 +99,8 @@ export type ResolverContext = {
     resourceAliasGroups: Map<string, number>;
     usesNumberForInt64: boolean
     validateTypes: boolean
+    /** Current string encoding for the canonical function being resolved. Set per lift/lower. */
+    stringEncoding: StringEncoding
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
     memoizeCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>

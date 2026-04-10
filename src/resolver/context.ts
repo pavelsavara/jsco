@@ -4,7 +4,7 @@ import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolverContext, ResourceTable } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
@@ -13,6 +13,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
         validateTypes: (options.validateTypes === false) ? false : true,
+        stringEncoding: StringEncoding.Utf8,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         memoizeCache: new Map(),
         resolvedTypes: new Map(),

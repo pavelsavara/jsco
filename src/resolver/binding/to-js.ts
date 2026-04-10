@@ -1,7 +1,7 @@
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
-import { BindingContext, ResolverContext } from '../types';
+import { BindingContext, ResolverContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
@@ -107,7 +107,7 @@ export function createLowering(rctx: ResolverContext, typeModel: ComponentValTyp
             case ModelTag.ComponentTypeDefinedPrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
-                        return createStringLowering(rctx);
+                        return createStringLowering(rctx.stringEncoding);
                     case PrimitiveValType.Bool:
                         return createBoolLowering();
                     case PrimitiveValType.S8:
@@ -322,7 +322,17 @@ function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeD
     return fn;
 }
 
-function createStringLowering(_rctx: ResolverContext): LoweringToJs {
+function createStringLowering(encoding: StringEncoding): LoweringToJs {
+    if (encoding === StringEncoding.Utf16) {
+        return createStringLoweringUtf16();
+    }
+    if (encoding === StringEncoding.CompactUtf16) {
+        throw new Error('CompactUTF-16 (latin1+utf16) string encoding not yet supported');
+    }
+    return createStringLoweringUtf8();
+}
+
+function createStringLoweringUtf8(): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const pointer = args[0] as WasmPointer;
         const len = args[1] as WasmSize;
@@ -345,13 +355,38 @@ function createStringLowering(_rctx: ResolverContext): LoweringToJs {
     return fn;
 }
 
+function createStringLoweringUtf16(): LoweringToJs {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
+        const pointer = args[0] as WasmPointer;
+        const codeUnits = args[1] as WasmSize;
+        if (codeUnits as number > 0) {
+            const byteLen = (codeUnits as number) * 2;
+            // Validate pointer alignment (UTF-16 = 2-byte alignment)
+            if ((pointer as number) & 1) {
+                throw new Error(`UTF-16 string pointer not aligned: ptr=${pointer}`);
+            }
+            // Validate bounds
+            const memorySize = ctx.memory.getMemory().buffer.byteLength;
+            if ((pointer as number) + byteLen > memorySize) {
+                throw new Error(`string pointer out of bounds: ptr=${pointer} byte_len=${byteLen} memory_size=${memorySize}`);
+            }
+        }
+        const byteLen = (codeUnits as number) * 2;
+        const view = ctx.memory.getView(pointer, byteLen as WasmSize);
+        const u16 = new Uint16Array(view.buffer, view.byteOffset, codeUnits as number);
+        return String.fromCharCode(...u16);
+    };
+    fn.spill = 2;
+    return fn;
+}
+
 // --- Memory load helpers (for list element loading) ---
 
 function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
-function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType): any {
+function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType, encoding: StringEncoding): any {
     switch (prim) {
         case PrimitiveValType.Bool: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
@@ -405,6 +440,12 @@ function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType)
             const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
             const strPtr = dv.getInt32(0, true);
             const strLen = dv.getInt32(4, true);
+            if (encoding === StringEncoding.Utf16) {
+                const byteLen = strLen * 2;
+                const strView = ctx.memory.getView(strPtr as WasmPointer, byteLen as WasmSize);
+                const u16 = new Uint16Array(strView.buffer, strView.byteOffset, strLen);
+                return String.fromCharCode(...u16);
+            }
             const strView = ctx.memory.getView(strPtr as WasmPointer, strLen as WasmSize);
             return ctx.utf8Decoder.decode(strView);
         }
@@ -415,7 +456,7 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return loadPrimitive(ctx, ptr, type.value);
+            return loadPrimitive(ctx, ptr, type.value, rctx.stringEncoding);
         case ModelTag.ComponentTypeDefinedRecord: {
             const result: Record<string, unknown> = {};
             let offset = 0;

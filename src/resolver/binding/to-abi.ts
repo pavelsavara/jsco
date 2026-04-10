@@ -1,7 +1,7 @@
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
-import { BindingContext, ResolverContext } from '../types';
+import { BindingContext, ResolverContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
@@ -129,7 +129,7 @@ export function createLifting(rctx: ResolverContext, typeModel: ComponentValType
             case ModelTag.ComponentTypeDefinedPrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
-                        return createStringLifting();
+                        return createStringLifting(rctx.stringEncoding);
                     case PrimitiveValType.Bool:
                         return createBoolLifting();
                     case PrimitiveValType.S8:
@@ -317,7 +317,17 @@ function createCharLifting(): LiftingFromJs {
     };
 }
 
-function createStringLifting(): LiftingFromJs {
+function createStringLifting(encoding: StringEncoding): LiftingFromJs {
+    if (encoding === StringEncoding.Utf16) {
+        return createStringLiftingUtf16();
+    }
+    if (encoding === StringEncoding.CompactUtf16) {
+        throw new Error('CompactUTF-16 (latin1+utf16) string encoding not yet supported');
+    }
+    return createStringLiftingUtf8();
+}
+
+function createStringLiftingUtf8(): LiftingFromJs {
     return (ctx: BindingContext, srcJsValue: JsValue): any[] => {
         let str = srcJsValue as string;
         if (typeof str !== 'string') throw new TypeError('expected a string');
@@ -346,13 +356,36 @@ function createStringLifting(): LiftingFromJs {
     };
 }
 
+function createStringLiftingUtf16(): LiftingFromJs {
+    return (ctx: BindingContext, srcJsValue: JsValue): any[] => {
+        const str = srcJsValue as string;
+        if (typeof str !== 'string') throw new TypeError('expected a string');
+        if (str.length === 0) {
+            return [0, 0];
+        }
+        // UTF-16: each code unit is 2 bytes, alignment = 2
+        const codeUnits = str.length;
+        const byteLen = codeUnits * 2;
+        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2 as any, byteLen as any);
+        validateAllocResult(ctx, ptr, 2, byteLen);
+        const view = ctx.memory.getViewU8(ptr, byteLen as WasmSize);
+        for (let i = 0; i < codeUnits; i++) {
+            const cu = str.charCodeAt(i);
+            view[i * 2] = cu & 0xFF;
+            view[i * 2 + 1] = (cu >> 8) & 0xFF;
+        }
+        // Return pointer and code unit count (not byte count)
+        return [ptr, codeUnits];
+    };
+}
+
 // --- Memory store helpers (for list element storage) ---
 
 function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
-function storePrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType, val: JsValue): void {
+function storePrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType, val: JsValue, encoding: StringEncoding): void {
     switch (prim) {
         case PrimitiveValType.Bool: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
@@ -416,7 +449,7 @@ function storePrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType
         }
         case PrimitiveValType.String: {
             // Store string as pointer + length in memory
-            const lifter = createStringLifting();
+            const lifter = createStringLifting(encoding);
             const [strPtr, strLen] = lifter(ctx, val);
             const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
             dv.setInt32(0, strPtr as number, true);
@@ -430,7 +463,7 @@ export function storeToMemory(ctx: BindingContext, rctx: ResolverContext, ptr: n
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            storePrimitive(ctx, ptr, type.value, jsValue);
+            storePrimitive(ctx, ptr, type.value, jsValue, rctx.stringEncoding);
             break;
         case ModelTag.ComponentTypeDefinedRecord: {
             let offset = 0;

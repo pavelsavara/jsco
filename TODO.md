@@ -3,11 +3,10 @@
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
 - make sure we don't keep references to model after component was created (memory leak risk)
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
-- convert `export const enum` to numeric literals via rollup transform to save download size
 - instance-local type isolation: `registerInstanceLocalTypes` overwrites global `resolvedTypes` entries — could cause bugs if multiple instances share type indices
 
 # Binder todo
-- respect model options for UTF-16 encoding (currently UTF-8 only)
+- respect model options for CompactUTF-16 (latin1+utf16) encoding
 - option to bind lazily only when methods are called
 - fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
 

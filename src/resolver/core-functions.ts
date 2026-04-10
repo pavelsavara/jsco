@@ -13,7 +13,7 @@ import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
 import { getCanonicalResourceId } from './context';
 import { getComponentFunction, getComponentType } from './indices';
-import { Resolver, BinderRes, ResolverRes, resolveCanonicalOptions, StringEncoding } from './types';
+import { Resolver, BinderRes, ResolverRes, resolveCanonicalOptions } from './types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -42,10 +42,14 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     const funcType = resolveLoweredFuncType(rctx, componentFunction);
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
-    jsco_assert(canonOpts.stringEncoding === StringEncoding.Utf8,
-        () => `String encoding '${canonOpts.stringEncoding}' not yet supported, only UTF-8`);
+
+    // Set string encoding for this canonical function — read by createLifting/createLowering
+    const savedEncoding = rctx.stringEncoding;
+    rctx.stringEncoding = canonOpts.stringEncoding;
 
     const loweringBinder = createFunctionLowering(rctx, funcType);
+
+    rctx.stringEncoding = savedEncoding;
 
     return {
         callerElement: rargs.callerElement,

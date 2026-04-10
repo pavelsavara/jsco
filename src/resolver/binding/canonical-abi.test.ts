@@ -3,7 +3,7 @@ setConfiguration('Debug');
 
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext } from '../types';
+import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
 import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
 import { createLowering, loadFromMemory } from './to-js';
@@ -17,6 +17,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
         usesNumberForInt64,
+        stringEncoding: StringEncoding.Utf8,
     } as any as ResolverContext;
 }
 
@@ -1042,5 +1043,147 @@ describe('C-integration: full round-trip with validation', () => {
         const result = loadFromMemory(ctx, rctx, 32, recordModel);
         expect(result.id).toBe(42);
         expect(result.name).toBe('Alice');
+    });
+});
+
+// =============================================================================
+// UTF-16 String Encoding
+// =============================================================================
+
+describe('UTF-16 string encoding', () => {
+    function createUtf16Rctx(): ResolverContext {
+        return {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.Utf16,
+        } as any as ResolverContext;
+    }
+
+    describe('lifting (JS → WASM memory)', () => {
+        test('ASCII string encodes as UTF-16LE', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            const [ptr, codeUnits] = lifter(ctx, 'hello') as [number, number];
+            expect(codeUnits).toBe(5);
+            const view = new Uint8Array(buffer, ptr, 10);
+            // 'h'=0x0068 'e'=0x0065 'l'=0x006C 'l'=0x006C 'o'=0x006F (little-endian)
+            expect(view[0]).toBe(0x68); expect(view[1]).toBe(0x00);
+            expect(view[2]).toBe(0x65); expect(view[3]).toBe(0x00);
+            expect(view[4]).toBe(0x6C); expect(view[5]).toBe(0x00);
+        });
+
+        test('empty string returns [0, 0]', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+            const { ctx } = createMockMemoryContext();
+
+            const [ptr, codeUnits] = lifter(ctx, '') as [number, number];
+            expect(ptr).toBe(0);
+            expect(codeUnits).toBe(0);
+        });
+
+        test('BMP characters encode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            // Japanese characters — all BMP (2 bytes each in UTF-16)
+            const [ptr, codeUnits] = lifter(ctx, '日本') as [number, number];
+            expect(codeUnits).toBe(2);
+            const dv = new DataView(buffer, ptr, 4);
+            expect(dv.getUint16(0, true)).toBe('日'.charCodeAt(0));
+            expect(dv.getUint16(2, true)).toBe('本'.charCodeAt(0));
+        });
+
+        test('surrogate pairs encode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            // 𝄞 = U+1D11E → surrogate pair D834 DD1E
+            const [ptr, codeUnits] = lifter(ctx, '𝄞') as [number, number];
+            expect(codeUnits).toBe(2); // surrogate pair = 2 code units
+            const dv = new DataView(buffer, ptr, 4);
+            expect(dv.getUint16(0, true)).toBe(0xD834);
+            expect(dv.getUint16(2, true)).toBe(0xDD1E);
+        });
+    });
+
+    describe('lowering (WASM memory → JS)', () => {
+        test('UTF-16LE in memory decodes to JS string', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write "hi" as UTF-16LE at offset 16
+            const dv = new DataView(buffer);
+            dv.setUint16(16, 'h'.charCodeAt(0), true);
+            dv.setUint16(18, 'i'.charCodeAt(0), true);
+
+            const result = (lowerer as any)(ctx, 16, 2);
+            expect(result).toBe('hi');
+        });
+
+        test('empty string (0 code units) loads correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+
+            const { ctx } = createMockMemoryContext();
+            const result = (lowerer as any)(ctx, 0, 0);
+            expect(result).toBe('');
+        });
+
+        test('surrogate pairs in memory decode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write 𝄞 (U+1D11E) as surrogate pair at offset 16
+            const dv = new DataView(buffer);
+            dv.setUint16(16, 0xD834, true);
+            dv.setUint16(18, 0xDD1E, true);
+
+            const result = (lowerer as any)(ctx, 16, 2);
+            expect(result).toBe('𝄞');
+        });
+
+        test('misaligned UTF-16 pointer traps', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write at odd offset
+            new Uint8Array(buffer).set([0x68, 0x00], 17);
+
+            expect(() => (lowerer as any)(ctx, 17, 1))
+                .toThrow('UTF-16 string pointer not aligned');
+        });
+    });
+
+    describe('memory path (storeToMemory/loadFromMemory)', () => {
+        test('UTF-16 string round-trips through memory', () => {
+            const rctx = createUtf16Rctx();
+            const { ctx } = createMockMemoryContext();
+
+            const strType = prim(PrimitiveValType.String);
+            storeToMemory(ctx, rctx, 32, strType as any, 'hëllo');
+
+            const result = loadFromMemory(ctx, rctx, 32, strType as any);
+            expect(result).toBe('hëllo');
+        });
+
+        test('UTF-16 Japanese string round-trips through memory', () => {
+            const rctx = createUtf16Rctx();
+            const { ctx } = createMockMemoryContext();
+
+            const strType = prim(PrimitiveValType.String);
+            storeToMemory(ctx, rctx, 32, strType as any, '日本語');
+
+            const result = loadFromMemory(ctx, rctx, 32, strType as any);
+            expect(result).toBe('日本語');
+        });
     });
 });
