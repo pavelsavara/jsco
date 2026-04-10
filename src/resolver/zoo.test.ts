@@ -8,8 +8,8 @@ type TZooFoodFood = typeof ZooFoodFood
 
 setConfiguration('Debug');
 
-describe('resolver hello', () => {
-    test.failing('component zoo.wasm could run', async () => {
+describe('resolver zoo', () => {
+    test('component zoo.wasm could run', async () => {
         let actualMessage: string = undefined as any;
         let _actualFood: any = undefined as any;
 
@@ -21,11 +21,12 @@ describe('resolver hello', () => {
             consumeFood: (foodinfo, packageinfo, message) => {
                 actualMessage = message;
             },
-            openPackage: (packageinfo, message) => {
+            openPackage: (sealingstate, packageinfo, message) => {
                 actualMessage = message;
             },
-            trashPackage: (sealingstate, message) => {
+            trashPackage: (trashed, message) => {
                 actualMessage = message;
+                return true;
             }
         };
         const imports = {
@@ -55,6 +56,6 @@ describe('resolver hello', () => {
             sealing: 'closed',
         });
 
-        expect(actualMessage).toBe('Welcome to Prague, we invite you for a drink!');
+        expect(actualMessage).toBe('apple? Yuk!');
     });
 });

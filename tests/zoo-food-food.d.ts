@@ -1,8 +1,8 @@
 export namespace ZooFoodFood {
   export function hideFood(food: FoodInfo, message: string): void;
   export function consumeFood(foodinfo: FoodInfo, packageinfo: PackageInfo, message: string): void;
-  export function openPackage(packageinfo: PackageInfo, message: string): void;
-  export function trashPackage(sealingstate: SealingState, message: string): void;
+  export function openPackage(sealingstate: SealingState, packageinfo: PackageInfo, message: string): void;
+  export function trashPackage(trashed: PackageInfo[], message: string): boolean;
 }
 export interface FoodInfo {
   name: string,

@@ -10,6 +10,7 @@ import { memoize } from './cache';
 import { createLowering, loadFromMemory } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
+import camelCase from 'just-camel-case';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);
@@ -171,6 +172,8 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
                 jsco_assert(resolved !== undefined, () => `Unresolved type at index ${typeModel.value}`);
                 return createLifting(rctx, resolved!);
             }
+            case ModelTag.ComponentValTypeResolved:
+                return createLifting(rctx, (typeModel as any).resolved);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLifting(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
@@ -201,7 +204,7 @@ function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDe
     const lifters: { name: string, lifter: LiftingFromJs }[] = [];
     for (const member of recordModel.members) {
         const lifter = createLifting(rctx, member.type);
-        lifters.push({ name: member.name, lifter });
+        lifters.push({ name: camelCase(member.name), lifter });
     }
     return (ctx: BindingContext, srcJsRecord: JsValue): WasmValue[] => {
         // Flatten all record fields into a flat array of WASM values.
@@ -476,7 +479,7 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
                 const fieldType = resolveValTypePure(member.type);
                 const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
-                storeToMemory(ctx, ptr + offset, fieldType, jsValue[member.name], stringEncoding, canonicalResourceIds);
+                storeToMemory(ctx, ptr + offset, fieldType, jsValue[camelCase(member.name)], stringEncoding, canonicalResourceIds);
                 offset += sizeOf(fieldType);
             }
             break;
@@ -606,7 +609,7 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
 // --- List lifting ---
 
 function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LiftingFromJs {
-    const elementType = resolveValType(rctx, listModel.value);
+    const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
     const stringEncoding = rctx.stringEncoding;

@@ -5,9 +5,12 @@ import {
     ComponentTypeDefinedVariant, ComponentTypeDefinedList, ComponentTypeDefinedTuple,
     ComponentTypeDefinedFlags, ComponentTypeDefinedEnum, ComponentTypeDefinedOption,
     ComponentTypeDefinedResult, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
-    ComponentTypeFunc, ComponentType, ComponentTypeResource,
+    ComponentTypeFunc, ComponentType, ComponentTypeResource, ComponentTypeInstance,
 } from '../model/types';
-import type { ResolverContext } from './types';
+import { ComponentExternalKind } from '../model/exports';
+import type { ResolverContext, ResolvedContext } from './types';
+import { StringEncoding } from './types';
+import { deepResolveType } from './calling-convention';
 
 // A resolved type is a concrete type with no further indirection
 export type ResolvedType =
@@ -55,11 +58,25 @@ function resolveType(rctx: ResolverContext, type: ComponentType, visited: Set<Co
             return undefined;
         }
 
-        // Alias to instance export — follow the instance
+        // Alias to instance export — find the named export in the instance type
         case ModelTag.ComponentAliasInstanceExport: {
+            if (type.kind !== ComponentExternalKind.Type) return undefined;
             const instance = rctx.indexes.componentInstances[type.instance_index];
             if (instance && instance.tag === ModelTag.ComponentTypeInstance) {
-                return resolveType(rctx, instance, visited);
+                // Find the InstanceTypeDeclarationExport with matching name
+                for (const decl of instance.declarations) {
+                    if (decl.tag === ModelTag.InstanceTypeDeclarationExport) {
+                        const exportName = (decl.name as any)?.name ?? decl.name;
+                        if (exportName === type.name && decl.ty?.tag === ModelTag.ComponentTypeRefType && decl.ty.value.tag === ModelTag.TypeBoundsEq) {
+                            // ty.value.value is the local type index (position in declarations[])
+                            const localIndex = decl.ty.value.value;
+                            const targetDecl = instance.declarations[localIndex];
+                            if (targetDecl?.tag === ModelTag.InstanceTypeDeclarationType) {
+                                return resolveType(rctx, targetDecl.value, visited);
+                            }
+                        }
+                    }
+                }
             }
             return undefined;
         }
@@ -84,7 +101,86 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
             map.set(i as ComponentTypeIndex, resolved);
         }
     }
+
+    // Phase 2: deep-resolve entries that came from instance type aliases.
+    // Records/lists/etc. from instance types may reference local type indexes
+    // (via ComponentValTypeType) that don't exist in the global map. Build a
+    // temporary local→resolved mapping for each instance type, then deep-resolve
+    // the global entries so they become self-contained (ComponentValTypeResolved).
+    const instanceLocalMaps = new Map<number, Map<ComponentTypeIndex, ResolvedType>>();
+    for (let i = 0; i < rctx.indexes.componentTypes.length; i++) {
+        const type = rctx.indexes.componentTypes[i];
+        if (type.tag === ModelTag.ComponentAliasInstanceExport &&
+            type.kind === ComponentExternalKind.Type) {
+            const instanceIdx = type.instance_index;
+            if (!instanceLocalMaps.has(instanceIdx)) {
+                const instance = rctx.indexes.componentInstances[instanceIdx];
+                if (instance?.tag === ModelTag.ComponentTypeInstance) {
+                    instanceLocalMaps.set(instanceIdx, buildInstanceLocalTypeMap(instance));
+                }
+            }
+            const localMap = instanceLocalMaps.get(instanceIdx);
+            if (localMap) {
+                const resolved = map.get(i as ComponentTypeIndex);
+                if (resolved) {
+                    // Deep-resolve using the local map so records/lists contain
+                    // ComponentValTypeResolved instead of local ComponentValTypeType refs
+                    const rctxLocal: ResolvedContext = {
+                        resolvedTypes: localMap,
+                        // These fields are unused during deep-resolve
+                        liftingCache: new Map(),
+                        loweringCache: new Map(),
+                        canonicalResourceIds: new Map(),
+                        stringEncoding: StringEncoding.Utf8,
+                        usesNumberForInt64: false,
+                    };
+                    map.set(i as ComponentTypeIndex, deepResolveType(rctxLocal, resolved));
+                }
+            }
+        }
+    }
     return map;
+}
+
+/**
+ * Build a resolved type map for the local type scope of a ComponentTypeInstance.
+ * Instance declarations (InstanceTypeDeclarationType and InstanceTypeDeclarationExport
+ * with TypeBoundsEq) each create a local type entry.
+ */
+function buildInstanceLocalTypeMap(instance: ComponentTypeInstance): Map<ComponentTypeIndex, ResolvedType> {
+    const localMap = new Map<ComponentTypeIndex, ResolvedType>();
+    const localTypes: (ResolvedType | undefined)[] = [];
+    let localTypeIdx = 0;
+
+    for (const decl of instance.declarations) {
+        let resolved: ResolvedType | undefined;
+        let isTypeCreating = false;
+
+        if (decl.tag === ModelTag.InstanceTypeDeclarationType) {
+            resolved = decl.value as ResolvedType;
+            isTypeCreating = true;
+        } else if (decl.tag === ModelTag.InstanceTypeDeclarationExport &&
+            decl.ty?.tag === ModelTag.ComponentTypeRefType) {
+            isTypeCreating = true;
+            if (decl.ty.value?.tag === ModelTag.TypeBoundsEq) {
+                // Eq(N) → same type as local type N
+                resolved = localTypes[decl.ty.value.value];
+            }
+            // TypeBoundsSubResource creates a type entry but no resolved type
+        } else if (decl.tag === ModelTag.InstanceTypeDeclarationAlias) {
+            isTypeCreating = true;
+            // Alias handling would require outer scope context — skip value
+        }
+
+        if (!isTypeCreating) continue;
+
+        localTypes.push(resolved);
+        if (resolved) {
+            localMap.set(localTypeIdx as ComponentTypeIndex, resolved);
+        }
+        localTypeIdx++;
+    }
+    return localMap;
 }
 
 /// Resolves the canonical resource type for an own<T> or borrow<T> definition.

@@ -43,8 +43,10 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     // Instance-local type isolation: resolveLoweredFuncType may call
     // registerInstanceLocalTypes, which overwrites global resolvedTypes entries
     // with instance-local types. createFunctionLowering deep-resolves all nested
-    // ComponentValTypeType references at creation time, so the binder closures
-    // never look up resolvedTypes at call time.
+    // ComponentValTypeType references at creation time, so after it runs the
+    // local types are no longer needed. Restore global entries afterward to
+    // prevent polluting the export resolution path.
+    const savedResolvedTypes = new Map(rctx.resolved.resolvedTypes);
 
     const funcType = resolveLoweredFuncType(rctx, componentFunction);
 
@@ -57,6 +59,9 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     const loweringBinder = createFunctionLowering(rctx.resolved, funcType);
 
     rctx.resolved.stringEncoding = savedEncoding;
+    // Restore global resolved types after createFunctionLowering (which deep-resolves
+    // and caches all local type references in its memoize factory).
+    rctx.resolved.resolvedTypes = savedResolvedTypes;
 
     return {
         callerElement: rargs.callerElement,

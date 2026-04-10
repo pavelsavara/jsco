@@ -10,6 +10,7 @@ import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf8 } from './validation';
+import camelCase from 'just-camel-case';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);
@@ -150,6 +151,8 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
                 jsco_assert(resolved !== undefined, () => `Unresolved type at index ${typeModel.value}`);
                 return createLowering(rctx, resolved!);
             }
+            case ModelTag.ComponentValTypeResolved:
+                return createLowering(rctx, (typeModel as any).resolved);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLowering(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
@@ -307,7 +310,7 @@ function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeD
     const fieldLowerers: { name: string, lowerer: LoweringToJs }[] = [];
     for (const member of recordModel.members) {
         const lowerer = createLowering(rctx, member.type);
-        fieldLowerers.push({ name: member.name, lowerer });
+        fieldLowerers.push({ name: camelCase(member.name), lowerer });
     }
     let totalSpill = 0;
     for (const fl of fieldLowerers) {
@@ -470,7 +473,7 @@ export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedT
                 const fieldType = resolveValTypePure(member.type);
                 const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
-                result[member.name] = loadFromMemory(ctx, ptr + offset, fieldType, stringEncoding, canonicalResourceIds);
+                result[camelCase(member.name)] = loadFromMemory(ctx, ptr + offset, fieldType, stringEncoding, canonicalResourceIds);
                 offset += sizeOf(fieldType);
             }
             return result;
@@ -584,7 +587,7 @@ export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedT
 // --- List lowering ---
 
 function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LoweringToJs {
-    const elementType = resolveValType(rctx, listModel.value);
+    const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
     const stringEncoding = rctx.stringEncoding;
