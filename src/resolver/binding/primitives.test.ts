@@ -10,7 +10,7 @@ import { createLowering } from './to-js';
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
         resolved: {
-            memoizeCache: new Map(),
+            liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             usesNumberForInt64,
         },

@@ -13,7 +13,7 @@ import { WasmPointer, WasmSize } from './types';
 function createMockRctx(): ResolverContext {
     return {
         resolved: {
-            memoizeCache: new Map(),
+            liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             usesNumberForInt64: false,
         },

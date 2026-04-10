@@ -16,7 +16,7 @@ import { deepResolveType } from '../calling-convention';
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
         resolved: {
-            memoizeCache: new Map(),
+            liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             usesNumberForInt64,
             stringEncoding: StringEncoding.Utf8,
@@ -1058,7 +1058,7 @@ describe('UTF-16 string encoding', () => {
     function createUtf16Rctx(): ResolverContext {
         return {
             resolved: {
-                memoizeCache: new Map(),
+                liftingCache: new Map(), loweringCache: new Map(),
                 resolvedTypes: new Map(),
                 usesNumberForInt64: false,
                 stringEncoding: StringEncoding.Utf16,

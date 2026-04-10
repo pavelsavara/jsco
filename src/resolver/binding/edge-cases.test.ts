@@ -13,7 +13,7 @@ import { deepResolveType } from '../calling-convention';
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
         resolved: {
-            memoizeCache: new Map(),
+            liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
             usesNumberForInt64,
@@ -2131,7 +2131,7 @@ describe('function trampoline edge cases', () => {
     function createFuncRctx(): ResolverContext {
         return {
             resolved: {
-                memoizeCache: new Map(),
+                liftingCache: new Map(), loweringCache: new Map(),
                 resolvedTypes: new Map(),
                 usesNumberForInt64: false,
                 stringEncoding: StringEncoding.Utf8,
@@ -2356,7 +2356,7 @@ describe('CompactUTF-16 encoding', () => {
     test('lifting with CompactUTF-16 throws not-supported', () => {
         const rctx = {
             resolved: {
-                memoizeCache: new Map(),
+                liftingCache: new Map(), loweringCache: new Map(),
                 resolvedTypes: new Map(),
                 usesNumberForInt64: false,
                 stringEncoding: StringEncoding.CompactUtf16,
@@ -2369,7 +2369,7 @@ describe('CompactUTF-16 encoding', () => {
     test('lowering with CompactUTF-16 throws not-supported', () => {
         const rctx = {
             resolved: {
-                memoizeCache: new Map(),
+                liftingCache: new Map(), loweringCache: new Map(),
                 resolvedTypes: new Map(),
                 usesNumberForInt64: false,
                 stringEncoding: StringEncoding.CompactUtf16,
@@ -2386,7 +2386,7 @@ describe('UTF-16 string bounds checking', () => {
     test('UTF-16 lowering out-of-bounds traps', () => {
         const rctx = {
             resolved: {
-                memoizeCache: new Map(),
+                liftingCache: new Map(), loweringCache: new Map(),
                 resolvedTypes: new Map(),
                 usesNumberForInt64: false,
                 stringEncoding: StringEncoding.Utf16,

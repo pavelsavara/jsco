@@ -88,7 +88,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
             if (firstInstantiation) {
                 firstInstantiation = false;
                 // After first instantiation all memoize factories have run.
-                // Null heavy maps — memoize cache still serves cached lifters/lowerers.
+                // Null heavy maps — lift/lower caches still serve cached lifters/lowerers.
                 resolved.resolvedTypes = null!;
                 resolved.canonicalResourceIds = null!;
             }

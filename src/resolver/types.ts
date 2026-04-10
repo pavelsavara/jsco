@@ -92,7 +92,8 @@ export type IndexedModel = {
 /** Subset of ResolverContext retained for binding/call time. Separate object so
  *  binder closures don't keep the heavy IndexedModel alive. */
 export type ResolvedContext = {
-    memoizeCache: Map<unknown, unknown>
+    liftingCache: Map<unknown, unknown>
+    loweringCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
     /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
     canonicalResourceIds: Map<number, number>

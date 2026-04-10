@@ -23,7 +23,7 @@ const canonicalNaN64: number = _f64[0];
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
-    return memoize(rctx.memoizeCache, importModel, () => {
+    return memoize(rctx.liftingCache, importModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, importModel) as ComponentTypeFunc);
         const paramLifters: Function[] = [];
         for (const param of importModel.params) {
@@ -128,7 +128,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
 
 
 export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType | ResolvedType): LiftingFromJs {
-    return memoize(rctx.memoizeCache, typeModel, () => {
+    return memoize(rctx.liftingCache, typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
             case ModelTag.ComponentTypeDefinedPrimitive:

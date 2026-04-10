@@ -23,7 +23,7 @@ const canonicalNaN64: number = _f64[0];
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
-    return memoize(rctx.memoizeCache, exportModel, () => {
+    return memoize(rctx.loweringCache, exportModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
         // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
@@ -107,7 +107,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
 }
 
 export function createLowering(rctx: ResolvedContext, typeModel: ComponentValType | ResolvedType): LoweringToJs {
-    return memoize(rctx.memoizeCache, typeModel, () => {
+    return memoize(rctx.loweringCache, typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
             case ModelTag.ComponentTypeDefinedPrimitive:

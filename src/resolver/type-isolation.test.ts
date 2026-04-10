@@ -28,7 +28,7 @@ import type { ResolvedType } from './type-resolution';
 function createRctxWithGlobalTypes(globalTypes: [number, ResolvedType][]): ResolverContext {
     return {
         resolved: {
-            memoizeCache: new Map(),
+            liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(globalTypes.map(([idx, t]) => [idx as ComponentTypeIndex, t])),
             canonicalResourceIds: new Map(),
             usesNumberForInt64: false,

@@ -9,7 +9,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
         usesNumberForInt64: false,
         validateTypes: true,
         wasmInstantiate: async (m, i) => WebAssembly.instantiate(m, i),
-        memoizeCache: new Map(),
+        liftingCache: new Map(), loweringCache: new Map(),
         resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
         canonicalResourceIds: new Map(),

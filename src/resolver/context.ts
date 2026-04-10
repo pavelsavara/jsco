@@ -16,7 +16,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
         resolved: {
             usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
             stringEncoding: StringEncoding.Utf8,
-            memoizeCache: new Map(),
+            liftingCache: new Map(),
+            loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
         },
