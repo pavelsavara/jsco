@@ -1,8 +1,19 @@
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../../model/types';
 import { ResolvedContext, BindingContext, StringEncoding } from '../types';
-import { createLifting, createFunctionLifting } from './to-abi';
+import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
+import type { WasmValue } from './types';
+
+// Wrap BYO-buffer lifters to return arrays for test convenience
+function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+    const lifter = _createLifting(rctx, model);
+    return (ctx: BindingContext, value: any) => {
+        const out = new Array<WasmValue>(64);
+        const count = lifter(ctx, value, out, 0);
+        return out.slice(0, count);
+    };
+}
 
 function createMinimalResolved(opts?: Partial<ResolvedContext>): ResolvedContext {
     return {
@@ -28,8 +39,8 @@ describe('memoization keys', () => {
         test('createLifting returns same result for same object reference', () => {
             const rctx = createMinimalResolved();
             const typeModel = prim(PrimitiveValType.U32);
-            const lifter1 = createLifting(rctx, typeModel);
-            const lifter2 = createLifting(rctx, typeModel);
+            const lifter1 = _createLifting(rctx, typeModel);
+            const lifter2 = _createLifting(rctx, typeModel);
             expect(lifter1).toBe(lifter2);
         });
 
@@ -164,13 +175,13 @@ describe('memoization keys', () => {
             const strType = prim(PrimitiveValType.String);
 
             // Create lifter with UTF-8 encoding
-            const lifter1 = createLifting(rctx, strType);
+            const lifter1 = _createLifting(rctx, strType);
 
             // Change encoding on same rctx
             rctx.stringEncoding = StringEncoding.Utf16;
 
             // Same object identity → cache hit → returns UTF-8 lifter (not UTF-16)
-            const lifter2 = createLifting(rctx, strType);
+            const lifter2 = _createLifting(rctx, strType);
             expect(lifter1).toBe(lifter2);
         });
 

@@ -4,9 +4,19 @@ setConfiguration('Debug');
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext } from '../types';
-import { createLifting } from './to-abi';
+import { createLifting as _createLifting } from './to-abi';
 import { createLowering } from './to-js';
-import { WasmPointer, WasmSize } from './types';
+import { WasmPointer, WasmSize, WasmValue } from './types';
+
+// Wrap BYO-buffer lifters to return arrays for test convenience
+function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+    const lifter = _createLifting(rctx, model);
+    return (ctx: BindingContext, value: any) => {
+        const out = new Array<WasmValue>(64);
+        const count = lifter(ctx, value, out, 0);
+        return out.slice(0, count);
+    };
+}
 
 function createMinimalRctx(): ResolverContext {
     return {

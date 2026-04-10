@@ -75,41 +75,42 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
             }
         }
 
+        // Pre-allocate result buffer for flat result path (MAX_FLAT_RESULTS=1, so always 1 value)
+        const resultBuf: WasmValue[] = [0];
+
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
             function loweringTrampoline(...args: any[]): any {
-                let covertedArgs: any[] = [];
+                const convertedArgs = new Array(paramLoaders.length);
                 if (callingConvention.params === CallingConvention.Spilled) {
                     // Spill: WASM passes single pointer, read params from memory
                     const ptr = args[0] as number;
                     for (let i = 0; i < paramLoaders.length; i++) {
-                        covertedArgs.push(paramLoaders[i](ctx, ptr + spilledParamOffsets[i]));
+                        convertedArgs[i] = paramLoaders[i](ctx, ptr + spilledParamOffsets[i]);
                     }
                 } else {
                     // Flat/Scalar: read each param using lowerers
                     let flatOffset = 0;
                     for (let i = 0; i < paramLowerers.length; i++) {
-                        const lowerer = paramLowerers[i];
-                        const spill = (lowerer as any).spill;
-                        const values = args.slice(flatOffset, flatOffset + spill);
-                        const converted = lowerer(ctx, ...values);
+                        const spill = (paramLowerers[i] as any).spill;
+                        convertedArgs[i] = paramLowerers[i](ctx, ...args.slice(flatOffset, flatOffset + spill));
                         flatOffset += spill;
-                        covertedArgs = [...covertedArgs, converted];
                     }
                 }
 
                 if (callingConvention.results === CallingConvention.Spilled) {
                     // canon_lower: WASM passed retptr as last flat arg
                     const retptr = args[args.length - 1] as number;
-                    const resJs = jsFunction(...covertedArgs);
+                    const resJs = jsFunction(...convertedArgs);
                     if (resultStorer !== undefined) {
                         resultStorer(ctx, retptr, resJs);
                     }
                     // No return value - WASM reads from retptr
                 } else {
-                    const resJs = jsFunction(...covertedArgs);
+                    const resJs = jsFunction(...convertedArgs);
                     if (resultLifters.length === 1) {
-                        return resultLifters[0](ctx, resJs);
+                        resultLifters[0](ctx, resJs, resultBuf, 0);
+                        return resultBuf[0];
                     }
                 }
             }
@@ -330,10 +331,9 @@ function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeD
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const result: Record<string, unknown> = {};
         let offset = 0;
-        for (const { name, lowerer } of fieldLowerers) {
-            const spill = (lowerer as any).spill;
-            const values = args.slice(offset, offset + spill);
-            result[name] = lowerer(ctx, ...values);
+        for (let i = 0; i < fieldLowerers.length; i++) {
+            const spill = (fieldLowerers[i].lowerer as any).spill;
+            result[fieldLowerers[i].name] = fieldLowerers[i].lowerer(ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;
@@ -480,8 +480,8 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             }
             return (ctx, ptr) => {
                 const result: Record<string, unknown> = {};
-                for (const { name, offset, loader } of fieldLoaders) {
-                    result[name] = loader(ctx, ptr + offset);
+                for (let i = 0; i < fieldLoaders.length; i++) {
+                    result[fieldLoaders[i].name] = fieldLoaders[i].loader(ctx, ptr + fieldLoaders[i].offset);
                 }
                 return result;
             };
@@ -494,9 +494,9 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
                 const listPtr = dv.getInt32(0, true);
                 const len = dv.getInt32(4, true);
-                const result: any[] = [];
+                const result = new Array(len);
                 for (let i = 0; i < len; i++) {
-                    result.push(elemLoader(ctx, listPtr + i * elemSize));
+                    result[i] = elemLoader(ctx, listPtr + i * elemSize);
                 }
                 return result;
             };
@@ -594,9 +594,9 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr) => {
-                const result: any[] = [];
-                for (const { offset, loader } of memberLoaders) {
-                    result.push(loader(ctx, ptr + offset));
+                const result = new Array(memberLoaders.length);
+                for (let i = 0; i < memberLoaders.length; i++) {
+                    result[i] = memberLoaders[i].loader(ctx, ptr + memberLoaders[i].offset);
                 }
                 return result;
             };
@@ -640,9 +640,9 @@ function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefin
                 throw new Error(`list pointer out of bounds: ptr=${ptr} len=${len} elem_size=${elemSize} memory_size=${memorySize}`);
             }
         }
-        const result: any[] = [];
+        const result = new Array(len);
         for (let i = 0; i < len; i++) {
-            result.push(elemLoader(ctx, ptr + i * elemSize));
+            result[i] = elemLoader(ctx, ptr + i * elemSize);
         }
         return result;
     };
@@ -755,11 +755,11 @@ function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDef
     for (const l of elementLowerers) totalSpill += (l as any).spill;
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const result: any[] = [];
+        const result = new Array(elementLowerers.length);
         let offset = 0;
-        for (const lowerer of elementLowerers) {
-            const spill = (lowerer as any).spill;
-            result.push(lowerer(ctx, ...args.slice(offset, offset + spill)));
+        for (let i = 0; i < elementLowerers.length; i++) {
+            const spill = (elementLowerers[i] as any).spill;
+            result[i] = elementLowerers[i](ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;

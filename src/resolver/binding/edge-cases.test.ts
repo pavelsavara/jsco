@@ -5,11 +5,21 @@ import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
-import { createLifting, createFunctionLifting } from './to-abi';
+import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
 import { storeToMemory, loadFromMemory } from './test-helpers';
-import { WasmPointer, WasmSize } from './types';
+import { WasmPointer, WasmSize, WasmValue } from './types';
 import { deepResolveType } from '../calling-convention';
+
+// Wrap BYO-buffer lifters to return arrays for test convenience
+function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+    const lifter = _createLifting(rctx, model);
+    return (ctx: BindingContext, value: any) => {
+        const out = new Array<WasmValue>(64);
+        const count = lifter(ctx, value, out, 0);
+        return out.slice(0, count);
+    };
+}
 
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
@@ -2278,8 +2288,8 @@ describe('function trampoline edge cases', () => {
         const mockJs = (a: boolean, b: boolean) => a && b;
         const wasmFunc = lowerer(ctx, mockJs as any);
         // WASM passes i32 values, JS receives booleans
-        expect(wasmFunc(1, 1)).toEqual([1]); // true && true = true → lifted back to 1
-        expect(wasmFunc(1, 0)).toEqual([0]); // true && false = false → lifted back to 0
+        expect(wasmFunc(1, 1)).toEqual(1); // true && true = true → lifted back to 1
+        expect(wasmFunc(1, 0)).toEqual(0); // true && false = false → lifted back to 0
     });
 
     test('lowering trampoline with 0-param function', () => {
@@ -2294,7 +2304,7 @@ describe('function trampoline edge cases', () => {
 
         const mockJs = () => 42;
         const wasmFunc = lowerer(ctx, mockJs as any);
-        expect(wasmFunc()).toEqual([42]);
+        expect(wasmFunc()).toEqual(42);
     });
 });
 

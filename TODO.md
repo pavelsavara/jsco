@@ -12,6 +12,8 @@
 - limit runtime allocations: `for (const { name, lowerer } of fieldLowerers)`
 - use decoder/encoder `String.fromCharCode(...u16)`
 - unroll `loadFromMemory` during binding
+- free memory and resource handles
+- make i64 -> number vs bingint configurable again, add tests for it. usesNumberForInt64
 
 # Parser todo
 - add options to delay parsing core modules
@@ -34,7 +36,6 @@
 - Multi-word flags | >32 flag members | Medium |
 - Empty containers | Empty record, empty tuple | Low |
 - add Firefox browser test (Chrome done via Playwright)
-- tests with usesNumberForInt64=true
 
 # Integration Test Plan
 - Implementation, consumer, forwarder components
