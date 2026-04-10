@@ -1,7 +1,6 @@
 import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
 import { CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
-import { ComponentImport } from '../model/imports';
 import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { withDebugTrace, jsco_assert } from '../utils/assert';
@@ -11,7 +10,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { BinderRes, Resolver, resolveCanonicalOptions, StringEncoding } from './types';
+import { Resolver, resolveCanonicalOptions, StringEncoding } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {

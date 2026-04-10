@@ -1,7 +1,7 @@
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ComponentImport, ComponentTypeRef } from '../model/imports';
+import { ComponentImport } from '../model/imports';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeFunc, ComponentFuncType, ComponentValType, NamedValue } from '../model/types';
+import { ComponentFuncType, ComponentValType } from '../model/types';
 import type { ResolverContext } from './types';
 
 const kindToTypeRefTag: Record<ComponentExternalKind, ModelTag | undefined> = {

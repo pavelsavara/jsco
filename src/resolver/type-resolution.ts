@@ -5,7 +5,7 @@ import {
     ComponentTypeDefinedVariant, ComponentTypeDefinedList, ComponentTypeDefinedTuple,
     ComponentTypeDefinedFlags, ComponentTypeDefinedEnum, ComponentTypeDefinedOption,
     ComponentTypeDefinedResult, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
-    ComponentTypeFunc, ComponentType, ComponentTypeInstance, ComponentTypeResource,
+    ComponentTypeFunc, ComponentType, ComponentTypeResource,
 } from '../model/types';
 import type { ResolverContext } from './types';
 

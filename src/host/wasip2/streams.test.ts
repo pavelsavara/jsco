@@ -1,4 +1,4 @@
-import { createInputStream, createOutputStream, StreamResult } from './streams';
+import { createInputStream, createOutputStream } from './streams';
 import { createWasiError } from './error';
 
 describe('wasi:io/streams', () => {

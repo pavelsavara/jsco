@@ -5,11 +5,11 @@ import { BindingContext, ResolverContext } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, flatCountForValType, resolveValType, sizeOfValType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, flatCountForValType, resolveValType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, loadFromMemory } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
-import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from './validation';
+import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);

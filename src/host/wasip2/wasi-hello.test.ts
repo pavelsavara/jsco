@@ -15,7 +15,6 @@ import { createWasiHost } from './index';
 import { WasiExit } from './types';
 import { instantiateWasiComponent } from './instantiate';
 import { setConfiguration } from '../../utils/assert';
-import { readFileSync } from 'fs';
 
 setConfiguration('Debug');
 
@@ -33,13 +32,13 @@ describe('WASI hello component', () => {
             const model = await parse(wasiHelloPath);
 
             // Find import sections
-            const importSections = model.filter(
+            const _importSections = model.filter(
                 (s: any) => s.tag !== undefined && s.imports !== undefined
             );
 
             // The component should have imports
             // Let's just look at the raw model structure
-            const json = JSON.stringify(model, (key, value) => {
+            const _json = JSON.stringify(model, (key, value) => {
                 if (typeof value === 'bigint') return value.toString();
                 if (value instanceof Uint8Array) return `Uint8Array(${value.length})`;
                 return value;
@@ -74,7 +73,7 @@ describe('WASI hello component', () => {
                 const runNs = instance.exports['wasi:cli/run@0.2.6'] as any;
                 const run = runNs?.run;
                 if (run) {
-                    const result = run();
+                    run();
                     // result is { tag: 'ok' } or { tag: 'err' }
                     exitStatus = 0;
                 }
@@ -108,7 +107,7 @@ describe('WASI hello component', () => {
                 // The component exports wasi:cli/run@0.2.6 with a 'run' function
                 const run = (instance.exports as any)['wasi:cli/run@0.2.6']?.run;
                 if (run) {
-                    const result = await run();
+                    await run();
                     exitStatus = 0;
                 }
             } catch (e) {
@@ -140,7 +139,7 @@ describe('WASI hello component', () => {
 
                 const run = (instance.exports as any)['wasi:cli/run@0.2.6']?.run;
                 if (run) {
-                    const result = run();
+                    run();
                     exitStatus = 0;
                 }
             } catch (e) {
@@ -172,7 +171,7 @@ describe('WASI hello component', () => {
 
                 const run = (instance.exports as any)['wasi:cli/run@0.2.6']?.run;
                 if (run) {
-                    const result = run();
+                    run();
                     exitStatus = 0;
                 }
             } catch (e) {

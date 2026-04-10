@@ -1059,7 +1059,7 @@ describe('storeToMemory/loadFromMemory round-trips', () => {
 
         const lifter = createLifting(rctx, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        createLowering(rctx2, model);
 
         // Some("hello")
         const liftedSome = lifter(ctx, 'hello');
@@ -1292,7 +1292,7 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: innerRef,
         };
-        const lifter = createLifting(rctx, outerOption as any);
+        const _lifter = createLifting(rctx, outerOption as any);
         const rctx2 = createMinimalRctx();
         rctx2.resolvedTypes.set(0 as any, innerOption as any);
         const lowerer = createLowering(rctx2, outerOption as any);
@@ -1972,7 +1972,7 @@ describe('resource handle additional edge cases', () => {
         const { ctx } = createMockMemoryContext();
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn as const, value: 0 };
         // Add a resource and get a handle
-        const handle = ctx.resources.add(0, 'test-resource');
+        const _handle = ctx.resources.add(0, 'test-resource');
         // Store handle in memory
         storeToMemory(ctx, rctx, 100, ownModel as any, 'test-resource');
         // The handle was stored by lifting (add), not directly

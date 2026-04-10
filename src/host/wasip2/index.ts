@@ -24,8 +24,8 @@ import { createWasiMonotonicClock } from './monotonic-clock';
 import { createWasiCli } from './cli';
 import { createWasiFilesystem } from './filesystem';
 import { poll } from './poll';
-import { createFields, createOutgoingRequest, createRequestOptions, createOutgoingHandler } from './http';
-import { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
+import { createOutgoingHandler } from './http';
+import { createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
 import { WasiInputStream, WasiOutputStream } from './streams';
 import { WasiError } from './error';
 

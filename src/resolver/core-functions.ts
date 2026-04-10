@@ -332,7 +332,7 @@ export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionRes
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const dropFn = (handle: number) => {
                 bctx.resources.remove(resourceTypeIdx, handle);
             };
@@ -352,7 +352,7 @@ export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionReso
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const newFn = (rep: number) => {
                 return bctx.resources.add(resourceTypeIdx, rep);
             };
@@ -371,7 +371,7 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const repFn = (handle: number) => {
                 return bctx.resources.get(resourceTypeIdx, handle);
             };

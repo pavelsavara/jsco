@@ -7,12 +7,11 @@ import { ComponentTypeResource, ComponentType } from '../model/types';
 import { WITModel } from '../parser';
 import { CoreModule, ComponentSection } from '../parser/types';
 import { TaggedElement } from '../model/tags';
-import { JsImports, WasmComponentInstance } from './api-types';
+import { JsImports } from './api-types';
 import type { ComponentTypeIndex } from '../model/indices';
 import type { ResolvedType } from './type-resolution';
 import type { CanonicalOption } from '../model/canonicals';
 import { ModelTag } from '../model/tags';
-import { jsco_assert } from '../utils/assert';
 
 export const enum StringEncoding {
     Utf8,

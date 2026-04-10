@@ -11,12 +11,12 @@ setConfiguration('Debug');
 describe('resolver hello', () => {
     test.failing('component zoo.wasm could run', async () => {
         let actualMessage: string = undefined as any;
-        let actualFood: any = undefined as any;
+        let _actualFood: any = undefined as any;
 
         const zooFood: TZooFoodFood = {
             hideFood: (food, message) => {
                 actualMessage = message;
-                actualFood = food;
+                _actualFood = food;
             },
             consumeFood: (foodinfo, packageinfo, message) => {
                 actualMessage = message;

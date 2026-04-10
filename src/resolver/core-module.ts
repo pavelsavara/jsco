@@ -9,7 +9,7 @@ export const resolveCoreModule: Resolver<CoreModule> = (rctx, rargs) => {
     return {
         callerElement: rargs.callerElement,
         element: coreModule,
-        binder: async (bctx, bargs) => {
+        binder: async (_bctx, _bargs) => {
             const binderResult = {
                 result: await coreModule.module!
             };

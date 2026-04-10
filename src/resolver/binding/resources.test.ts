@@ -96,9 +96,9 @@ describe('canonical resource identity resolution', () => {
         const rctx = {
             indexes: {
                 componentTypes: [
-                    { tag: ModelTag.ComponentTypeDefinedRecord },  // type 0
-                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F },  // type 1
-                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 1 },  // type 2, points to resource at 1
+                    { tag: ModelTag.ComponentTypeDefinedRecord }, // type 0
+                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F }, // type 1
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 1 }, // type 2, points to resource at 1
                 ],
             },
         } as any as ResolverContext;
@@ -113,9 +113,9 @@ describe('canonical resource identity resolution', () => {
         const rctx = {
             indexes: {
                 componentTypes: [
-                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F },  // type 0
-                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 },  // type 1
-                    { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 },  // type 2
+                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F }, // type 0
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 }, // type 1
+                    { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 }, // type 2
                 ],
             },
         } as any as ResolverContext;
@@ -131,8 +131,8 @@ describe('canonical resource identity resolution', () => {
         const rctx = {
             indexes: {
                 componentTypes: [
-                    { tag: ModelTag.ComponentTypeDefinedRecord },  // type 0
-                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 },  // type 1, points to record (wrong!)
+                    { tag: ModelTag.ComponentTypeDefinedRecord }, // type 0
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 }, // type 1, points to record (wrong!)
                 ],
             },
         } as any as ResolverContext;
@@ -148,8 +148,8 @@ describe('canonical resource identity resolution', () => {
         const stream = { kind: 'stream' };
         const pollable = { kind: 'pollable' };
 
-        const h1 = resources.add(0, stream);    // own<stream>
-        const h2 = resources.add(1, pollable);  // own<pollable>
+        const h1 = resources.add(0, stream); // own<stream>
+        const h2 = resources.add(1, pollable); // own<pollable>
 
         // Same-type access works
         expect(resources.get(0, h1)).toBe(stream);

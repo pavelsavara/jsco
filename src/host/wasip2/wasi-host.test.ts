@@ -44,9 +44,9 @@ describe('createWasiHost', () => {
 
         it('all interface values are objects with function members', () => {
             const host = createWasiHost();
-            for (const [key, iface] of Object.entries(host)) {
+            for (const [_key, iface] of Object.entries(host)) {
                 expect(typeof iface).toBe('object');
-                for (const [methodName, method] of Object.entries(iface)) {
+                for (const [_methodName, method] of Object.entries(iface)) {
                     expect(typeof method).toBe('function');
                 }
             }

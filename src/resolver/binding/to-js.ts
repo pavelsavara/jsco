@@ -5,11 +5,11 @@ import { BindingContext, ResolverContext } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, sizeOfValType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
-import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+import { validatePointerAlignment, validateUtf8 } from './validation';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);
@@ -322,7 +322,7 @@ function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeD
     return fn;
 }
 
-function createStringLowering(rctx: ResolverContext): LoweringToJs {
+function createStringLowering(_rctx: ResolverContext): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const pointer = args[0] as WasmPointer;
         const len = args[1] as WasmSize;

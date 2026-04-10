@@ -15,7 +15,7 @@
  */
 
 import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-import { WasiPollable, createSyncPollable, createAsyncPollable } from './poll';
+import { WasiPollable, createAsyncPollable } from './poll';
 
 // ─── Method ───
 
