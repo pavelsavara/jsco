@@ -9,6 +9,7 @@ import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
 import { createLowering, loadFromMemory } from './to-js';
 import { WasmPointer, WasmSize } from './types';
 import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+import { deepResolveType } from '../calling-convention';
 
 // --- Test helpers ---
 
@@ -18,6 +19,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
         resolvedTypes: new Map(),
         usesNumberForInt64,
         stringEncoding: StringEncoding.Utf8,
+        canonicalResourceIds: new Map(),
     } as any as ResolverContext;
 }
 
@@ -544,10 +546,10 @@ describe('C3: nested compound types through memory', () => {
         } as any;
         (rctx.resolvedTypes as Map<any, any>).set(100, listModel);
 
-        const optionModel = {
+        const optionModel = deepResolveType(rctx, {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: { tag: ModelTag.ComponentValTypeType, value: 100 },
-        } as any;
+        } as any);
         (rctx.resolvedTypes as Map<any, any>).set(101, optionModel);
 
         // Store Some([1,2,3]) through memory
@@ -564,7 +566,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(20, 200, true); // list ptr
         dv.setInt32(24, 3, true); // list len
 
-        const result = loadFromMemory(ctx, rctx, 16, optionModel);
+        const result = loadFromMemory(ctx, 16, optionModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual([1, 2, 3]);
     });
 
@@ -578,16 +580,16 @@ describe('C3: nested compound types through memory', () => {
         } as any;
         (rctx.resolvedTypes as Map<any, any>).set(100, innerOption);
 
-        const outerOption = {
+        const outerOption = deepResolveType(rctx, {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: { tag: ModelTag.ComponentValTypeType, value: 100 },
-        } as any;
+        } as any);
 
         // Store None at offset 16
         const dv = new DataView(buffer);
         dv.setUint8(16, 0); // outer discriminant = None
 
-        const result = loadFromMemory(ctx, rctx, 16, outerOption);
+        const result = loadFromMemory(ctx, 16, outerOption, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBeNull();
     });
 
@@ -607,7 +609,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(16, 0, true); // discriminant = ok
         dv.setUint32(20, 42, true); // payload = 42
 
-        const result = loadFromMemory(ctx, rctx, 16, resultModel);
+        const result = loadFromMemory(ctx, 16, resultModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'ok', val: 42 });
     });
 
@@ -632,7 +634,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(20, 200, true); // string ptr
         dv.setInt32(24, 4, true); // string len
 
-        const result = loadFromMemory(ctx, rctx, 16, resultModel);
+        const result = loadFromMemory(ctx, 16, resultModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'err', val: 'oops' });
     });
 
@@ -650,10 +652,10 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         // Store: u8 at offset 16, padding to 20, u32 at 20, u8 at 24
-        storeToMemory(ctx, rctx, 16, tupleModel, [0xAB, 0x12345678, 0xCD]);
+        storeToMemory(ctx, 16, tupleModel, [0xAB, 0x12345678, 0xCD], rctx.stringEncoding, rctx.canonicalResourceIds);
 
         // Read back
-        const result = loadFromMemory(ctx, rctx, 16, tupleModel);
+        const result = loadFromMemory(ctx, 16, tupleModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual([0xAB, 0x12345678, 0xCD]);
     });
 
@@ -672,8 +674,8 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         const original = { flag: true, count: 100, score: 3.14, byte: 0xFF };
-        storeToMemory(ctx, rctx, 16, recordModel, original);
-        const result = loadFromMemory(ctx, rctx, 16, recordModel) as any;
+        storeToMemory(ctx, 16, recordModel, original, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 16, recordModel, rctx.stringEncoding, rctx.canonicalResourceIds) as any;
 
         expect(result.flag).toBe(true);
         expect(result.count).toBe(100);
@@ -695,13 +697,13 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         // Test case 1: just-int(42)
-        storeToMemory(ctx, rctx, 16, variantModel, { tag: 'just-int', val: 42 });
-        let result = loadFromMemory(ctx, rctx, 16, variantModel);
+        storeToMemory(ctx, 16, variantModel, { tag: 'just-int', val: 42 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        let result = loadFromMemory(ctx, 16, variantModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'just-int', val: 42 });
 
         // Test case 0: none
-        storeToMemory(ctx, rctx, 64, variantModel, { tag: 'none', val: undefined });
-        result = loadFromMemory(ctx, rctx, 64, variantModel);
+        storeToMemory(ctx, 64, variantModel, { tag: 'none', val: undefined }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        result = loadFromMemory(ctx, 64, variantModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'none', val: undefined });
     });
 
@@ -725,8 +727,8 @@ describe('C3: nested compound types through memory', () => {
 
         // tuple<u8, u32> has size=8 (1 byte + 3 padding + 4 bytes), align=4
         // Store 2 elements at offset 200
-        storeToMemory(ctx, rctx, 200, tupleModel, [0xAA, 100]);
-        storeToMemory(ctx, rctx, 208, tupleModel, [0xBB, 200]);
+        storeToMemory(ctx, 200, tupleModel, [0xAA, 100], rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 208, tupleModel, [0xBB, 200], rctx.stringEncoding, rctx.canonicalResourceIds);
 
         // Now set up list pointer: ptr=200, len=2
         const dv = new DataView(buffer);
@@ -1040,7 +1042,7 @@ describe('C-integration: full round-trip with validation', () => {
         dv.setInt32(36, 200, true); // name ptr
         dv.setInt32(40, 5, true); // name len
 
-        const result = loadFromMemory(ctx, rctx, 32, recordModel);
+        const result = loadFromMemory(ctx, 32, recordModel, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result.id).toBe(42);
         expect(result.name).toBe('Alice');
     });
@@ -1169,9 +1171,9 @@ describe('UTF-16 string encoding', () => {
             const { ctx } = createMockMemoryContext();
 
             const strType = prim(PrimitiveValType.String);
-            storeToMemory(ctx, rctx, 32, strType as any, 'hëllo');
+            storeToMemory(ctx, 32, strType as any, 'hëllo', rctx.stringEncoding, rctx.canonicalResourceIds);
 
-            const result = loadFromMemory(ctx, rctx, 32, strType as any);
+            const result = loadFromMemory(ctx, 32, strType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
             expect(result).toBe('hëllo');
         });
 
@@ -1180,9 +1182,9 @@ describe('UTF-16 string encoding', () => {
             const { ctx } = createMockMemoryContext();
 
             const strType = prim(PrimitiveValType.String);
-            storeToMemory(ctx, rctx, 32, strType as any, '日本語');
+            storeToMemory(ctx, 32, strType as any, '日本語', rctx.stringEncoding, rctx.canonicalResourceIds);
 
-            const result = loadFromMemory(ctx, rctx, 32, strType as any);
+            const result = loadFromMemory(ctx, 32, strType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
             expect(result).toBe('日本語');
         });
     });

@@ -5,7 +5,7 @@ import { BindingContext, ResolverContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, deepResolveType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
@@ -24,7 +24,7 @@ const canonicalNaN64: number = _f64[0];
 
 export function createFunctionLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(rctx.memoizeCache, exportModel, () => {
-        const callingConvention = determineFunctionCallingConvention(rctx, exportModel);
+        const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
         // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
         const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
@@ -32,6 +32,10 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
         if (exportModel.results.tag === ModelTag.ComponentFuncResultUnnamed) {
             resultType = deepResolveType(rctx, resolveValType(rctx, exportModel.results.type));
         }
+
+        // Pre-capture rctx properties needed at call time — after this, rctx is not captured
+        const stringEncoding = rctx.stringEncoding;
+        const canonicalResourceIds = rctx.canonicalResourceIds;
 
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
@@ -63,10 +67,10 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
                     let memOffset = 0;
                     for (let i = 0; i < paramResolvedTypes.length; i++) {
                         const pt = paramResolvedTypes[i];
-                        const a = alignOf(rctx, pt);
+                        const a = alignOf(pt);
                         memOffset = alignUp(memOffset, a);
-                        covertedArgs.push(loadFromMemory(ctx, rctx, ptr + memOffset, pt));
-                        memOffset += sizeOf(rctx, pt);
+                        covertedArgs.push(loadFromMemory(ctx, ptr + memOffset, pt, stringEncoding, canonicalResourceIds));
+                        memOffset += sizeOf(pt);
                     }
                 } else {
                     // Flat/Scalar: read each param using lowerers
@@ -86,7 +90,7 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
                     const retptr = args[args.length - 1] as number;
                     const resJs = jsFunction(...covertedArgs);
                     if (resultType !== undefined) {
-                        storeToMemory(ctx, rctx, retptr, resultType, resJs);
+                        storeToMemory(ctx, retptr, resultType, resJs, stringEncoding, canonicalResourceIds);
                     }
                     // No return value - WASM reads from retptr
                 } else {
@@ -453,20 +457,20 @@ function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType,
     }
 }
 
-export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: number, type: ResolvedType): any {
+export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): any {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return loadPrimitive(ctx, ptr, type.value, rctx.stringEncoding);
+            return loadPrimitive(ctx, ptr, type.value, stringEncoding);
         case ModelTag.ComponentTypeDefinedRecord: {
             const result: Record<string, unknown> = {};
             let offset = 0;
             for (const member of type.members) {
-                const fieldType = resolveValType(rctx, member.type);
-                const fieldAlign = alignOf(rctx, fieldType);
+                const fieldType = resolveValTypePure(member.type);
+                const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
-                result[member.name] = loadFromMemory(ctx, rctx, ptr + offset, fieldType);
-                offset += sizeOf(rctx, fieldType);
+                result[member.name] = loadFromMemory(ctx, ptr + offset, fieldType, stringEncoding, canonicalResourceIds);
+                offset += sizeOf(fieldType);
             }
             return result;
         }
@@ -474,38 +478,38 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
             const listPtr = dv.getInt32(0, true);
             const len = dv.getInt32(4, true);
-            const elemType = resolveValType(rctx, type.value);
-            const elemSize = sizeOf(rctx, elemType);
+            const elemType = resolveValTypePure(type.value);
+            const elemSize = sizeOf(elemType);
             const result: any[] = [];
             for (let i = 0; i < len; i++) {
-                result.push(loadFromMemory(ctx, rctx, listPtr + i * elemSize, elemType));
+                result.push(loadFromMemory(ctx, listPtr + i * elemSize, elemType, stringEncoding, canonicalResourceIds));
             }
             return result;
         }
         case ModelTag.ComponentTypeDefinedOption: {
-            const payloadType = resolveValType(rctx, type.value);
-            const payloadAlign = alignOf(rctx, payloadType);
+            const payloadType = resolveValTypePure(type.value);
+            const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
             const disc = dv.getUint8(0);
             if (disc === 0) return null;
-            return loadFromMemory(ctx, rctx, ptr + payloadOffset, payloadType);
+            return loadFromMemory(ctx, ptr + payloadOffset, payloadType, stringEncoding, canonicalResourceIds);
         }
         case ModelTag.ComponentTypeDefinedResult: {
             let payloadAlign = 1;
-            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.ok));
-            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.err));
+            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
+            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
             const disc = dv.getUint8(0);
             if (disc === 0) {
                 const val = type.ok !== undefined
-                    ? loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, type.ok))
+                    ? loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds)
                     : undefined;
                 return { tag: 'ok', val };
             } else {
                 const val = type.err !== undefined
-                    ? loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, type.err))
+                    ? loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(type.err), stringEncoding, canonicalResourceIds)
                     : undefined;
                 return { tag: 'err', val };
             }
@@ -514,7 +518,7 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const discSize = discriminantSize(type.variants.length);
             let maxPayloadAlign = 1;
             for (const c of type.variants) {
-                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(rctx, c.ty));
+                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(c.ty));
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
@@ -524,7 +528,7 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             else disc = dv.getUint32(0, true);
             const c = type.variants[disc];
             if (c.ty !== undefined) {
-                return { tag: c.name, val: loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, c.ty)) };
+                return { tag: c.name, val: loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds) };
             }
             return { tag: c.name };
         }
@@ -553,23 +557,23 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const result: any[] = [];
             let offset = 0;
             for (const member of type.members) {
-                const memberType = resolveValType(rctx, member);
-                const memberAlign = alignOf(rctx, memberType);
+                const memberType = resolveValTypePure(member);
+                const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                result.push(loadFromMemory(ctx, rctx, ptr + offset, memberType));
-                offset += sizeOf(rctx, memberType);
+                result.push(loadFromMemory(ctx, ptr + offset, memberType, stringEncoding, canonicalResourceIds));
+                offset += sizeOf(memberType);
             }
             return result;
         }
         case ModelTag.ComponentTypeDefinedOwn: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.remove(getCanonicalResourceId(rctx, type.value), handle);
+            return ctx.resources.remove(canonicalResourceIds?.get(type.value) ?? type.value, handle);
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.get(getCanonicalResourceId(rctx, type.value), handle);
+            return ctx.resources.get(canonicalResourceIds?.get(type.value) ?? type.value, handle);
         }
         default:
             throw new Error('loadFromMemory not implemented for tag ' + type.tag);
@@ -580,8 +584,10 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
 
 function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefinedList): LoweringToJs {
     const elementType = resolveValType(rctx, listModel.value);
-    const elemSize = sizeOf(rctx, elementType);
-    const elemAlign = alignOf(rctx, elementType);
+    const elemSize = sizeOf(elementType);
+    const elemAlign = alignOf(elementType);
+    const stringEncoding = rctx.stringEncoding;
+    const canonicalResourceIds = rctx.canonicalResourceIds;
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const ptr = args[0] as number;
@@ -597,7 +603,7 @@ function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefin
         }
         const result: any[] = [];
         for (let i = 0; i < len; i++) {
-            result.push(loadFromMemory(ctx, rctx, ptr + i * elemSize, elementType));
+            result.push(loadFromMemory(ctx, ptr + i * elemSize, elementType, stringEncoding, canonicalResourceIds));
         }
         return result;
     };

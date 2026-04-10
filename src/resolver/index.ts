@@ -73,8 +73,15 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     // are not exported but still needed)
     const sortedPlan = sortPlanForExecution(plan);
 
+    // Free the large indexes structure — no longer needed after resolution.
+    // rctx.resolvedTypes and rctx.memoizeCache are still captured by binder
+    // closures (createLifting/createLowering use them at bind time).
+    // The innermost trampoline closures no longer capture rctx — they pre-capture
+    // only stringEncoding (number) and canonicalResourceIds (Map).
+    rctx.indexes = null!;
+
     const component: WasmComponent<TJSExports> = {
-        instantiate: (imports) => executePlan(rctx, sortedPlan, imports),
+        instantiate: (imports) => executePlan(sortedPlan, imports),
         plan: sortedPlan,
     };
     return component;

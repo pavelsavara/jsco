@@ -246,7 +246,7 @@ export function createResourceTable(): ResourceTable {
     };
 }
 
-export function createBindingContext(rctx: ResolverContext, componentImports: JsImports): BindingContext {
+export function createBindingContext(componentImports: JsImports): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();

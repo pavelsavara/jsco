@@ -42,7 +42,7 @@ export const expectedContext: Partial<ResolverContext> = {
 
 export async function resolveJCO(sections: WITModel, imports: any) {
     const rctx: ResolverContext = createResolverContext(sections, {});
-    const ctx: BindingContext = createBindingContext(rctx, imports);
+    const ctx: BindingContext = createBindingContext(imports);
     const wasmInstantiate = WebAssembly.instantiate;
 
     const componentImports = (imports ? imports : {}) as {

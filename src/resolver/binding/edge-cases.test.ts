@@ -8,11 +8,13 @@ import { createResourceTable } from '../context';
 import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
 import { createLowering, createFunctionLowering, loadFromMemory } from './to-js';
 import { WasmPointer, WasmSize } from './types';
+import { deepResolveType } from '../calling-convention';
 
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
+        canonicalResourceIds: new Map(),
         usesNumberForInt64,
         stringEncoding: StringEncoding.Utf8,
     } as any as ResolverContext;
@@ -1711,7 +1713,7 @@ describe('bool from memory (non-0/1 values)', () => {
         };
         // Write 2 to memory
         new DataView(buffer).setUint8(100, 2);
-        const result = loadFromMemory(ctx, rctx, 100, boolType as any);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe(true);
     });
 
@@ -1723,7 +1725,7 @@ describe('bool from memory (non-0/1 values)', () => {
             value: PrimitiveValType.Bool,
         };
         new DataView(buffer).setUint8(100, 255);
-        const result = loadFromMemory(ctx, rctx, 100, boolType as any);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe(true);
     });
 
@@ -1735,7 +1737,7 @@ describe('bool from memory (non-0/1 values)', () => {
             value: PrimitiveValType.Bool,
         };
         new DataView(buffer).setUint8(100, 0);
-        const result = loadFromMemory(ctx, rctx, 100, boolType as any);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe(false);
     });
 
@@ -1746,10 +1748,10 @@ describe('bool from memory (non-0/1 values)', () => {
             tag: ModelTag.ComponentTypeDefinedPrimitive as const,
             value: PrimitiveValType.Bool,
         };
-        storeToMemory(ctx, rctx, 200, boolType as any, true);
+        storeToMemory(ctx, 200, boolType as any, true, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(new DataView(buffer).getUint8(200)).toBe(1);
 
-        storeToMemory(ctx, rctx, 204, boolType as any, false);
+        storeToMemory(ctx, 204, boolType as any, false, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(new DataView(buffer).getUint8(204)).toBe(0);
     });
 });
@@ -1765,8 +1767,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
             variants: cases,
         };
-        storeToMemory(ctx, rctx, 100, model as any, { tag: 'c255' });
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, { tag: 'c255' }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'c255' });
     });
 
@@ -1778,8 +1780,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members,
         };
-        storeToMemory(ctx, rctx, 100, model as any, 'e255');
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, 'e255', rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe('e255');
     });
 
@@ -1793,8 +1795,8 @@ describe('discriminant in memory round-trips', () => {
                 { name: 'big', ty: prim(PrimitiveValType.U32) },
             ],
         };
-        storeToMemory(ctx, rctx, 100, model as any, { tag: 'big', val: 100000 });
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, { tag: 'big', val: 100000 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ tag: 'big', val: 100000 });
     });
 
@@ -1808,8 +1810,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members,
         };
-        storeToMemory(ctx, rctx, 100, model as any, 'e299');
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, 'e299', rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe('e299');
     });
 
@@ -1821,8 +1823,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         };
-        storeToMemory(ctx, rctx, 100, model as any, { a: true, b: false, c: true, d: false });
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, { a: true, b: false, c: true, d: false }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ a: true, b: false, c: true, d: false });
     });
 
@@ -1838,8 +1840,8 @@ describe('discriminant in memory round-trips', () => {
         for (const m of members) flags[m] = false;
         flags['f0'] = true;
         flags['f32'] = true;
-        storeToMemory(ctx, rctx, 100, model as any, flags);
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, flags, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result['f0']).toBe(true);
         expect(result['f1']).toBe(false);
         expect(result['f32']).toBe(true);
@@ -1852,12 +1854,12 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        storeToMemory(ctx, rctx, 100, model as any, 42);
-        const some = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, 42, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const some = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(some).toBe(42);
 
-        storeToMemory(ctx, rctx, 200, model as any, null);
-        const none = loadFromMemory(ctx, rctx, 200, model as any);
+        storeToMemory(ctx, 200, model as any, null, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const none = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(none).toBeNull();
     });
 
@@ -1869,12 +1871,12 @@ describe('discriminant in memory round-trips', () => {
             ok: prim(PrimitiveValType.U32),
             err: prim(PrimitiveValType.U8),
         };
-        storeToMemory(ctx, rctx, 100, model as any, { tag: 'ok', val: 99 });
-        const okResult = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 99 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const okResult = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(okResult).toEqual({ tag: 'ok', val: 99 });
 
-        storeToMemory(ctx, rctx, 200, model as any, { tag: 'err', val: 7 });
-        const errResult = loadFromMemory(ctx, rctx, 200, model as any);
+        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const errResult = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(errResult).toEqual({ tag: 'err', val: 7 });
     });
 
@@ -1889,8 +1891,8 @@ describe('discriminant in memory round-trips', () => {
                 prim(PrimitiveValType.Bool),
             ],
         };
-        storeToMemory(ctx, rctx, 100, model as any, [255, 100000, true]);
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, [255, 100000, true], rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual([255, 100000, true]);
     });
 
@@ -1905,8 +1907,8 @@ describe('discriminant in memory round-trips', () => {
                 { name: 'c', type: prim(PrimitiveValType.Bool) },
             ],
         };
-        storeToMemory(ctx, rctx, 100, model as any, { a: 42, b: 100000, c: true });
-        const result = loadFromMemory(ctx, rctx, 100, model as any);
+        storeToMemory(ctx, 100, model as any, { a: 42, b: 100000, c: true }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ a: 42, b: 100000, c: true });
     });
 
@@ -1921,15 +1923,15 @@ describe('discriminant in memory round-trips', () => {
             ],
         };
         rctx.resolvedTypes.set(0 as any, innerRecord as any);
-        const outerRecord = {
+        const outerRecord = deepResolveType(rctx, {
             tag: ModelTag.ComponentTypeDefinedRecord as const,
             members: [
                 { name: 'name', type: prim(PrimitiveValType.U8) },
                 { name: 'point', type: { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType },
             ],
-        };
-        storeToMemory(ctx, rctx, 100, outerRecord as any, { name: 5, point: { x: 10, y: 20 } });
-        const result = loadFromMemory(ctx, rctx, 100, outerRecord as any);
+        } as any);
+        storeToMemory(ctx, 100, outerRecord as any, { name: 5, point: { x: 10, y: 20 } }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, outerRecord as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toEqual({ name: 5, point: { x: 10, y: 20 } });
     });
 
@@ -1953,8 +1955,8 @@ describe('discriminant in memory round-trips', () => {
                 tag: ModelTag.ComponentTypeDefinedPrimitive as const,
                 value: primType,
             };
-            storeToMemory(ctx, rctx, offset, model as any, value);
-            const result = loadFromMemory(ctx, rctx, offset, model as any);
+            storeToMemory(ctx, offset, model as any, value, rctx.stringEncoding, rctx.canonicalResourceIds);
+            const result = loadFromMemory(ctx, offset, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
             if (primType === PrimitiveValType.Float32) {
                 expect(result).toBeCloseTo(value, 5);
             } else {
@@ -1975,10 +1977,10 @@ describe('resource handle additional edge cases', () => {
         // Add a resource and get a handle
         const _handle = ctx.resources.add(0, 'test-resource');
         // Store handle in memory
-        storeToMemory(ctx, rctx, 100, ownModel as any, 'test-resource');
+        storeToMemory(ctx, 100, ownModel as any, 'test-resource', rctx.stringEncoding, rctx.canonicalResourceIds);
         // The handle was stored by lifting (add), not directly
         // Load removes from table (own semantics)
-        const result = loadFromMemory(ctx, rctx, 100, ownModel as any);
+        const result = loadFromMemory(ctx, 100, ownModel as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(typeof result).toBe('string');
     });
 
@@ -1991,7 +1993,7 @@ describe('resource handle additional edge cases', () => {
         // Write handle to memory
         new DataView(ctx.memory.getView(100 as WasmPointer, 4 as WasmSize).buffer, 100).setInt32(0, handle, true);
         // Load borrow from memory (doesn't remove)
-        const result = loadFromMemory(ctx, rctx, 100, borrowModel as any);
+        const result = loadFromMemory(ctx, 100, borrowModel as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(result).toBe('borrowed-data');
         // Resource should still be in table (borrow doesn't remove)
         expect(ctx.resources.has(0, handle)).toBe(true);
@@ -2089,12 +2091,12 @@ describe('nested types via memory round-trips', () => {
             value: prim(PrimitiveValType.U32),
         };
         // Some(42)
-        storeToMemory(ctx, rctx, 100, model as any, 42);
-        expect(loadFromMemory(ctx, rctx, 100, model as any)).toBe(42);
+        storeToMemory(ctx, 100, model as any, 42, rctx.stringEncoding, rctx.canonicalResourceIds);
+        expect(loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds)).toBe(42);
 
         // None
-        storeToMemory(ctx, rctx, 200, model as any, null);
-        expect(loadFromMemory(ctx, rctx, 200, model as any)).toBeNull();
+        storeToMemory(ctx, 200, model as any, null, rctx.stringEncoding, rctx.canonicalResourceIds);
+        expect(loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds)).toBeNull();
     });
 
     test('result<u32, u8> via memory stores discriminant correctly', () => {
@@ -2107,16 +2109,16 @@ describe('nested types via memory round-trips', () => {
         };
 
         // Ok(42)
-        storeToMemory(ctx, rctx, 100, model as any, { tag: 'ok', val: 42 });
+        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 42 }, rctx.stringEncoding, rctx.canonicalResourceIds);
         // discriminant at byte 0 should be 0 (ok)
         expect(new DataView(buffer, 100).getUint8(0)).toBe(0);
-        const okResult = loadFromMemory(ctx, rctx, 100, model as any);
+        const okResult = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(okResult).toEqual({ tag: 'ok', val: 42 });
 
         // Err(7)
-        storeToMemory(ctx, rctx, 200, model as any, { tag: 'err', val: 7 });
+        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(new DataView(buffer, 200).getUint8(0)).toBe(1);
-        const errResult = loadFromMemory(ctx, rctx, 200, model as any);
+        const errResult = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
         expect(errResult).toEqual({ tag: 'err', val: 7 });
     });
 });
