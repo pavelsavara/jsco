@@ -1,5 +1,5 @@
 import camelCase from 'just-camel-case';
-import { ComponentExternalKind } from '../model/exports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
 import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInstantiate, ComponentInstantiationArg } from '../model/instances';
 import { ModelTag, TaggedElement } from '../model/tags';
@@ -178,7 +178,7 @@ export const resolveComponentInstanceFromExports: Resolver<ComponentInstanceFrom
             const binderResult = lookupComponentInstance(bctx, componentInstanceFromExports.selfSortIndex!);
 
             for (const exportResolution of exportResolutions) {
-                const callerElement = exportResolution.callerElement as unknown as import('../model/exports').ComponentExport;
+                const callerElement = exportResolution.callerElement as unknown as ComponentExport;
                 const args: BinderArgs = {
                     arguments: bargs.arguments,
                     imports: bargs.imports,

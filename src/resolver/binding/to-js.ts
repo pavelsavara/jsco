@@ -5,7 +5,7 @@ import { BindingContext, ResolverContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, deepResolveType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
@@ -25,11 +25,12 @@ const canonicalNaN64: number = _f64[0];
 export function createFunctionLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(rctx.memoizeCache, exportModel, () => {
         const callingConvention = determineFunctionCallingConvention(rctx, exportModel);
-        // Pre-resolve param/result types for spilled path
-        const paramResolvedTypes = exportModel.params.map(p => resolveValType(rctx, p.type));
+        // Pre-resolve param/result types for spilled path — deep-resolve ensures
+        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
+        const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
         let resultType: ResolvedType | undefined;
         if (exportModel.results.tag === ModelTag.ComponentFuncResultUnnamed) {
-            resultType = resolveValType(rctx, exportModel.results.type);
+            resultType = deepResolveType(rctx, resolveValType(rctx, exportModel.results.type));
         }
 
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {

@@ -3,6 +3,7 @@
 ## Coding Conventions
 
 - **Always use numeric `const enum`** — never string-valued enum members. Numeric enums inline to integer literals in the bundle, saving significant minified code size. String enums emit string comparisons and string literals that cannot be minified.
+- **Never use inline `import()` for types** — always use top-level `import` or `import type` statements. Inline `import('...').SomeType` in type annotations is prohibited; add the type to an existing top-level import (or create a new `import type` line) instead.
 
 ## Testing
 

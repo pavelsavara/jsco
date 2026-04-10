@@ -10,7 +10,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, resolveCanonicalOptions } from './types';
+import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -40,7 +40,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     rctx.stringEncoding = canonOpts.stringEncoding;
 
     // Resolve the post-return core function if specified in canonical options
-    let postReturnResolution: import('./types').ResolverRes | undefined;
+    let postReturnResolution: ResolverRes | undefined;
     if (canonOpts.postReturnIndex !== undefined) {
         const postReturnFunc = getCoreFunction(rctx, canonOpts.postReturnIndex as CoreFuncIndex);
         postReturnResolution = resolveCoreFunction(rctx, { element: postReturnFunc, callerElement: canonicalFunctionLift });

@@ -1,5 +1,12 @@
 # Inspiration
 
+## Key Reference Specs
+
+- [Component Model Binary Format](https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md)
+- [Canonical ABI definitions.py](https://github.com/WebAssembly/component-model/blob/main/design/mvp/canonical-abi/definitions.py)
+- [JCO transpile_bindgen.rs](https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/transpile_bindgen.rs)
+- [Wasmtime component types.rs](https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/types.rs)
+
 ## Documentation
 - https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
 - https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md

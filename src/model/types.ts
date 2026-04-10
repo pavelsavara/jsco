@@ -70,6 +70,7 @@ export type ModuleTypeDeclarationImport = Import & {
 export type ComponentValType =
     | ComponentValTypePrimitive
     | ComponentValTypeType
+    | ComponentValTypeResolved
 
 /// The value type is a primitive type.
 export type ComponentValTypePrimitive = {
@@ -81,6 +82,13 @@ export type ComponentValTypePrimitive = {
 export type ComponentValTypeType = {
     tag: ModelTag.ComponentValTypeType
     value: u32
+}
+
+/// The value type has been pre-resolved at binder creation time.
+/// Used by the resolver to avoid call-time resolvedTypes lookups.
+export type ComponentValTypeResolved = {
+    tag: ModelTag.ComponentValTypeResolved
+    resolved: unknown // ResolvedType at runtime, unknown to avoid circular model→resolver deps
 }
 
 /// Represents a primitive value type.

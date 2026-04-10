@@ -5,7 +5,7 @@ import { BindingContext, ResolverContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, flatCountForValType, resolveValType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, flatCountForValType, resolveValType, deepResolveType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, loadFromMemory } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
@@ -43,12 +43,13 @@ export function createFunctionLifting(rctx: ResolverContext, importModel: Compon
             case ModelTag.ComponentFuncResultUnnamed: {
                 const lowerer = createLowering(rctx, importModel.results.type);
                 resultLowerers.push(lowerer);
-                resultType = resolveValType(rctx, importModel.results.type);
+                resultType = deepResolveType(rctx, resolveValType(rctx, importModel.results.type));
             }
         }
 
-        // Pre-resolve param types for spilled path
-        const paramResolvedTypes = importModel.params.map(p => resolveValType(rctx, p.type));
+        // Pre-resolve param types for spilled path — deep-resolve ensures
+        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
+        const paramResolvedTypes = importModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
 
         return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
             function liftingTrampoline(...args: any[]): any {
