@@ -1,5 +1,5 @@
 [package]
-name = "zoo"
+name = "city"
 version = "0.1.0"
 edition = "2021"
 authors = ["pavel.savara@gmail.com"]
@@ -12,14 +12,16 @@ wee_alloc = { version = "0.4.5" }
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "zoo:food"
+package = "city:runner"
 
 [package.metadata.component.target]
 path = "wit"
+
+[package.metadata.component.target.dependencies]
+"zoo:food" = { path = "../zoo/wit" }
 
 [package.metadata.component.dependencies]
 
 [profile.release]
 lto = true
 opt-level = 's'
-

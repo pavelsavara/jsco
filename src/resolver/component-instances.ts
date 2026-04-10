@@ -2,6 +2,7 @@ import camelCase from 'just-camel-case';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
 import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInstantiate, ComponentInstantiationArg } from '../model/instances';
+import { ComponentAliasInstanceExport } from '../model/aliases';
 import { ModelTag, TaggedElement } from '../model/tags';
 import { ComponentTypeInstance } from '../model/types';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
@@ -26,6 +27,7 @@ export const resolveComponentInstance: Resolver<ComponentInstance> = (rctx, rarg
         case ModelTag.ComponentInstanceInstantiate: return resolveComponentInstanceInstantiate(rctx, rargs as any);
         case ModelTag.ComponentInstanceFromExports: return resolveComponentInstanceFromExports(rctx, rargs as any);
         case ModelTag.ComponentTypeInstance: return resolveComponentTypeInstance(rctx, rargs as any);
+        case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
 };
@@ -107,7 +109,9 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 // component's import declaration (import "import-func-run" ...) use the same
                 // prefixed name. Wasmtime matches them verbatim (see inline.rs:444).
                 //
-                // We strip the prefix to recover the original WIT name for JS-side lookup.
+                // We strip the prefix to recover the original WIT name for internal wiring.
+                // Note: we do NOT camelCase here — internal component wiring should use
+                // the original WIT names. CamelCase conversion is only for the JS-host boundary.
                 if (argName.startsWith('import-func-')) {
                     argName = argName.substring('import-func-'.length);
                 } else if (argName.startsWith('import-method-')) {
@@ -119,8 +123,15 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 } else if (argName.startsWith('import-type-')) {
                     argName = argName.substring('import-type-'.length);
                 }
-                argName = camelCase(argName);
-                componentArgs[argName] = argResult.result;
+                // For Instance args, pass the flat exports (interface functions),
+                // not the whole ComponentInstanceData. The child's import resolution
+                // for ComponentTypeRefInstance does Object.assign(exports, imprt),
+                // expecting a flat { hideFood: fn, consumeFood: fn } object.
+                if (callerElement.kind === ComponentExternalKind.Instance && (argResult.result as any)?.exports) {
+                    componentArgs[argName] = (argResult.result as any).exports;
+                } else {
+                    componentArgs[argName] = argResult.result;
+                }
             }
             Object.assign(binderResult.result.exports, componentArgs);
 
@@ -131,7 +142,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
             };
             const componentSectionResult = await componentSectionResolution.binder(bctx, args);
 
-            binderResult.result = componentSectionResult.result as ComponentInstanceData;
+            Object.assign(binderResult.result.exports, componentSectionResult.result);
             return binderResult;
         }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
@@ -209,6 +220,31 @@ export const resolveComponentTypeInstance: Resolver<ComponentTypeInstance> = (rc
             Object.assign(binderResult.result.types, componentTypeInstance.declarations);
             return binderResult;
         }
+    };
+};
+
+export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanceExport> = (rctx, rargs) => {
+    const alias = rargs.element;
+    jsco_assert(alias && alias.tag == ModelTag.ComponentAliasInstanceExport, () => `Wrong element type '${alias?.tag}'`);
+
+    const parentInstance = getComponentInstance(rctx, alias.instance_index as ComponentInstanceIndex);
+    const parentResolution = resolveComponentInstance(rctx, { element: parentInstance, callerElement: alias });
+
+    return {
+        callerElement: rargs.callerElement,
+        element: alias,
+        binder: withDebugTrace(async (bctx, bargs) => {
+            const parentResult = await parentResolution.binder(bctx, bargs) as ComponentInstanceBinderRes;
+            const binderResult = lookupComponentInstance(bctx, alias.selfSortIndex!);
+            // Try the original name first (for interface URIs like "zoo:food/eater@0.1.0"),
+            // then fall back to camelCase (for simple kebab-case identifiers like "food-info").
+            const exportedInstance = parentResult.result.exports[alias.name]
+                ?? parentResult.result.exports[camelCase(alias.name)];
+            if (exportedInstance && typeof exportedInstance === 'object') {
+                Object.assign(binderResult.result.exports, exportedInstance);
+            }
+            return binderResult;
+        }, rargs.element.tag + ':' + alias.name)
     };
 };
 

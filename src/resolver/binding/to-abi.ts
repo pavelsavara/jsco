@@ -576,7 +576,7 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
             for (let w = 0; w < wordCount; w++) {
                 let word = 0;
                 for (let b = 0; b < 32 && w * 32 + b < type.members.length; b++) {
-                    if (flags[type.members[w * 32 + b]]) word |= (1 << b);
+                    if (flags[camelCase(type.members[w * 32 + b])]) word |= (1 << b);
                 }
                 const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                 dv.setInt32(0, word, true);
@@ -717,7 +717,7 @@ function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDef
         const flags = srcJsValue as Record<string, boolean>;
         const words = new Array(wordCount).fill(0);
         for (let i = 0; i < flagsModel.members.length; i++) {
-            if (flags[flagsModel.members[i]]) {
+            if (flags[camelCase(flagsModel.members[i])]) {
                 words[i >>> 5] |= (1 << (i & 31));
             }
         }

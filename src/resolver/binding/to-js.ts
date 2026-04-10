@@ -552,7 +552,7 @@ export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedT
                 const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                 const word = dv.getInt32(0, true);
                 for (let b = 0; b < 32 && w * 32 + b < type.members.length; b++) {
-                    result[type.members[w * 32 + b]] = !!(word & (1 << b));
+                    result[camelCase(type.members[w * 32 + b])] = !!(word & (1 << b));
                 }
             }
             return result;
@@ -702,7 +702,7 @@ function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDe
         const result: Record<string, boolean> = {};
         for (let i = 0; i < flagsModel.members.length; i++) {
             const word = args[i >>> 5] as number;
-            result[flagsModel.members[i]] = !!(word & (1 << (i & 31)));
+            result[camelCase(flagsModel.members[i])] = !!(word & (1 << (i & 31)));
         }
         return result;
     };

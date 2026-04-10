@@ -130,3 +130,6 @@ dist
 .pnp.*
 /tests/actual-hello.json
 /tests/expected-hello.json
+
+# rust
+target/

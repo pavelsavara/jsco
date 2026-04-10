@@ -37,7 +37,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
 
                     const exportResult = await functionResolution.binder(bctx, args);
                     const binderResult = {
-                        result: exportResult.result
+                        result: { [componentExport.name.name]: exportResult.result }
                     };
                     return binderResult;
                 }, rargs.element.tag + ':' + rargs.element.name.name + ':' + rargs.element.kind)
@@ -57,9 +57,9 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
                         debugStack: bargs.debugStack,
                     };
 
-                    const instanceResult = await instanceResolution.binder(bctx, args);
+                    const instanceResult = await instanceResolution.binder(bctx, args) as { result: { exports: Record<string, unknown> } };
                     const ifc: Record<string, unknown> = {};
-                    ifc[componentExport.name.name] = instanceResult.result;
+                    ifc[componentExport.name.name] = instanceResult.result.exports;
                     const binderResult = {
                         result: ifc
                     };

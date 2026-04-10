@@ -684,279 +684,327 @@ pub mod zoo {
                 }
             }
         }
+        #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+        pub mod eater {
+            #[used]
+            #[doc(hidden)]
+            static __FORCE_SECTION_REF: fn() = super::super::super::__link_custom_section_describing_imports;
+            use super::super::super::_rt;
+            pub type FoodInfo = super::super::super::zoo::food::food::FoodInfo;
+            pub type PackageInfo = super::super::super::zoo::food::food::PackageInfo;
+            pub type MealPlan = super::super::super::zoo::food::food::MealPlan;
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn feed(foodinfo: &FoodInfo, packageinfo: PackageInfo) -> () {
+                unsafe {
+                    let super::super::super::zoo::food::food::FoodInfo {
+                        name: name0,
+                        iso_code: iso_code0,
+                        weight: weight0,
+                        healthy: healthy0,
+                        calories: calories0,
+                        cost: cost0,
+                        rating: rating0,
+                        pieces: pieces0,
+                        shelf_temperature: shelf_temperature0,
+                        cook_time_in_minutes: cook_time_in_minutes0,
+                    } = foodinfo;
+                    let vec1 = name0;
+                    let ptr1 = vec1.as_ptr().cast::<u8>();
+                    let len1 = vec1.len();
+                    let (t2_0, t2_1) = shelf_temperature0;
+                    let super::super::super::zoo::food::food::PackageInfo {
+                        nutrition: nutrition3,
+                        material: material3,
+                        sealing: sealing3,
+                    } = packageinfo;
+                    let super::super::super::zoo::food::food::NutritionInfo {
+                        percentage: percentage4,
+                        nutrition_type: nutrition_type4,
+                    } = nutrition3;
+                    use super::super::super::zoo::food::food::MaterialType as V5;
+                    let result6 = match material3 {
+                        V5::PlasticBag => 0i32,
+                        V5::MetalCan => 1i32,
+                    };
+                    let flags7 = sealing3;
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "zoo:food/eater@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "feed"]
+                        fn wit_import8(
+                            _: *mut u8,
+                            _: usize,
+                            _: i32,
+                            _: f32,
+                            _: i32,
+                            _: i64,
+                            _: i32,
+                            _: i32,
+                            _: i32,
+                            _: i32,
+                            _: i32,
+                            _: i32,
+                            _: f64,
+                            _: i32,
+                            _: i32,
+                            _: i32,
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import8(
+                        _: *mut u8,
+                        _: usize,
+                        _: i32,
+                        _: f32,
+                        _: i32,
+                        _: i64,
+                        _: i32,
+                        _: i32,
+                        _: i32,
+                        _: i32,
+                        _: i32,
+                        _: i32,
+                        _: f64,
+                        _: i32,
+                        _: i32,
+                        _: i32,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe {
+                        wit_import8(
+                            ptr1.cast_mut(),
+                            len1,
+                            _rt::as_i32(iso_code0),
+                            _rt::as_f32(weight0),
+                            match healthy0 {
+                                true => 1,
+                                false => 0,
+                            },
+                            _rt::as_i64(calories0),
+                            _rt::as_i32(cost0),
+                            _rt::as_i32(rating0),
+                            _rt::as_i32(pieces0),
+                            _rt::as_i32(t2_0),
+                            _rt::as_i32(t2_1),
+                            _rt::as_i32(cook_time_in_minutes0),
+                            _rt::as_f64(percentage4),
+                            nutrition_type4.clone() as i32,
+                            result6,
+                            (flags7.bits() >> 0) as i32,
+                        )
+                    };
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn schedule(plan: &MealPlan) -> Result<_rt::String, _rt::String> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 3 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 3
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let super::super::super::zoo::food::food::MealPlan {
+                        foods: foods0,
+                        label: label0,
+                    } = plan;
+                    let vec4 = foods0;
+                    let len4 = vec4.len();
+                    let layout4 = _rt::alloc::Layout::from_size_align_unchecked(
+                        vec4.len() * (40 + 2 * ::core::mem::size_of::<*const u8>()),
+                        8,
+                    );
+                    let result4 = if layout4.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout4).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout4);
+                        }
+                        ptr
+                    } else {
+                        ::core::ptr::null_mut()
+                    };
+                    for (i, e) in vec4.into_iter().enumerate() {
+                        let base = result4
+                            .add(i * (40 + 2 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let super::super::super::zoo::food::food::FoodInfo {
+                                name: name1,
+                                iso_code: iso_code1,
+                                weight: weight1,
+                                healthy: healthy1,
+                                calories: calories1,
+                                cost: cost1,
+                                rating: rating1,
+                                pieces: pieces1,
+                                shelf_temperature: shelf_temperature1,
+                                cook_time_in_minutes: cook_time_in_minutes1,
+                            } = e;
+                            let vec2 = name1;
+                            let ptr2 = vec2.as_ptr().cast::<u8>();
+                            let len2 = vec2.len();
+                            *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len2;
+                            *base.add(0).cast::<*mut u8>() = ptr2.cast_mut();
+                            *base
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i32>() = _rt::as_i32(iso_code1);
+                            *base
+                                .add(4 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<f32>() = _rt::as_f32(weight1);
+                            *base
+                                .add(8 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u8>() = (match healthy1 {
+                                true => 1,
+                                false => 0,
+                            }) as u8;
+                            *base
+                                .add(16 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i64>() = _rt::as_i64(calories1);
+                            *base
+                                .add(24 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u16>() = (_rt::as_i32(cost1)) as u16;
+                            *base
+                                .add(26 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u16>() = (_rt::as_i32(rating1)) as u16;
+                            *base
+                                .add(28 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u8>() = (_rt::as_i32(pieces1)) as u8;
+                            let (t3_0, t3_1) = shelf_temperature1;
+                            *base
+                                .add(29 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u8>() = (_rt::as_i32(t3_0)) as u8;
+                            *base
+                                .add(30 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<u8>() = (_rt::as_i32(t3_1)) as u8;
+                            *base
+                                .add(32 + 2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i32>() = _rt::as_i32(cook_time_in_minutes1);
+                        }
+                    }
+                    let (result6_0, result6_1, result6_2) = match label0 {
+                        Some(e) => {
+                            let vec5 = e;
+                            let ptr5 = vec5.as_ptr().cast::<u8>();
+                            let len5 = vec5.len();
+                            (1i32, ptr5.cast_mut(), len5)
+                        }
+                        None => (0i32, ::core::ptr::null_mut(), 0usize),
+                    };
+                    let ptr7 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "zoo:food/eater@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "schedule"]
+                        fn wit_import8(
+                            _: *mut u8,
+                            _: usize,
+                            _: i32,
+                            _: *mut u8,
+                            _: usize,
+                            _: *mut u8,
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import8(
+                        _: *mut u8,
+                        _: usize,
+                        _: i32,
+                        _: *mut u8,
+                        _: usize,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe {
+                        wit_import8(result4, len4, result6_0, result6_1, result6_2, ptr7)
+                    };
+                    let l9 = i32::from(*ptr7.add(0).cast::<u8>());
+                    let result16 = match l9 {
+                        0 => {
+                            let e = {
+                                let l10 = *ptr7
+                                    .add(::core::mem::size_of::<*const u8>())
+                                    .cast::<*mut u8>();
+                                let l11 = *ptr7
+                                    .add(2 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len12 = l11;
+                                let bytes12 = _rt::Vec::from_raw_parts(
+                                    l10.cast(),
+                                    len12,
+                                    len12,
+                                );
+                                _rt::string_lift(bytes12)
+                            };
+                            Ok(e)
+                        }
+                        1 => {
+                            let e = {
+                                let l13 = *ptr7
+                                    .add(::core::mem::size_of::<*const u8>())
+                                    .cast::<*mut u8>();
+                                let l14 = *ptr7
+                                    .add(2 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len15 = l14;
+                                let bytes15 = _rt::Vec::from_raw_parts(
+                                    l13.cast(),
+                                    len15,
+                                    len15,
+                                );
+                                _rt::string_lift(bytes15)
+                            };
+                            Err(e)
+                        }
+                        _ => _rt::invalid_enum_discriminant(),
+                    };
+                    if layout4.size() != 0 {
+                        _rt::alloc::dealloc(result4.cast(), layout4);
+                    }
+                    result16
+                }
+            }
+        }
     }
 }
 #[rustfmt::skip]
 #[allow(dead_code, clippy::all)]
 pub mod exports {
-    pub mod zoo {
-        pub mod food {
+    pub mod city {
+        pub mod runner {
             #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
-            pub mod eater {
+            pub mod runner {
                 #[used]
                 #[doc(hidden)]
                 static __FORCE_SECTION_REF: fn() = super::super::super::super::__link_custom_section_describing_imports;
                 use super::super::super::super::_rt;
-                pub type FoodInfo = super::super::super::super::zoo::food::food::FoodInfo;
-                pub type PackageInfo = super::super::super::super::zoo::food::food::PackageInfo;
-                pub type MealPlan = super::super::super::super::zoo::food::food::MealPlan;
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
-                pub unsafe fn _export_feed_cabi<T: Guest>(
-                    arg0: *mut u8,
-                    arg1: usize,
-                    arg2: i32,
-                    arg3: f32,
-                    arg4: i32,
-                    arg5: i64,
-                    arg6: i32,
-                    arg7: i32,
-                    arg8: i32,
-                    arg9: i32,
-                    arg10: i32,
-                    arg11: i32,
-                    arg12: f64,
-                    arg13: i32,
-                    arg14: i32,
-                    arg15: i32,
-                ) {
+                pub unsafe fn _export_run_cabi<T: Guest>() {
                     #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
-                    let len0 = arg1;
-                    let bytes0 = _rt::Vec::from_raw_parts(arg0.cast(), len0, len0);
-                    use super::super::super::super::zoo::food::food::MaterialType as V1;
-                    let v1 = match arg14 {
-                        0 => V1::PlasticBag,
-                        n => {
-                            debug_assert_eq!(n, 1, "invalid enum discriminant");
-                            V1::MetalCan
-                        }
-                    };
-                    T::feed(
-                        super::super::super::super::zoo::food::food::FoodInfo {
-                            name: _rt::string_lift(bytes0),
-                            iso_code: _rt::char_lift(arg2 as u32),
-                            weight: arg3,
-                            healthy: _rt::bool_lift(arg4 as u8),
-                            calories: arg5 as u64,
-                            cost: arg6 as u16,
-                            rating: arg7 as i16,
-                            pieces: arg8 as u8,
-                            shelf_temperature: (arg9 as i8, arg10 as u8),
-                            cook_time_in_minutes: arg11,
-                        },
-                        super::super::super::super::zoo::food::food::PackageInfo {
-                            nutrition: super::super::super::super::zoo::food::food::NutritionInfo {
-                                percentage: arg12,
-                                nutrition_type: super::super::super::super::zoo::food::food::NutritionType::_lift(
-                                    arg13 as u8,
-                                ),
-                            },
-                            material: v1,
-                            sealing: super::super::super::super::zoo::food::food::SealingState::empty()
-                                | super::super::super::super::zoo::food::food::SealingState::from_bits_retain(
-                                    ((arg15 as u8) << 0) as _,
-                                ),
-                        },
-                    );
-                }
-                #[doc(hidden)]
-                #[allow(non_snake_case)]
-                pub unsafe fn _export_schedule_cabi<T: Guest>(
-                    arg0: *mut u8,
-                    arg1: usize,
-                    arg2: i32,
-                    arg3: *mut u8,
-                    arg4: usize,
-                ) -> *mut u8 {
-                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
-                    let base13 = arg0;
-                    let len13 = arg1;
-                    let mut result13 = _rt::Vec::with_capacity(len13);
-                    for i in 0..len13 {
-                        let base = base13
-                            .add(i * (40 + 2 * ::core::mem::size_of::<*const u8>()));
-                        let e13 = {
-                            let l0 = *base.add(0).cast::<*mut u8>();
-                            let l1 = *base
-                                .add(::core::mem::size_of::<*const u8>())
-                                .cast::<usize>();
-                            let len2 = l1;
-                            let bytes2 = _rt::Vec::from_raw_parts(l0.cast(), len2, len2);
-                            let l3 = *base
-                                .add(2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<i32>();
-                            let l4 = *base
-                                .add(4 + 2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<f32>();
-                            let l5 = i32::from(
-                                *base
-                                    .add(8 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<u8>(),
-                            );
-                            let l6 = *base
-                                .add(16 + 2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<i64>();
-                            let l7 = i32::from(
-                                *base
-                                    .add(24 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<u16>(),
-                            );
-                            let l8 = i32::from(
-                                *base
-                                    .add(26 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<i16>(),
-                            );
-                            let l9 = i32::from(
-                                *base
-                                    .add(28 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<u8>(),
-                            );
-                            let l10 = i32::from(
-                                *base
-                                    .add(29 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<i8>(),
-                            );
-                            let l11 = i32::from(
-                                *base
-                                    .add(30 + 2 * ::core::mem::size_of::<*const u8>())
-                                    .cast::<u8>(),
-                            );
-                            let l12 = *base
-                                .add(32 + 2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<i32>();
-                            super::super::super::super::zoo::food::food::FoodInfo {
-                                name: _rt::string_lift(bytes2),
-                                iso_code: _rt::char_lift(l3 as u32),
-                                weight: l4,
-                                healthy: _rt::bool_lift(l5 as u8),
-                                calories: l6 as u64,
-                                cost: l7 as u16,
-                                rating: l8 as i16,
-                                pieces: l9 as u8,
-                                shelf_temperature: (l10 as i8, l11 as u8),
-                                cook_time_in_minutes: l12,
-                            }
-                        };
-                        result13.push(e13);
-                    }
-                    _rt::cabi_dealloc(
-                        base13,
-                        len13 * (40 + 2 * ::core::mem::size_of::<*const u8>()),
-                        8,
-                    );
-                    let result15 = T::schedule(super::super::super::super::zoo::food::food::MealPlan {
-                        foods: result13,
-                        label: match arg2 {
-                            0 => None,
-                            1 => {
-                                let e = {
-                                    let len14 = arg4;
-                                    let bytes14 = _rt::Vec::from_raw_parts(
-                                        arg3.cast(),
-                                        len14,
-                                        len14,
-                                    );
-                                    _rt::string_lift(bytes14)
-                                };
-                                Some(e)
-                            }
-                            _ => _rt::invalid_enum_discriminant(),
-                        },
-                    });
-                    let ptr16 = (&raw mut _RET_AREA.0).cast::<u8>();
-                    match result15 {
-                        Ok(e) => {
-                            *ptr16.add(0).cast::<u8>() = (0i32) as u8;
-                            let vec17 = (e.into_bytes()).into_boxed_slice();
-                            let ptr17 = vec17.as_ptr().cast::<u8>();
-                            let len17 = vec17.len();
-                            ::core::mem::forget(vec17);
-                            *ptr16
-                                .add(2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<usize>() = len17;
-                            *ptr16
-                                .add(::core::mem::size_of::<*const u8>())
-                                .cast::<*mut u8>() = ptr17.cast_mut();
-                        }
-                        Err(e) => {
-                            *ptr16.add(0).cast::<u8>() = (1i32) as u8;
-                            let vec18 = (e.into_bytes()).into_boxed_slice();
-                            let ptr18 = vec18.as_ptr().cast::<u8>();
-                            let len18 = vec18.len();
-                            ::core::mem::forget(vec18);
-                            *ptr16
-                                .add(2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<usize>() = len18;
-                            *ptr16
-                                .add(::core::mem::size_of::<*const u8>())
-                                .cast::<*mut u8>() = ptr18.cast_mut();
-                        }
-                    };
-                    ptr16
-                }
-                #[doc(hidden)]
-                #[allow(non_snake_case)]
-                pub unsafe fn __post_return_schedule<T: Guest>(arg0: *mut u8) {
-                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
-                    match l0 {
-                        0 => {
-                            let l1 = *arg0
-                                .add(::core::mem::size_of::<*const u8>())
-                                .cast::<*mut u8>();
-                            let l2 = *arg0
-                                .add(2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<usize>();
-                            _rt::cabi_dealloc(l1, l2, 1);
-                        }
-                        _ => {
-                            let l3 = *arg0
-                                .add(::core::mem::size_of::<*const u8>())
-                                .cast::<*mut u8>();
-                            let l4 = *arg0
-                                .add(2 * ::core::mem::size_of::<*const u8>())
-                                .cast::<usize>();
-                            _rt::cabi_dealloc(l3, l4, 1);
-                        }
-                    }
+                    T::run();
                 }
                 pub trait Guest {
-                    fn feed(foodinfo: FoodInfo, packageinfo: PackageInfo) -> ();
-                    fn schedule(plan: MealPlan) -> Result<_rt::String, _rt::String>;
+                    fn run() -> ();
                 }
                 #[doc(hidden)]
-                macro_rules! __export_zoo_food_eater_0_1_0_cabi {
+                macro_rules! __export_city_runner_runner_0_1_0_cabi {
                     ($ty:ident with_types_in $($path_to_types:tt)*) => {
                         const _ : () = { #[unsafe (export_name =
-                        "zoo:food/eater@0.1.0#feed")] unsafe extern "C" fn
-                        export_feed(arg0 : * mut u8, arg1 : usize, arg2 : i32, arg3 :
-                        f32, arg4 : i32, arg5 : i64, arg6 : i32, arg7 : i32, arg8 : i32,
-                        arg9 : i32, arg10 : i32, arg11 : i32, arg12 : f64, arg13 : i32,
-                        arg14 : i32, arg15 : i32,) { unsafe { $($path_to_types)*::
-                        _export_feed_cabi::<$ty > (arg0, arg1, arg2, arg3, arg4, arg5,
-                        arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15)
-                        } } #[unsafe (export_name = "zoo:food/eater@0.1.0#schedule")]
-                        unsafe extern "C" fn export_schedule(arg0 : * mut u8, arg1 :
-                        usize, arg2 : i32, arg3 : * mut u8, arg4 : usize,) -> * mut u8 {
-                        unsafe { $($path_to_types)*:: _export_schedule_cabi::<$ty >
-                        (arg0, arg1, arg2, arg3, arg4) } } #[unsafe (export_name =
-                        "cabi_post_zoo:food/eater@0.1.0#schedule")] unsafe extern "C" fn
-                        _post_return_schedule(arg0 : * mut u8,) { unsafe {
-                        $($path_to_types)*:: __post_return_schedule::<$ty > (arg0) } } };
+                        "city:runner/runner@0.1.0#run")] unsafe extern "C" fn
+                        export_run() { unsafe { $($path_to_types)*::
+                        _export_run_cabi::<$ty > () } } };
                     };
                 }
                 #[doc(hidden)]
-                pub(crate) use __export_zoo_food_eater_0_1_0_cabi;
-                #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
-                #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
-                struct _RetArea(
-                    [::core::mem::MaybeUninit<
-                        u8,
-                    >; 3 * ::core::mem::size_of::<*const u8>()],
-                );
-                static mut _RET_AREA: _RetArea = _RetArea(
-                    [::core::mem::MaybeUninit::uninit(); 3
-                        * ::core::mem::size_of::<*const u8>()],
-                );
+                pub(crate) use __export_city_runner_runner_0_1_0_cabi;
             }
         }
     }
@@ -1112,20 +1160,6 @@ mod _rt {
     pub fn run_ctors_once() {
         wit_bindgen_rt::run_ctors_once();
     }
-    pub unsafe fn char_lift(val: u32) -> char {
-        if cfg!(debug_assertions) {
-            core::char::from_u32(val).unwrap()
-        } else {
-            core::char::from_u32_unchecked(val)
-        }
-    }
-    pub unsafe fn cabi_dealloc(ptr: *mut u8, size: usize, align: usize) {
-        if size == 0 {
-            return;
-        }
-        let layout = alloc::Layout::from_size_align_unchecked(size, align);
-        alloc::dealloc(ptr, layout);
-    }
     extern crate alloc as alloc_crate;
 }
 /// Generates `#[unsafe(no_mangle)]` functions to export the specified type as
@@ -1146,27 +1180,27 @@ mod _rt {
 /// ```
 #[allow(unused_macros)]
 #[doc(hidden)]
-macro_rules! __export_zoo_impl {
+macro_rules! __export_city_impl {
     ($ty:ident) => {
         self::export!($ty with_types_in self);
     };
     ($ty:ident with_types_in $($path_to_types_root:tt)*) => {
         $($path_to_types_root)*::
-        exports::zoo::food::eater::__export_zoo_food_eater_0_1_0_cabi!($ty with_types_in
-        $($path_to_types_root)*:: exports::zoo::food::eater);
+        exports::city::runner::runner::__export_city_runner_runner_0_1_0_cabi!($ty
+        with_types_in $($path_to_types_root)*:: exports::city::runner::runner);
     };
 }
 #[doc(inline)]
-pub(crate) use __export_zoo_impl as export;
+pub(crate) use __export_city_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
-    link_section = "component-type:wit-bindgen:0.41.0:zoo:food@0.1.0:zoo:encoded world"
+    link_section = "component-type:wit-bindgen:0.41.0:city:runner@0.1.0:city:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1015] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xfd\x06\x01A\x02\x01\
-A\x07\x01B\x1d\x01m\x03\x0ccarbohydrate\x07protein\x07vitamin\x04\0\x0enutrition\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1065] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xae\x07\x01A\x02\x01\
+A\x09\x01B\x1d\x01m\x03\x0ccarbohydrate\x07protein\x07vitamin\x04\0\x0enutrition\
 -type\x03\0\0\x01r\x02\x0apercentageu\x0enutrition-type\x01\x04\0\x0enutrition-i\
 nfo\x03\0\x02\x01q\x02\x0bplastic-bag\0\0\x09metal-can\0\0\x04\0\x0dmaterial-typ\
 e\x03\0\x04\x01n\x03\x06opened\x06closed\x07damaged\x04\0\x0dsealing-state\x03\0\
@@ -1184,10 +1218,11 @@ shed\x14\x07messages\0\x7f\x04\0\x0dtrash-package\x01\x15\x01j\x01s\x01s\x01@\x0
 B\x0b\x02\x03\x02\x01\x01\x04\0\x09food-info\x03\0\0\x02\x03\x02\x01\x02\x04\0\x0c\
 package-info\x03\0\x02\x02\x03\x02\x01\x03\x04\0\x09meal-plan\x03\0\x04\x01@\x02\
 \x08foodinfo\x01\x0bpackageinfo\x03\x01\0\x04\0\x04feed\x01\x06\x01j\x01s\x01s\x01\
-@\x01\x04plan\x05\0\x07\x04\0\x08schedule\x01\x08\x04\0\x14zoo:food/eater@0.1.0\x05\
-\x04\x04\0\x12zoo:food/zoo@0.1.0\x04\0\x0b\x09\x01\0\x03zoo\x03\0\0\0G\x09produc\
-ers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x060\
-.41.0";
+@\x01\x04plan\x05\0\x07\x04\0\x08schedule\x01\x08\x03\0\x14zoo:food/eater@0.1.0\x05\
+\x04\x01B\x02\x01@\0\x01\0\x04\0\x03run\x01\0\x04\0\x18city:runner/runner@0.1.0\x05\
+\x05\x04\0\x16city:runner/city@0.1.0\x04\0\x0b\x0a\x01\0\x04city\x03\0\0\0G\x09p\
+roducers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\
+\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

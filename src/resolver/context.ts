@@ -107,6 +107,85 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     return rctx;
 }
 
+/// Creates a scoped ResolverContext for a nested ComponentSection.
+/// Nested ComponentSections define their own local index spaces — sort indices
+/// within the section reference elements declared inside it, not the parent scope.
+/// This function builds local indexes from the section's declarations so that
+/// lookups (e.g., component_index in ComponentInstanceInstantiate) resolve correctly.
+export function createScopedResolverContext(parentRctx: ResolverContext, sections: TaggedElement[]): ResolverContext {
+    const scopedRctx: ResolverContext = {
+        resolved: {
+            ...parentRctx.resolved,
+            resolvedTypes: new Map(),
+            liftingCache: new Map(),
+            loweringCache: new Map(),
+            canonicalResourceIds: new Map(),
+        },
+        validateTypes: parentRctx.validateTypes,
+        wasmInstantiate: parentRctx.wasmInstantiate,
+        importToInstanceIndex: new Map(),
+        resourceAliasGroups: new Map(),
+        indexes: {
+            componentExports: [],
+            componentImports: [],
+            componentFunctions: [],
+            componentInstances: [],
+            componentTypes: [],
+            componentTypeResource: [],
+
+            coreModules: [],
+            coreInstances: [],
+            coreFunctions: [],
+            coreMemories: [],
+            coreTables: [],
+            coreGlobals: [],
+            componentSections: [],
+        },
+    };
+
+    const indexes = scopedRctx.indexes;
+    for (const section of sections) {
+        const bucket = bucketByTag(scopedRctx, section.tag, false, (section as any).kind);
+        bucket.push(section);
+
+        if (section.tag === ModelTag.ComponentTypeResource) {
+            indexes.componentTypeResource.push({ ...section } as any);
+        }
+
+        if (section.tag === ModelTag.ComponentImport) {
+            const imp = section as ComponentImport;
+            if (imp.ty.tag === ModelTag.ComponentTypeRefInstance) {
+                const instanceType = indexes.componentTypes[imp.ty.value];
+                if (instanceType) {
+                    const instanceIndex = indexes.componentInstances.length;
+                    indexes.componentInstances.push({ ...instanceType } as ComponentTypeInstance);
+                    const importIndex = indexes.componentImports.length - 1;
+                    scopedRctx.importToInstanceIndex.set(importIndex, instanceIndex);
+                }
+            }
+            if (imp.ty.tag === ModelTag.ComponentTypeRefComponent) {
+                const instanceIndex = indexes.componentInstances.length;
+                const componentType = indexes.componentTypes[imp.ty.value];
+                if (componentType) {
+                    indexes.componentInstances.push({ ...componentType } as ComponentTypeInstance);
+                } else {
+                    indexes.componentInstances.push({ tag: ModelTag.ComponentTypeInstance, declarations: [] } as any);
+                }
+                indexes.componentSections.push(imp as any);
+                const importIndex = indexes.componentImports.length - 1;
+                scopedRctx.importToInstanceIndex.set(importIndex, instanceIndex);
+            }
+            if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
+                indexes.componentFunctions.push(imp);
+            }
+        }
+    }
+
+    setSelfIndex(scopedRctx);
+    scopedRctx.resolved.resolvedTypes = buildResolvedTypeMap(scopedRctx);
+    return scopedRctx;
+}
+
 export function setSelfIndex(rctx: ResolverContext) {
     function setSelfIndex(sort: IndexedElement[]) {
         for (let i = 0; i < sort.length; i++) {
@@ -308,9 +387,10 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
                     return rctx.indexes.componentTypes;
                 case ComponentExternalKind.Type:
                     return rctx.indexes.componentTypes;
+                case ComponentExternalKind.Instance:
+                    return rctx.indexes.componentInstances;
                 case ComponentExternalKind.Module:
                 case ComponentExternalKind.Value:
-                case ComponentExternalKind.Instance:
                 default:
                     throw new Error(`unexpected section tag: ${kind}`);
             }

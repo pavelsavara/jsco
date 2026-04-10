@@ -2,7 +2,7 @@ package zoo:food@0.1.0;
 
 interface food {
     enum nutrition-type {
-        carbohyrdate,
+        carbohydrate,
         protein,
         vitamin,
     }
@@ -17,8 +17,7 @@ interface food {
         metal-can,
     }
 
-// here I wanted to use flag but it cannot be found
-    enum sealing-state {
+    flags sealing-state {
         opened,
         closed,
         damaged,
@@ -46,15 +45,22 @@ interface food {
         cook-time-in-minutes: s32,
     }
 
+    record meal-plan {
+        foods: list<food-info>,
+        label: option<string>,
+    }
+
     hide-food: func(food: food-info, message: string);
     consume-food: func(foodinfo: food-info, packageinfo: package-info, message: string);
     open-package: func(sealingstate: sealing-state, packageinfo: package-info, message: string);
     trash-package: func(trashed: list<package-info>, message: string) -> bool;
+    plan-meal: func(plan: meal-plan) -> result<string, string>;
 }
 
 interface eater {
-    use food.{food-info, package-info};
+    use food.{food-info, package-info, meal-plan};
     feed: func(foodinfo: food-info, packageinfo: package-info);
+    schedule: func(plan: meal-plan) -> result<string, string>;
 }
 
 world zoo {

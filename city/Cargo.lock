@@ -15,6 +15,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+name = "city"
+version = "0.1.0"
+dependencies = [
+ "wee_alloc",
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.184"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -67,12 +75,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b0780cf7046630ed70f689a098cd8d56c5c3b22f2a7379bbdb088879963ff96"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "zoo"
-version = "0.1.0"
-dependencies = [
- "wee_alloc",
- "wit-bindgen-rt",
 ]
