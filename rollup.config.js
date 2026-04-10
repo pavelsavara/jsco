@@ -29,12 +29,12 @@ const plugins = isDebug ? [] : [terser({
         defaults: true,
         module: true,
         ecma: 2022,
-        toplevel : true,
+        toplevel: true,
         passes: 4
     },
     mangle: {
         module: true,
-        toplevel : true,
+        toplevel: true,
         // TODO properties:{ reserved:['leb128DecodeU64', 'leb128DecodeI64', 'leb128EncodeU64', 'leb128EncodeI64', 'buf', 'memory'] }
     },
 })];
@@ -53,6 +53,7 @@ const jsco = {
             sourcemapPathTransform,
         }
     ],
+    onwarn,
     external: externalDependencies,
     plugins: [
         virtual(constants),
@@ -100,4 +101,12 @@ function sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
         locationCache[relativeSourcePath] = res;
     }
     return res;
+}
+
+function onwarn(warning) {
+    if (warning.code === 'CIRCULAR_DEPENDENCY') {
+        return;
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`(!) ${warning.toString()} ${warning.code}`);
 }

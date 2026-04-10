@@ -7,7 +7,7 @@ import { ComponentTypeInstance } from './types';
 /// Represents the kind of an instantiation argument for a core instance.
 export const enum InstantiationArgKind {
     /// The instantiation argument is a core instance.
-    Instance = 'instance',
+    Instance,
 }
 
 /// Represents an argument to instantiating a WebAssembly module.

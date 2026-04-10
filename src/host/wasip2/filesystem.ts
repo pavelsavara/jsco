@@ -56,7 +56,8 @@ export type ErrorCode =
     | 'read-only'
     | 'invalid-seek'
     | 'text-file-busy'
-    | 'cross-device';
+    | 'cross-device'
+    | 'other';
 
 // ─── Descriptor Types & Flags ───
 

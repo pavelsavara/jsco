@@ -195,7 +195,7 @@ export function createWasiHost(config?: WasiConfig): WasiHostImports {
     // Register versioned aliases — WASI components use versioned import names
     // like 'wasi:cli/stdin@0.2.0'. Register all known WASI preview 2 versions.
     const result: WasiHostImports = {};
-    const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8'];
+    const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
     for (const [iface, methods] of Object.entries(interfaces)) {
         // Unversioned
         result[iface] = methods;

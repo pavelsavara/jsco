@@ -29,9 +29,10 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
 
     const rctx: ResolverContext = createResolverContext(input, options ?? {});
 
-    for (const coreModule of rctx.indexes.coreModules) {
-        await coreModule.module;
-    }
+    // Module compilation (via compileStreaming) was kicked off during parsing.
+    // No need to await here — the compiled module is only needed at instantiation
+    // time in resolveCoreModule.binder, allowing compilation to overlap with
+    // resolution and import binding.
 
     // Build the binding plan — an inspectable IR of operations
     const plan: PlanOp[] = [];

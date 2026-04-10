@@ -23,12 +23,11 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 
 | Layer | Progress | Notes |
 |-------|----------|-------|
-| Parser | 90% | Binary WIT streaming parser, all sections covered |
-| Resolver | 65% | Type resolution, instances, imports/exports, type graph; missing: nested components, fused adapters |
-| Lifting/Lowering | 70% | All CM types (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); calling convention with param/result spilling; spec compliance audit done |
-| WASI Host | 100% | All preview 2 interfaces: random, clocks, I/O, CLI, filesystem, HTTP, sockets (stubs) |
-| Integration | E2 | First WASI CLI component runs end-to-end with JSPI |
-| Testing | 70% | 759 tests across 24 suites; Playwright browser test; missing: broader integration coverage |
+| Parser | 90% | Binary WIT streaming parser, all 11 sections covered |
+| Resolver | 75% | Type resolution, instances, imports/exports, binding plan IR; missing: nested components, fused adapters |
+| Lifting/Lowering | 95% | All CM types (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); flat + spilled calling conventions; canonical ABI compliance |
+| WASI Host | 85% | All preview 2 interfaces: random, clocks, I/O, CLI, filesystem, HTTP, sockets (stubs); JSPI integration |
+| Testing | 80% | 759 tests across 24 suites (81% statement coverage); Playwright browser test |
 
 See [./TODO.md](./TODO.md), contributors are welcome!
 
@@ -61,6 +60,24 @@ run({ name: 'Kladno', headCount: 100000, budget: 0n});
 Prints `Welcome to Kladno!` to the console.
 
 See [./usage.mjs](./usage.mjs) for full commented sample.
+
+## JSPI Requirement
+
+WASI preview 2 APIs that perform blocking operations require [JSPI (JavaScript Promise Integration)](https://github.com/nicolo-ribaudo/tc39-proposal-wasm-esm-integration/blob/main/proposals/source-phase-imports/JSPI.md) — an experimental WebAssembly feature that enables WASM to call async host functions synchronously by suspending and resuming the WASM stack.
+
+**Which APIs need JSPI:**
+- `wasi:io/streams` — `blocking-read`, `blocking-write-and-flush`, `blocking-flush`
+- `wasi:clocks/monotonic-clock` — `subscribe-duration`, `subscribe-instant`
+- `wasi:io/poll` — `poll` (waiting for pollable readiness)
+- `wasi:http/outgoing-handler` — `handle` (awaiting fetch response)
+
+**How to enable:**
+- **Node.js:** `--experimental-wasm-jspi`
+- **Chrome:** Enable via `chrome://flags/#enable-experimental-webassembly-jspi`
+
+Non-blocking WASI APIs (random, wall-clock, environment, exit) and pure component model bindings (no WASI) work without JSPI. Pass `{ noJspi: true }` to `instantiateWasiComponent` to disable JSPI wrapping.
+
+**WASIp3 outlook:** WASI preview 3 will replace the current blocking-call pattern with native async support via the Component Model async proposal and WASM stack switching. When WASIp3 ships, JSPI will no longer be needed — async imports/exports will be first-class. jsco plans to support WASIp3 when the spec stabilizes.
 
 ## Contribute
 - install [rust](https://www.rust-lang.org/tools/install)

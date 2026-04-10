@@ -62,6 +62,11 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
                     rctx.importToInstanceIndex.set(importIndex, instanceIndex);
                 }
             }
+            // Func imports contribute to the component function index space.
+            // CanonicalFunctionLower.func_index may reference imported functions.
+            if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
+                indexes.componentFunctions.push(imp);
+            }
         }
     }
 
@@ -145,30 +150,30 @@ export function createInstanceTable(): InstanceTable {
 export function createResourceTable(): ResourceTable {
     let nextHandle = 1;
 
-    // Resource handle table. Handles are globally unique (monotonic counter).
-    // The resourceTypeIdx is currently ignored for lookup because own/borrow types
-    // inside different instance type definitions use LOCAL type indices that may
-    // not match the same canonical resource definition. Until we implement full
-    // resource identity resolution (mapping local indices → canonical resource ID),
-    // we use a flat handle→object map. This is safe because handle IDs never collide.
-    const handles = new Map<number, unknown>();
+    // Resource handle table — handles are globally unique (monotonic counter).
+    // We store the resourceTypeIdx alongside each handle for validation.
+    // Lookups use the flat handle map because own<T>/borrow<T> local type indices
+    // may differ across function type contexts even when referencing the same
+    // canonical resource. Full resource identity resolution (local→canonical mapping)
+    // would enable strict per-type isolation.
+    const handles = new Map<number, { typeIdx: number; obj: unknown }>();
 
     return {
-        add(_resourceTypeIdx: number, obj: unknown): number {
+        add(resourceTypeIdx: number, obj: unknown): number {
             const handle = nextHandle++;
-            handles.set(handle, obj);
+            handles.set(handle, { typeIdx: resourceTypeIdx, obj });
             return handle;
         },
         get(_resourceTypeIdx: number, handle: number): unknown {
-            const obj = handles.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
-            return obj;
+            const entry = handles.get(handle);
+            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+            return entry.obj;
         },
         remove(_resourceTypeIdx: number, handle: number): unknown {
-            const obj = handles.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+            const entry = handles.get(handle);
+            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
             handles.delete(handle);
-            return obj;
+            return entry.obj;
         },
         has(_resourceTypeIdx: number, handle: number): boolean {
             return handles.has(handle);
@@ -182,9 +187,6 @@ export function createBindingContext(rctx: ResolverContext, componentImports: Js
     const instances = createInstanceTable();
     const resources = createResourceTable();
 
-    function abort() {
-        throw new Error('not implemented');
-    }
     const ctx: BindingContext = {
         componentImports,
         instances,
@@ -193,7 +195,12 @@ export function createBindingContext(rctx: ResolverContext, componentImports: Js
         resources,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
-        abort,
+        abort: () => {
+            // Per Component Model spec: poisoning the instance prevents all future
+            // export calls from executing. checkNotPoisoned() in the lifting
+            // trampoline enforces this.
+            ctx.poisoned = true;
+        },
     };
     if (configuration === 'Debug') {
         ctx.debugStack = [];
@@ -209,7 +216,6 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
             return rctx.indexes.componentExports;
         case ModelTag.ComponentImport:
             return rctx.indexes.componentImports;
-            break;
         case ModelTag.ComponentAliasCoreInstanceExport: {
             switch (kind) {
                 case ExternalKind.Func:

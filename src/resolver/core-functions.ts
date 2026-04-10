@@ -1,6 +1,7 @@
 import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
 import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
+import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration } from '../model/types';
@@ -86,6 +87,17 @@ function resolveLoweredFuncType(rctx: import('./types').ResolverContext, compone
         if (result) return result;
 
         throw new Error(`Could not resolve function type for ComponentAliasInstanceExport '${componentFunction.name}'`);
+    }
+
+    // If the component function is an imported function, look up its type from the import's type ref.
+    if (componentFunction.tag === ModelTag.ComponentImport) {
+        const imp = componentFunction as ComponentImport;
+        jsco_assert(imp.ty.tag === ModelTag.ComponentTypeRefFunc,
+            () => `Expected ComponentTypeRefFunc for imported function, got ${imp.ty.tag}`);
+        const funcType = getComponentType(rctx, imp.ty.value as ComponentTypeIndex);
+        jsco_assert(funcType.tag === ModelTag.ComponentTypeFunc,
+            () => `Expected ComponentTypeFunc from import type ref, got ${funcType.tag}`);
+        return funcType as ComponentTypeFunc;
     }
 
     throw new Error(`Cannot resolve function type for component function tag '${(componentFunction as any).tag}'`);

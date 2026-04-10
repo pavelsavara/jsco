@@ -1,6 +1,7 @@
 import { CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
+import { ComponentImport } from './imports';
 import { ComponentInstanceIndex, CoreInstanceIndex } from './indices';
 import { IndexedElement, ModelTag } from './tags';
 
@@ -25,6 +26,7 @@ export type ComponentAlias =
 export type ComponentFunction =
     | CanonicalFunctionLift
     | ComponentAliasInstanceExport
+    | ComponentImport
 
 /// The alias is to an export of a component instance.
 export type ComponentAliasInstanceExport = IndexedElement & {

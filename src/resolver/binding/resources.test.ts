@@ -70,10 +70,10 @@ describe('ResourceTable', () => {
         const h2 = resources.add(1, b);
         expect(resources.get(0, h1)).toBe(a);
         expect(resources.get(1, h2)).toBe(b);
-        // Handles are globally unique — cross-type access returns the object
-        // because the table is flat (resource type index is not yet used for partitioning
-        // due to local-vs-canonical type index mismatch). Once resource identity
-        // resolution is implemented, this test should be updated to expect type isolation.
+        // Flat table with type tracking: cross-type lookup succeeds because
+        // own<T>/borrow<T> may use different local type indices for the same
+        // canonical resource. Full isolation requires canonical resource identity
+        // resolution (local→canonical mapping).
         expect(resources.has(1, h1)).toBe(true);
         expect(resources.has(0, h2)).toBe(true);
     });
