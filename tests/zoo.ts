@@ -465,8 +465,8 @@ export const componentTypeInstance0: ComponentTypeInstance = {
 export const componentImport0: ComponentImport = {
     tag: ModelTag.ComponentImport,
     name: {
-        tag: ModelTag.ComponentExternNameInterface,
-        name: 'zoo:food/food'
+        tag: ModelTag.ComponentExternNameKebab,
+        name: 'zoo:food/food@0.1.0'
     },
     ty: {
         tag: ModelTag.ComponentTypeRefInstance,
@@ -524,22 +524,22 @@ export const coreInstance1: CoreInstanceFromExports = {
     tag: ModelTag.CoreInstanceFromExports,
     exports: [
         {
-            name: 'hide-food',
+            name: 'open-package',
             kind: ExternalKind.Func,
             index: 0,
         },
         {
-            name: 'consume-food',
+            name: 'trash-package',
             kind: ExternalKind.Func,
             index: 1,
         },
         {
-            name: 'open-package',
+            name: 'hide-food',
             kind: ExternalKind.Func,
             index: 2,
         },
         {
-            name: 'trash-package',
+            name: 'consume-food',
             kind: ExternalKind.Func,
             index: 3,
         },
@@ -551,7 +551,7 @@ export const coreInstance2: CoreInstanceInstantiate = {
     module_index: 0 as CoreModuleIndex,
     args: [
         {
-            name: 'zoo:food/food',
+            name: 'zoo:food/food@0.1.0',
             kind: InstantiationArgKind.Instance,
             index: 1,
         },
@@ -583,7 +583,7 @@ export const aliasExport0: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
     instance_index: 0 as ComponentInstanceIndex,
-    name: 'hide-food',
+    name: 'open-package',
 };
 
 export const canonicalFuncLower5: CanonicalFunctionLower = {
@@ -604,7 +604,7 @@ export const aliasExport1: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
     instance_index: 0 as ComponentInstanceIndex,
-    name: 'consume-food',
+    name: 'trash-package',
 };
 
 export const canonicalFuncLower6: CanonicalFunctionLower = {
@@ -625,7 +625,7 @@ export const aliasExport2: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
     instance_index: 0 as ComponentInstanceIndex,
-    name: 'open-package',
+    name: 'hide-food',
 };
 
 export const canonicalFuncLower7: CanonicalFunctionLower = {
@@ -646,7 +646,7 @@ export const aliasExport3: ComponentAliasInstanceExport = {
     tag: ModelTag.ComponentAliasInstanceExport,
     kind: ComponentExternalKind.Func,
     instance_index: 0 as ComponentInstanceIndex,
-    name: 'trash-package',
+    name: 'consume-food',
 };
 
 export const canonicalFuncLower8: CanonicalFunctionLower = {
@@ -747,7 +747,7 @@ export const aliasCoreExportFunc9: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
     instance_index: 2 as CoreInstanceIndex,
-    name: 'zoo:food/eater#feed',
+    name: 'zoo:food/eater@0.1.0#feed',
 };
 
 export const canonicalFuncLift4: CanonicalFunctionLift = {
@@ -1237,7 +1237,7 @@ export const componentInstance1: ComponentInstanceInstantiate = {
 
 export const componentExport2: ComponentExport = {
     tag: ModelTag.ComponentExport,
-    name: { tag: ModelTag.ComponentExternNameInterface, name: 'zoo:food/eater' },
+    name: { tag: ModelTag.ComponentExternNameKebab, name: 'zoo:food/eater@0.1.0' },
     kind: ComponentExternalKind.Instance,
     index: 1,
     ty: undefined
@@ -1263,9 +1263,9 @@ export const expectedModel: WITSection[] = [
     coreInstance1,
     coreInstance2,
     aliasCoreExportMemory0,
-    aliasCoreExportFunc4,
     aliasCoreExportTable0,
     aliasExport0,
+    aliasCoreExportFunc4,
     canonicalFuncLower5,
     aliasExport1,
     canonicalFuncLower6,
@@ -1289,5 +1289,9 @@ export const expectedModel: WITSection[] = [
     componentTypeComponent0,
     componentInstance1,
     componentExport2,
-    customSection
+    customSection,
+    { tag: ModelTag.CustomSection, name: 'component-name', data: undefined } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'authors', data: undefined } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'revision', data: undefined } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'version', data: undefined } as CustomSection,
 ];

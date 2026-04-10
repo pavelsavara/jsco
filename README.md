@@ -53,9 +53,9 @@ See [./TODO.md](./TODO.md), contributors are welcome!
 ```js
 import { instantiateComponent } from '@pavelsavara/jsco';
 const instance = await instantiateComponent('./hello/wasm/hello.wasm', {
-    'hello:city/city': { sendMessage: console.log }
+    'hello:city/city@0.1.0': { sendMessage: console.log }
 });
-const run = instance.exports['hello:city/greeter'].run;
+const run = instance.exports['hello:city/greeter@0.1.0'].run;
 run({ name: 'Kladno', headCount: 100000, budget: 0n});
 ```
 Prints `Welcome to Kladno!` to the console.

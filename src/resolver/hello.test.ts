@@ -20,7 +20,7 @@ describe('resolver hello', () => {
         let actualMessage: string = undefined as any;
 
         const imports: js.NamedImports = {
-            'hello:city/city': {
+            'hello:city/city@0.1.0': {
                 sendMessage: (message: string) => {
                     //console.log('sendMessage in test ', message);
                     actualMessage = message;
@@ -29,7 +29,7 @@ describe('resolver hello', () => {
         };
 
         const instance = await instantiateComponent('./hello/wasm/hello.wasm', imports);
-        const run = instance.exports['hello:city/greeter'].run;
+        const run = instance.exports['hello:city/greeter@0.1.0'].run;
 
         run({
             name: 'Prague',
@@ -62,7 +62,7 @@ describe('resolver hello', () => {
 
         let actualMessage: string = undefined as any;
         const imports: js.NamedImports = {
-            'hello:city/city': {
+            'hello:city/city@0.1.0': {
                 sendMessage: (message: string) => {
                     actualMessage = message;
                 }
@@ -71,7 +71,7 @@ describe('resolver hello', () => {
 
         const instance = await resolveJCO(parsedModel, imports);
 
-        instance.exports['hello:city/greeter'].run({
+        instance.exports['hello:city/greeter@0.1.0'].run({
             name: 'Prague',
             headCount: 1_000_000,
             budget: BigInt(200_000_000),

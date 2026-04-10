@@ -7,7 +7,7 @@
       (export (;0;) "send-message" (func (type 2)))
     )
   )
-  (import "hello:city/city" (instance (;0;) (type 0)))
+  (import "hello:city/city@0.1.0" (instance (;0;) (type 0)))
   (core module (;0;)
     (type (;0;) (func (param i32 i32) (result i32)))
     (type (;1;) (func (param i32 i32 i32) (result i32)))
@@ -20,7 +20,7 @@
     (type (;8;) (func (param i32)))
     (type (;9;) (func (param i32 i32 i32 i32 i32 i32) (result i32)))
     (type (;10;) (func (param i32 i32 i32 i32 i32) (result i32)))
-    (import "hello:city/city" "send-message" (func $_ZN5hello8bindings5hello4city4city12send_message11wit_import117h80d674a0cec8bbceE (;0;) (type 2)))
+    (import "hello:city/city@0.1.0" "send-message" (func $_ZN5hello8bindings5hello4city4city12send_message11wit_import117h80d674a0cec8bbceE (;0;) (type 2)))
     (func $__wasm_call_ctors (;1;) (type 4))
     (func $_RNvCsdBezzDwma51_7___rustc14___rust_realloc (;2;) (type 5) (param i32 i32 i32 i32) (result i32)
       (local i32)
@@ -905,7 +905,7 @@
       end
       local.get 8
     )
-    (func $hello:city/greeter#run (;8;) (type 7) (param i32 i32 i32 i64)
+    (func $hello:city/greeter@0.1.0#run (;8;) (type 7) (param i32 i32 i32 i64)
       (local i32)
       global.get $__stack_pointer
       i32.const 48
@@ -2761,7 +2761,7 @@
     (global (;1;) i32 i32.const 17781)
     (global (;2;) i32 i32.const 17792)
     (export "memory" (memory 0))
-    (export "hello:city/greeter#run" (func $hello:city/greeter#run))
+    (export "hello:city/greeter@0.1.0#run" (func $hello:city/greeter@0.1.0#run))
     (export "cabi_realloc_wit_bindgen_0_24_0" (func $cabi_realloc_wit_bindgen_0_24_0))
     (export "cabi_realloc" (func $cabi_realloc))
     (export "__data_end" (global 1))
@@ -2777,14 +2777,14 @@
   )
   (core module (;1;)
     (type (;0;) (func (param i32 i32)))
-    (func $indirect-hello:city/city-send-message (;0;) (type 0) (param i32 i32)
+    (func $indirect-hello:city/city@0.1.0-send-message (;0;) (type 0) (param i32 i32)
       local.get 0
       local.get 1
       i32.const 0
       call_indirect (type 0)
     )
     (table (;0;) 1 1 funcref)
-    (export "0" (func $indirect-hello:city/city-send-message))
+    (export "0" (func $indirect-hello:city/city@0.1.0-send-message))
     (export "$imports" (table 0))
     (@producers
       (processed-by "wit-component" "0.227.1")
@@ -2805,7 +2805,7 @@
     (export "send-message" (func 0))
   )
   (core instance (;2;) (instantiate 0
-      (with "hello:city/city" (instance 1))
+      (with "hello:city/city@0.1.0" (instance 1))
     )
   )
   (alias core export 2 "memory" (core memory (;0;)))
@@ -2823,7 +2823,7 @@
   )
   (alias export 0 "city-info" (type (;1;)))
   (type (;2;) (func (param "info" 1)))
-  (alias core export 2 "hello:city/greeter#run" (core func (;3;)))
+  (alias core export 2 "hello:city/greeter@0.1.0#run" (core func (;3;)))
   (func (;1;) (type 2) (canon lift (core func 3) (memory 0) (realloc 1) string-encoding=utf8))
   (alias export 0 "city-info" (type (;3;)))
   (component (;0;)
@@ -2842,7 +2842,7 @@
       (with "import-type-city-info0" (type 1))
     )
   )
-  (export (;2;) "hello:city/greeter" (instance 1))
+  (export (;2;) "hello:city/greeter@0.1.0" (instance 1))
   (@producers
     (processed-by "wit-component" "0.227.1")
     (processed-by "cargo-component" "0.21.1 (1495f61 2025-07-14)")

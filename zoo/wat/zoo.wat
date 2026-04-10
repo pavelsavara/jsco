@@ -25,7 +25,7 @@
       (export (;3;) "trash-package" (func (type 17)))
     )
   )
-  (import "zoo:food/food" (instance (;0;) (type 0)))
+  (import "zoo:food/food@0.1.0" (instance (;0;) (type 0)))
   (core module (;0;)
     (type (;0;) (func (param i32 i32 i32) (result i32)))
     (type (;1;) (func (param i32 i32) (result i32)))
@@ -40,10 +40,10 @@
     (type (;10;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 f64 i32 i32 i32)))
     (type (;11;) (func (param i32 i32 i32 i32 i32 i32) (result i32)))
     (type (;12;) (func (param i32 i32 i32 i32 i32) (result i32)))
-    (import "zoo:food/food" "open-package" (func $_ZN3zoo8bindings3zoo4food4food12open_package11wit_import417h1890370d54baa0f8E (;0;) (type 4)))
-    (import "zoo:food/food" "trash-package" (func $_ZN3zoo8bindings3zoo4food4food13trash_package11wit_import417h622e3c4f77f110ddE (;1;) (type 5)))
-    (import "zoo:food/food" "hide-food" (func $_ZN3zoo8bindings3zoo4food4food9hide_food11wit_import417had62a38e1d70ac82E (;2;) (type 6)))
-    (import "zoo:food/food" "consume-food" (func $_ZN3zoo8bindings3zoo4food4food12consume_food11wit_import717he6227480a82c8aefE (;3;) (type 7)))
+    (import "zoo:food/food@0.1.0" "open-package" (func $_ZN3zoo8bindings3zoo4food4food12open_package11wit_import417h1890370d54baa0f8E (;0;) (type 4)))
+    (import "zoo:food/food@0.1.0" "trash-package" (func $_ZN3zoo8bindings3zoo4food4food13trash_package11wit_import417h622e3c4f77f110ddE (;1;) (type 5)))
+    (import "zoo:food/food@0.1.0" "hide-food" (func $_ZN3zoo8bindings3zoo4food4food9hide_food11wit_import417had62a38e1d70ac82E (;2;) (type 6)))
+    (import "zoo:food/food@0.1.0" "consume-food" (func $_ZN3zoo8bindings3zoo4food4food12consume_food11wit_import717he6227480a82c8aefE (;3;) (type 7)))
     (func $__wasm_call_ctors (;4;) (type 8))
     (func $_RNvCsdBezzDwma51_7___rustc14___rust_realloc (;5;) (type 5) (param i32 i32 i32 i32) (result i32)
       (local i32)
@@ -946,7 +946,7 @@
       end
       local.get 8
     )
-    (func $zoo:food/eater#feed (;12;) (type 10) (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 f64 i32 i32 i32)
+    (func $zoo:food/eater@0.1.0#feed (;12;) (type 10) (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 f64 i32 i32 i32)
       (local i32)
       global.get $__stack_pointer
       i32.const 160
@@ -3190,7 +3190,7 @@
     (global (;1;) i32 i32.const 17897)
     (global (;2;) i32 i32.const 17904)
     (export "memory" (memory 0))
-    (export "zoo:food/eater#feed" (func $zoo:food/eater#feed))
+    (export "zoo:food/eater@0.1.0#feed" (func $zoo:food/eater@0.1.0#feed))
     (export "cabi_realloc_wit_bindgen_0_24_0" (func $cabi_realloc_wit_bindgen_0_24_0))
     (export "cabi_realloc" (func $cabi_realloc))
     (export "__data_end" (global 1))
@@ -3209,7 +3209,7 @@
     (type (;1;) (func (param i32 i32 i32 i32) (result i32)))
     (type (;2;) (func (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)))
     (type (;3;) (func (param i32)))
-    (func $indirect-zoo:food/food-open-package (;0;) (type 0) (param i32 f64 i32 i32 i32 i32 i32)
+    (func $indirect-zoo:food/food@0.1.0-open-package (;0;) (type 0) (param i32 f64 i32 i32 i32 i32 i32)
       local.get 0
       local.get 1
       local.get 2
@@ -3220,7 +3220,7 @@
       i32.const 0
       call_indirect (type 0)
     )
-    (func $indirect-zoo:food/food-trash-package (;1;) (type 1) (param i32 i32 i32 i32) (result i32)
+    (func $indirect-zoo:food/food@0.1.0-trash-package (;1;) (type 1) (param i32 i32 i32 i32) (result i32)
       local.get 0
       local.get 1
       local.get 2
@@ -3228,7 +3228,7 @@
       i32.const 1
       call_indirect (type 1)
     )
-    (func $indirect-zoo:food/food-hide-food (;2;) (type 2) (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)
+    (func $indirect-zoo:food/food@0.1.0-hide-food (;2;) (type 2) (param i32 i32 i32 f32 i32 i64 i32 i32 i32 i32 i32 i32 i32 i32)
       local.get 0
       local.get 1
       local.get 2
@@ -3246,16 +3246,16 @@
       i32.const 2
       call_indirect (type 2)
     )
-    (func $indirect-zoo:food/food-consume-food (;3;) (type 3) (param i32)
+    (func $indirect-zoo:food/food@0.1.0-consume-food (;3;) (type 3) (param i32)
       local.get 0
       i32.const 3
       call_indirect (type 3)
     )
     (table (;0;) 4 4 funcref)
-    (export "0" (func $indirect-zoo:food/food-open-package))
-    (export "1" (func $indirect-zoo:food/food-trash-package))
-    (export "2" (func $indirect-zoo:food/food-hide-food))
-    (export "3" (func $indirect-zoo:food/food-consume-food))
+    (export "0" (func $indirect-zoo:food/food@0.1.0-open-package))
+    (export "1" (func $indirect-zoo:food/food@0.1.0-trash-package))
+    (export "2" (func $indirect-zoo:food/food@0.1.0-hide-food))
+    (export "3" (func $indirect-zoo:food/food@0.1.0-consume-food))
     (export "$imports" (table 0))
     (@producers
       (processed-by "wit-component" "0.227.1")
@@ -3288,7 +3288,7 @@
     (export "consume-food" (func 3))
   )
   (core instance (;2;) (instantiate 0
-      (with "zoo:food/food" (instance 1))
+      (with "zoo:food/food@0.1.0" (instance 1))
     )
   )
   (alias core export 2 "memory" (core memory (;0;)))
@@ -3316,7 +3316,7 @@
   (alias export 0 "food-info" (type (;1;)))
   (alias export 0 "package-info" (type (;2;)))
   (type (;3;) (func (param "foodinfo" 1) (param "packageinfo" 2)))
-  (alias core export 2 "zoo:food/eater#feed" (core func (;9;)))
+  (alias core export 2 "zoo:food/eater@0.1.0#feed" (core func (;9;)))
   (func (;4;) (type 3) (canon lift (core func 9) (memory 0) (realloc 4) string-encoding=utf8))
   (alias export 0 "food-info" (type (;4;)))
   (alias export 0 "nutrition-type" (type (;5;)))
@@ -3359,7 +3359,7 @@
       (with "import-type-package-info0" (type 2))
     )
   )
-  (export (;2;) "zoo:food/eater" (instance 1))
+  (export (;2;) "zoo:food/eater@0.1.0" (instance 1))
   (@producers
     (processed-by "wit-component" "0.227.1")
     (processed-by "cargo-component" "0.21.1 (1495f61 2025-07-14)")

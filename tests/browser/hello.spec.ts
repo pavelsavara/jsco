@@ -14,5 +14,5 @@ test('hello component loads and runs in browser', async ({ page }) => {
 
     expect(results.success).toBe(true);
     expect(results.message).toBe('Welcome to Prague, we invite you for a drink!');
-    expect(results.exportKeys).toContain('hello:city/greeter');
+    expect(results.exportKeys).toContain('hello:city/greeter@0.1.0');
 });

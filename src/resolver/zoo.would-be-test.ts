@@ -29,11 +29,11 @@ describe('resolver hello', () => {
             }
         };
         const imports = {
-            'zoo:food/food': zooFood
+            'zoo:food/food@0.1.0': zooFood
         };
 
         const instance = await instantiateComponent('./zoo/wasm/zoo.wasm', imports);
-        const feed = instance.exports['zoo:food/eater'].feed as TFeed;
+        const feed = instance.exports['zoo:food/eater@0.1.0'].feed as TFeed;
 
         feed({
             name: 'apple',

@@ -1,4 +1,4 @@
-package zoo:food;
+package zoo:food@0.1.0;
 
 interface food {
     enum nutrition-type {

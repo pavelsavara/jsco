@@ -1,4 +1,4 @@
-package hello:city;
+package hello:city@0.1.0;
 
 interface city {
     record city-info {
