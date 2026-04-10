@@ -5,10 +5,10 @@ import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInsta
 import { ModelTag, TaggedElement } from '../model/tags';
 import { ComponentTypeInstance } from '../model/types';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
-import { JsImports, JsInterfaceCollection } from './api-types';
+import { JsImports } from './api-types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
-import { getComponentFunction, getComponentInstance, getComponentType } from './indices';
+import { getComponentFunction, getComponentInstance } from './indices';
 import { BinderArgs, BinderRes, BindingContext, Resolver, ResolverRes } from './types';
 
 export type ComponentInstanceData = {

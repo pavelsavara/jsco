@@ -1,6 +1,6 @@
 import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
-import { ComponentOuterAliasKind } from '../model/aliases';
+import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
@@ -12,10 +12,13 @@ import { buildResolvedTypeMap } from './type-resolution';
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+        validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
+        canonicalResourceIds: new Map(),
+        resourceAliasGroups: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -38,6 +41,10 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     for (const section of sections) {
         const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
         bucket.push(section);
+
+        if (section.tag === ModelTag.ComponentTypeResource) {
+            rctx.indexes.componentTypeResource.push({ ...section } as any);
+        }
 
         // ComponentImport with Instance kind creates an entry in the instance sort.
         // The instance sort is built from imports (instance kind) + instance sections,
@@ -62,6 +69,11 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
                     rctx.importToInstanceIndex.set(importIndex, instanceIndex);
                 }
             }
+            // Func imports contribute to the component function index space.
+            // CanonicalFunctionLower.func_index may reference imported functions.
+            if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
+                indexes.componentFunctions.push(imp);
+            }
         }
     }
 
@@ -71,6 +83,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     // ComponentInstanceInstantiate.component_index references componentSections (COMPONENT sort),
     // while type_index references componentTypes (TYPE sort).
     setSelfIndex(rctx);
+    buildCanonicalResourceIds(rctx);
     rctx.resolvedTypes = buildResolvedTypeMap(rctx);
     return rctx;
 }
@@ -94,6 +107,45 @@ export function setSelfIndex(rctx: ResolverContext) {
     setSelfIndex(rctx.indexes.coreMemories);
     setSelfIndex(rctx.indexes.coreTables);
     setSelfIndex(rctx.indexes.coreGlobals);
+}
+
+/// Builds a map from type index → canonical resource ID.
+/// Multiple type aliases to the same resource (from the same instance export)
+/// share one canonical ID, ensuring ResourceTable per-type isolation works
+/// correctly across different aliases to the same underlying resource.
+function buildCanonicalResourceIds(rctx: ResolverContext): void {
+    const types = rctx.indexes.componentTypes;
+    const map = rctx.canonicalResourceIds;
+
+    // Phase 1: Assign canonical IDs to resource source types.
+    // For ComponentTypeResource: the type index IS the canonical ID.
+    // For ComponentAliasInstanceExport (Type kind): group by (instance_index, name).
+    //   First occurrence defines the canonical ID; subsequent aliases get the same ID.
+
+    for (let i = 0; i < types.length; i++) {
+        const t = types[i];
+        if (t.tag === ModelTag.ComponentTypeResource) {
+            map.set(i, i);
+        } else if (t.tag === ModelTag.ComponentAliasInstanceExport) {
+            const alias = t as ComponentAliasInstanceExport;
+            if (alias.kind === ComponentExternalKind.Type) {
+                const key = `${alias.instance_index}:${alias.name}`;
+                const existing = rctx.resourceAliasGroups.get(key);
+                if (existing !== undefined) {
+                    map.set(i, existing);
+                } else {
+                    rctx.resourceAliasGroups.set(key, i);
+                    map.set(i, i);
+                }
+            }
+        }
+    }
+}
+
+/// Resolves a type index to its canonical resource ID.
+/// Handles own<T>/borrow<T> (follows .value) and direct resource/alias references.
+export function getCanonicalResourceId(rctx: ResolverContext, resourceTypeIdx: number): number {
+    return rctx.canonicalResourceIds?.get(resourceTypeIdx) ?? resourceTypeIdx;
 }
 
 export function createMemoryView(): MemoryView {
@@ -145,33 +197,35 @@ export function createInstanceTable(): InstanceTable {
 export function createResourceTable(): ResourceTable {
     let nextHandle = 1;
 
-    // Resource handle table. Handles are globally unique (monotonic counter).
-    // The resourceTypeIdx is currently ignored for lookup because own/borrow types
-    // inside different instance type definitions use LOCAL type indices that may
-    // not match the same canonical resource definition. Until we implement full
-    // resource identity resolution (mapping local indices → canonical resource ID),
-    // we use a flat handle→object map. This is safe because handle IDs never collide.
-    const handles = new Map<number, unknown>();
+    // Resource handle table — handles are globally unique (monotonic counter).
+    // Each handle stores the canonical resource type index (the unified type
+    // index of the ComponentTypeResource definition). own<T>/borrow<T> both
+    // use the same canonical index (their .value field), so per-type isolation
+    // is enforced: get/remove/has validate that the requested type matches.
+    const handles = new Map<number, { typeIdx: number; obj: unknown }>();
 
     return {
-        add(_resourceTypeIdx: number, obj: unknown): number {
+        add(resourceTypeIdx: number, obj: unknown): number {
             const handle = nextHandle++;
-            handles.set(handle, obj);
+            handles.set(handle, { typeIdx: resourceTypeIdx, obj });
             return handle;
         },
-        get(_resourceTypeIdx: number, handle: number): unknown {
-            const obj = handles.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
-            return obj;
+        get(resourceTypeIdx: number, handle: number): unknown {
+            const entry = handles.get(handle);
+            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+            if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
+            return entry.obj;
         },
-        remove(_resourceTypeIdx: number, handle: number): unknown {
-            const obj = handles.get(handle);
-            if (obj === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+        remove(resourceTypeIdx: number, handle: number): unknown {
+            const entry = handles.get(handle);
+            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+            if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
             handles.delete(handle);
-            return obj;
+            return entry.obj;
         },
-        has(_resourceTypeIdx: number, handle: number): boolean {
-            return handles.has(handle);
+        has(resourceTypeIdx: number, handle: number): boolean {
+            const entry = handles.get(handle);
+            return entry !== undefined && entry.typeIdx === resourceTypeIdx;
         }
     };
 }
@@ -182,9 +236,6 @@ export function createBindingContext(rctx: ResolverContext, componentImports: Js
     const instances = createInstanceTable();
     const resources = createResourceTable();
 
-    function abort() {
-        throw new Error('not implemented');
-    }
     const ctx: BindingContext = {
         componentImports,
         instances,
@@ -193,7 +244,12 @@ export function createBindingContext(rctx: ResolverContext, componentImports: Js
         resources,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
-        abort,
+        abort: () => {
+            // Per Component Model spec: poisoning the instance prevents all future
+            // export calls from executing. checkNotPoisoned() in the lifting
+            // trampoline enforces this.
+            ctx.poisoned = true;
+        },
     };
     if (configuration === 'Debug') {
         ctx.debugStack = [];
@@ -209,7 +265,6 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
             return rctx.indexes.componentExports;
         case ModelTag.ComponentImport:
             return rctx.indexes.componentImports;
-            break;
         case ModelTag.ComponentAliasCoreInstanceExport: {
             switch (kind) {
                 case ExternalKind.Func:
@@ -268,7 +323,10 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
         case ModelTag.ComponentTypeInstance:
             return rctx.indexes.componentTypes;
         case ModelTag.ComponentTypeResource:
-            return rctx.indexes.componentTypeResource;
+            // Resource types participate in the unified TYPE sort (section 7).
+            // own<T>/borrow<T> reference resources by type index in this unified space.
+            // componentTypeResource is populated separately at the call site.
+            return rctx.indexes.componentTypes;
         case ModelTag.CanonicalFunctionLower: {
             return rctx.indexes.coreFunctions;
         }

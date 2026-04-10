@@ -4,11 +4,12 @@ import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefi
 import { BindingContext, ResolverContext } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, sizeOfValType, discriminantSize } from '../calling-convention';
+import { getCanonicalResourceId } from '../context';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
-import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+import { validatePointerAlignment, validateUtf8 } from './validation';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);
@@ -321,7 +322,7 @@ function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeD
     return fn;
 }
 
-function createStringLowering(rctx: ResolverContext): LoweringToJs {
+function createStringLowering(_rctx: ResolverContext): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const pointer = args[0] as WasmPointer;
         const len = args[1] as WasmSize;
@@ -521,12 +522,12 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
         case ModelTag.ComponentTypeDefinedOwn: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.remove(type.value, handle);
+            return ctx.resources.remove(getCanonicalResourceId(rctx, type.value), handle);
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.get(type.value, handle);
+            return ctx.resources.get(getCanonicalResourceId(rctx, type.value), handle);
         }
         default:
             throw new Error('loadFromMemory not implemented for tag ' + type.tag);
@@ -681,8 +682,8 @@ function createTupleLowering(rctx: ResolverContext, tupleModel: ComponentTypeDef
 
 // --- Resource handle lowering ---
 
-function createOwnLowering(_rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
-    const resourceTypeIdx = ownModel.value;
+function createOwnLowering(rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
+    const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.remove(resourceTypeIdx, handle);
@@ -691,8 +692,8 @@ function createOwnLowering(_rctx: ResolverContext, ownModel: ComponentTypeDefine
     return fn;
 }
 
-function createBorrowLowering(_rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
-    const resourceTypeIdx = borrowModel.value;
+function createBorrowLowering(rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
+    const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.get(resourceTypeIdx, handle);

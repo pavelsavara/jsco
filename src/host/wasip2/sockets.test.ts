@@ -12,15 +12,14 @@ import {
     createNetwork,
     instanceNetwork,
     IpSocketAddress,
-    WasiNetwork,
 } from './sockets';
 
-const ipv4Addr: IpSocketAddress = {
+const _ipv4Addr: IpSocketAddress = {
     tag: 'ipv4',
     val: { port: 8080, address: [127, 0, 0, 1] },
 };
 
-const ipv6Addr: IpSocketAddress = {
+const _ipv6Addr: IpSocketAddress = {
     tag: 'ipv6',
     val: {
         port: 8080,

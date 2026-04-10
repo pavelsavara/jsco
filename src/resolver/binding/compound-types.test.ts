@@ -164,7 +164,7 @@ describe('nested option<option<u32>>', () => {
         value: PrimitiveValType.U32,
     } as ComponentValType);
 
-    const outerModel = () => optionModel(nestedOptionModel() as any as ComponentValType);
+    const _outerModel = () => optionModel(nestedOptionModel() as any as ComponentValType);
 
     beforeEach(() => {
         rctx = createMinimalRctx();

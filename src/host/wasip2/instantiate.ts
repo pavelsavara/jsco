@@ -14,7 +14,7 @@ import { ComponentFactoryInput, ComponentFactoryOptions } from '../../resolver/t
 import { ParserOptions } from '../../parser/types';
 import { JsImports, WasmComponentInstance } from '../../resolver/api-types';
 import { WasiConfig } from './types';
-import { createWasiHost, WasiHostImports } from './index';
+import { createWasiHost } from './index';
 import { hasJspi } from './poll';
 
 /** Options for WASI component instantiation */

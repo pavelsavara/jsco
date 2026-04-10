@@ -10,11 +10,11 @@ export const MAX_FLAT_RESULTS = 1;
 
 export const enum CallingConvention {
     /** Single register value (i32, i64, f32, f64) */
-    Scalar = 'scalar',
+    Scalar,
     /** Multiple register values within MAX_FLAT_PARAMS/MAX_FLAT_RESULTS */
-    Flat = 'flat',
+    Flat,
     /** Spilled to linear memory, represented by a pointer */
-    Spilled = 'spilled',
+    Spilled,
 }
 
 export type FunctionCallingConvention = {

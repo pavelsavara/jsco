@@ -5,7 +5,7 @@ import {
     ComponentTypeDefinedVariant, ComponentTypeDefinedList, ComponentTypeDefinedTuple,
     ComponentTypeDefinedFlags, ComponentTypeDefinedEnum, ComponentTypeDefinedOption,
     ComponentTypeDefinedResult, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
-    ComponentTypeFunc, ComponentType, ComponentTypeInstance,
+    ComponentTypeFunc, ComponentType, ComponentTypeResource,
 } from '../model/types';
 import type { ResolverContext } from './types';
 
@@ -85,4 +85,15 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
         }
     }
     return map;
+}
+
+/// Resolves the canonical resource type for an own<T> or borrow<T> definition.
+/// The `value` field on ComponentTypeDefinedOwn/Borrow is a unified type index
+/// pointing to the ComponentTypeResource declaration.
+export function resolveCanonicalResourceType(rctx: ResolverContext, ownOrBorrow: ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow): ComponentTypeResource {
+    const type = rctx.indexes.componentTypes[ownOrBorrow.value];
+    if (!type || type.tag !== ModelTag.ComponentTypeResource) {
+        throw new Error(`Type index ${ownOrBorrow.value} does not resolve to a resource type (got ${type?.tag})`);
+    }
+    return type as ComponentTypeResource;
 }

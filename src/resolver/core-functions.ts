@@ -1,6 +1,7 @@
 import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
 import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
+import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration } from '../model/types';
@@ -10,6 +11,7 @@ import { JsFunction } from './binding/types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
+import { getCanonicalResourceId } from './context';
 import { getComponentFunction, getComponentType } from './indices';
 import { Resolver, BinderRes, ResolverRes, resolveCanonicalOptions, StringEncoding } from './types';
 
@@ -88,6 +90,17 @@ function resolveLoweredFuncType(rctx: import('./types').ResolverContext, compone
         throw new Error(`Could not resolve function type for ComponentAliasInstanceExport '${componentFunction.name}'`);
     }
 
+    // If the component function is an imported function, look up its type from the import's type ref.
+    if (componentFunction.tag === ModelTag.ComponentImport) {
+        const imp = componentFunction as ComponentImport;
+        jsco_assert(imp.ty.tag === ModelTag.ComponentTypeRefFunc,
+            () => `Expected ComponentTypeRefFunc for imported function, got ${imp.ty.tag}`);
+        const funcType = getComponentType(rctx, imp.ty.value as ComponentTypeIndex);
+        jsco_assert(funcType.tag === ModelTag.ComponentTypeFunc,
+            () => `Expected ComponentTypeFunc from import type ref, got ${funcType.tag}`);
+        return funcType as ComponentTypeFunc;
+    }
+
     throw new Error(`Cannot resolve function type for component function tag '${(componentFunction as any).tag}'`);
 }
 
@@ -113,7 +126,7 @@ function resolveAliasedFuncType(
 
         // Register instance-local types in resolvedTypes so that
         // createFunctionLowering can resolve Type(localIdx) references
-        registerInstanceLocalTypes(rctx, instanceType);
+        registerInstanceLocalTypes(rctx, instanceType, alias.instance_index);
 
         // Find the export declaration matching the alias name
         for (const decl of instanceType.declarations) {
@@ -209,8 +222,10 @@ function isTypeCreatingDeclaration(decl: InstanceTypeDeclaration): boolean {
  * same indices, which is fine because the function type's lifters/lowerers
  * are fully created before the next function is processed.
  */
-function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, instance: ComponentTypeInstance): void {
+function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, instance: ComponentTypeInstance, instanceIndex: number): void {
     const localTypes: (ResolvedType | undefined)[] = [];
+    // Track which local indices are resources, keyed by export name
+    const localResourceNames = new Map<number, string>();
     let localTypeIdx = 0;
 
     for (const decl of instance.declarations) {
@@ -253,6 +268,12 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
                     if (outerResolved) {
                         resolved = outerResolved;
                     }
+                    // Propagate canonical resource ID from the outer scope.
+                    // If the outer type is a resource alias, this local index inherits its canonical ID.
+                    const outerCanonicalId = rctx.canonicalResourceIds?.get(alias.index);
+                    if (outerCanonicalId !== undefined) {
+                        rctx.canonicalResourceIds.set(localTypeIdx, outerCanonicalId);
+                    }
                 }
                 break;
             }
@@ -263,9 +284,17 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
                         // Eq(N) → same type as local type N
                         const eqIdx = decl.ty.value.value;
                         resolved = localTypes[eqIdx];
+                        // Inherit canonical resource ID from the equal type.
+                        const eqCanonicalId = rctx.canonicalResourceIds?.get(eqIdx);
+                        if (eqCanonicalId !== undefined) {
+                            rctx.canonicalResourceIds.set(localTypeIdx, eqCanonicalId);
+                        }
                     }
-                    // SubResource → resource marker, not directly resolvable as a value type
-                    // Skip — Borrow/Own types handle resource references
+                    if (decl.ty.value.tag === ModelTag.TypeBoundsSubResource) {
+                        // SubResource → this local type index is a resource.
+                        // Track its name for canonical resource ID mapping.
+                        localResourceNames.set(localTypeIdx, decl.name.name);
+                    }
                 }
                 break;
             }
@@ -277,6 +306,19 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
         }
         localTypeIdx++;
     }
+
+    // Phase 2: Register canonical resource IDs for local resource indices.
+    // When an instance declares resources (SubResource exports), borrow<T>/own<T>
+    // types reference the local resource index. Map these local indices to the
+    // canonical resource ID that the global aliases use, so ResourceTable per-type
+    // isolation works correctly across local and global contexts.
+    for (const [localIdx, resourceName] of localResourceNames) {
+        const key = `${instanceIndex}:${resourceName}`;
+        const canonicalId = rctx.resourceAliasGroups?.get(key);
+        if (canonicalId !== undefined) {
+            rctx.canonicalResourceIds.set(localIdx, canonicalId);
+        }
+    }
 }
 
 /**
@@ -285,12 +327,12 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
  */
 export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionResourceDrop> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = elem.resource;
+    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const dropFn = (handle: number) => {
                 bctx.resources.remove(resourceTypeIdx, handle);
             };
@@ -305,12 +347,12 @@ export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionRes
  */
 export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionResourceNew> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = elem.resource;
+    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const newFn = (rep: number) => {
                 return bctx.resources.add(resourceTypeIdx, rep);
             };
@@ -324,12 +366,12 @@ export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionReso
  */
 export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionResourceRep> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = elem.resource;
+    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const repFn = (handle: number) => {
                 return bctx.resources.get(resourceTypeIdx, handle);
             };

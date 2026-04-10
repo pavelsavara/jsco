@@ -7,9 +7,10 @@ import { withDebugTrace, jsco_assert } from '../utils/assert';
 import { createFunctionLifting } from './binding';
 import { WasmFunction } from './binding/types';
 import { resolveComponentInstance } from './component-instances';
+import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { BinderRes, Resolver, resolveCanonicalOptions, StringEncoding } from './types';
+import { Resolver, resolveCanonicalOptions, StringEncoding } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -17,6 +18,7 @@ export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rarg
     switch (coreInstance.tag) {
         case ModelTag.CanonicalFunctionLift: return resolveCanonicalFunctionLift(rctx, rargs as any);
         case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
+        case ModelTag.ComponentImport: return resolveComponentImport(rctx, rargs as any);
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
 };
@@ -143,6 +145,7 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
 
             if (fn === undefined) {
                 // Function not found in any naming convention
+                throw new Error(`Export '${componentAliasInstanceExport.name}' not found in instance ${componentAliasInstanceExport.instance_index}`);
             }
 
             const binderResult = {

@@ -2,7 +2,6 @@ import { parse } from './index';
 import { expectModelToEqual } from './jest-utils';
 import { expectedModel } from '../../tests/zoo';
 import { CoreModule } from './types';
-import { writeToFile } from '../../tests/utils';
 import { ModelTag } from '../model/tags';
 
 describe('zoo', () => {

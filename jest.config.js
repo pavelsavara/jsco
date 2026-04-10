@@ -10,6 +10,8 @@ export default {
         '^.+\\.(ts|tsx|js|jsx)$': ['@swc/jest'],
         //"^.+\\.(ts|tsx)$": "ts-jest"
     },
-    transformIgnorePatterns: [],
+    transformIgnorePatterns: [
+        '/node_modules/@bytecodealliance/'
+    ],
     extensionsToTreatAsEsm: ['.ts'],
 };

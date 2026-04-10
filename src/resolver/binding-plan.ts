@@ -4,9 +4,9 @@ import { createBindingContext } from './context';
 import { BinderArgs, BindingContext, ResolverContext, ResolverRes } from './types';
 
 export const enum PlanOpKind {
-    CoreInstantiate = 'CoreInstantiate',
-    ImportBind = 'ImportBind',
-    ExportBind = 'ExportBind',
+    CoreInstantiate,
+    ImportBind,
+    ExportBind,
 }
 
 export type PlanOp =
@@ -43,28 +43,33 @@ export async function executePlan<TJSExports>(
     const imports = {};
     const exports = {};
 
-    for (const op of plan) {
+    // Partition plan into phases by kind
+    const importOps = plan.filter(op => op.kind === PlanOpKind.ImportBind);
+    const coreOps = plan.filter(op => op.kind === PlanOpKind.CoreInstantiate);
+    const exportOps = plan.filter(op => op.kind === PlanOpKind.ExportBind);
+
+    // Phase 1: ImportBind — independent, run in parallel
+    await Promise.all(importOps.map(async (op) => {
+        const args: BinderArgs = { imports: componentImports };
+        if (isDebug) args.debugStack = [];
+        const result = await op.resolution.binder(ctx, args);
+        Object.assign(imports, result.result as object);
+    }));
+
+    // Phase 2: CoreInstantiate — may have inter-dependencies, run sequentially
+    for (const op of coreOps) {
         const args: BinderArgs = {};
         if (isDebug) args.debugStack = [];
-
-        switch (op.kind) {
-            case PlanOpKind.ImportBind: {
-                args.imports = componentImports;
-                const result = await op.resolution.binder(ctx, args);
-                Object.assign(imports, result.result as object);
-                break;
-            }
-            case PlanOpKind.ExportBind: {
-                const result = await op.resolution.binder(ctx, args);
-                Object.assign(exports, result.result as object);
-                break;
-            }
-            case PlanOpKind.CoreInstantiate: {
-                await op.resolution.binder(ctx, args);
-                break;
-            }
-        }
+        await op.resolution.binder(ctx, args);
     }
+
+    // Phase 3: ExportBind — independent, run in parallel
+    await Promise.all(exportOps.map(async (op) => {
+        const args: BinderArgs = {};
+        if (isDebug) args.debugStack = [];
+        const result = await op.resolution.binder(ctx, args);
+        Object.assign(exports, result.result as object);
+    }));
 
     return {
         exports,

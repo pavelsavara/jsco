@@ -78,4 +78,26 @@ describe('resolver hello', () => {
         });
         expect(actualMessage).toBe('Welcome to Prague, we invite you for a drink!');
     });
+
+    test('component hello.wasm with validateTypes', async () => {
+        let actualMessage: string = undefined as any;
+
+        const imports: js.NamedImports = {
+            'hello:city/city@0.1.0': {
+                sendMessage: (message: string) => {
+                    actualMessage = message;
+                }
+            }
+        };
+
+        const instance = await instantiateComponent('./hello/wasm/hello.wasm', imports, { validateTypes: true });
+        const run = instance.exports['hello:city/greeter@0.1.0'].run;
+
+        run({
+            name: 'Prague',
+            headCount: 1_000_000,
+            budget: BigInt(200_000_000),
+        });
+        expect(actualMessage).toBe('Welcome to Prague, we invite you for a drink!');
+    });
 });

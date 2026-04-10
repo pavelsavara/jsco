@@ -3,6 +3,7 @@ import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { lookupComponentInstance } from './component-instances';
 import { JsImports } from './api-types';
+import { validateImportType } from './type-validation';
 import { Resolver, BinderRes } from './types';
 
 /**
@@ -33,6 +34,13 @@ function resolveImportByName(imports: JsImports | undefined, name: string): unkn
 export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) => {
     const componentImport = rargs.element;
     jsco_assert(componentImport && componentImport.tag == ModelTag.ComponentImport, () => `Wrong element type '${componentImport?.tag}'`);
+
+    // Validate the import's type reference if type checking is enabled.
+    // Only validate top-level imports (callerElement is undefined) — nested imports
+    // inside component sections use section-local type indices.
+    if (rctx.validateTypes && !rargs.callerElement) {
+        validateImportType(rctx, componentImport);
+    }
 
     switch (componentImport.ty.tag) {
         case ModelTag.ComponentTypeRefComponent: {

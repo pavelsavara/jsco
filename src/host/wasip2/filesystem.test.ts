@@ -1,4 +1,4 @@
-import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry, DescriptorStat } from './filesystem';
+import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry } from './filesystem';
 
 /** Helper: unwrap an ok result or throw */
 function unwrap<T>(result: FsResult<T>): T {

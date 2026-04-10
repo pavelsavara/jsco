@@ -15,7 +15,7 @@
  */
 
 import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-import { WasiPollable, createSyncPollable, createAsyncPollable } from './poll';
+import { WasiPollable, createAsyncPollable } from './poll';
 
 // ─── Method ───
 
@@ -63,6 +63,7 @@ export type HttpErrorCode =
     | { tag: 'HTTP-response-body-size'; val?: bigint }
     | { tag: 'HTTP-response-transfer-coding'; val?: string }
     | { tag: 'HTTP-response-content-coding'; val?: string }
+    | { tag: 'size-exceeded'; val?: string }
     | { tag: 'internal-error'; val?: string };
 
 /** wasi:http/types header-error */

@@ -21,7 +21,11 @@ module.exports = {
         "hello/**/*.*",
     ],
     "rules": {
-        "@typescript-eslint/no-unused-vars": "warn", // TODO: remove this later
+        "@typescript-eslint/no-unused-vars": ["warn", {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+        }],
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/ban-types": "off",

@@ -1,5 +1,5 @@
 import { BindingContext } from '../types';
-import { WasmPointer, WasmSize } from './types';
+import { WasmPointer } from './types';
 
 /**
  * Validate a pointer returned by realloc per canonical ABI spec.

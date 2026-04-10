@@ -31,7 +31,8 @@ export type SocketErrorCode =
     | 'datagram-too-large'
     | 'name-unresolvable'
     | 'temporary-resolver-failure'
-    | 'permanent-resolver-failure';
+    | 'permanent-resolver-failure'
+    | 'other';
 
 /** wasi:sockets/network ip-address-family */
 export type IpAddressFamily = 'ipv4' | 'ipv6';

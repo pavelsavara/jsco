@@ -6,7 +6,7 @@ import { ComponentValType, PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext } from '../types';
 import { createResourceTable } from '../context';
 import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
-import { createLowering, createFunctionLowering, loadFromMemory } from './to-js';
+import { createLowering, loadFromMemory } from './to-js';
 import { WasmPointer, WasmSize } from './types';
 import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
 
@@ -107,7 +107,7 @@ function createMisalignedAllocContext(): { ctx: BindingContext, buffer: ArrayBuf
 }
 
 // Helper to create a context with a tiny buffer for OOB testing
-function createTinyBufferContext(size: number): { ctx: BindingContext, buffer: ArrayBuffer } {
+function _createTinyBufferContext(size: number): { ctx: BindingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(size);
     const memory = {
         getMemory() { return { buffer } as any; },
@@ -119,7 +119,7 @@ function createTinyBufferContext(size: number): { ctx: BindingContext, buffer: A
 
     // Allocator that returns a valid pointer at offset 0
     const allocator = {
-        realloc(_oldPtr: WasmPointer, _oldSize: WasmSize, _align: WasmSize, newSize: WasmSize): WasmPointer {
+        realloc(_oldPtr: WasmPointer, _oldSize: WasmSize, _align: WasmSize, _newSize: WasmSize): WasmPointer {
             return 0 as WasmPointer;
         },
     };
@@ -637,7 +637,7 @@ describe('C3: nested compound types through memory', () => {
 
     test('tuple<u8, u32, u8> with alignment padding round-trips', () => {
         const rctx = createMinimalRctx();
-        const { ctx, buffer } = createMockMemoryContext();
+        const { ctx } = createMockMemoryContext();
 
         const tupleModel = {
             tag: ModelTag.ComponentTypeDefinedTuple,
@@ -658,7 +658,7 @@ describe('C3: nested compound types through memory', () => {
 
     test('record with mixed types round-trips through memory', () => {
         const rctx = createMinimalRctx();
-        const { ctx, buffer } = createMockMemoryContext();
+        const { ctx } = createMockMemoryContext();
 
         const recordModel = {
             tag: ModelTag.ComponentTypeDefinedRecord,
@@ -682,7 +682,7 @@ describe('C3: nested compound types through memory', () => {
 
     test('variant with multiple compound cases round-trips', () => {
         const rctx = createMinimalRctx();
-        const { ctx, buffer } = createMockMemoryContext();
+        const { ctx } = createMockMemoryContext();
 
         const variantModel = {
             tag: ModelTag.ComponentTypeDefinedVariant,

@@ -63,7 +63,7 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 exportResolutions.push({
                     element: exp as unknown as TaggedElement,
                     callerElement: exp as unknown as TaggedElement,
-                    binder: withDebugTrace(async (bctx, bargs) => {
+                    binder: withDebugTrace(async (bctx, _bargs) => {
                         // Globals from core instances — look up in the binding context
                         const globals = bctx.instances.coreInstances
                             .flatMap(inst => Object.entries((inst?.result as Record<string, unknown>) ?? {}))
