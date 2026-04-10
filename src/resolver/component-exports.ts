@@ -5,16 +5,21 @@ import { withDebugTrace, jsco_assert } from '../utils/assert';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentInstance } from './component-instances';
 import { getComponentFunction, getComponentInstance } from './indices';
+import { validateExportType } from './type-validation';
 import { Resolver } from './types';
 
 export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) => {
     const componentExport = rargs.element;
     jsco_assert(componentExport && componentExport.tag == ModelTag.ComponentExport, () => `Wrong element type '${componentExport?.tag}'`);
 
-    // componentExport.ty is the optional type annotation on the export.
-    // When present, it could be used to validate that the exported item
-    // matches the declared type. For now we trust the binary is well-formed
-    // (validated by wasm-tools) and skip runtime type checking.
+    // Validate the optional type annotation on the export if type checking is enabled.
+    // Only validate top-level exports (callerElement is undefined) — nested exports
+    // inside component sections use section-local type indices that don't map to
+    // the global componentTypes array.
+    if (rctx.validateTypes && componentExport.ty && !rargs.callerElement) {
+        validateExportType(rctx, componentExport);
+    }
+
     switch (componentExport.kind) {
         case ComponentExternalKind.Func: {
             const func = getComponentFunction(rctx, componentExport.index as ComponentFuncIndex);

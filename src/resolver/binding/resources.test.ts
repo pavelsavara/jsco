@@ -4,6 +4,7 @@ setConfiguration('Debug');
 import { ModelTag } from '../../model/tags';
 import { ResolverContext, BindingContext } from '../types';
 import { createResourceTable } from '../context';
+import { resolveCanonicalResourceType } from '../type-resolution';
 import { createLifting } from './to-abi';
 import { createLowering } from './to-js';
 
@@ -62,7 +63,7 @@ describe('ResourceTable', () => {
         expect(() => resources.remove(0, 999)).toThrow('Invalid resource handle');
     });
 
-    test('independent tables per resource type', () => {
+    test('per-type handle isolation', () => {
         const resources = createResourceTable();
         const a = { name: 'a' };
         const b = { name: 'b' };
@@ -70,12 +71,13 @@ describe('ResourceTable', () => {
         const h2 = resources.add(1, b);
         expect(resources.get(0, h1)).toBe(a);
         expect(resources.get(1, h2)).toBe(b);
-        // Flat table with type tracking: cross-type lookup succeeds because
-        // own<T>/borrow<T> may use different local type indices for the same
-        // canonical resource. Full isolation requires canonical resource identity
-        // resolution (local→canonical mapping).
-        expect(resources.has(1, h1)).toBe(true);
-        expect(resources.has(0, h2)).toBe(true);
+        // Per-type isolation enforced: cross-type lookup fails because
+        // own<T>/borrow<T> use the canonical resource type index (the unified
+        // type index of the ComponentTypeResource definition).
+        expect(resources.has(1, h1)).toBe(false);
+        expect(resources.has(0, h2)).toBe(false);
+        expect(() => resources.get(1, h1)).toThrow('belongs to type');
+        expect(() => resources.get(0, h2)).toThrow('belongs to type');
     });
 
     test('unique handles per add call', () => {
@@ -86,6 +88,79 @@ describe('ResourceTable', () => {
         expect(h1).not.toBe(h2);
         expect(h2).not.toBe(h3);
         expect(h1).not.toBe(h3);
+    });
+});
+
+describe('canonical resource identity resolution', () => {
+    test('resolves own<T> to ComponentTypeResource via unified type index', () => {
+        const rctx = {
+            indexes: {
+                componentTypes: [
+                    { tag: ModelTag.ComponentTypeDefinedRecord },  // type 0
+                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F },  // type 1
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 1 },  // type 2, points to resource at 1
+                ],
+            },
+        } as any as ResolverContext;
+
+        const own = rctx.indexes.componentTypes[2] as any;
+        const resource = resolveCanonicalResourceType(rctx, own);
+        expect(resource.tag).toBe(ModelTag.ComponentTypeResource);
+        expect(resource.rep).toBe(0x7F);
+    });
+
+    test('resolves borrow<T> to same resource as own<T>', () => {
+        const rctx = {
+            indexes: {
+                componentTypes: [
+                    { tag: ModelTag.ComponentTypeResource, rep: 0x7F },  // type 0
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 },  // type 1
+                    { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 },  // type 2
+                ],
+            },
+        } as any as ResolverContext;
+
+        const own = rctx.indexes.componentTypes[1] as any;
+        const borrow = rctx.indexes.componentTypes[2] as any;
+        const fromOwn = resolveCanonicalResourceType(rctx, own);
+        const fromBorrow = resolveCanonicalResourceType(rctx, borrow);
+        expect(fromOwn).toBe(fromBorrow);
+    });
+
+    test('throws when type index does not point to a resource', () => {
+        const rctx = {
+            indexes: {
+                componentTypes: [
+                    { tag: ModelTag.ComponentTypeDefinedRecord },  // type 0
+                    { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 },  // type 1, points to record (wrong!)
+                ],
+            },
+        } as any as ResolverContext;
+
+        const own = rctx.indexes.componentTypes[1] as any;
+        expect(() => resolveCanonicalResourceType(rctx, own)).toThrow('does not resolve to a resource type');
+    });
+
+    test('per-type ResourceTable isolation uses canonical resource index', () => {
+        // Simulate two resources: stream (type 0), pollable (type 1)
+        // own<stream> has value=0, own<pollable> has value=1
+        const resources = createResourceTable();
+        const stream = { kind: 'stream' };
+        const pollable = { kind: 'pollable' };
+
+        const h1 = resources.add(0, stream);    // own<stream>
+        const h2 = resources.add(1, pollable);  // own<pollable>
+
+        // Same-type access works
+        expect(resources.get(0, h1)).toBe(stream);
+        expect(resources.get(1, h2)).toBe(pollable);
+
+        // Cross-type access fails
+        expect(() => resources.get(1, h1)).toThrow('belongs to type');
+        expect(() => resources.get(0, h2)).toThrow('belongs to type');
+
+        // Cross-type remove fails
+        expect(() => resources.remove(1, h1)).toThrow('belongs to type');
     });
 });
 

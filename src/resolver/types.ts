@@ -61,6 +61,7 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
 
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
+    validateTypes?: boolean
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
 }
 
@@ -93,7 +94,12 @@ export type ResolverContext = {
     indexes: IndexedModel;
     /** Maps componentImports[] index → componentInstances[] index for instance imports */
     importToInstanceIndex: Map<number, number>;
+    /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
+    canonicalResourceIds: Map<number, number>;
+    /** Maps "instanceIndex:exportName" → canonical resource ID for resource type alias deduplication */
+    resourceAliasGroups: Map<string, number>;
     usesNumberForInt64: boolean
+    validateTypes: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
     memoizeCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>

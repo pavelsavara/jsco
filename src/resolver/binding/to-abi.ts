@@ -4,6 +4,7 @@ import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefi
 import { BindingContext, ResolverContext } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
+import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, flatCountForValType, resolveValType, sizeOfValType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, loadFromMemory } from './to-js';
@@ -554,7 +555,7 @@ export function storeToMemory(ctx: BindingContext, rctx: ResolverContext, ptr: n
         }
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow: {
-            const handle = ctx.resources.add(type.value, jsValue);
+            const handle = ctx.resources.add(getCanonicalResourceId(rctx, type.value), jsValue);
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             dv.setInt32(0, handle, true);
             break;
@@ -698,16 +699,16 @@ function createTupleLifting(rctx: ResolverContext, tupleModel: ComponentTypeDefi
 
 // --- Resource handle lifting ---
 
-function createOwnLifting(_rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
-    const resourceTypeIdx = ownModel.value;
+function createOwnLifting(rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
+    const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const handle = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return [handle];
     };
 }
 
-function createBorrowLifting(_rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
-    const resourceTypeIdx = borrowModel.value;
+function createBorrowLifting(rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
+    const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const handle = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return [handle];

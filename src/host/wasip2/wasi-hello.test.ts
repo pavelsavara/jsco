@@ -155,5 +155,37 @@ describe('WASI hello component', () => {
             expect(output).toContain('hello from wasi');
             expect(exitStatus).toBe(0);
         });
+
+        test('validateTypes option works', async () => {
+            const chunks: Uint8Array[] = [];
+
+            let exitStatus: number | undefined;
+            try {
+                const instance = await instantiateWasiComponent(
+                    wasiHelloPath,
+                    {
+                        stdout: (bytes) => chunks.push(new Uint8Array(bytes)),
+                    },
+                    undefined,
+                    { noJspi: true, validateTypes: true },
+                );
+
+                const run = (instance.exports as any)['wasi:cli/run@0.2.6']?.run;
+                if (run) {
+                    const result = run();
+                    exitStatus = 0;
+                }
+            } catch (e) {
+                if (e instanceof WasiExit) {
+                    exitStatus = e.status;
+                } else {
+                    throw e;
+                }
+            }
+
+            const output = chunks.map(c => new TextDecoder().decode(c)).join('');
+            expect(output).toContain('hello from wasi');
+            expect(exitStatus).toBe(0);
+        });
     });
 });

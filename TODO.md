@@ -4,6 +4,7 @@
 - make sure we don't keep references to model after component was created (memory leak risk)
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
 - convert `export const enum` to numeric literals via rollup transform to save download size
+- instance-local type isolation: `registerInstanceLocalTypes` overwrites global `resolvedTypes` entries — could cause bugs if multiple instances share type indices
 
 # Binder todo
 - respect model options for UTF-16 encoding (currently UTF-8 only)
@@ -95,8 +96,8 @@ Browser-native WASI preview 2 host. Independent implementation from first princi
 - Cross-component callbacks (A→B→A) and multi-component instantiation
 
 ## Current Stats (April 2026)
-- **759 tests** across **24 suites** (758 pass, 1 skipped)
-- **67 source files**, **24 test files**
+- **775 tests** across **25 suites** (774 pass, 1 skipped)
+- **69 source files**, **25 test files**
 - **264KB bundle** (debug), 28KB types
 - Coverage: Model 100%, Binding 95%, WASI 84%, Resolver 76%, Parser 67%, Utils 47%
 - Overall: 81% statements, 70% branches

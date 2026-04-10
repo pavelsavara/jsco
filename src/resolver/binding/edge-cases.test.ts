@@ -2004,10 +2004,8 @@ describe('resource handle additional edge cases', () => {
         expect(resources.get(0, h1)).toBe('type-0-a');
         expect(resources.get(1, h2)).toBe('type-1-a');
         expect(resources.get(0, h3)).toBe('type-0-b');
-        // Flat table with type tracking: cross-type lookup succeeds because
-        // own<T>/borrow<T> local type indices differ across contexts.
-        // Full per-type isolation requires canonical resource identity resolution.
-        expect(resources.get(1, h1)).toBe('type-0-a');
+        // Per-type isolation enforced: cross-type lookup throws
+        expect(() => resources.get(1, h1)).toThrow('belongs to type');
     });
 
     test('removed resource handle is invalid', () => {

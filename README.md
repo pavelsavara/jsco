@@ -27,7 +27,7 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 | Resolver | 75% | Type resolution, instances, imports/exports, binding plan IR; missing: nested components, fused adapters |
 | Lifting/Lowering | 95% | All CM types (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); flat + spilled calling conventions; canonical ABI compliance |
 | WASI Host | 85% | All preview 2 interfaces: random, clocks, I/O, CLI, filesystem, HTTP, sockets (stubs); JSPI integration |
-| Testing | 80% | 759 tests across 24 suites (81% statement coverage); Playwright browser test |
+| Testing | 80% | 775 tests across 25 suites (81% statement coverage); Playwright browser test |
 
 See [./TODO.md](./TODO.md), contributors are welcome!
 
@@ -59,6 +59,14 @@ run({ name: 'Kladno', headCount: 100000, budget: 0n});
 ```
 Prints `Welcome to Kladno!` to the console.
 
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `validateTypes` | `false` | Validate export/import type annotations against the component's type index. Catches kind mismatches and structural function type differences. |
+| `useNumberForInt64` | `false` | Use `number` instead of `bigint` for 64-bit integers |
+| `wasmInstantiate` | `WebAssembly.instantiate` | Custom WASM instantiation function (used by JSPI wrapping) |
+
 See [./usage.mjs](./usage.mjs) for full commented sample.
 
 ## JSPI Requirement
@@ -77,7 +85,7 @@ WASI preview 2 APIs that perform blocking operations require [JSPI (JavaScript P
 
 Non-blocking WASI APIs (random, wall-clock, environment, exit) and pure component model bindings (no WASI) work without JSPI. Pass `{ noJspi: true }` to `instantiateWasiComponent` to disable JSPI wrapping.
 
-**WASIp3 outlook:** WASI preview 3 will replace the current blocking-call pattern with native async support via the Component Model async proposal and WASM stack switching. When WASIp3 ships, JSPI will no longer be needed — async imports/exports will be first-class. jsco plans to support WASIp3 when the spec stabilizes.
+**WASIp3 outlook:** WASI preview 3 replaces the current blocking-call pattern with native async support via the Component Model [async proposal](https://github.com/WebAssembly/component-model/blob/main/design/mvp/Async.md) (`stream`, `future`, `error-context` built-ins). On the **host side**, this eliminates JSPI — async imports/exports become first-class, and the host can use native `Promise`/`async` directly. However, **guest components** compiled from languages with synchronous calling conventions (C, C#, Rust with blocking I/O) still need the async canonical ABI to suspend the WASM stack while awaiting the host's async result. In a browser JS host, that suspension mechanism **is JSPI** (`WebAssembly.Suspending` + `WebAssembly.promising`). JSPI is only fully eliminated when the guest uses async/callback patterns natively (e.g., async Rust reactor). jsco plans to support WASIp3 when the spec stabilizes.
 
 ## Contribute
 - install [rust](https://www.rust-lang.org/tools/install)
