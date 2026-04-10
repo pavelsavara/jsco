@@ -5,8 +5,9 @@ import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
-import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
-import { createLowering, createFunctionLowering, loadFromMemory } from './to-js';
+import { createLifting, createFunctionLifting } from './to-abi';
+import { createLowering, createFunctionLowering } from './to-js';
+import { storeToMemory, loadFromMemory } from './test-helpers';
 import { WasmPointer, WasmSize } from './types';
 import { deepResolveType } from '../calling-convention';
 

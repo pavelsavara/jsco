@@ -1,3 +1,3 @@
 export namespace CityRunnerRunner {
-  export function run(): void;
+    export function run(): void;
 }
