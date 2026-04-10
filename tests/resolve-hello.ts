@@ -50,22 +50,22 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     };
 
     const { sendMessage } = componentImports['hello:city/city@0.1.0'];
-    const stringToJs = createLowering(rctx, {
+    const stringToJs = createLowering(rctx.resolved, {
         tag: ModelTag.ComponentValTypePrimitive,
         value: PrimitiveValType.String,
     });
 
-    const stringFromJs = createLifting(rctx, {
+    const stringFromJs = createLifting(rctx.resolved, {
         tag: ModelTag.ComponentValTypePrimitive,
         value: PrimitiveValType.String,
     });
 
-    const numberToUint32 = createLifting(rctx, {
+    const numberToUint32 = createLifting(rctx.resolved, {
         tag: ModelTag.ComponentValTypePrimitive,
         value: PrimitiveValType.U32,
     });
 
-    const bigIntToInt64 = createLifting(rctx, {
+    const bigIntToInt64 = createLifting(rctx.resolved, {
         tag: ModelTag.ComponentValTypePrimitive,
         value: PrimitiveValType.S64,
     });

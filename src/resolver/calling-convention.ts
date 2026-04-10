@@ -2,7 +2,7 @@ import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
 import type { ResolvedType } from './type-resolution';
-import type { ResolverContext } from './types';
+import type { ResolvedContext } from './types';
 
 // Canonical ABI limits
 export const MAX_FLAT_PARAMS = 16;
@@ -295,7 +295,7 @@ export function flatCount(type: ResolvedType): number {
 
 // --- Helpers for ComponentValType (which may be primitive or a type reference) ---
 
-export function resolveValType(rctx: ResolverContext, valType: ComponentValType): ResolvedType {
+export function resolveValType(rctx: ResolvedContext, valType: ComponentValType): ResolvedType {
     if (valType.tag === ModelTag.ComponentValTypePrimitive) {
         return valType;
     }
@@ -331,11 +331,11 @@ export function resolveValTypePure(valType: ComponentValType): ResolvedType {
  * This allows storeToMemory/loadFromMemory/sizeOf/alignOf to work without
  * looking up rctx.resolvedTypes at call time.
  */
-export function deepResolveType(rctx: ResolverContext, type: ResolvedType): ResolvedType {
+export function deepResolveType(rctx: ResolvedContext, type: ResolvedType): ResolvedType {
     return _deepResolve(rctx, type, new Set());
 }
 
-function _deepResolveValType(rctx: ResolverContext, valType: ComponentValType, visited: Set<unknown>): ComponentValType {
+function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, visited: Set<unknown>): ComponentValType {
     if (valType.tag === ModelTag.ComponentValTypePrimitive) {
         return valType; // primitives are self-contained
     }
@@ -351,7 +351,7 @@ function _deepResolveValType(rctx: ResolverContext, valType: ComponentValType, v
     return { tag: ModelTag.ComponentValTypeResolved, resolved: deepResolved };
 }
 
-function _deepResolve(rctx: ResolverContext, type: ResolvedType, visited: Set<unknown>): ResolvedType {
+function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<unknown>): ResolvedType {
     // Guard against infinite recursion from circular type references
     if (visited.has(type)) return type;
     visited.add(type);

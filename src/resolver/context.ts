@@ -4,7 +4,7 @@ import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolverContext, ResourceTable, StringEncoding } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
@@ -13,14 +13,16 @@ import type { ComponentTypeInstance } from '../model/types';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
-        usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+        resolved: {
+            usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+            stringEncoding: StringEncoding.Utf8,
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            canonicalResourceIds: new Map(),
+        },
         validateTypes: (options.validateTypes === false) ? false : true,
-        stringEncoding: StringEncoding.Utf8,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
-        canonicalResourceIds: new Map(),
         resourceAliasGroups: new Map(),
         indexes: {
             componentExports: [],
@@ -100,7 +102,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     // while type_index references componentTypes (TYPE sort).
     setSelfIndex(rctx);
     buildCanonicalResourceIds(rctx);
-    rctx.resolvedTypes = buildResolvedTypeMap(rctx);
+    rctx.resolved.resolvedTypes = buildResolvedTypeMap(rctx);
     return rctx;
 }
 
@@ -131,7 +133,7 @@ export function setSelfIndex(rctx: ResolverContext) {
 /// correctly across different aliases to the same underlying resource.
 function buildCanonicalResourceIds(rctx: ResolverContext): void {
     const types = rctx.indexes.componentTypes;
-    const map = rctx.canonicalResourceIds;
+    const map = rctx.resolved.canonicalResourceIds;
 
     // Phase 1: Assign canonical IDs to resource source types.
     // For ComponentTypeResource: the type index IS the canonical ID.
@@ -160,7 +162,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
 
 /// Resolves a type index to its canonical resource ID.
 /// Handles own<T>/borrow<T> (follows .value) and direct resource/alias references.
-export function getCanonicalResourceId(rctx: ResolverContext, resourceTypeIdx: number): number {
+export function getCanonicalResourceId(rctx: ResolvedContext, resourceTypeIdx: number): number {
     return rctx.canonicalResourceIds?.get(resourceTypeIdx) ?? resourceTypeIdx;
 }
 

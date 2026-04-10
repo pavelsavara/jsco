@@ -1,7 +1,7 @@
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
-import { BindingContext, ResolverContext, StringEncoding } from '../types';
+import { BindingContext, ResolvedContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
@@ -22,7 +22,7 @@ _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
 
 
-export function createFunctionLifting(rctx: ResolverContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(rctx.memoizeCache, importModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, importModel) as ComponentTypeFunc);
         const paramLifters: Function[] = [];
@@ -127,7 +127,7 @@ export function createFunctionLifting(rctx: ResolverContext, importModel: Compon
 }
 
 
-export function createLifting(rctx: ResolverContext, typeModel: ComponentValType | ResolvedType): LiftingFromJs {
+export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType | ResolvedType): LiftingFromJs {
     return memoize(rctx.memoizeCache, typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
@@ -197,7 +197,7 @@ export function createLifting(rctx: ResolverContext, typeModel: ComponentValType
     });
 }
 
-function createRecordLifting(rctx: ResolverContext, recordModel: ComponentTypeDefinedRecord): LiftingFromJs {
+function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LiftingFromJs {
     const lifters: { name: string, lifter: LiftingFromJs }[] = [];
     for (const member of recordModel.members) {
         const lifter = createLifting(rctx, member.type);
@@ -605,7 +605,7 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
 
 // --- List lifting ---
 
-function createListLifting(rctx: ResolverContext, listModel: ComponentTypeDefinedList): LiftingFromJs {
+function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LiftingFromJs {
     const elementType = resolveValType(rctx, listModel.value);
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
@@ -631,7 +631,7 @@ function createListLifting(rctx: ResolverContext, listModel: ComponentTypeDefine
 
 // --- Option lifting ---
 
-function createOptionLifting(rctx: ResolverContext, optionModel: ComponentTypeDefinedOption): LiftingFromJs {
+function createOptionLifting(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LiftingFromJs {
     const innerLifter = createLifting(rctx, optionModel.value);
     const innerType = resolveValType(rctx, optionModel.value);
     const innerFlatN = flatCount(deepResolveType(rctx, innerType));
@@ -647,7 +647,7 @@ function createOptionLifting(rctx: ResolverContext, optionModel: ComponentTypeDe
 
 // --- Result lifting ---
 
-function createResultLifting(rctx: ResolverContext, resultModel: ComponentTypeDefinedResult): LiftingFromJs {
+function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LiftingFromJs {
     const okLifter = resultModel.ok ? createLifting(rctx, resultModel.ok) : undefined;
     const errLifter = resultModel.err ? createLifting(rctx, resultModel.err) : undefined;
 
@@ -671,7 +671,7 @@ function createResultLifting(rctx: ResolverContext, resultModel: ComponentTypeDe
 
 // --- Variant lifting ---
 
-function createVariantLifting(rctx: ResolverContext, variantModel: ComponentTypeDefinedVariant): LiftingFromJs {
+function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LiftingFromJs {
     const cases = variantModel.variants.map((c, i) => ({
         name: c.name,
         index: i,
@@ -696,7 +696,7 @@ function createVariantLifting(rctx: ResolverContext, variantModel: ComponentType
 
 // --- Enum lifting ---
 
-function createEnumLifting(_rctx: ResolverContext, enumModel: ComponentTypeDefinedEnum): LiftingFromJs {
+function createEnumLifting(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LiftingFromJs {
     const nameToIndex = new Map(enumModel.members.map((name, i) => [name, i]));
     return (_ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const idx = nameToIndex.get(srcJsValue as string);
@@ -707,7 +707,7 @@ function createEnumLifting(_rctx: ResolverContext, enumModel: ComponentTypeDefin
 
 // --- Flags lifting ---
 
-function createFlagsLifting(_rctx: ResolverContext, flagsModel: ComponentTypeDefinedFlags): LiftingFromJs {
+function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LiftingFromJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
 
     return (_ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
@@ -724,7 +724,7 @@ function createFlagsLifting(_rctx: ResolverContext, flagsModel: ComponentTypeDef
 
 // --- Tuple lifting ---
 
-function createTupleLifting(rctx: ResolverContext, tupleModel: ComponentTypeDefinedTuple): LiftingFromJs {
+function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LiftingFromJs {
     const elementLifters = tupleModel.members.map(m => createLifting(rctx, m));
 
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
@@ -739,7 +739,7 @@ function createTupleLifting(rctx: ResolverContext, tupleModel: ComponentTypeDefi
 
 // --- Resource handle lifting ---
 
-function createOwnLifting(rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
+function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const handle = ctx.resources.add(resourceTypeIdx, srcJsValue);
@@ -747,7 +747,7 @@ function createOwnLifting(rctx: ResolverContext, ownModel: ComponentTypeDefinedO
     };
 }
 
-function createBorrowLifting(rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
+function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     return (ctx: BindingContext, srcJsValue: JsValue): WasmValue[] => {
         const handle = ctx.resources.add(resourceTypeIdx, srcJsValue);

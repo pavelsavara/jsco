@@ -1,7 +1,7 @@
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
-import { BindingContext, ResolverContext, StringEncoding } from '../types';
+import { BindingContext, ResolvedContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
@@ -22,7 +22,7 @@ _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
 
 
-export function createFunctionLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
+export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(rctx.memoizeCache, exportModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
@@ -33,31 +33,32 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
             resultType = deepResolveType(rctx, resolveValType(rctx, exportModel.results.type));
         }
 
+        // Pre-create lowerers/lifters at resolution time (matches createFunctionLifting pattern)
+        const paramLowerers: Function[] = [];
+        for (const param of exportModel.params) {
+            const lowerer = createLowering(rctx, param.type);
+            paramLowerers.push(lowerer);
+        }
+        const resultLifters: Function[] = [];
+        switch (exportModel.results.tag) {
+            case ModelTag.ComponentFuncResultNamed: {
+                for (const res of exportModel.results.values) {
+                    const lifter = createLifting(rctx, res.type);
+                    resultLifters.push(lifter);
+                }
+                break;
+            }
+            case ModelTag.ComponentFuncResultUnnamed: {
+                const lifter = createLifting(rctx, exportModel.results.type);
+                resultLifters.push(lifter);
+            }
+        }
+
         // Pre-capture rctx properties needed at call time — after this, rctx is not captured
         const stringEncoding = rctx.stringEncoding;
         const canonicalResourceIds = rctx.canonicalResourceIds;
 
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
-
-            const paramLowerers: Function[] = [];
-            for (const param of exportModel.params) {
-                const lowerer = createLowering(rctx, param.type);
-                paramLowerers.push(lowerer);
-            }
-            const resultLifters: Function[] = [];
-            switch (exportModel.results.tag) {
-                case ModelTag.ComponentFuncResultNamed: {
-                    for (const res of exportModel.results.values) {
-                        const lifter = createLifting(rctx, res.type);
-                        resultLifters.push(lifter);
-                    }
-                    break;
-                }
-                case ModelTag.ComponentFuncResultUnnamed: {
-                    const lifter = createLifting(rctx, exportModel.results.type);
-                    resultLifters.push(lifter);
-                }
-            }
 
             function loweringTrampoline(...args: any[]): any {
                 let covertedArgs: any[] = [];
@@ -105,7 +106,7 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
     });
 }
 
-export function createLowering(rctx: ResolverContext, typeModel: ComponentValType | ResolvedType): LoweringToJs {
+export function createLowering(rctx: ResolvedContext, typeModel: ComponentValType | ResolvedType): LoweringToJs {
     return memoize(rctx.memoizeCache, typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
@@ -302,7 +303,7 @@ function createCharLowering(): LoweringToJs {
     return fn;
 }
 
-function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
+function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
     const fieldLowerers: { name: string, lowerer: LoweringToJs }[] = [];
     for (const member of recordModel.members) {
         const lowerer = createLowering(rctx, member.type);
@@ -582,7 +583,7 @@ export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedT
 
 // --- List lowering ---
 
-function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefinedList): LoweringToJs {
+function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LoweringToJs {
     const elementType = resolveValType(rctx, listModel.value);
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
@@ -613,7 +614,7 @@ function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefin
 
 // --- Option lowering ---
 
-function createOptionLowering(rctx: ResolverContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
+function createOptionLowering(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
     const innerLowerer = createLowering(rctx, optionModel.value);
     const innerSpill = (innerLowerer as any).spill as number;
 
@@ -630,7 +631,7 @@ function createOptionLowering(rctx: ResolverContext, optionModel: ComponentTypeD
 
 // --- Result lowering ---
 
-function createResultLowering(rctx: ResolverContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
+function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
     const okLowerer = resultModel.ok ? createLowering(rctx, resultModel.ok) : undefined;
     const errLowerer = resultModel.err ? createLowering(rctx, resultModel.err) : undefined;
     const okSpill = okLowerer ? (okLowerer as any).spill as number : 0;
@@ -655,7 +656,7 @@ function createResultLowering(rctx: ResolverContext, resultModel: ComponentTypeD
 
 // --- Variant lowering ---
 
-function createVariantLowering(rctx: ResolverContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
+function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
     const cases = variantModel.variants.map((c) => ({
         name: c.name,
         lowerer: c.ty ? createLowering(rctx, c.ty) : undefined,
@@ -679,7 +680,7 @@ function createVariantLowering(rctx: ResolverContext, variantModel: ComponentTyp
 
 // --- Enum lowering ---
 
-function createEnumLowering(_rctx: ResolverContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
+function createEnumLowering(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
     const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
         const disc = args[0] as number;
         if (disc >= enumModel.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${enumModel.members.length}`);
@@ -691,7 +692,7 @@ function createEnumLowering(_rctx: ResolverContext, enumModel: ComponentTypeDefi
 
 // --- Flags lowering ---
 
-function createFlagsLowering(_rctx: ResolverContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
+function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
 
     const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
@@ -708,7 +709,7 @@ function createFlagsLowering(_rctx: ResolverContext, flagsModel: ComponentTypeDe
 
 // --- Tuple lowering ---
 
-function createTupleLowering(rctx: ResolverContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
+function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
     const elementLowerers = tupleModel.members.map(m => createLowering(rctx, m));
 
     let totalSpill = 0;
@@ -730,7 +731,7 @@ function createTupleLowering(rctx: ResolverContext, tupleModel: ComponentTypeDef
 
 // --- Resource handle lowering ---
 
-function createOwnLowering(rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
+function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
@@ -740,7 +741,7 @@ function createOwnLowering(rctx: ResolverContext, ownModel: ComponentTypeDefined
     return fn;
 }
 
-function createBorrowLowering(rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
+function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;

@@ -12,7 +12,7 @@ import type { ResolvedType } from './type-resolution';
 /**
  * Tests for instance-local type isolation.
  *
- * registerInstanceLocalTypes writes instance-local types to rctx.resolvedTypes
+ * registerInstanceLocalTypes writes instance-local types to rctx.resolved.resolvedTypes
  * using local indices (0, 1, 2, ...). These can collide with global type indices.
  *
  * Fixed (intra-function): Outer alias lookups inside registerInstanceLocalTypes
@@ -22,17 +22,19 @@ import type { ResolvedType } from './type-resolution';
  * Fixed (inter-function): createFunctionLowering/createFunctionLifting deep-resolve
  * all nested ComponentValTypeType references at binder creation time using
  * deepResolveType. Binder closures (storeToMemory/loadFromMemory) never look up
- * rctx.resolvedTypes at call time, so local type overwrites are harmless.
+ * rctx.resolved.resolvedTypes at call time, so local type overwrites are harmless.
  */
 
 function createRctxWithGlobalTypes(globalTypes: [number, ResolvedType][]): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(globalTypes.map(([idx, t]) => [idx as ComponentTypeIndex, t])),
-        canonicalResourceIds: new Map(),
+        resolved: {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(globalTypes.map(([idx, t]) => [idx as ComponentTypeIndex, t])),
+            canonicalResourceIds: new Map(),
+            usesNumberForInt64: false,
+            stringEncoding: StringEncoding.Utf8,
+        },
         resourceAliasGroups: new Map(),
-        usesNumberForInt64: false,
-        stringEncoding: StringEncoding.Utf8,
         validateTypes: true,
         indexes: {
             coreModules: [],
@@ -68,23 +70,23 @@ describe('instance-local type isolation', () => {
         ]);
 
         // Snapshot before local registration (as registerInstanceLocalTypes does)
-        const snapshot = new Map(rctx.resolvedTypes);
+        const snapshot = new Map(rctx.resolved.resolvedTypes);
 
         // Local type 0: new Enum (overwrites global index 0)
         const localEnum = {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['x', 'y'],
         };
-        rctx.resolvedTypes.set(0 as ComponentTypeIndex, localEnum as any);
+        rctx.resolved.resolvedTypes.set(0 as ComponentTypeIndex, localEnum as any);
 
         // Local type 1: outer alias to global index 0
-        // WITHOUT fix: would read rctx.resolvedTypes[0] = localEnum (WRONG)
+        // WITHOUT fix: would read rctx.resolved.resolvedTypes[0] = localEnum (WRONG)
         // WITH fix: reads from snapshot, gets globalRecord (CORRECT)
         const outerAliasResult = snapshot.get(0 as ComponentTypeIndex);
         expect(outerAliasResult).toBe(globalRecord);
 
         // The live map has the LOCAL type
-        expect(rctx.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(localEnum);
+        expect(rctx.resolved.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(localEnum);
     });
 
     test('memoizeCache keyed by type object identity, not by index', () => {
@@ -100,20 +102,20 @@ describe('instance-local type isolation', () => {
         ]);
 
         // Create a binder for the global record — populates memoizeCache
-        const lifter1 = createLifting(rctx, globalRecord as any);
+        const lifter1 = createLifting(rctx.resolved, globalRecord as any);
 
         // Overwrite index 0 with a local type (different object)
         const localType = {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['x', 'y'],
         };
-        rctx.resolvedTypes.set(0 as ComponentTypeIndex, localType as any);
+        rctx.resolved.resolvedTypes.set(0 as ComponentTypeIndex, localType as any);
 
         // Create binder for the local type — different cache key (different object)
-        const lifter2 = createLifting(rctx, localType as any);
+        const lifter2 = createLifting(rctx.resolved, localType as any);
 
         // Cache hit for the original global record (same object reference)
-        const lifter3 = createLifting(rctx, globalRecord as any);
+        const lifter3 = createLifting(rctx.resolved, globalRecord as any);
         expect(lifter3).toBe(lifter1); // same from cache
         expect(lifter2).not.toBe(lifter1); // different type → different binder
     });
@@ -123,18 +125,18 @@ describe('instance-local type isolation', () => {
         // because resource.drop/new/rep resolvers read them after
         // resolveCanonicalFunctionLower completes.
         const rctx = createRctxWithGlobalTypes([]);
-        rctx.canonicalResourceIds.set(0, 100);
-        rctx.canonicalResourceIds.set(1, 200);
+        rctx.resolved.canonicalResourceIds.set(0, 100);
+        rctx.resolved.canonicalResourceIds.set(1, 200);
 
         // Simulate local registration adding new entries
-        rctx.canonicalResourceIds.set(2, 300);
-        rctx.canonicalResourceIds.set(3, 400);
+        rctx.resolved.canonicalResourceIds.set(2, 300);
+        rctx.resolved.canonicalResourceIds.set(3, 400);
 
         // All entries present (additive, not restored)
-        expect(rctx.canonicalResourceIds.get(0)).toBe(100);
-        expect(rctx.canonicalResourceIds.get(1)).toBe(200);
-        expect(rctx.canonicalResourceIds.get(2)).toBe(300);
-        expect(rctx.canonicalResourceIds.get(3)).toBe(400);
+        expect(rctx.resolved.canonicalResourceIds.get(0)).toBe(100);
+        expect(rctx.resolved.canonicalResourceIds.get(1)).toBe(200);
+        expect(rctx.resolved.canonicalResourceIds.get(2)).toBe(300);
+        expect(rctx.resolved.canonicalResourceIds.get(3)).toBe(400);
     });
 
     test('local types overwrite global entries in resolvedTypes (harmless with deep-resolve)', () => {
@@ -153,17 +155,17 @@ describe('instance-local type isolation', () => {
             [0, globalRecord as any],
         ]);
 
-        expect(rctx.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(globalRecord);
+        expect(rctx.resolved.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(globalRecord);
 
         // Simulate registerInstanceLocalTypes overwriting
         const localType = {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.U8 },
         };
-        rctx.resolvedTypes.set(0 as ComponentTypeIndex, localType as any);
+        rctx.resolved.resolvedTypes.set(0 as ComponentTypeIndex, localType as any);
 
         // Global entry is overwritten in the map
-        expect(rctx.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(localType);
+        expect(rctx.resolved.resolvedTypes.get(0 as ComponentTypeIndex)).toBe(localType);
     });
 
     test('deepResolveType replaces ComponentValTypeType with ComponentValTypeResolved', () => {
@@ -187,7 +189,7 @@ describe('instance-local type isolation', () => {
             ],
         };
 
-        const deepResolved = deepResolveType(rctx, record as any);
+        const deepResolved = deepResolveType(rctx.resolved, record as any);
 
         // Original is untouched
         expect(record.members[1].type.tag).toBe(ModelTag.ComponentValTypeType);
@@ -210,7 +212,7 @@ describe('instance-local type isolation', () => {
             members: ['x'],
         };
 
-        const resolved = resolveValType(rctx, {
+        const resolved = resolveValType(rctx.resolved, {
             tag: ModelTag.ComponentValTypeResolved,
             resolved: someType,
         });

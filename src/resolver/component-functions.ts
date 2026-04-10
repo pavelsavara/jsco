@@ -36,8 +36,8 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLift.options);
 
     // Set string encoding for this canonical function — read by createLifting/createLowering
-    const savedEncoding = rctx.stringEncoding;
-    rctx.stringEncoding = canonOpts.stringEncoding;
+    const savedEncoding = rctx.resolved.stringEncoding;
+    rctx.resolved.stringEncoding = canonOpts.stringEncoding;
 
     // Resolve the post-return core function if specified in canonical options
     let postReturnResolution: ResolverRes | undefined;
@@ -46,9 +46,9 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         postReturnResolution = resolveCoreFunction(rctx, { element: postReturnFunc, callerElement: canonicalFunctionLift });
     }
 
-    const liftingBinder = createFunctionLifting(rctx, sectionFunType);
+    const liftingBinder = createFunctionLifting(rctx.resolved, sectionFunType);
 
-    rctx.stringEncoding = savedEncoding;
+    rctx.resolved.stringEncoding = savedEncoding;
 
     return {
         callerElement: rargs.callerElement,

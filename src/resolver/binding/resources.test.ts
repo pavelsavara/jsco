@@ -10,9 +10,11 @@ import { createLowering } from './to-js';
 
 function createMinimalRctx(): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
-        usesNumberForInt64: false,
+        resolved: {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+        },
     } as any as ResolverContext;
 }
 
@@ -175,7 +177,7 @@ describe('own<T> lifting', () => {
 
     test('JS object lifts to [handle] where handle > 0', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lifter = createLifting(rctx, ownModel as any);
+        const lifter = createLifting(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
         const result = lifter(bctx, obj);
         expect(result).toHaveLength(1);
@@ -184,7 +186,7 @@ describe('own<T> lifting', () => {
 
     test('lifted object is stored in resource table', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lifter = createLifting(rctx, ownModel as any);
+        const lifter = createLifting(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
         const [handle] = lifter(bctx, obj);
         expect(bctx.resources.get(0, handle as number)).toBe(obj);
@@ -192,7 +194,7 @@ describe('own<T> lifting', () => {
 
     test('multiple lifts produce unique handles', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lifter = createLifting(rctx, ownModel as any);
+        const lifter = createLifting(rctx.resolved, ownModel as any);
         const [h1] = lifter(bctx, { a: 1 });
         const [h2] = lifter(bctx, { a: 2 });
         expect(h1).not.toBe(h2);
@@ -210,7 +212,7 @@ describe('own<T> lowering', () => {
 
     test('handle lowers to original JS object', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lowerer = createLowering(rctx, ownModel as any);
+        const lowerer = createLowering(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
         const handle = bctx.resources.add(0, obj);
         const result = lowerer(bctx, handle);
@@ -219,7 +221,7 @@ describe('own<T> lowering', () => {
 
     test('handle is removed after lowering (ownership transferred)', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lowerer = createLowering(rctx, ownModel as any);
+        const lowerer = createLowering(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
         const handle = bctx.resources.add(0, obj);
         lowerer(bctx, handle);
@@ -228,7 +230,7 @@ describe('own<T> lowering', () => {
 
     test('lowering same handle twice throws', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lowerer = createLowering(rctx, ownModel as any);
+        const lowerer = createLowering(rctx.resolved, ownModel as any);
         const handle = bctx.resources.add(0, { name: 'stream' });
         lowerer(bctx, handle);
         expect(() => lowerer(bctx, handle)).toThrow('Invalid resource handle');
@@ -236,7 +238,7 @@ describe('own<T> lowering', () => {
 
     test('spill is 1', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lowerer = createLowering(rctx, ownModel as any);
+        const lowerer = createLowering(rctx.resolved, ownModel as any);
         expect((lowerer as any).spill).toBe(1);
     });
 });
@@ -252,7 +254,7 @@ describe('borrow<T> lifting', () => {
 
     test('JS object lifts to [handle]', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lifter = createLifting(rctx, borrowModel as any);
+        const lifter = createLifting(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
         const result = lifter(bctx, obj);
         expect(result).toHaveLength(1);
@@ -261,7 +263,7 @@ describe('borrow<T> lifting', () => {
 
     test('lifted object is stored in resource table', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lifter = createLifting(rctx, borrowModel as any);
+        const lifter = createLifting(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
         const [handle] = lifter(bctx, obj);
         expect(bctx.resources.get(0, handle as number)).toBe(obj);
@@ -279,7 +281,7 @@ describe('borrow<T> lowering', () => {
 
     test('handle lowers to JS object', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lowerer = createLowering(rctx, borrowModel as any);
+        const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
         const handle = bctx.resources.add(0, obj);
         const result = lowerer(bctx, handle);
@@ -288,7 +290,7 @@ describe('borrow<T> lowering', () => {
 
     test('handle is NOT removed (borrow is temporary)', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lowerer = createLowering(rctx, borrowModel as any);
+        const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
         const handle = bctx.resources.add(0, obj);
         lowerer(bctx, handle);
@@ -297,7 +299,7 @@ describe('borrow<T> lowering', () => {
 
     test('can lower same handle multiple times', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lowerer = createLowering(rctx, borrowModel as any);
+        const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
         const handle = bctx.resources.add(0, obj);
         expect(lowerer(bctx, handle)).toBe(obj);
@@ -307,7 +309,7 @@ describe('borrow<T> lowering', () => {
 
     test('spill is 1', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lowerer = createLowering(rctx, borrowModel as any);
+        const lowerer = createLowering(rctx.resolved, borrowModel as any);
         expect((lowerer as any).spill).toBe(1);
     });
 });
@@ -322,8 +324,8 @@ describe('own vs borrow semantics', () => {
     });
 
     test('lift own, lower own → handle removed', () => {
-        const lifter = createLifting(rctx, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
-        const lowerer = createLowering(rctx, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
+        const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
+        const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'owned' };
         const [handle] = lifter(bctx, obj);
         const result = lowerer(bctx, handle);
@@ -332,8 +334,8 @@ describe('own vs borrow semantics', () => {
     });
 
     test('lift borrow, lower borrow → handle kept', () => {
-        const lifter = createLifting(rctx, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
-        const lowerer = createLowering(rctx, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
+        const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
+        const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'borrowed' };
         const [handle] = lifter(bctx, obj);
         const result = lowerer(bctx, handle);
@@ -342,8 +344,8 @@ describe('own vs borrow semantics', () => {
     });
 
     test('lift own, lower borrow → object returned, handle still exists', () => {
-        const lifter = createLifting(rctx, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
-        const borrowLowerer = createLowering(rctx, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
+        const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
+        const borrowLowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'owned-but-borrowed' };
         const [handle] = lifter(bctx, obj);
         const result = borrowLowerer(bctx, handle);
@@ -352,8 +354,8 @@ describe('own vs borrow semantics', () => {
     });
 
     test('lift own, lower own, try lower again → throws', () => {
-        const lifter = createLifting(rctx, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
-        const lowerer = createLowering(rctx, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
+        const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
+        const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'consumed' };
         const [handle] = lifter(bctx, obj);
         lowerer(bctx, handle);

@@ -12,9 +12,11 @@ import { WasmPointer, WasmSize } from './types';
 
 function createMockRctx(): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
-        usesNumberForInt64: false,
+        resolved: {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+        },
         indexes: {
             coreModules: [],
             coreInstances: [],
@@ -117,7 +119,7 @@ describe('function trampolines', () => {
         test('lifting trampoline: JS args → flat WASM args → JS result', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
-            const lifter = createFunctionLifting(rctx, smallFunc);
+            const lifter = createFunctionLifting(rctx.resolved, smallFunc);
 
             // Mock WASM function that adds its two u32 args
             const mockWasm = (a: number, b: number) => a + b;
@@ -131,7 +133,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
             const singleParam = makeFunc(1, prim(PrimitiveValType.U32));
-            const lifter = createFunctionLifting(rctx, singleParam);
+            const lifter = createFunctionLifting(rctx.resolved, singleParam);
 
             const mockWasm = (x: number) => x * 3;
             const jsFunc = lifter(ctx, mockWasm as any);
@@ -142,7 +144,7 @@ describe('function trampolines', () => {
         test('lowering trampoline: flat WASM args → JS args → WASM result', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
-            const lowerer = createFunctionLowering(rctx, smallFunc);
+            const lowerer = createFunctionLowering(rctx.resolved, smallFunc);
 
             // Mock JS function
             const mockJs = (a: number, b: number) => a + b;
@@ -163,7 +165,7 @@ describe('function trampolines', () => {
         test('lifting trampoline: no result returns undefined', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
-            const lifter = createFunctionLifting(rctx, voidFunc);
+            const lifter = createFunctionLifting(rctx.resolved, voidFunc);
 
             let called = false;
             const mockWasm = (_x: number) => { called = true; };
@@ -177,7 +179,7 @@ describe('function trampolines', () => {
         test('lowering trampoline: void result returns undefined', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
-            const lowerer = createFunctionLowering(rctx, voidFunc);
+            const lowerer = createFunctionLowering(rctx.resolved, voidFunc);
 
             let received: number | undefined;
             const mockJs = (x: number) => { received = x; };
@@ -198,7 +200,7 @@ describe('function trampolines', () => {
         test('lifting trampoline: JS args → memory ptr → WASM reads from memory', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
-            const lifter = createFunctionLifting(rctx, largeFunc);
+            const lifter = createFunctionLifting(rctx.resolved, largeFunc);
 
             // Mock WASM function receives 1 arg (the pointer), reads 18 u32s from memory
             const mockWasm = (ptr: number) => {
@@ -221,7 +223,7 @@ describe('function trampolines', () => {
         test('lifting trampoline: spilled params are 4-byte aligned u32s', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
-            const lifter = createFunctionLifting(rctx, largeFunc);
+            const lifter = createFunctionLifting(rctx.resolved, largeFunc);
 
             // Verify individual values at their memory offsets
             const mockWasm = (ptr: number) => {
@@ -241,7 +243,7 @@ describe('function trampolines', () => {
         test('lowering trampoline: memory ptr → JS receives expanded args', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
-            const lowerer = createFunctionLowering(rctx, largeFunc);
+            const lowerer = createFunctionLowering(rctx.resolved, largeFunc);
 
             let receivedArgs: number[] = [];
             const mockJs = (...args: number[]) => {
@@ -282,7 +284,7 @@ describe('function trampolines', () => {
 
         function makeRecordResultFunc(rctx: ResolverContext): ComponentTypeFunc {
             // Put the record type at index 0 in resolvedTypes
-            rctx.resolvedTypes = new Map([[0, recordType]]) as any;
+            rctx.resolved.resolvedTypes = new Map([[0, recordType]]) as any;
             rctx.indexes.componentTypes = [recordType as any];
 
             return {
@@ -299,7 +301,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func = makeRecordResultFunc(rctx);
-            const lifter = createFunctionLifting(rctx, func);
+            const lifter = createFunctionLifting(rctx.resolved, func);
 
             // Mock WASM function: writes record {x, y} to memory, returns pointer
             const mockWasm = (a: number) => {
@@ -319,7 +321,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func = makeRecordResultFunc(rctx);
-            const lifter = createFunctionLifting(rctx, func);
+            const lifter = createFunctionLifting(rctx.resolved, func);
 
             const mockWasm = (_a: number) => {
                 const ptr = 256;
@@ -338,7 +340,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func = makeRecordResultFunc(rctx);
-            const lowerer = createFunctionLowering(rctx, func);
+            const lowerer = createFunctionLowering(rctx.resolved, func);
 
             // Mock JS function returns a record
             const mockJs = (a: number) => ({ x: a + 1, y: a + 2 });
@@ -361,7 +363,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func = makeRecordResultFunc(rctx);
-            const lowerer = createFunctionLowering(rctx, func);
+            const lowerer = createFunctionLowering(rctx.resolved, func);
 
             const mockJs = (_a: number) => ({ x: 0xDEADBEEF, y: 0xCAFEBABE });
             const wasmFunc = lowerer(ctx, mockJs as any);
@@ -387,7 +389,7 @@ describe('function trampolines', () => {
         } as any;
 
         function makeBothSpilledFunc(rctx: ResolverContext): ComponentTypeFunc {
-            rctx.resolvedTypes = new Map([[0, recordType]]) as any;
+            rctx.resolved.resolvedTypes = new Map([[0, recordType]]) as any;
             rctx.indexes.componentTypes = [recordType as any];
 
             // 18 u32 params (spilled) + record result (spilled)
@@ -408,7 +410,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func = makeBothSpilledFunc(rctx);
-            const lifter = createFunctionLifting(rctx, func);
+            const lifter = createFunctionLifting(rctx.resolved, func);
 
             // Mock WASM: reads 18 u32s from params ptr, writes result record
             const mockWasm = (paramsPtr: number) => {
@@ -438,7 +440,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx } = createMockBctx();
             const func16 = makeFunc(16, prim(PrimitiveValType.U32));
-            const lifter = createFunctionLifting(rctx, func16);
+            const lifter = createFunctionLifting(rctx.resolved, func16);
 
             // Mock WASM receives 16 flat args (not a pointer)
             let argCount = 0;
@@ -458,7 +460,7 @@ describe('function trampolines', () => {
             const rctx = createMockRctx();
             const { ctx, buffer } = createMockBctx();
             const func17 = makeFunc(17, prim(PrimitiveValType.U32));
-            const lifter = createFunctionLifting(rctx, func17);
+            const lifter = createFunctionLifting(rctx.resolved, func17);
 
             let argCount = 0;
             const mockWasm = (...args: number[]) => {

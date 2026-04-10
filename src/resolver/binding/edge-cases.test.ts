@@ -12,11 +12,13 @@ import { deepResolveType } from '../calling-convention';
 
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
-        canonicalResourceIds: new Map(),
-        usesNumberForInt64,
-        stringEncoding: StringEncoding.Utf8,
+        resolved: {
+            memoizeCache: new Map(),
+            resolvedTypes: new Map(),
+            canonicalResourceIds: new Map(),
+            usesNumberForInt64,
+            stringEncoding: StringEncoding.Utf8,
+        },
     } as any as ResolverContext;
 }
 
@@ -90,175 +92,175 @@ describe('primitive lifting edge cases', () => {
 
     describe('bool coercion', () => {
         test('null coerces to [0]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Bool));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lifter(bctx, null)).toEqual([0]);
         });
 
         test('undefined coerces to [0]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Bool));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lifter(bctx, undefined)).toEqual([0]);
         });
 
         test('empty string coerces to [0]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Bool));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lifter(bctx, '')).toEqual([0]);
         });
 
         test('non-empty string coerces to [1]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Bool));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lifter(bctx, 'hello')).toEqual([1]);
         });
 
         test('-1 coerces to [1]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Bool));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lifter(bctx, -1)).toEqual([1]);
         });
     });
 
     describe('integer overflow/underflow', () => {
         test('s8: 128 wraps to -128', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S8));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S8));
             expect(lifter(bctx, 128)).toEqual([-128]);
         });
 
         test('s8: -129 wraps to 127', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S8));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S8));
             expect(lifter(bctx, -129)).toEqual([127]);
         });
 
         test('u8: -1 wraps to 255', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U8));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U8));
             expect(lifter(bctx, -1)).toEqual([255]);
         });
 
         test('u8: 512 truncates to 0', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U8));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U8));
             expect(lifter(bctx, 512)).toEqual([0]);
         });
 
         test('s16: 32768 wraps to -32768', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S16));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S16));
             expect(lifter(bctx, 32768)).toEqual([-32768]);
         });
 
         test('s16: -32769 wraps to 32767', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S16));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S16));
             expect(lifter(bctx, -32769)).toEqual([32767]);
         });
 
         test('u16: -1 wraps to 65535', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U16));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U16));
             expect(lifter(bctx, -1)).toEqual([65535]);
         });
 
         test('u16: 65536 truncates to 0', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U16));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U16));
             expect(lifter(bctx, 65536)).toEqual([0]);
         });
 
         test('s32: 2147483648 wraps to -2147483648', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S32));
             expect(lifter(bctx, 2147483648)).toEqual([-2147483648]);
         });
 
         test('u32: -1 wraps to 4294967295', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U32));
             expect(lifter(bctx, -1)).toEqual([4294967295]);
         });
 
         test('u32: 4294967296 wraps to 0', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U32));
             expect(lifter(bctx, 4294967296)).toEqual([0]);
         });
     });
 
     describe('floating point special values', () => {
         test('f32: NaN lifts to NaN', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             const result = lifter(bctx, NaN);
             expect(result).toHaveLength(1);
             expect(Number.isNaN(result[0])).toBe(true);
         });
 
         test('f32: Infinity lifts to Infinity', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(lifter(bctx, Infinity)).toEqual([Infinity]);
         });
 
         test('f32: -Infinity lifts to -Infinity', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(lifter(bctx, -Infinity)).toEqual([-Infinity]);
         });
 
         test('f32: -0 lifts to -0', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             const result = lifter(bctx, -0);
             expect(Object.is(result[0], -0)).toBe(true);
         });
 
         test('f32: very small subnormal', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float32));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             const result = lifter(bctx, 1e-45);
             expect(result).toHaveLength(1);
             expect(result[0]).toBe(Math.fround(1e-45));
         });
 
         test('f64: NaN lifts to NaN', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             const result = lifter(bctx, NaN);
             expect(Number.isNaN(result[0])).toBe(true);
         });
 
         test('f64: Infinity lifts to Infinity', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(lifter(bctx, Infinity)).toEqual([Infinity]);
         });
 
         test('f64: -0 lifts to -0', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             const result = lifter(bctx, -0);
             expect(Object.is(result[0], -0)).toBe(true);
         });
 
         test('f64: Number.MAX_VALUE lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(lifter(bctx, Number.MAX_VALUE)).toEqual([Number.MAX_VALUE]);
         });
 
         test('f64: Number.MIN_VALUE (smallest positive subnormal) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(lifter(bctx, Number.MIN_VALUE)).toEqual([Number.MIN_VALUE]);
         });
 
         test('f64: Number.EPSILON lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Float64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(lifter(bctx, Number.EPSILON)).toEqual([Number.EPSILON]);
         });
     });
 
     describe('char edge cases', () => {
         test('null character \\0 lifts to [0]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '\0')).toEqual([0]);
         });
 
         test('maximum BMP character \\uFFFF lifts to [65535]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '\uFFFF')).toEqual([65535]);
         });
 
         test('surrogate pair emoji 😀 lifts to correct codepoint', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '😀')).toEqual([128512]);
         });
 
         test('multi-char string only takes first codepoint', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, 'ABC')).toEqual([65]);
         });
 
         test('lone surrogate traps per spec', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             // 0xD800 is a lone high surrogate — not a valid Unicode scalar value
             expect(() => lifter(bctx, '\uD800')).toThrow('surrogate');
         });
@@ -266,18 +268,18 @@ describe('primitive lifting edge cases', () => {
 
     describe('s64/u64 edge cases (BigInt mode)', () => {
         test('s64: large positive lifts via asIntN(52)', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.S64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
             // BigInt.asIntN(52, n) — truncates to 52 bits for safe JS number range
             expect(lifter(bctx, 42n)).toEqual([42n]);
         });
 
         test('u64: negative bigint wraps via asUintN', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
             expect(lifter(bctx, -1n)).toEqual([18446744073709551615n]);
         });
 
         test('u64: 0n lifts to [0n]', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.U64));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
             expect(lifter(bctx, 0n)).toEqual([0n]);
         });
     });
@@ -285,13 +287,13 @@ describe('primitive lifting edge cases', () => {
     describe('s64/u64 edge cases (Number mode)', () => {
         test('s64: number lifts correctly', () => {
             const rctxNum = createMinimalRctx(true);
-            const lifter = createLifting(rctxNum, prim(PrimitiveValType.S64));
+            const lifter = createLifting(rctxNum.resolved, prim(PrimitiveValType.S64));
             expect(lifter(bctx, 42n)).toEqual([42]);
         });
 
         test('u64: number lifts correctly', () => {
             const rctxNum = createMinimalRctx(true);
-            const lifter = createLifting(rctxNum, prim(PrimitiveValType.U64));
+            const lifter = createLifting(rctxNum.resolved, prim(PrimitiveValType.U64));
             expect(lifter(bctx, 42n)).toEqual([42]);
         });
     });
@@ -308,110 +310,110 @@ describe('primitive lowering edge cases', () => {
 
     describe('bool edge cases', () => {
         test('-1 lowers to true', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Bool));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lowerer(bctx, -1)).toBe(true);
         });
 
         test('0.5 lowers to true (non-zero)', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Bool));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Bool));
             expect(lowerer(bctx, 0.5)).toBe(true);
         });
     });
 
     describe('integer overflow in lowering', () => {
         test('s8: 128 wraps to -128', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.S8));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S8));
             expect(lowerer(bctx, 128)).toBe(-128);
         });
 
         test('s8: 256 wraps to 0', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.S8));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S8));
             expect(lowerer(bctx, 256)).toBe(0);
         });
 
         test('u8: -1 wraps to 255', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.U8));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.U8));
             expect(lowerer(bctx, -1)).toBe(255);
         });
 
         test('s16: 32768 wraps to -32768', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.S16));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S16));
             expect(lowerer(bctx, 32768)).toBe(-32768);
         });
 
         test('u16: -1 wraps to 65535', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.U16));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.U16));
             expect(lowerer(bctx, -1)).toBe(65535);
         });
 
         test('s32: 2147483648.0 wraps to -2147483648', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.S32));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S32));
             expect(lowerer(bctx, 2147483648)).toBe(-2147483648);
         });
 
         test('u32: 4294967296 wraps to 0', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.U32));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.U32));
             expect(lowerer(bctx, 4294967296)).toBe(0);
         });
     });
 
     describe('float special values in lowering', () => {
         test('f32: NaN lowers to NaN', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Float32));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(Number.isNaN(lowerer(bctx, NaN))).toBe(true);
         });
 
         test('f32: Infinity lowers to Infinity', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Float32));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(lowerer(bctx, Infinity)).toBe(Infinity);
         });
 
         test('f32: -0 lowers to -0', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Float32));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(Object.is(lowerer(bctx, -0), -0)).toBe(true);
         });
 
         test('f64: NaN lowers to NaN', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Float64));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(Number.isNaN(lowerer(bctx, NaN))).toBe(true);
         });
 
         test('f64: -0 lowers to -0', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Float64));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float64));
             expect(Object.is(lowerer(bctx, -0), -0)).toBe(true);
         });
     });
 
     describe('char edge cases in lowering', () => {
         test('0 lowers to null character', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lowerer(bctx, 0)).toBe('\0');
         });
 
         test('128512 lowers to 😀', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lowerer(bctx, 128512)).toBe('😀');
         });
 
         test('0x10FFFF (max unicode) lowers to valid char', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             const result = lowerer(bctx, 0x10FFFF);
             expect(typeof result).toBe('string');
             expect(result.codePointAt(0)).toBe(0x10FFFF);
         });
 
         test('surrogate codepoint 0xD800 traps per spec', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xD800)).toThrow('surrogate');
         });
 
         test('surrogate codepoint 0xDFFF traps per spec', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xDFFF)).toThrow('surrogate');
         });
 
         test('codepoint >= 0x110000 traps per spec', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0x110000)).toThrow('0x110000');
         });
     });
@@ -419,14 +421,14 @@ describe('primitive lowering edge cases', () => {
     describe('s64/u64 number mode lowering', () => {
         test('s64 number mode returns JS number', () => {
             const rctxNum = createMinimalRctx(true);
-            const lowerer = createLowering(rctxNum, prim(PrimitiveValType.S64));
+            const lowerer = createLowering(rctxNum.resolved, prim(PrimitiveValType.S64));
             expect(lowerer(bctx, 42n)).toBe(42);
             expect(typeof lowerer(bctx, 42n)).toBe('number');
         });
 
         test('u64 number mode returns JS number', () => {
             const rctxNum = createMinimalRctx(true);
-            const lowerer = createLowering(rctxNum, prim(PrimitiveValType.U64));
+            const lowerer = createLowering(rctxNum.resolved, prim(PrimitiveValType.U64));
             expect(lowerer(bctx, 42n)).toBe(42);
             expect(typeof lowerer(bctx, 42n)).toBe('number');
         });
@@ -439,21 +441,21 @@ describe('string edge cases', () => {
     test('empty string lifts to [0, 0]', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
         expect(lifter(ctx, '')).toEqual([0, 0]);
     });
 
     test('non-string throws TypeError', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
         expect(() => lifter(ctx, 42 as any)).toThrow('expected a string');
     });
 
     test('multi-byte UTF-8 string lifts correctly', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
 
         const original = '日本語テスト';
         const [ptr, len] = lifter(ctx, original);
@@ -464,7 +466,7 @@ describe('string edge cases', () => {
     test('emoji string lifts correctly', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
 
         const original = '🎉🚀💻';
         const [ptr, len] = lifter(ctx, original);
@@ -476,9 +478,9 @@ describe('string edge cases', () => {
     test('string with null byte round-trips', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx2.resolved, prim(PrimitiveValType.String));
 
         const original = 'hello\0world';
         const [ptr, len] = lifter(ctx, original);
@@ -489,7 +491,7 @@ describe('string edge cases', () => {
     test('very long string lifts correctly', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
         const original = 'x'.repeat(1000);
         const [ptr, len] = lifter(ctx, original);
         expect(len).toBe(1000);
@@ -513,7 +515,7 @@ describe('option edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.Bool),
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, false)).toEqual([1, 0]); // Some(false)
     });
 
@@ -522,7 +524,7 @@ describe('option edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, 0)).toEqual([1, 0]); // Some(0)
     });
 
@@ -532,7 +534,7 @@ describe('option edge cases', () => {
             value: prim(PrimitiveValType.String),
         };
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const result = lifter(ctx, '');
         expect(result[0]).toBe(1); // discriminant = Some
         // ptr=0, len=0 for empty string
@@ -545,7 +547,7 @@ describe('option edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         // Per CM spec, option is variant with 2 cases — discriminant must be 0 or 1
         expect(() => lowerer(bctx, 2, 42)).toThrow('Invalid option discriminant');
     });
@@ -565,7 +567,7 @@ describe('result edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             // neither ok nor err specified
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         // No ok/err → discriminant only, no payload slot
         expect(lifter(bctx, { tag: 'ok' })).toEqual([0]);
         expect(lifter(bctx, { tag: 'err' })).toEqual([1]);
@@ -575,7 +577,7 @@ describe('result edge cases', () => {
         const model = {
             tag: ModelTag.ComponentTypeDefinedResult as const,
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx, 0, 0)).toEqual({ tag: 'ok', val: undefined });
         expect(lowerer(bctx, 1, 0)).toEqual({ tag: 'err', val: undefined });
     });
@@ -585,7 +587,7 @@ describe('result edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             ok: prim(PrimitiveValType.U32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(() => lowerer(bctx, 2, 0)).toThrow('Invalid result discriminant');
     });
 });
@@ -606,7 +608,7 @@ describe('variant edge cases', () => {
                 { name: 'only', ty: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { tag: 'only', val: 99 })).toEqual([0, 99]);
     });
 
@@ -618,7 +620,7 @@ describe('variant edge cases', () => {
                 { name: 'something', ty: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { tag: 'nothing' })).toEqual([0, 0]);
     });
 
@@ -630,7 +632,7 @@ describe('variant edge cases', () => {
                 { name: 'b' },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(() => lifter(bctx, { tag: 'c' })).toThrow('Unknown variant case: c');
     });
 
@@ -640,7 +642,7 @@ describe('variant edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
             variants: cases,
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { tag: 'case299' })[0]).toBe(299);
     });
 });
@@ -659,7 +661,7 @@ describe('enum edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['only'],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, 'only')).toEqual([0]);
     });
 
@@ -668,7 +670,7 @@ describe('enum edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['a', 'b'],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(() => lifter(bctx, 'c')).toThrow('Unknown enum value: c');
     });
 
@@ -678,7 +680,7 @@ describe('enum edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members,
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, 'val299')).toEqual([299]);
     });
 
@@ -687,7 +689,7 @@ describe('enum edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['a', 'b'],
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(() => lowerer(bctx, 5)).toThrow('Invalid enum discriminant');
     });
 });
@@ -706,7 +708,7 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members: ['a'],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { a: true })).toEqual([1]);
     });
 
@@ -715,7 +717,7 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members: [],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, {})).toEqual([0]);
     });
 
@@ -725,10 +727,10 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         // Use a separate rctx to avoid memoize cache collision with lifter
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, {
+        const lowerer = createLowering(rctx2.resolved, {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         });
@@ -747,7 +749,7 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(2);
     });
 
@@ -756,7 +758,7 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members: ['a', 'b'],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { a: true, b: false, c: true } as any)).toEqual([1]);
     });
 
@@ -766,7 +768,7 @@ describe('flags edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         const result = lowerer(bctx, -1); // 0xFFFFFFFF as signed i32
         for (const m of members) {
             expect(result[m]).toBe(true);
@@ -788,7 +790,7 @@ describe('tuple edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, [])).toEqual([]);
     });
 
@@ -797,7 +799,7 @@ describe('tuple edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [],
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx)).toEqual([]);
     });
 
@@ -806,7 +808,7 @@ describe('tuple edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [],
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(0);
     });
 
@@ -815,7 +817,7 @@ describe('tuple edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [prim(PrimitiveValType.U32)],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, [42])).toEqual([42]);
     });
 
@@ -828,7 +830,7 @@ describe('tuple edge cases', () => {
                 prim(PrimitiveValType.Bool),
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, [true, 42, false])).toEqual([1, 42, 0]);
     });
 });
@@ -849,7 +851,7 @@ describe('record edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedRecord as const,
             members: [],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, {})).toEqual([]);
     });
 
@@ -858,7 +860,7 @@ describe('record edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedRecord as const,
             members: [],
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx)).toEqual({});
     });
 
@@ -870,7 +872,7 @@ describe('record edge cases', () => {
                 { name: 'b', type: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         // Missing field 'b' → undefined is cast to number → 0 via u32 mask
         const result = lifter(bctx, { a: 42 } as any);
         expect(result).toEqual([42, 0]);
@@ -883,7 +885,7 @@ describe('record edge cases', () => {
                 { name: 'x', type: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, { x: 1, y: 2 })).toEqual([1]);
     });
 
@@ -895,9 +897,9 @@ describe('record edge cases', () => {
                 { name: 'value', type: prim(PrimitiveValType.Bool) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
         const original = { name: 99, value: true };
         const lifted = lifter(bctx, original);
         const lowered = lowerer(bctx, ...lifted);
@@ -915,7 +917,7 @@ describe('list edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: prim(PrimitiveValType.U8),
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const result = lifter(ctx, [255]);
         expect(result).toHaveLength(2);
         const [ptr, len] = result;
@@ -931,9 +933,9 @@ describe('list edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: prim(PrimitiveValType.Bool),
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
         const [ptr, len] = lifter(ctx, [false, false, false]);
         const result = lowerer(ctx, ptr, len);
         expect(result).toEqual([false, false, false]);
@@ -946,7 +948,7 @@ describe('list edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: prim(PrimitiveValType.U32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(ctx, 999, 0)).toEqual([]);
     });
 
@@ -957,15 +959,15 @@ describe('list edge cases', () => {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerModel as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerModel as any);
         const outerModel = {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType,
         };
-        const lifter = createLifting(rctx, outerModel);
+        const lifter = createLifting(rctx.resolved, outerModel);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, innerModel as any);
-        const lowerer = createLowering(rctx2, outerModel);
+        rctx2.resolved.resolvedTypes.set(0 as any, innerModel as any);
+        const lowerer = createLowering(rctx2.resolved, outerModel);
 
         const original = [[1, 2], [3, 4, 5], []];
         const [ptr, len] = lifter(ctx, original);
@@ -982,7 +984,7 @@ describe('resource edge cases', () => {
         const rctx = createMinimalRctx();
         const bctx = { resources: createResourceTable() } as any as BindingContext;
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lifter = createLifting(rctx, ownModel as any);
+        const lifter = createLifting(rctx.resolved, ownModel as any);
         const [handle] = lifter(bctx, null);
         expect(handle).toBeGreaterThan(0);
         expect(bctx.resources.get(0, handle as number)).toBeNull();
@@ -992,7 +994,7 @@ describe('resource edge cases', () => {
         const rctx = createMinimalRctx();
         const bctx = { resources: createResourceTable() } as any as BindingContext;
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
-        const lifter = createLifting(rctx, ownModel as any);
+        const lifter = createLifting(rctx.resolved, ownModel as any);
         const [handle] = lifter(bctx, 42);
         expect(handle).toBeGreaterThan(0);
         expect(bctx.resources.get(0, handle as number)).toBe(42);
@@ -1002,7 +1004,7 @@ describe('resource edge cases', () => {
         const rctx = createMinimalRctx();
         const bctx = { resources: createResourceTable() } as any as BindingContext;
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
-        const lowerer = createLowering(rctx, borrowModel as any);
+        const lowerer = createLowering(rctx.resolved, borrowModel as any);
         expect(() => lowerer(bctx, 999)).toThrow('Invalid resource handle');
     });
 
@@ -1042,9 +1044,9 @@ describe('storeToMemory/loadFromMemory round-trips', () => {
             ],
         };
 
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
         const original = { a: 255, b: 4294967295 };
         const lifted = lifter(ctx, original);
         const lowered = lowerer(ctx, ...lifted);
@@ -1060,9 +1062,9 @@ describe('storeToMemory/loadFromMemory round-trips', () => {
             value: prim(PrimitiveValType.String),
         };
 
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        createLowering(rctx2, model);
+        createLowering(rctx2.resolved, model);
 
         // Some("hello")
         const liftedSome = lifter(ctx, 'hello');
@@ -1088,9 +1090,9 @@ describe('storeToMemory/loadFromMemory round-trips', () => {
             ],
         };
 
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
 
         const liftedTiny = lifter(bctx, { tag: 'tiny', val: 42 });
         const loweredTiny = lowerer(bctx, ...liftedTiny);
@@ -1110,13 +1112,13 @@ describe('type reference (ComponentValTypeType) edge cases', () => {
         const rctx = createMinimalRctx();
         const bctx = createMinimalBctx();
         // Register u32 as type index 5
-        rctx.resolvedTypes.set(5 as any, {
+        rctx.resolved.resolvedTypes.set(5 as any, {
             tag: ModelTag.ComponentTypeDefinedPrimitive,
             value: PrimitiveValType.U32,
         } as any);
 
         const typeRef = { tag: ModelTag.ComponentValTypeType, value: 5 } as ComponentValType;
-        const lifter = createLifting(rctx, typeRef);
+        const lifter = createLifting(rctx.resolved, typeRef);
         expect(lifter(bctx, 42)).toEqual([42]);
     });
 
@@ -1129,10 +1131,10 @@ describe('type reference (ComponentValTypeType) edge cases', () => {
                 { name: 'x', type: prim(PrimitiveValType.U32) },
             ],
         };
-        rctx.resolvedTypes.set(10 as any, recordModel as any);
+        rctx.resolved.resolvedTypes.set(10 as any, recordModel as any);
 
         const typeRef = { tag: ModelTag.ComponentValTypeType, value: 10 } as ComponentValType;
-        const lifter = createLifting(rctx, typeRef);
+        const lifter = createLifting(rctx.resolved, typeRef);
         expect(lifter(bctx, { x: 7 })).toEqual([7]);
     });
 });
@@ -1152,42 +1154,42 @@ describe('discriminant size boundaries', () => {
         test('255 cases → u8 discriminant, last case = 254', () => {
             const cases = Array.from({ length: 255 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, { tag: 'c254' })[0]).toBe(254);
         });
 
         test('256 cases → u16 discriminant, case 255 correct', () => {
             const cases = Array.from({ length: 256 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, { tag: 'c255' })[0]).toBe(255);
         });
 
         test('256 cases lowering: discriminant 255 round-trips', () => {
             const cases = Array.from({ length: 256 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lowerer = createLowering(rctx, model);
+            const lowerer = createLowering(rctx.resolved, model);
             expect(lowerer(bctx, 255)).toEqual({ tag: 'c255' });
         });
 
         test('65535 cases → u16 discriminant, last case = 65534', () => {
             const cases = Array.from({ length: 65535 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, { tag: 'c65534' })[0]).toBe(65534);
         });
 
         test('65536 cases → u32 discriminant, case 65535 correct', () => {
             const cases = Array.from({ length: 65536 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, { tag: 'c65535' })[0]).toBe(65535);
         });
 
         test('65536 cases lowering: discriminant 65535 round-trips', () => {
             const cases = Array.from({ length: 65536 }, (_, i) => ({ name: `c${i}` }));
             const model = { tag: ModelTag.ComponentTypeDefinedVariant as const, variants: cases };
-            const lowerer = createLowering(rctx, model);
+            const lowerer = createLowering(rctx.resolved, model);
             expect(lowerer(bctx, 65535)).toEqual({ tag: 'c65535' });
         });
     });
@@ -1196,42 +1198,42 @@ describe('discriminant size boundaries', () => {
         test('255 members → u8 discriminant, last = 254', () => {
             const members = Array.from({ length: 255 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, 'e254')).toEqual([254]);
         });
 
         test('256 members → u16 discriminant, member 255 correct', () => {
             const members = Array.from({ length: 256 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, 'e255')).toEqual([255]);
         });
 
         test('256 members lowering: discriminant 255 round-trips', () => {
             const members = Array.from({ length: 256 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lowerer = createLowering(rctx, model);
+            const lowerer = createLowering(rctx.resolved, model);
             expect(lowerer(bctx, 255)).toBe('e255');
         });
 
         test('65535 members → u16 discriminant, last = 65534', () => {
             const members = Array.from({ length: 65535 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, 'e65534')).toEqual([65534]);
         });
 
         test('65536 members → u32 discriminant', () => {
             const members = Array.from({ length: 65536 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lifter = createLifting(rctx, model);
+            const lifter = createLifting(rctx.resolved, model);
             expect(lifter(bctx, 'e65535')).toEqual([65535]);
         });
 
         test('65536 members lowering: discriminant 65535 round-trips', () => {
             const members = Array.from({ length: 65536 }, (_, i) => `e${i}`);
             const model = { tag: ModelTag.ComponentTypeDefinedEnum as const, members };
-            const lowerer = createLowering(rctx, model);
+            const lowerer = createLowering(rctx.resolved, model);
             expect(lowerer(bctx, 65535)).toBe('e65535');
         });
     });
@@ -1253,13 +1255,13 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerOption as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerOption as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerOption = {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: innerRef,
         };
-        const lifter = createLifting(rctx, outerOption as any);
+        const lifter = createLifting(rctx.resolved, outerOption as any);
         // Some(Some(42)): outer disc=1, inner disc=1, value=42
         const result = lifter(bctx, 42);
         expect(result[0]).toBe(1); // outer Some
@@ -1272,13 +1274,13 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerOption as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerOption as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerOption = {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: innerRef,
         };
-        const lifter = createLifting(rctx, outerOption as any);
+        const lifter = createLifting(rctx.resolved, outerOption as any);
         // null → outer None (disc=0), because JS null is the sentinel for None
         const result = lifter(bctx, null);
         expect(result[0]).toBe(0); // outer None
@@ -1289,16 +1291,16 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerOption as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerOption as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerOption = {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: innerRef,
         };
-        const _lifter = createLifting(rctx, outerOption as any);
+        const _lifter = createLifting(rctx.resolved, outerOption as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, innerOption as any);
-        const lowerer = createLowering(rctx2, outerOption as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, innerOption as any);
+        const lowerer = createLowering(rctx2.resolved, outerOption as any);
         // Lowering None: disc=0, rest padding
         const noneResult = lowerer(bctx, 0, 0, 0);
         expect(noneResult).toBeNull();
@@ -1309,15 +1311,15 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerOption as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerOption as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerOption = {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: innerRef,
         };
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, innerOption as any);
-        const lowerer = createLowering(rctx2, outerOption as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, innerOption as any);
+        const lowerer = createLowering(rctx2.resolved, outerOption as any);
         // Some(Some(99)): disc=1, inner_disc=1, value=99
         const result = lowerer(bctx, 1, 1, 99);
         expect(result).toBe(99); // inner option unwraps to 99
@@ -1329,14 +1331,14 @@ describe('nested compound types', () => {
             ok: prim(PrimitiveValType.U8),
             err: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerResult as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerResult as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerResult = {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             ok: innerRef,
             err: prim(PrimitiveValType.U8),
         };
-        const lifter = createLifting(rctx, outerResult as any);
+        const lifter = createLifting(rctx.resolved, outerResult as any);
         const result = lifter(bctx, { tag: 'ok', val: { tag: 'ok', val: 42 } });
         expect(result[0]).toBe(0); // outer ok
     });
@@ -1347,7 +1349,7 @@ describe('nested compound types', () => {
             ok: prim(PrimitiveValType.U8),
             err: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, innerResult as any);
+        rctx.resolved.resolvedTypes.set(0 as any, innerResult as any);
         const innerRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const outerResult = {
             tag: ModelTag.ComponentTypeDefinedResult as const,
@@ -1355,8 +1357,8 @@ describe('nested compound types', () => {
             err: prim(PrimitiveValType.U8),
         };
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, innerResult as any);
-        const lowerer = createLowering(rctx2, outerResult as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, innerResult as any);
+        const lowerer = createLowering(rctx2.resolved, outerResult as any);
         // Ok(Err(77)): outer disc=0, inner disc=1, inner payload=77
         const result = lowerer(bctx, 0, 1, 77);
         expect(result).toEqual({ tag: 'ok', val: { tag: 'err', val: 77 } });
@@ -1367,24 +1369,24 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, optU8 as any);
+        rctx.resolved.resolvedTypes.set(0 as any, optU8 as any);
         const optRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const resU32Bool = {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             ok: prim(PrimitiveValType.U32),
             err: prim(PrimitiveValType.Bool),
         };
-        rctx.resolvedTypes.set(1 as any, resU32Bool as any);
+        rctx.resolved.resolvedTypes.set(1 as any, resU32Bool as any);
         const resRef = { tag: ModelTag.ComponentValTypeType, value: 1 } as ComponentValType;
         const tuple = {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [optRef, resRef],
         };
-        const lifter = createLifting(rctx, tuple as any);
+        const lifter = createLifting(rctx.resolved, tuple as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, optU8 as any);
-        rctx2.resolvedTypes.set(1 as any, resU32Bool as any);
-        const lowerer = createLowering(rctx2, tuple as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, optU8 as any);
+        rctx2.resolved.resolvedTypes.set(1 as any, resU32Bool as any);
+        const lowerer = createLowering(rctx2.resolved, tuple as any);
 
         const lifted = lifter(bctx, [42, { tag: 'ok', val: 100 }]);
         const lowered = lowerer(bctx, ...lifted);
@@ -1396,24 +1398,24 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U8),
         };
-        rctx.resolvedTypes.set(0 as any, optU8 as any);
+        rctx.resolved.resolvedTypes.set(0 as any, optU8 as any);
         const optRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const resU32Bool = {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             ok: prim(PrimitiveValType.U32),
             err: prim(PrimitiveValType.Bool),
         };
-        rctx.resolvedTypes.set(1 as any, resU32Bool as any);
+        rctx.resolved.resolvedTypes.set(1 as any, resU32Bool as any);
         const resRef = { tag: ModelTag.ComponentValTypeType, value: 1 } as ComponentValType;
         const tuple = {
             tag: ModelTag.ComponentTypeDefinedTuple as const,
             members: [optRef, resRef],
         };
-        const lifter = createLifting(rctx, tuple as any);
+        const lifter = createLifting(rctx.resolved, tuple as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, optU8 as any);
-        rctx2.resolvedTypes.set(1 as any, resU32Bool as any);
-        const lowerer = createLowering(rctx2, tuple as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, optU8 as any);
+        rctx2.resolved.resolvedTypes.set(1 as any, resU32Bool as any);
+        const lowerer = createLowering(rctx2.resolved, tuple as any);
 
         const lifted = lifter(bctx, [null, { tag: 'err', val: true }]);
         const lowered = lowerer(bctx, ...lifted);
@@ -1425,7 +1427,7 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        rctx.resolvedTypes.set(0 as any, optU32 as any);
+        rctx.resolved.resolvedTypes.set(0 as any, optU32 as any);
         const optRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const variant = {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
@@ -1434,10 +1436,10 @@ describe('nested compound types', () => {
                 { name: 'maybe', ty: optRef },
             ],
         };
-        const lifter = createLifting(rctx, variant as any);
+        const lifter = createLifting(rctx.resolved, variant as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, optU32 as any);
-        const lowerer = createLowering(rctx2, variant as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, optU32 as any);
+        const lowerer = createLowering(rctx2.resolved, variant as any);
 
         // maybe(Some(42))
         const lifted = lifter(bctx, { tag: 'maybe', val: 42 });
@@ -1450,7 +1452,7 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        rctx.resolvedTypes.set(0 as any, optU32 as any);
+        rctx.resolved.resolvedTypes.set(0 as any, optU32 as any);
         const optRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const variant = {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
@@ -1459,10 +1461,10 @@ describe('nested compound types', () => {
                 { name: 'maybe', ty: optRef },
             ],
         };
-        const lifter = createLifting(rctx, variant as any);
+        const lifter = createLifting(rctx.resolved, variant as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, optU32 as any);
-        const lowerer = createLowering(rctx2, variant as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, optU32 as any);
+        const lowerer = createLowering(rctx2.resolved, variant as any);
 
         const lifted = lifter(bctx, { tag: 'maybe', val: null });
         const lowered = lowerer(bctx, ...lifted);
@@ -1474,13 +1476,13 @@ describe('nested compound types', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.Bool),
         };
-        rctx.resolvedTypes.set(0 as any, optBool as any);
+        rctx.resolved.resolvedTypes.set(0 as any, optBool as any);
         const optRef = { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType;
         const enumModel = {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members: ['red', 'green', 'blue'],
         };
-        rctx.resolvedTypes.set(1 as any, enumModel as any);
+        rctx.resolved.resolvedTypes.set(1 as any, enumModel as any);
         const enumRef = { tag: ModelTag.ComponentValTypeType, value: 1 } as ComponentValType;
         const record = {
             tag: ModelTag.ComponentTypeDefinedRecord as const,
@@ -1490,11 +1492,11 @@ describe('nested compound types', () => {
                 { name: 'count', type: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, record as any);
+        const lifter = createLifting(rctx.resolved, record as any);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, optBool as any);
-        rctx2.resolvedTypes.set(1 as any, enumModel as any);
-        const lowerer = createLowering(rctx2, record as any);
+        rctx2.resolved.resolvedTypes.set(0 as any, optBool as any);
+        rctx2.resolved.resolvedTypes.set(1 as any, enumModel as any);
+        const lowerer = createLowering(rctx2.resolved, record as any);
 
         const original = { flag: true, color: 'green', count: 7 };
         const lifted = lifter(bctx, original);
@@ -1516,87 +1518,87 @@ describe('char boundary values (spec-exact)', () => {
 
     describe('lifting boundaries', () => {
         test('0xD7FF (last valid before surrogate range) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, String.fromCodePoint(0xD7FF))).toEqual([0xD7FF]);
         });
 
         test('0xE000 (first valid after surrogate range) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, String.fromCodePoint(0xE000))).toEqual([0xE000]);
         });
 
         test('0x10FFFF (maximum valid codepoint) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, String.fromCodePoint(0x10FFFF))).toEqual([0x10FFFF]);
         });
 
         test('0x0001 (SOH control char) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '\x01')).toEqual([1]);
         });
 
         test('0x007F (DEL) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, '\x7F')).toEqual([0x7F]);
         });
 
         test('0x0080 (first 2-byte UTF-8 char) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, String.fromCodePoint(0x80))).toEqual([0x80]);
         });
 
         test('0x10000 (first supplementary plane char) lifts correctly', () => {
-            const lifter = createLifting(rctx, prim(PrimitiveValType.Char));
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
             expect(lifter(bctx, String.fromCodePoint(0x10000))).toEqual([0x10000]);
         });
     });
 
     describe('lowering boundaries', () => {
         test('0xD7FF lowers to valid character', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             const result = lowerer(bctx, 0xD7FF);
             expect(result.codePointAt(0)).toBe(0xD7FF);
         });
 
         test('0xD800 (start of surrogate range) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xD800)).toThrow('surrogate');
         });
 
         test('0xDBFF (last high surrogate) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xDBFF)).toThrow('surrogate');
         });
 
         test('0xDC00 (first low surrogate) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xDC00)).toThrow('surrogate');
         });
 
         test('0xDFFF (last low surrogate) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xDFFF)).toThrow('surrogate');
         });
 
         test('0xE000 (first valid after surrogates) lowers correctly', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             const result = lowerer(bctx, 0xE000);
             expect(result.codePointAt(0)).toBe(0xE000);
         });
 
         test('0x10FFFF (max codepoint) lowers correctly', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             const result = lowerer(bctx, 0x10FFFF);
             expect(result.codePointAt(0)).toBe(0x10FFFF);
         });
 
         test('0x110000 (just above max) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0x110000)).toThrow('0x110000');
         });
 
         test('0xFFFFFFFF (very large) traps', () => {
-            const lowerer = createLowering(rctx, prim(PrimitiveValType.Char));
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Char));
             expect(() => lowerer(bctx, 0xFFFFFFFF)).toThrow('0x110000');
         });
     });
@@ -1616,7 +1618,7 @@ describe('multi-word flags (>32 members)', () => {
     test('33 flags: flag 32 (first in second word) lifts correctly', () => {
         const members = Array.from({ length: 33 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const flags: Record<string, boolean> = {};
         for (const m of members) flags[m] = false;
         flags['f32'] = true;
@@ -1629,7 +1631,7 @@ describe('multi-word flags (>32 members)', () => {
     test('64 flags: all set in both words', () => {
         const members = Array.from({ length: 64 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const flags: Record<string, boolean> = {};
         for (const m of members) flags[m] = true;
         const result = lifter(bctx, flags);
@@ -1642,7 +1644,7 @@ describe('multi-word flags (>32 members)', () => {
         const members = Array.from({ length: 64 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
         // word0: bit 0 and bit 31, word1: bit 0 (f32)
         const result = lowerer(bctx, (1 | (1 << 31)), 1);
         expect(result['f0']).toBe(true);
@@ -1656,9 +1658,9 @@ describe('multi-word flags (>32 members)', () => {
     test('33 flags full round-trip', () => {
         const members = Array.from({ length: 33 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, {
+        const lowerer = createLowering(rctx2.resolved, {
             tag: ModelTag.ComponentTypeDefinedFlags as const, members,
         });
 
@@ -1682,14 +1684,14 @@ describe('multi-word flags (>32 members)', () => {
     test('96 flags (3 words): spill is 3', () => {
         const members = Array.from({ length: 96 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(3);
     });
 
     test('96 flags: flag 64 (first in third word) lifts correctly', () => {
         const members = Array.from({ length: 96 }, (_, i) => `f${i}`);
         const model = { tag: ModelTag.ComponentTypeDefinedFlags as const, members };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const flags: Record<string, boolean> = {};
         for (const m of members) flags[m] = false;
         flags['f64'] = true;
@@ -1713,7 +1715,7 @@ describe('bool from memory (non-0/1 values)', () => {
         };
         // Write 2 to memory
         new DataView(buffer).setUint8(100, 2);
-        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe(true);
     });
 
@@ -1725,7 +1727,7 @@ describe('bool from memory (non-0/1 values)', () => {
             value: PrimitiveValType.Bool,
         };
         new DataView(buffer).setUint8(100, 255);
-        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe(true);
     });
 
@@ -1737,7 +1739,7 @@ describe('bool from memory (non-0/1 values)', () => {
             value: PrimitiveValType.Bool,
         };
         new DataView(buffer).setUint8(100, 0);
-        const result = loadFromMemory(ctx, 100, boolType as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, boolType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe(false);
     });
 
@@ -1748,10 +1750,10 @@ describe('bool from memory (non-0/1 values)', () => {
             tag: ModelTag.ComponentTypeDefinedPrimitive as const,
             value: PrimitiveValType.Bool,
         };
-        storeToMemory(ctx, 200, boolType as any, true, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 200, boolType as any, true, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(new DataView(buffer).getUint8(200)).toBe(1);
 
-        storeToMemory(ctx, 204, boolType as any, false, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 204, boolType as any, false, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(new DataView(buffer).getUint8(204)).toBe(0);
     });
 });
@@ -1767,8 +1769,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
             variants: cases,
         };
-        storeToMemory(ctx, 100, model as any, { tag: 'c255' }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { tag: 'c255' }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'c255' });
     });
 
@@ -1780,8 +1782,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members,
         };
-        storeToMemory(ctx, 100, model as any, 'e255', rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, 'e255', rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe('e255');
     });
 
@@ -1795,8 +1797,8 @@ describe('discriminant in memory round-trips', () => {
                 { name: 'big', ty: prim(PrimitiveValType.U32) },
             ],
         };
-        storeToMemory(ctx, 100, model as any, { tag: 'big', val: 100000 }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { tag: 'big', val: 100000 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'big', val: 100000 });
     });
 
@@ -1810,8 +1812,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedEnum as const,
             members,
         };
-        storeToMemory(ctx, 100, model as any, 'e299', rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, 'e299', rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe('e299');
     });
 
@@ -1823,8 +1825,8 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members,
         };
-        storeToMemory(ctx, 100, model as any, { a: true, b: false, c: true, d: false }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { a: true, b: false, c: true, d: false }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ a: true, b: false, c: true, d: false });
     });
 
@@ -1840,8 +1842,8 @@ describe('discriminant in memory round-trips', () => {
         for (const m of members) flags[m] = false;
         flags['f0'] = true;
         flags['f32'] = true;
-        storeToMemory(ctx, 100, model as any, flags, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, flags, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result['f0']).toBe(true);
         expect(result['f1']).toBe(false);
         expect(result['f32']).toBe(true);
@@ -1854,12 +1856,12 @@ describe('discriminant in memory round-trips', () => {
             tag: ModelTag.ComponentTypeDefinedOption as const,
             value: prim(PrimitiveValType.U32),
         };
-        storeToMemory(ctx, 100, model as any, 42, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const some = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, 42, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const some = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(some).toBe(42);
 
-        storeToMemory(ctx, 200, model as any, null, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const none = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 200, model as any, null, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const none = loadFromMemory(ctx, 200, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(none).toBeNull();
     });
 
@@ -1871,12 +1873,12 @@ describe('discriminant in memory round-trips', () => {
             ok: prim(PrimitiveValType.U32),
             err: prim(PrimitiveValType.U8),
         };
-        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 99 }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const okResult = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 99 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const okResult = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(okResult).toEqual({ tag: 'ok', val: 99 });
 
-        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const errResult = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const errResult = loadFromMemory(ctx, 200, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(errResult).toEqual({ tag: 'err', val: 7 });
     });
 
@@ -1891,8 +1893,8 @@ describe('discriminant in memory round-trips', () => {
                 prim(PrimitiveValType.Bool),
             ],
         };
-        storeToMemory(ctx, 100, model as any, [255, 100000, true], rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, [255, 100000, true], rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual([255, 100000, true]);
     });
 
@@ -1907,8 +1909,8 @@ describe('discriminant in memory round-trips', () => {
                 { name: 'c', type: prim(PrimitiveValType.Bool) },
             ],
         };
-        storeToMemory(ctx, 100, model as any, { a: 42, b: 100000, c: true }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { a: 42, b: 100000, c: true }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ a: 42, b: 100000, c: true });
     });
 
@@ -1922,16 +1924,16 @@ describe('discriminant in memory round-trips', () => {
                 { name: 'y', type: prim(PrimitiveValType.U32) },
             ],
         };
-        rctx.resolvedTypes.set(0 as any, innerRecord as any);
-        const outerRecord = deepResolveType(rctx, {
+        rctx.resolved.resolvedTypes.set(0 as any, innerRecord as any);
+        const outerRecord = deepResolveType(rctx.resolved, {
             tag: ModelTag.ComponentTypeDefinedRecord as const,
             members: [
                 { name: 'name', type: prim(PrimitiveValType.U8) },
                 { name: 'point', type: { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType },
             ],
         } as any);
-        storeToMemory(ctx, 100, outerRecord as any, { name: 5, point: { x: 10, y: 20 } }, rctx.stringEncoding, rctx.canonicalResourceIds);
-        const result = loadFromMemory(ctx, 100, outerRecord as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, outerRecord as any, { name: 5, point: { x: 10, y: 20 } }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, outerRecord as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ name: 5, point: { x: 10, y: 20 } });
     });
 
@@ -1955,8 +1957,8 @@ describe('discriminant in memory round-trips', () => {
                 tag: ModelTag.ComponentTypeDefinedPrimitive as const,
                 value: primType,
             };
-            storeToMemory(ctx, offset, model as any, value, rctx.stringEncoding, rctx.canonicalResourceIds);
-            const result = loadFromMemory(ctx, offset, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+            storeToMemory(ctx, offset, model as any, value, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            const result = loadFromMemory(ctx, offset, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
             if (primType === PrimitiveValType.Float32) {
                 expect(result).toBeCloseTo(value, 5);
             } else {
@@ -1977,10 +1979,10 @@ describe('resource handle additional edge cases', () => {
         // Add a resource and get a handle
         const _handle = ctx.resources.add(0, 'test-resource');
         // Store handle in memory
-        storeToMemory(ctx, 100, ownModel as any, 'test-resource', rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, ownModel as any, 'test-resource', rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         // The handle was stored by lifting (add), not directly
         // Load removes from table (own semantics)
-        const result = loadFromMemory(ctx, 100, ownModel as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, ownModel as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(typeof result).toBe('string');
     });
 
@@ -1993,7 +1995,7 @@ describe('resource handle additional edge cases', () => {
         // Write handle to memory
         new DataView(ctx.memory.getView(100 as WasmPointer, 4 as WasmSize).buffer, 100).setInt32(0, handle, true);
         // Load borrow from memory (doesn't remove)
-        const result = loadFromMemory(ctx, 100, borrowModel as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 100, borrowModel as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBe('borrowed-data');
         // Resource should still be in table (borrow doesn't remove)
         expect(ctx.resources.has(0, handle)).toBe(true);
@@ -2066,15 +2068,15 @@ describe('nested types via memory round-trips', () => {
                 { name: 'b', type: prim(PrimitiveValType.U32) },
             ],
         };
-        rctx.resolvedTypes.set(0 as any, record as any);
+        rctx.resolved.resolvedTypes.set(0 as any, record as any);
         const list = {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: { tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType,
         };
-        const lifter = createLifting(rctx, list);
+        const lifter = createLifting(rctx.resolved, list);
         const rctx2 = createMinimalRctx();
-        rctx2.resolvedTypes.set(0 as any, record as any);
-        const lowerer = createLowering(rctx2, list);
+        rctx2.resolved.resolvedTypes.set(0 as any, record as any);
+        const lowerer = createLowering(rctx2.resolved, list);
 
         const original = [{ a: 1, b: 100 }, { a: 2, b: 200 }, { a: 3, b: 300 }];
         const [ptr, len] = lifter(ctx, original);
@@ -2091,12 +2093,12 @@ describe('nested types via memory round-trips', () => {
             value: prim(PrimitiveValType.U32),
         };
         // Some(42)
-        storeToMemory(ctx, 100, model as any, 42, rctx.stringEncoding, rctx.canonicalResourceIds);
-        expect(loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds)).toBe(42);
+        storeToMemory(ctx, 100, model as any, 42, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        expect(loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toBe(42);
 
         // None
-        storeToMemory(ctx, 200, model as any, null, rctx.stringEncoding, rctx.canonicalResourceIds);
-        expect(loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds)).toBeNull();
+        storeToMemory(ctx, 200, model as any, null, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        expect(loadFromMemory(ctx, 200, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toBeNull();
     });
 
     test('result<u32, u8> via memory stores discriminant correctly', () => {
@@ -2109,16 +2111,16 @@ describe('nested types via memory round-trips', () => {
         };
 
         // Ok(42)
-        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 42 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 100, model as any, { tag: 'ok', val: 42 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         // discriminant at byte 0 should be 0 (ok)
         expect(new DataView(buffer, 100).getUint8(0)).toBe(0);
-        const okResult = loadFromMemory(ctx, 100, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const okResult = loadFromMemory(ctx, 100, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(okResult).toEqual({ tag: 'ok', val: 42 });
 
         // Err(7)
-        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.stringEncoding, rctx.canonicalResourceIds);
+        storeToMemory(ctx, 200, model as any, { tag: 'err', val: 7 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(new DataView(buffer, 200).getUint8(0)).toBe(1);
-        const errResult = loadFromMemory(ctx, 200, model as any, rctx.stringEncoding, rctx.canonicalResourceIds);
+        const errResult = loadFromMemory(ctx, 200, model as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(errResult).toEqual({ tag: 'err', val: 7 });
     });
 });
@@ -2128,10 +2130,12 @@ describe('nested types via memory round-trips', () => {
 describe('function trampoline edge cases', () => {
     function createFuncRctx(): ResolverContext {
         return {
-            memoizeCache: new Map(),
-            resolvedTypes: new Map(),
-            usesNumberForInt64: false,
-            stringEncoding: StringEncoding.Utf8,
+            resolved: {
+                memoizeCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: false,
+                stringEncoding: StringEncoding.Utf8,
+            },
             indexes: {
                 coreModules: [],
                 coreInstances: [],
@@ -2199,7 +2203,7 @@ describe('function trampoline edge cases', () => {
             params: [{ name: 'a', type: prim(PrimitiveValType.U32) }],
             results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
         } as any;
-        const lowerer = createFunctionLowering(rctx, func);
+        const lowerer = createFunctionLowering(rctx.resolved, func);
 
         let received: number | undefined;
         const mockJs = (x: number) => { received = x; };
@@ -2217,7 +2221,7 @@ describe('function trampoline edge cases', () => {
             params: [],
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
-        const lifter = createFunctionLifting(rctx, func);
+        const lifter = createFunctionLifting(rctx.resolved, func);
 
         const mockWasm = () => { throw new Error('trap!'); };
         const jsFunc = lifter(ctx, mockWasm as any);
@@ -2233,7 +2237,7 @@ describe('function trampoline edge cases', () => {
             params: [],
             results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
         } as any;
-        const lifter = createFunctionLifting(rctx, func);
+        const lifter = createFunctionLifting(rctx.resolved, func);
 
         ctx.poisoned = true;
         const mockWasm = () => { };
@@ -2249,7 +2253,7 @@ describe('function trampoline edge cases', () => {
             params: [],
             results: { tag: ModelTag.ComponentFuncResultNamed, values: [] },
         } as any;
-        const lifter = createFunctionLifting(rctx, func);
+        const lifter = createFunctionLifting(rctx.resolved, func);
 
         ctx.inExport = true; // simulate already in export
         const mockWasm = () => { };
@@ -2268,7 +2272,7 @@ describe('function trampoline edge cases', () => {
             ],
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.Bool) },
         } as any;
-        const lowerer = createFunctionLowering(rctx, func);
+        const lowerer = createFunctionLowering(rctx.resolved, func);
 
         const mockJs = (a: boolean, b: boolean) => a && b;
         const wasmFunc = lowerer(ctx, mockJs as any);
@@ -2285,7 +2289,7 @@ describe('function trampoline edge cases', () => {
             params: [],
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
-        const lowerer = createFunctionLowering(rctx, func);
+        const lowerer = createFunctionLowering(rctx.resolved, func);
 
         const mockJs = () => 42;
         const wasmFunc = lowerer(ctx, mockJs as any);
@@ -2312,7 +2316,7 @@ describe('variant lowering validation', () => {
                 { name: 'b' },
             ],
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         // discriminant 5 is out of range — throws
         expect(() => lowerer(bctx, 5, 42)).toThrow('Invalid variant discriminant');
     });
@@ -2325,7 +2329,7 @@ describe('variant lowering validation', () => {
                 { name: 'b' },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(() => lifter(bctx, { tag: 'nonexistent', val: 0 })).toThrow();
     });
 
@@ -2337,9 +2341,9 @@ describe('variant lowering validation', () => {
                 { name: 'data', ty: prim(PrimitiveValType.U32) },
             ],
         };
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, model);
+        const lowerer = createLowering(rctx2.resolved, model);
         const lifted = lifter(bctx, { tag: 'empty' });
         const lowered = lowerer(bctx, ...lifted);
         expect(lowered).toEqual({ tag: 'empty' });
@@ -2351,23 +2355,27 @@ describe('variant lowering validation', () => {
 describe('CompactUTF-16 encoding', () => {
     test('lifting with CompactUTF-16 throws not-supported', () => {
         const rctx = {
-            memoizeCache: new Map(),
-            resolvedTypes: new Map(),
-            usesNumberForInt64: false,
-            stringEncoding: StringEncoding.CompactUtf16,
+            resolved: {
+                memoizeCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: false,
+                stringEncoding: StringEncoding.CompactUtf16,
+            },
         } as any as ResolverContext;
-        expect(() => createLifting(rctx, prim(PrimitiveValType.String)))
+        expect(() => createLifting(rctx.resolved, prim(PrimitiveValType.String)))
             .toThrow('CompactUTF-16');
     });
 
     test('lowering with CompactUTF-16 throws not-supported', () => {
         const rctx = {
-            memoizeCache: new Map(),
-            resolvedTypes: new Map(),
-            usesNumberForInt64: false,
-            stringEncoding: StringEncoding.CompactUtf16,
+            resolved: {
+                memoizeCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: false,
+                stringEncoding: StringEncoding.CompactUtf16,
+            },
         } as any as ResolverContext;
-        expect(() => createLowering(rctx, prim(PrimitiveValType.String)))
+        expect(() => createLowering(rctx.resolved, prim(PrimitiveValType.String)))
             .toThrow('CompactUTF-16');
     });
 });
@@ -2377,13 +2385,15 @@ describe('CompactUTF-16 encoding', () => {
 describe('UTF-16 string bounds checking', () => {
     test('UTF-16 lowering out-of-bounds traps', () => {
         const rctx = {
-            memoizeCache: new Map(),
-            resolvedTypes: new Map(),
-            usesNumberForInt64: false,
-            stringEncoding: StringEncoding.Utf16,
+            resolved: {
+                memoizeCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: false,
+                stringEncoding: StringEncoding.Utf16,
+            },
         } as any as ResolverContext;
         const { ctx } = createMockMemoryContext(64);
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
         // 100 code units = 200 bytes, but buffer is only 64 bytes
         expect(() => (lowerer as any)(ctx, 0, 100))
             .toThrow('out of bounds');
@@ -2392,7 +2402,7 @@ describe('UTF-16 string bounds checking', () => {
     test('UTF-8 lowering out-of-bounds traps', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext(64);
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
         // 100 bytes but buffer is only 64
         expect(() => (lowerer as any)(ctx, 0, 100))
             .toThrow('out of bounds');
