@@ -46,10 +46,10 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     const wasmInstantiate = WebAssembly.instantiate;
 
     const componentImports = (imports ? imports : {}) as {
-        'hello:city/city': js.Imports,
+        'hello:city/city@0.1.0': js.Imports,
     };
 
-    const { sendMessage } = componentImports['hello:city/city'];
+    const { sendMessage } = componentImports['hello:city/city@0.1.0'];
     const stringToJs = createLowering(rctx, {
         tag: ModelTag.ComponentValTypePrimitive,
         value: PrimitiveValType.String,
@@ -88,7 +88,7 @@ export async function resolveJCO(sections: WITModel, imports: any) {
     //console.log('fn0', fn0.length);
 
     const imports0: wasm.module0Imports = {
-        'hello:city/city': {
+        'hello:city/city@0.1.0': {
             'send-message': (...args) => {
                 const rr = fn0(...args);
                 //console.log('send-message', args, rr);
@@ -119,7 +119,7 @@ export async function resolveJCO(sections: WITModel, imports: any) {
             numberToUint32(ctx, info.headCount),
             bigIntToInt64(ctx, info.budget),
         ];
-        exports0['hello:city/greeter#run'].apply(null, args as any);
+        exports0['hello:city/greeter@0.1.0#run'].apply(null, args as any);
     }
 
     const greeter0_1_0: js.Exports = {
@@ -128,7 +128,7 @@ export async function resolveJCO(sections: WITModel, imports: any) {
 
     return {
         exports: {
-            'hello:city/greeter': greeter0_1_0,
+            'hello:city/greeter@0.1.0': greeter0_1_0,
         }
     };
 }

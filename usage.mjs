@@ -3,14 +3,14 @@ import { createComponent } from './dist/index.js';
 // this is url of your component
 // `hello.wasm` sample was built using `npm run build:hello`
 // the implementation is in `./hello/src/lib.rs` 
-const componentUrl='./hello/wasm/hello.wasm';
+const componentUrl = './hello/wasm/hello.wasm';
 
 // this is the component instance, see also `instantiateComponent`
 const component = await createComponent(componentUrl);
 
 // these are the imports that the component expects
 const imports = {
-    'hello:city/city': {
+    'hello:city/city@0.1.0': {
         sendMessage: console.log
     }
 };
@@ -22,7 +22,7 @@ const instance = await component.instantiate(imports);
 const exports = instance.exports;
 
 // this is the function that we want to call
-const run = exports['hello:city/greeter'].run;
+const run = exports['hello:city/greeter@0.1.0'].run;
 
 // run expects a cityInfo parameter
 const cityInfo = {

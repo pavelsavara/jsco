@@ -204,7 +204,7 @@ pub mod zoo {
                     let ptr3 = vec3.as_ptr().cast::<u8>();
                     let len3 = vec3.len();
                     #[cfg(target_arch = "wasm32")]
-                    #[link(wasm_import_module = "zoo:food/food")]
+                    #[link(wasm_import_module = "zoo:food/food@0.1.0")]
                     unsafe extern "C" {
                         #[link_name = "hide-food"]
                         fn wit_import4(
@@ -375,7 +375,7 @@ pub mod zoo {
                         .add(64 + 2 * ::core::mem::size_of::<*const u8>())
                         .cast::<*mut u8>() = ptr6.cast_mut();
                     #[cfg(target_arch = "wasm32")]
-                    #[link(wasm_import_module = "zoo:food/food")]
+                    #[link(wasm_import_module = "zoo:food/food@0.1.0")]
                     unsafe extern "C" {
                         #[link_name = "consume-food"]
                         fn wit_import7(_: *mut u8);
@@ -411,7 +411,7 @@ pub mod zoo {
                     let ptr3 = vec3.as_ptr().cast::<u8>();
                     let len3 = vec3.len();
                     #[cfg(target_arch = "wasm32")]
-                    #[link(wasm_import_module = "zoo:food/food")]
+                    #[link(wasm_import_module = "zoo:food/food@0.1.0")]
                     unsafe extern "C" {
                         #[link_name = "open-package"]
                         fn wit_import4(
@@ -497,7 +497,7 @@ pub mod zoo {
                     let ptr3 = vec3.as_ptr().cast::<u8>();
                     let len3 = vec3.len();
                     #[cfg(target_arch = "wasm32")]
-                    #[link(wasm_import_module = "zoo:food/food")]
+                    #[link(wasm_import_module = "zoo:food/food@0.1.0")]
                     unsafe extern "C" {
                         #[link_name = "trash-package"]
                         fn wit_import4(
@@ -603,20 +603,21 @@ pub mod exports {
                     fn feed(foodinfo: FoodInfo, packageinfo: PackageInfo) -> ();
                 }
                 #[doc(hidden)]
-                macro_rules! __export_zoo_food_eater_cabi {
+                macro_rules! __export_zoo_food_eater_0_1_0_cabi {
                     ($ty:ident with_types_in $($path_to_types:tt)*) => {
-                        const _ : () = { #[unsafe (export_name = "zoo:food/eater#feed")]
-                        unsafe extern "C" fn export_feed(arg0 : * mut u8, arg1 : usize,
-                        arg2 : i32, arg3 : f32, arg4 : i32, arg5 : i64, arg6 : i32, arg7
-                        : i32, arg8 : i32, arg9 : i32, arg10 : i32, arg11 : i32, arg12 :
-                        f64, arg13 : i32, arg14 : i32, arg15 : i32,) { unsafe {
-                        $($path_to_types)*:: _export_feed_cabi::<$ty > (arg0, arg1, arg2,
-                        arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12,
-                        arg13, arg14, arg15) } } };
+                        const _ : () = { #[unsafe (export_name =
+                        "zoo:food/eater@0.1.0#feed")] unsafe extern "C" fn
+                        export_feed(arg0 : * mut u8, arg1 : usize, arg2 : i32, arg3 :
+                        f32, arg4 : i32, arg5 : i64, arg6 : i32, arg7 : i32, arg8 : i32,
+                        arg9 : i32, arg10 : i32, arg11 : i32, arg12 : f64, arg13 : i32,
+                        arg14 : i32, arg15 : i32,) { unsafe { $($path_to_types)*::
+                        _export_feed_cabi::<$ty > (arg0, arg1, arg2, arg3, arg4, arg5,
+                        arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15)
+                        } } };
                     };
                 }
                 #[doc(hidden)]
-                pub(crate) use __export_zoo_food_eater_cabi;
+                pub(crate) use __export_zoo_food_eater_0_1_0_cabi;
             }
         }
     }
@@ -798,18 +799,20 @@ macro_rules! __export_zoo_impl {
     };
     ($ty:ident with_types_in $($path_to_types_root:tt)*) => {
         $($path_to_types_root)*::
-        exports::zoo::food::eater::__export_zoo_food_eater_cabi!($ty with_types_in
+        exports::zoo::food::eater::__export_zoo_food_eater_0_1_0_cabi!($ty with_types_in
         $($path_to_types_root)*:: exports::zoo::food::eater);
     };
 }
 #[doc(inline)]
 pub(crate) use __export_zoo_impl as export;
 #[cfg(target_arch = "wasm32")]
-#[unsafe(link_section = "component-type:wit-bindgen:0.41.0:zoo:food:zoo:encoded world")]
+#[unsafe(
+    link_section = "component-type:wit-bindgen:0.41.0:zoo:food@0.1.0:zoo:encoded world"
+)]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 864] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe6\x05\x01A\x02\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 882] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xf8\x05\x01A\x02\x01\
 A\x06\x01B\x16\x01m\x03\x0ccarbohyrdate\x07protein\x07vitamin\x04\0\x0enutrition\
 -type\x03\0\0\x01r\x02\x0apercentageu\x0enutrition-type\x01\x04\0\x0enutrition-i\
 nfo\x03\0\x02\x01q\x02\x0bplastic-bag\0\0\x09metal-can\0\0\x04\0\x0dmaterial-typ\
@@ -821,13 +824,13 @@ me-in-minutesz\x04\0\x09food-info\x03\0\x0b\x01@\x02\x04food\x0c\x07messages\x01
 \0\x04\0\x09hide-food\x01\x0d\x01@\x03\x08foodinfo\x0c\x0bpackageinfo\x09\x07mes\
 sages\x01\0\x04\0\x0cconsume-food\x01\x0e\x01@\x03\x0csealingstate\x07\x0bpackag\
 einfo\x09\x07messages\x01\0\x04\0\x0copen-package\x01\x0f\x01p\x09\x01@\x02\x07t\
-rashed\x10\x07messages\0\x7f\x04\0\x0dtrash-package\x01\x11\x03\0\x0dzoo:food/fo\
-od\x05\0\x02\x03\0\0\x09food-info\x02\x03\0\0\x0cpackage-info\x01B\x06\x02\x03\x02\
-\x01\x01\x04\0\x09food-info\x03\0\0\x02\x03\x02\x01\x02\x04\0\x0cpackage-info\x03\
-\0\x02\x01@\x02\x08foodinfo\x01\x0bpackageinfo\x03\x01\0\x04\0\x04feed\x01\x04\x04\
-\0\x0ezoo:food/eater\x05\x03\x04\0\x0czoo:food/zoo\x04\0\x0b\x09\x01\0\x03zoo\x03\
-\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-\
-bindgen-rust\x060.41.0";
+rashed\x10\x07messages\0\x7f\x04\0\x0dtrash-package\x01\x11\x03\0\x13zoo:food/fo\
+od@0.1.0\x05\0\x02\x03\0\0\x09food-info\x02\x03\0\0\x0cpackage-info\x01B\x06\x02\
+\x03\x02\x01\x01\x04\0\x09food-info\x03\0\0\x02\x03\x02\x01\x02\x04\0\x0cpackage\
+-info\x03\0\x02\x01@\x02\x08foodinfo\x01\x0bpackageinfo\x03\x01\0\x04\0\x04feed\x01\
+\x04\x04\0\x14zoo:food/eater@0.1.0\x05\x03\x04\0\x12zoo:food/zoo@0.1.0\x04\0\x0b\
+\x09\x01\0\x03zoo\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-compone\
+nt\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

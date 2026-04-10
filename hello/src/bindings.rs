@@ -36,7 +36,7 @@ pub mod hello {
                     let ptr0 = vec0.as_ptr().cast::<u8>();
                     let len0 = vec0.len();
                     #[cfg(target_arch = "wasm32")]
-                    #[link(wasm_import_module = "hello:city/city")]
+                    #[link(wasm_import_module = "hello:city/city@0.1.0")]
                     unsafe extern "C" {
                         #[link_name = "send-message"]
                         fn wit_import1(_: *mut u8, _: usize);
@@ -84,17 +84,17 @@ pub mod exports {
                     fn run(info: CityInfo) -> ();
                 }
                 #[doc(hidden)]
-                macro_rules! __export_hello_city_greeter_cabi {
+                macro_rules! __export_hello_city_greeter_0_1_0_cabi {
                     ($ty:ident with_types_in $($path_to_types:tt)*) => {
                         const _ : () = { #[unsafe (export_name =
-                        "hello:city/greeter#run")] unsafe extern "C" fn export_run(arg0 :
-                        * mut u8, arg1 : usize, arg2 : i32, arg3 : i64,) { unsafe {
-                        $($path_to_types)*:: _export_run_cabi::<$ty > (arg0, arg1, arg2,
-                        arg3) } } };
+                        "hello:city/greeter@0.1.0#run")] unsafe extern "C" fn
+                        export_run(arg0 : * mut u8, arg1 : usize, arg2 : i32, arg3 :
+                        i64,) { unsafe { $($path_to_types)*:: _export_run_cabi::<$ty >
+                        (arg0, arg1, arg2, arg3) } } };
                     };
                 }
                 #[doc(hidden)]
-                pub(crate) use __export_hello_city_greeter_cabi;
+                pub(crate) use __export_hello_city_greeter_0_1_0_cabi;
             }
         }
     }
@@ -141,7 +141,7 @@ macro_rules! __export_hello_impl {
     };
     ($ty:ident with_types_in $($path_to_types_root:tt)*) => {
         $($path_to_types_root)*::
-        exports::hello::city::greeter::__export_hello_city_greeter_cabi!($ty
+        exports::hello::city::greeter::__export_hello_city_greeter_0_1_0_cabi!($ty
         with_types_in $($path_to_types_root)*:: exports::hello::city::greeter);
     };
 }
@@ -149,19 +149,19 @@ macro_rules! __export_hello_impl {
 pub(crate) use __export_hello_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
-    link_section = "component-type:wit-bindgen:0.41.0:hello:city:hello:encoded world"
+    link_section = "component-type:wit-bindgen:0.41.0:hello:city@0.1.0:hello:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 328] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xcc\x01\x01A\x02\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 346] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xde\x01\x01A\x02\x01\
 A\x05\x01B\x04\x01r\x03\x04names\x0ahead-county\x06budgetx\x04\0\x09city-info\x03\
-\0\0\x01@\x01\x07messages\x01\0\x04\0\x0csend-message\x01\x02\x03\0\x0fhello:cit\
-y/city\x05\0\x02\x03\0\0\x09city-info\x01B\x04\x02\x03\x02\x01\x01\x04\0\x09city\
--info\x03\0\0\x01@\x01\x04info\x01\x01\0\x04\0\x03run\x01\x02\x04\0\x12hello:cit\
-y/greeter\x05\x02\x04\0\x10hello:city/hello\x04\0\x0b\x0b\x01\0\x05hello\x03\0\0\
-\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bind\
-gen-rust\x060.41.0";
+\0\0\x01@\x01\x07messages\x01\0\x04\0\x0csend-message\x01\x02\x03\0\x15hello:cit\
+y/city@0.1.0\x05\0\x02\x03\0\0\x09city-info\x01B\x04\x02\x03\x02\x01\x01\x04\0\x09\
+city-info\x03\0\0\x01@\x01\x04info\x01\x01\0\x04\0\x03run\x01\x02\x04\0\x18hello\
+:city/greeter@0.1.0\x05\x02\x04\0\x16hello:city/hello@0.1.0\x04\0\x0b\x0b\x01\0\x05\
+hello\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.\
+1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

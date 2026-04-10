@@ -94,8 +94,8 @@ export const componentTypeInstance0: ComponentTypeInstance = {
 export const componentImport0: ComponentImport = {
     tag: ModelTag.ComponentImport,
     name: {
-        tag: ModelTag.ComponentExternNameInterface,
-        name: 'hello:city/city'
+        tag: ModelTag.ComponentExternNameKebab,
+        name: 'hello:city/city@0.1.0'
     },
     ty: {
         tag: ModelTag.ComponentTypeRefInstance,
@@ -144,7 +144,7 @@ export const coreInstance2: CoreInstanceInstantiate = {
     module_index: 0 as CoreModuleIndex,
     args: [
         {
-            name: 'hello:city/city',
+            name: 'hello:city/city@0.1.0',
             kind: InstantiationArgKind.Instance,
             index: 1,
         },
@@ -252,7 +252,7 @@ export const aliasCoreExportFunc3: ComponentAliasCoreInstanceExport = {
     tag: ModelTag.ComponentAliasCoreInstanceExport,
     kind: ExternalKind.Func,
     instance_index: 2 as CoreInstanceIndex,
-    name: 'hello:city/greeter#run',
+    name: 'hello:city/greeter@0.1.0#run',
 };
 
 export const canonicalFuncLift1: CanonicalFunctionLift = {
@@ -374,7 +374,8 @@ export const componentTypeComponent0: ComponentSection = {
                 name: 'city-info'
             },
             kind: ComponentExternalKind.Type,
-            index: 1
+            index: 1,
+            ty: undefined
         },
         {
             tag: ModelTag.ComponentTypeFunc,
@@ -434,7 +435,7 @@ export const componentInstance1: ComponentInstanceInstantiate = {
 
 export const componentExport0: ComponentExport = {
     tag: ModelTag.ComponentExport,
-    name: { tag: ModelTag.ComponentExternNameInterface, name: 'hello:city/greeter' },
+    name: { tag: ModelTag.ComponentExternNameKebab, name: 'hello:city/greeter@0.1.0' },
     kind: ComponentExternalKind.Instance,
     index: 1,
     ty: undefined
@@ -456,9 +457,9 @@ export const expectedModel: WITSection[] = [
     coreInstance1,
     coreInstance2,
     aliasCoreExportMemory0,
-    aliasCoreExportFunc1,
     aliasCoreExportTable0,
     aliasExport0,
+    aliasCoreExportFunc1,
     canonicalFuncLower2,
     coreInstance3,
     coreInstance4,
@@ -470,5 +471,9 @@ export const expectedModel: WITSection[] = [
     componentTypeComponent0,
     componentInstance1,
     componentExport0,
-    customSection
+    customSection,
+    { tag: ModelTag.CustomSection, name: 'component-name' } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'authors' } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'revision' } as CustomSection,
+    { tag: ModelTag.CustomSection, name: 'version' } as CustomSection,
 ];

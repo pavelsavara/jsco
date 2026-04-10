@@ -16,11 +16,11 @@ declare module js {
     }
 
     export type NamedImports = {
-        'hello:city/city': Imports
+        'hello:city/city@0.1.0': Imports
     }
 
     export type NamedExports = {
-        'hello:city/greeter': Exports
+        'hello:city/greeter@0.1.0': Exports
     }
 }
 
@@ -31,11 +31,11 @@ declare module wasm {
         '__data_end': WebAssembly.Global
         '__heap_base': WebAssembly.Global
         // TODO budget: number is wrong, should be BigInt
-        'hello:city/greeter#run': (namePtr: AbiPointer, nameLen: AbiPointer, headCount: number, budget: number) => void,
+        'hello:city/greeter@0.1.0#run': (namePtr: AbiPointer, nameLen: AbiPointer, headCount: number, budget: number) => void,
     }
 
     export type module0Imports = {
-        'hello:city/city': {
+        'hello:city/city@0.1.0': {
             'send-message': (prt: AbiPointer, len: AbiPointer) => void
         }
     }
