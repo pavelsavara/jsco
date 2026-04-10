@@ -89,19 +89,28 @@ export type IndexedModel = {
     componentSections: ComponentSection[]// append to componentTypes
 }
 
+/** Subset of ResolverContext retained for binding/call time. Separate object so
+ *  binder closures don't keep the heavy IndexedModel alive. */
+export type ResolvedContext = {
+    liftingCache: Map<unknown, unknown>
+    loweringCache: Map<unknown, unknown>
+    resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
+    /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
+    canonicalResourceIds: Map<number, number>
+    /** Current string encoding for the canonical function being resolved. Set per lift/lower. */
+    stringEncoding: StringEncoding
+    usesNumberForInt64: boolean
+}
+
 export type ResolverContext = {
+    resolved: ResolvedContext;
     indexes: IndexedModel;
     /** Maps componentImports[] index → componentInstances[] index for instance imports */
     importToInstanceIndex: Map<number, number>;
-    /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
-    canonicalResourceIds: Map<number, number>;
     /** Maps "instanceIndex:exportName" → canonical resource ID for resource type alias deduplication */
     resourceAliasGroups: Map<string, number>;
-    usesNumberForInt64: boolean
     validateTypes: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
-    memoizeCache: Map<unknown, unknown>
-    resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
 }
 
 export type InstanceTable = {

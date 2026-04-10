@@ -61,9 +61,8 @@ export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) =
         case ModelTag.ComponentTypeRefFunc: {
             // Function import: the component imports a function directly (not through an instance).
             // The JS imports object should have the function at the import name key.
-            // TODO: When the index space unification is implemented (imports contributing to
-            // componentFunctions), CanonicalFunctionLower will be able to reference this
-            // function by its component function index.
+            // Func imports contribute to componentFunctions[], so CanonicalFunctionLower
+            // can reference them by func_index.
             return {
                 callerElement: rargs.callerElement,
                 element: componentImport,

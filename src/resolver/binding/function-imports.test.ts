@@ -8,10 +8,12 @@ import { ComponentImport } from '../../model/imports';
 
 function createMinimalRctx(): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
+        resolved: {
+            liftingCache: new Map(), loweringCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+        },
         importToInstanceIndex: new Map(),
-        usesNumberForInt64: false,
         indexes: {
             componentTypes: [],
             componentImports: [],

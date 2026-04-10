@@ -1,4 +1,5 @@
 import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry } from './filesystem';
+import type { WasiDatetime } from './types';
 
 /** Helper: unwrap an ok result or throw */
 function unwrap<T>(result: FsResult<T>): T {
@@ -538,7 +539,7 @@ describe('wasi:filesystem', () => {
             ]));
             const root = fs.rootDescriptor();
             const file = unwrap(root.openAt({}, 'file.txt', {}, { write: true }));
-            const newTime: import('./types').WasiDatetime = { seconds: 1234567890n, nanoseconds: 0 };
+            const newTime: WasiDatetime = { seconds: 1234567890n, nanoseconds: 0 };
             unwrap(file.setTimes(newTime, newTime));
             const stat = unwrap(file.stat());
             expect(stat.dataAccessTimestamp?.seconds).toBe(1234567890n);
@@ -551,7 +552,7 @@ describe('wasi:filesystem', () => {
             ]));
             const root = fs.rootDescriptor();
             const dir = unwrap(root.openAt({}, 'dir', { directory: true }, {}));
-            const newTime: import('./types').WasiDatetime = { seconds: 999n, nanoseconds: 500 };
+            const newTime: WasiDatetime = { seconds: 999n, nanoseconds: 500 };
             unwrap(dir.setTimesAt({}, 'file.txt', newTime, undefined));
             const stat = unwrap(dir.statAt({}, 'file.txt'));
             expect(stat.dataAccessTimestamp?.seconds).toBe(999n);

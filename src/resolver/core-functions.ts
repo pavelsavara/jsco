@@ -4,7 +4,7 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration } from '../model/types';
+import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration } from '../model/types';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { createFunctionLowering } from './binding';
 import { JsFunction } from './binding/types';
@@ -13,7 +13,7 @@ import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
 import { getCanonicalResourceId } from './context';
 import { getComponentFunction, getComponentType } from './indices';
-import { Resolver, BinderRes, ResolverRes, resolveCanonicalOptions, StringEncoding } from './types';
+import { Resolver, BinderRes, ResolverRes, ResolverContext, resolveCanonicalOptions } from './types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -39,13 +39,24 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     // CanonicalFunctionLower.func_index → componentFunction →
     //   CanonicalFunctionLift.type_index → ComponentTypeFunc
     //   ComponentAliasInstanceExport → resolvedTypes lookup
+    //
+    // Instance-local type isolation: resolveLoweredFuncType may call
+    // registerInstanceLocalTypes, which overwrites global resolvedTypes entries
+    // with instance-local types. createFunctionLowering deep-resolves all nested
+    // ComponentValTypeType references at creation time, so the binder closures
+    // never look up resolvedTypes at call time.
+
     const funcType = resolveLoweredFuncType(rctx, componentFunction);
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
-    jsco_assert(canonOpts.stringEncoding === StringEncoding.Utf8,
-        () => `String encoding '${canonOpts.stringEncoding}' not yet supported, only UTF-8`);
 
-    const loweringBinder = createFunctionLowering(rctx, funcType);
+    // Set string encoding for this canonical function — read by createLifting/createLowering
+    const savedEncoding = rctx.resolved.stringEncoding;
+    rctx.resolved.stringEncoding = canonOpts.stringEncoding;
+
+    const loweringBinder = createFunctionLowering(rctx.resolved, funcType);
+
+    rctx.resolved.stringEncoding = savedEncoding;
 
     return {
         callerElement: rargs.callerElement,
@@ -70,7 +81,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     };
 };
 
-function resolveLoweredFuncType(rctx: import('./types').ResolverContext, componentFunction: ComponentFunction): ComponentTypeFunc {
+function resolveLoweredFuncType(rctx: ResolverContext, componentFunction: ComponentFunction): ComponentTypeFunc {
     // If the component function is a CanonicalFunctionLift, it has type_index directly
     if (componentFunction.tag === ModelTag.CanonicalFunctionLift) {
         const sectionFunType = getComponentType(rctx, componentFunction.type_index);
@@ -113,7 +124,7 @@ function resolveLoweredFuncType(rctx: import('./types').ResolverContext, compone
  * maxDepth prevents infinite loops in pathological cases.
  */
 function resolveAliasedFuncType(
-    rctx: import('./types').ResolverContext,
+    rctx: ResolverContext,
     alias: ComponentAliasInstanceExportType,
     maxDepth: number
 ): ComponentTypeFunc | undefined {
@@ -160,7 +171,7 @@ function resolveAliasedFuncType(
     // Fallback: try resolvedTypes map
     const typeIndex = alias.selfSortIndex;
     if (typeIndex !== undefined) {
-        const resolved = rctx.resolvedTypes.get(typeIndex as ComponentTypeIndex);
+        const resolved = rctx.resolved.resolvedTypes.get(typeIndex as ComponentTypeIndex);
         if (resolved && resolved.tag === ModelTag.ComponentTypeFunc) {
             return resolved;
         }
@@ -174,7 +185,7 @@ function resolveAliasedFuncType(
  * Type-creating declarations are: InstanceTypeDeclarationType, InstanceTypeDeclarationAlias,
  * and InstanceTypeDeclarationExport with a Type bound (SubResource or Eq).
  */
-function findLocalType(declarations: InstanceTypeDeclaration[], localTypeIndex: number): import('../model/types').ComponentType | undefined {
+function findLocalType(declarations: InstanceTypeDeclaration[], localTypeIndex: number): ComponentType | undefined {
     let typeIdx = 0;
     for (const decl of declarations) {
         if (isTypeCreatingDeclaration(decl)) {
@@ -212,17 +223,22 @@ function isTypeCreatingDeclaration(decl: InstanceTypeDeclaration): boolean {
 }
 
 /**
- * Register instance-local types in rctx.resolvedTypes so that resolveValType
+ * Register instance-local types in rctx.resolved.resolvedTypes so that resolveValType
  * can resolve Type(localIdx) references within function types from this instance.
  *
  * Instance type declarations create a local type index space. Function types
- * inside the instance reference these local indices. Since the resolver processes
- * one CanonicalFunctionLower at a time, we register the current instance's types
- * at their local indices. This overwrites any previous instance's types at the
- * same indices, which is fine because the function type's lifters/lowerers
- * are fully created before the next function is processed.
+ * inside the instance reference these local indices. Local types are written
+ * to resolvedTypes at their local indices, which may overwrite global entries.
+ *
  */
-function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, instance: ComponentTypeInstance, instanceIndex: number): void {
+function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTypeInstance, instanceIndex: number): void {
+    // Snapshot global resolved types before local overwrites. Outer alias lookups must
+    // read original global types, not local types that were written earlier
+    // in this same loop (which may share the same numeric index).
+    // Note: canonicalResourceIds is NOT snapshotted — its entries are additive
+    // (local→canonical mappings needed by resource.drop/new/rep resolvers).
+    const globalResolvedTypes = new Map(rctx.resolved.resolvedTypes);
+
     const localTypes: (ResolvedType | undefined)[] = [];
     // Track which local indices are resources, keyed by export name
     const localResourceNames = new Map<number, string>();
@@ -263,16 +279,17 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
             case ModelTag.InstanceTypeDeclarationAlias: {
                 const alias = decl.value;
                 if (alias.tag === ModelTag.ComponentAliasOuter) {
-                    // Outer alias: look up the referenced type in the outer scope's resolvedTypes
-                    const outerResolved = rctx.resolvedTypes.get(alias.index as ComponentTypeIndex);
+                    // Outer alias: look up the referenced type in the snapshot of global types,
+                    // not the live map which may have been overwritten by earlier local types.
+                    const outerResolved = globalResolvedTypes.get(alias.index as ComponentTypeIndex);
                     if (outerResolved) {
                         resolved = outerResolved;
                     }
                     // Propagate canonical resource ID from the outer scope.
                     // If the outer type is a resource alias, this local index inherits its canonical ID.
-                    const outerCanonicalId = rctx.canonicalResourceIds?.get(alias.index);
+                    const outerCanonicalId = rctx.resolved.canonicalResourceIds?.get(alias.index);
                     if (outerCanonicalId !== undefined) {
-                        rctx.canonicalResourceIds.set(localTypeIdx, outerCanonicalId);
+                        rctx.resolved.canonicalResourceIds.set(localTypeIdx, outerCanonicalId);
                     }
                 }
                 break;
@@ -285,9 +302,9 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
                         const eqIdx = decl.ty.value.value;
                         resolved = localTypes[eqIdx];
                         // Inherit canonical resource ID from the equal type.
-                        const eqCanonicalId = rctx.canonicalResourceIds?.get(eqIdx);
+                        const eqCanonicalId = rctx.resolved.canonicalResourceIds?.get(eqIdx);
                         if (eqCanonicalId !== undefined) {
-                            rctx.canonicalResourceIds.set(localTypeIdx, eqCanonicalId);
+                            rctx.resolved.canonicalResourceIds.set(localTypeIdx, eqCanonicalId);
                         }
                     }
                     if (decl.ty.value.tag === ModelTag.TypeBoundsSubResource) {
@@ -302,7 +319,7 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
 
         localTypes.push(resolved);
         if (resolved) {
-            rctx.resolvedTypes.set(localTypeIdx as ComponentTypeIndex, resolved);
+            rctx.resolved.resolvedTypes.set(localTypeIdx as ComponentTypeIndex, resolved);
         }
         localTypeIdx++;
     }
@@ -316,7 +333,7 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
         const key = `${instanceIndex}:${resourceName}`;
         const canonicalId = rctx.resourceAliasGroups?.get(key);
         if (canonicalId !== undefined) {
-            rctx.canonicalResourceIds.set(localIdx, canonicalId);
+            rctx.resolved.canonicalResourceIds.set(localIdx, canonicalId);
         }
     }
 }
@@ -327,7 +344,7 @@ function registerInstanceLocalTypes(rctx: import('./types').ResolverContext, ins
  */
 export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionResourceDrop> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
+    const resourceTypeIdx = getCanonicalResourceId(rctx.resolved, elem.resource);
 
     return {
         callerElement: rargs.callerElement,
@@ -347,7 +364,7 @@ export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionRes
  */
 export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionResourceNew> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
+    const resourceTypeIdx = getCanonicalResourceId(rctx.resolved, elem.resource);
 
     return {
         callerElement: rargs.callerElement,
@@ -366,7 +383,7 @@ export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionReso
  */
 export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionResourceRep> = (rctx, rargs) => {
     const elem = rargs.element;
-    const resourceTypeIdx = getCanonicalResourceId(rctx, elem.resource);
+    const resourceTypeIdx = getCanonicalResourceId(rctx.resolved, elem.resource);
 
     return {
         callerElement: rargs.callerElement,

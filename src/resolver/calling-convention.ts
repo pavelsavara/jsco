@@ -2,7 +2,7 @@ import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
 import type { ResolvedType } from './type-resolution';
-import type { ResolverContext } from './types';
+import type { ResolvedContext } from './types';
 
 // Canonical ABI limits
 export const MAX_FLAT_PARAMS = 16;
@@ -87,7 +87,7 @@ function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
-export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
+export function sizeOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -96,22 +96,22 @@ export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let size = 0;
             for (const member of type.members) {
-                const fieldAlign = alignOfValType(rctx, member.type);
+                const fieldAlign = alignOfValType(member.type);
                 size = alignUp(size, fieldAlign);
-                size += sizeOfValType(rctx, member.type);
+                size += sizeOfValType(member.type);
             }
-            const recordAlign = alignOf(rctx, type);
+            const recordAlign = alignOf(type);
             return alignUp(size, recordAlign);
         }
 
         case ModelTag.ComponentTypeDefinedTuple: {
             let size = 0;
             for (const member of type.members) {
-                const fieldAlign = alignOfValType(rctx, member);
+                const fieldAlign = alignOfValType(member);
                 size = alignUp(size, fieldAlign);
-                size += sizeOfValType(rctx, member);
+                size += sizeOfValType(member);
             }
-            const tupleAlign = alignOf(rctx, type);
+            const tupleAlign = alignOf(type);
             return alignUp(size, tupleAlign);
         }
 
@@ -119,8 +119,8 @@ export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
             return 8; // pointer + length
 
         case ModelTag.ComponentTypeDefinedOption: {
-            const payloadAlign = alignOfValType(rctx, type.value);
-            const payloadSize = sizeOfValType(rctx, type.value);
+            const payloadAlign = alignOfValType(type.value);
+            const payloadSize = sizeOfValType(type.value);
             // discriminant (1 byte) + padding to payload alignment + payload
             const totalAlign = Math.max(1, payloadAlign);
             return alignUp(alignUp(1, payloadAlign) + payloadSize, totalAlign);
@@ -130,12 +130,12 @@ export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
             let payloadSize = 0;
             let payloadAlign = 1;
             if (type.ok !== undefined) {
-                payloadSize = Math.max(payloadSize, sizeOfValType(rctx, type.ok));
-                payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.ok));
+                payloadSize = Math.max(payloadSize, sizeOfValType(type.ok));
+                payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
             }
             if (type.err !== undefined) {
-                payloadSize = Math.max(payloadSize, sizeOfValType(rctx, type.err));
-                payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.err));
+                payloadSize = Math.max(payloadSize, sizeOfValType(type.err));
+                payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             }
             const totalAlign = Math.max(1, payloadAlign);
             return alignUp(alignUp(1, payloadAlign) + payloadSize, totalAlign);
@@ -148,8 +148,8 @@ export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
             let maxPayloadAlign = 1;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxPayloadSize = Math.max(maxPayloadSize, sizeOfValType(rctx, c.ty));
-                    maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(rctx, c.ty));
+                    maxPayloadSize = Math.max(maxPayloadSize, sizeOfValType(c.ty));
+                    maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(c.ty));
                 }
             }
             const totalAlign = Math.max(discAlign, maxPayloadAlign);
@@ -172,7 +172,7 @@ export function sizeOf(rctx: ResolverContext, type: ResolvedType): number {
     }
 }
 
-export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
+export function alignOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -181,7 +181,7 @@ export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let maxAlign = 1;
             for (const member of type.members) {
-                maxAlign = Math.max(maxAlign, alignOfValType(rctx, member.type));
+                maxAlign = Math.max(maxAlign, alignOfValType(member.type));
             }
             return maxAlign;
         }
@@ -189,7 +189,7 @@ export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedTuple: {
             let maxAlign = 1;
             for (const member of type.members) {
-                maxAlign = Math.max(maxAlign, alignOfValType(rctx, member));
+                maxAlign = Math.max(maxAlign, alignOfValType(member));
             }
             return maxAlign;
         }
@@ -198,12 +198,12 @@ export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
             return 4; // pointer alignment
 
         case ModelTag.ComponentTypeDefinedOption:
-            return Math.max(1, alignOfValType(rctx, type.value));
+            return Math.max(1, alignOfValType(type.value));
 
         case ModelTag.ComponentTypeDefinedResult: {
             let maxAlign = 1;
-            if (type.ok !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(rctx, type.ok));
-            if (type.err !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(rctx, type.err));
+            if (type.ok !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(type.ok));
+            if (type.err !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(type.err));
             return maxAlign;
         }
 
@@ -212,7 +212,7 @@ export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
             let maxAlign = disc;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxAlign = Math.max(maxAlign, alignOfValType(rctx, c.ty));
+                    maxAlign = Math.max(maxAlign, alignOfValType(c.ty));
                 }
             }
             return maxAlign;
@@ -233,7 +233,7 @@ export function alignOf(rctx: ResolverContext, type: ResolvedType): number {
     }
 }
 
-export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
+export function flatCount(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -242,7 +242,7 @@ export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let count = 0;
             for (const member of type.members) {
-                count += flatCountForValType(rctx, member.type);
+                count += flatCountForValType(member.type);
             }
             return count;
         }
@@ -250,7 +250,7 @@ export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedTuple: {
             let count = 0;
             for (const member of type.members) {
-                count += flatCountForValType(rctx, member);
+                count += flatCountForValType(member);
             }
             return count;
         }
@@ -259,12 +259,12 @@ export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
             return 2; // pointer + length
 
         case ModelTag.ComponentTypeDefinedOption:
-            return 1 + flatCountForValType(rctx, type.value); // discriminant + payload
+            return 1 + flatCountForValType(type.value); // discriminant + payload
 
         case ModelTag.ComponentTypeDefinedResult: {
             let maxPayloadFlat = 0;
-            if (type.ok !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(rctx, type.ok));
-            if (type.err !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(rctx, type.err));
+            if (type.ok !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(type.ok));
+            if (type.err !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(type.err));
             return 1 + maxPayloadFlat; // discriminant + max(ok, err)
         }
 
@@ -272,7 +272,7 @@ export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
             let maxCaseFlat = 0;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxCaseFlat = Math.max(maxCaseFlat, flatCountForValType(rctx, c.ty));
+                    maxCaseFlat = Math.max(maxCaseFlat, flatCountForValType(c.ty));
                 }
             }
             return 1 + maxCaseFlat; // discriminant + max case
@@ -295,9 +295,12 @@ export function flatCount(rctx: ResolverContext, type: ResolvedType): number {
 
 // --- Helpers for ComponentValType (which may be primitive or a type reference) ---
 
-export function resolveValType(rctx: ResolverContext, valType: ComponentValType): ResolvedType {
+export function resolveValType(rctx: ResolvedContext, valType: ComponentValType): ResolvedType {
     if (valType.tag === ModelTag.ComponentValTypePrimitive) {
         return valType;
+    }
+    if (valType.tag === ModelTag.ComponentValTypeResolved) {
+        return valType.resolved as ResolvedType;
     }
     // ComponentValTypeType — follow the reference
     const resolved = rctx.resolvedTypes.get(valType.value as ComponentTypeIndex);
@@ -307,16 +310,138 @@ export function resolveValType(rctx: ResolverContext, valType: ComponentValType)
     return resolved;
 }
 
-export function sizeOfValType(rctx: ResolverContext, valType: ComponentValType): number {
-    return sizeOf(rctx, resolveValType(rctx, valType));
+/**
+ * Resolve a ComponentValType without rctx — only handles Primitive and Resolved.
+ * Throws on ComponentValTypeType, which indicates a missing deep-resolve step.
+ * Use this in call-time paths where rctx must not be captured.
+ */
+export function resolveValTypePure(valType: ComponentValType): ResolvedType {
+    if (valType.tag === ModelTag.ComponentValTypePrimitive) {
+        return valType;
+    }
+    if (valType.tag === ModelTag.ComponentValTypeResolved) {
+        return valType.resolved as ResolvedType;
+    }
+    throw new Error(`resolveValTypePure: unexpected ComponentValTypeType(${(valType as any).value}) — type was not deep-resolved`);
 }
 
-export function alignOfValType(rctx: ResolverContext, valType: ComponentValType): number {
-    return alignOf(rctx, resolveValType(rctx, valType));
+/**
+ * Deep-resolve a ResolvedType: recursively replace all nested ComponentValTypeType
+ * references with ComponentValTypeResolved carrying the resolved type inline.
+ * This allows storeToMemory/loadFromMemory/sizeOf/alignOf to work without
+ * looking up rctx.resolvedTypes at call time.
+ */
+export function deepResolveType(rctx: ResolvedContext, type: ResolvedType): ResolvedType {
+    return _deepResolve(rctx, type, new Set());
 }
 
-export function flatCountForValType(rctx: ResolverContext, valType: ComponentValType): number {
-    return flatCount(rctx, resolveValType(rctx, valType));
+function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, visited: Set<unknown>): ComponentValType {
+    if (valType.tag === ModelTag.ComponentValTypePrimitive) {
+        return valType; // primitives are self-contained
+    }
+    if (valType.tag === ModelTag.ComponentValTypeResolved) {
+        return valType; // already resolved
+    }
+    // ComponentValTypeType — resolve and wrap inline
+    const resolved = rctx.resolvedTypes.get(valType.value as ComponentTypeIndex);
+    if (resolved === undefined) {
+        throw new Error(`Unresolved type at index ${valType.value}`);
+    }
+    const deepResolved = _deepResolve(rctx, resolved, visited);
+    return { tag: ModelTag.ComponentValTypeResolved, resolved: deepResolved };
+}
+
+function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<unknown>): ResolvedType {
+    // Guard against infinite recursion from circular type references
+    if (visited.has(type)) return type;
+    visited.add(type);
+
+    switch (type.tag) {
+        case ModelTag.ComponentValTypePrimitive:
+        case ModelTag.ComponentTypeDefinedPrimitive:
+        case ModelTag.ComponentTypeDefinedEnum:
+        case ModelTag.ComponentTypeDefinedFlags:
+        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedBorrow:
+            // No nested ComponentValType references needing resolution
+            return type;
+
+        case ModelTag.ComponentTypeDefinedRecord:
+            return {
+                ...type,
+                members: type.members.map(m => ({
+                    name: m.name,
+                    type: _deepResolveValType(rctx, m.type, visited),
+                })),
+            };
+
+        case ModelTag.ComponentTypeDefinedTuple:
+            return {
+                ...type,
+                members: type.members.map(m => _deepResolveValType(rctx, m, visited)),
+            };
+
+        case ModelTag.ComponentTypeDefinedList:
+            return {
+                ...type,
+                value: _deepResolveValType(rctx, type.value, visited),
+            };
+
+        case ModelTag.ComponentTypeDefinedOption:
+            return {
+                ...type,
+                value: _deepResolveValType(rctx, type.value, visited),
+            };
+
+        case ModelTag.ComponentTypeDefinedResult:
+            return {
+                ...type,
+                ok: type.ok !== undefined ? _deepResolveValType(rctx, type.ok, visited) : undefined,
+                err: type.err !== undefined ? _deepResolveValType(rctx, type.err, visited) : undefined,
+            };
+
+        case ModelTag.ComponentTypeDefinedVariant:
+            return {
+                ...type,
+                variants: type.variants.map(c => ({
+                    ...c,
+                    ty: c.ty !== undefined ? _deepResolveValType(rctx, c.ty, visited) : undefined,
+                })),
+            };
+
+        case ModelTag.ComponentTypeFunc:
+            return {
+                ...type,
+                params: type.params.map(p => ({
+                    name: p.name,
+                    type: _deepResolveValType(rctx, p.type, visited),
+                })),
+                results: type.results.tag === ModelTag.ComponentFuncResultUnnamed
+                    ? { tag: ModelTag.ComponentFuncResultUnnamed, type: _deepResolveValType(rctx, type.results.type, visited) }
+                    : {
+                        tag: ModelTag.ComponentFuncResultNamed,
+                        values: type.results.values.map(v => ({
+                            name: v.name,
+                            type: _deepResolveValType(rctx, v.type, visited),
+                        })),
+                    },
+            };
+
+        default:
+            return type;
+    }
+}
+
+export function sizeOfValType(valType: ComponentValType): number {
+    return sizeOf(resolveValTypePure(valType));
+}
+
+export function alignOfValType(valType: ComponentValType): number {
+    return alignOf(resolveValTypePure(valType));
+}
+
+export function flatCountForValType(valType: ComponentValType): number {
+    return flatCount(resolveValTypePure(valType));
 }
 
 // --- Discriminant sizing per canonical ABI ---
@@ -332,24 +457,23 @@ export function discriminantSize(caseCount: number): number {
 // --- Function-level calling convention decision ---
 
 export function determineFunctionCallingConvention(
-    rctx: ResolverContext,
     funcType: ComponentTypeFunc
 ): FunctionCallingConvention {
     let paramFlatCount = 0;
     for (const param of funcType.params) {
-        paramFlatCount += flatCountForValType(rctx, param.type);
+        paramFlatCount += flatCountForValType(param.type);
     }
 
     let resultFlatCount = 0;
     switch (funcType.results.tag) {
         case ModelTag.ComponentFuncResultNamed: {
             for (const res of funcType.results.values) {
-                resultFlatCount += flatCountForValType(rctx, res.type);
+                resultFlatCount += flatCountForValType(res.type);
             }
             break;
         }
         case ModelTag.ComponentFuncResultUnnamed: {
-            resultFlatCount = flatCountForValType(rctx, funcType.results.type);
+            resultFlatCount = flatCountForValType(funcType.results.type);
             break;
         }
     }

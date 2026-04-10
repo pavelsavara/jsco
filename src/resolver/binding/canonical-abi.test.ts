@@ -3,20 +3,25 @@ setConfiguration('Debug');
 
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext } from '../types';
+import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
 import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
 import { createLowering, loadFromMemory } from './to-js';
 import { WasmPointer, WasmSize } from './types';
 import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+import { deepResolveType } from '../calling-convention';
 
 // --- Test helpers ---
 
 function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
-        usesNumberForInt64,
+        resolved: {
+            liftingCache: new Map(), loweringCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64,
+            stringEncoding: StringEncoding.Utf8,
+            canonicalResourceIds: new Map(),
+        },
     } as any as ResolverContext;
 }
 
@@ -219,7 +224,7 @@ describe('C1: list pointer alignment validation', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U32),
         } as any;
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
 
         const { ctx, buffer } = createMockMemoryContext();
         // Write list data at offset 0 with ptr=3 (misaligned for u32, align=4)
@@ -237,7 +242,7 @@ describe('C1: list pointer alignment validation', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U32),
         } as any;
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
 
         const { ctx, buffer } = createMockMemoryContext();
         const dv = new DataView(buffer);
@@ -253,7 +258,7 @@ describe('C1: list pointer alignment validation', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U8),
         } as any;
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
 
         const { ctx, buffer } = createMockMemoryContext();
         new Uint8Array(buffer)[7] = 0xAB;
@@ -270,7 +275,7 @@ describe('C1: list out-of-bounds validation', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U32),
         } as any;
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
 
         const { ctx } = createMockMemoryContext(64);
         // ptr=60, len=2 means 60 + 2*4 = 68 > 64
@@ -282,7 +287,7 @@ describe('C1: list out-of-bounds validation', () => {
 describe('C1: string out-of-bounds validation', () => {
     test('string beyond memory traps on load', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx } = createMockMemoryContext(64);
         // ptr=60, len=10 means 60+10=70 > 64
@@ -298,7 +303,7 @@ describe('C1: list lifting with misaligned realloc traps', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U32),
         } as any;
-        const lifter = createLifting(rctx, listModel);
+        const lifter = createLifting(rctx.resolved, listModel);
 
         const { ctx } = createMisalignedAllocContext();
         // list<u32> needs align=4 but allocator returns odd addresses
@@ -446,7 +451,7 @@ describe('C2: validateUtf8', () => {
 describe('C2: string lowering validates UTF-8 from memory', () => {
     test('valid UTF-8 string loads correctly', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx, buffer } = createMockMemoryContext();
         // Write "hello" at offset 16
@@ -459,7 +464,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
 
     test('invalid UTF-8 in memory traps on load', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx, buffer } = createMockMemoryContext();
         // Write invalid UTF-8 at offset 16: standalone continuation byte
@@ -471,7 +476,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
 
     test('surrogate in UTF-8 string traps on load', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx, buffer } = createMockMemoryContext();
         // Write U+D800 encoded as UTF-8 (0xED 0xA0 0x80)
@@ -483,7 +488,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
 
     test('overlong encoding traps on load', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx, buffer } = createMockMemoryContext();
         // Overlong encoding of '/' (0x2F): 0xC0 0xAF
@@ -495,7 +500,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
 
     test('empty string (len=0) loads without validation', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
 
         const { ctx } = createMockMemoryContext();
         const result = (lowerer as any)(ctx, 0, 0);
@@ -509,7 +514,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
         const encoded = new TextEncoder().encode(original);
         new Uint8Array(buffer).set(encoded, 16);
 
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
         const result = (lowerer as any)(ctx, 16, encoded.length);
         expect(result).toBe(original);
     });
@@ -521,7 +526,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
         const encoded = new TextEncoder().encode(original);
         new Uint8Array(buffer).set(encoded, 16);
 
-        const lowerer = createLowering(rctx, prim(PrimitiveValType.String));
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
         const result = (lowerer as any)(ctx, 16, encoded.length);
         expect(result).toBe(original);
     });
@@ -541,13 +546,13 @@ describe('C3: nested compound types through memory', () => {
             tag: ModelTag.ComponentTypeDefinedList,
             value: prim(PrimitiveValType.U8),
         } as any;
-        (rctx.resolvedTypes as Map<any, any>).set(100, listModel);
+        (rctx.resolved.resolvedTypes as Map<any, any>).set(100, listModel);
 
-        const optionModel = {
+        const optionModel = deepResolveType(rctx.resolved, {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: { tag: ModelTag.ComponentValTypeType, value: 100 },
-        } as any;
-        (rctx.resolvedTypes as Map<any, any>).set(101, optionModel);
+        } as any);
+        (rctx.resolved.resolvedTypes as Map<any, any>).set(101, optionModel);
 
         // Store Some([1,2,3]) through memory
         // option layout: discriminant(1 byte) + alignment padding + list(ptr + len = 8 bytes)
@@ -563,7 +568,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(20, 200, true); // list ptr
         dv.setInt32(24, 3, true); // list len
 
-        const result = loadFromMemory(ctx, rctx, 16, optionModel);
+        const result = loadFromMemory(ctx, 16, optionModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual([1, 2, 3]);
     });
 
@@ -575,18 +580,18 @@ describe('C3: nested compound types through memory', () => {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: prim(PrimitiveValType.U8),
         } as any;
-        (rctx.resolvedTypes as Map<any, any>).set(100, innerOption);
+        (rctx.resolved.resolvedTypes as Map<any, any>).set(100, innerOption);
 
-        const outerOption = {
+        const outerOption = deepResolveType(rctx.resolved, {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: { tag: ModelTag.ComponentValTypeType, value: 100 },
-        } as any;
+        } as any);
 
         // Store None at offset 16
         const dv = new DataView(buffer);
         dv.setUint8(16, 0); // outer discriminant = None
 
-        const result = loadFromMemory(ctx, rctx, 16, outerOption);
+        const result = loadFromMemory(ctx, 16, outerOption, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toBeNull();
     });
 
@@ -606,7 +611,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(16, 0, true); // discriminant = ok
         dv.setUint32(20, 42, true); // payload = 42
 
-        const result = loadFromMemory(ctx, rctx, 16, resultModel);
+        const result = loadFromMemory(ctx, 16, resultModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'ok', val: 42 });
     });
 
@@ -631,7 +636,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(20, 200, true); // string ptr
         dv.setInt32(24, 4, true); // string len
 
-        const result = loadFromMemory(ctx, rctx, 16, resultModel);
+        const result = loadFromMemory(ctx, 16, resultModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'err', val: 'oops' });
     });
 
@@ -649,10 +654,10 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         // Store: u8 at offset 16, padding to 20, u32 at 20, u8 at 24
-        storeToMemory(ctx, rctx, 16, tupleModel, [0xAB, 0x12345678, 0xCD]);
+        storeToMemory(ctx, 16, tupleModel, [0xAB, 0x12345678, 0xCD], rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
 
         // Read back
-        const result = loadFromMemory(ctx, rctx, 16, tupleModel);
+        const result = loadFromMemory(ctx, 16, tupleModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual([0xAB, 0x12345678, 0xCD]);
     });
 
@@ -671,8 +676,8 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         const original = { flag: true, count: 100, score: 3.14, byte: 0xFF };
-        storeToMemory(ctx, rctx, 16, recordModel, original);
-        const result = loadFromMemory(ctx, rctx, 16, recordModel) as any;
+        storeToMemory(ctx, 16, recordModel, original, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        const result = loadFromMemory(ctx, 16, recordModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds) as any;
 
         expect(result.flag).toBe(true);
         expect(result.count).toBe(100);
@@ -694,13 +699,13 @@ describe('C3: nested compound types through memory', () => {
         } as any;
 
         // Test case 1: just-int(42)
-        storeToMemory(ctx, rctx, 16, variantModel, { tag: 'just-int', val: 42 });
-        let result = loadFromMemory(ctx, rctx, 16, variantModel);
+        storeToMemory(ctx, 16, variantModel, { tag: 'just-int', val: 42 }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        let result = loadFromMemory(ctx, 16, variantModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'just-int', val: 42 });
 
         // Test case 0: none
-        storeToMemory(ctx, rctx, 64, variantModel, { tag: 'none', val: undefined });
-        result = loadFromMemory(ctx, rctx, 64, variantModel);
+        storeToMemory(ctx, 64, variantModel, { tag: 'none', val: undefined }, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        result = loadFromMemory(ctx, 64, variantModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result).toEqual({ tag: 'none', val: undefined });
     });
 
@@ -715,7 +720,7 @@ describe('C3: nested compound types through memory', () => {
                 prim(PrimitiveValType.U32),
             ],
         } as any;
-        (rctx.resolvedTypes as Map<any, any>).set(100, tupleModel);
+        (rctx.resolved.resolvedTypes as Map<any, any>).set(100, tupleModel);
 
         const listModel = {
             tag: ModelTag.ComponentTypeDefinedList,
@@ -724,8 +729,8 @@ describe('C3: nested compound types through memory', () => {
 
         // tuple<u8, u32> has size=8 (1 byte + 3 padding + 4 bytes), align=4
         // Store 2 elements at offset 200
-        storeToMemory(ctx, rctx, 200, tupleModel, [0xAA, 100]);
-        storeToMemory(ctx, rctx, 208, tupleModel, [0xBB, 200]);
+        storeToMemory(ctx, 200, tupleModel, [0xAA, 100], rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+        storeToMemory(ctx, 208, tupleModel, [0xBB, 200], rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
 
         // Now set up list pointer: ptr=200, len=2
         const dv = new DataView(buffer);
@@ -733,7 +738,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setInt32(20, 2, true); // len
 
         // Load the list using lowerer
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
         const result = (lowerer as any)(ctx, 200, 2);
         expect(result).toEqual([
             [0xAA, 100],
@@ -749,7 +754,7 @@ describe('C3: nested compound types through memory', () => {
             tag: ModelTag.ComponentTypeDefinedOption,
             value: prim(PrimitiveValType.U32),
         } as any;
-        (rctx.resolvedTypes as Map<any, any>).set(100, optionModel);
+        (rctx.resolved.resolvedTypes as Map<any, any>).set(100, optionModel);
 
         const listModel = {
             tag: ModelTag.ComponentTypeDefinedList,
@@ -769,7 +774,7 @@ describe('C3: nested compound types through memory', () => {
         dv.setUint8(216, 1); // discriminant = Some
         dv.setUint32(220, 20, true); // payload
 
-        const lowerer = createLowering(rctx, listModel);
+        const lowerer = createLowering(rctx.resolved, listModel);
         const result = (lowerer as any)(ctx, 200, 3);
         expect(result).toEqual([10, null, 20]);
     });
@@ -828,7 +833,7 @@ describe('C4: instance poisoning through liftingTrampoline', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         let capturedInExport = false;
@@ -852,7 +857,7 @@ describe('C4: instance poisoning through liftingTrampoline', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         const mockWasm = () => { throw new Error('wasm trap!'); };
@@ -871,7 +876,7 @@ describe('C4: instance poisoning through liftingTrampoline', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         // First call traps
@@ -895,7 +900,7 @@ describe('C4: reentrance guard through liftingTrampoline', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         let reentrantError: Error | null = null;
@@ -935,7 +940,7 @@ describe('C4: post-return cleanup', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         let postReturnCalled = false;
@@ -960,7 +965,7 @@ describe('C4: post-return cleanup', () => {
             results: { tag: ModelTag.ComponentFuncResultUnnamed, type: prim(PrimitiveValType.U32) },
         } as any;
 
-        const fnLifting = createFunctionLifting(rctx, funcModel);
+        const fnLifting = createFunctionLifting(rctx.resolved, funcModel);
         const { ctx } = createMockMemoryContext();
 
         let postReturnCalled = false;
@@ -984,8 +989,8 @@ describe('C-integration: full round-trip with validation', () => {
         const lowerRctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
 
-        const lifter = createLifting(liftRctx, prim(PrimitiveValType.String));
-        const lowerer = createLowering(lowerRctx, prim(PrimitiveValType.String));
+        const lifter = createLifting(liftRctx.resolved, prim(PrimitiveValType.String));
+        const lowerer = createLowering(lowerRctx.resolved, prim(PrimitiveValType.String));
 
         const original = 'hello world 🌍';
         const [ptr, len] = (lifter as any)(ctx, original) as [number, number];
@@ -1007,8 +1012,8 @@ describe('C-integration: full round-trip with validation', () => {
             value: prim(PrimitiveValType.U32),
         } as any;
 
-        const lifter = createLifting(liftRctx, listModelLift);
-        const lowerer = createLowering(lowerRctx, listModelLower);
+        const lifter = createLifting(liftRctx.resolved, listModelLift);
+        const lowerer = createLowering(lowerRctx.resolved, listModelLower);
 
         const original = [10, 20, 30];
         const [ptr, len] = (lifter as any)(ctx, original) as [number, number];
@@ -1039,8 +1044,152 @@ describe('C-integration: full round-trip with validation', () => {
         dv.setInt32(36, 200, true); // name ptr
         dv.setInt32(40, 5, true); // name len
 
-        const result = loadFromMemory(ctx, rctx, 32, recordModel);
+        const result = loadFromMemory(ctx, 32, recordModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
         expect(result.id).toBe(42);
         expect(result.name).toBe('Alice');
+    });
+});
+
+// =============================================================================
+// UTF-16 String Encoding
+// =============================================================================
+
+describe('UTF-16 string encoding', () => {
+    function createUtf16Rctx(): ResolverContext {
+        return {
+            resolved: {
+                liftingCache: new Map(), loweringCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: false,
+                stringEncoding: StringEncoding.Utf16,
+            },
+        } as any as ResolverContext;
+    }
+
+    describe('lifting (JS → WASM memory)', () => {
+        test('ASCII string encodes as UTF-16LE', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            const [ptr, codeUnits] = lifter(ctx, 'hello') as [number, number];
+            expect(codeUnits).toBe(5);
+            const view = new Uint8Array(buffer, ptr, 10);
+            // 'h'=0x0068 'e'=0x0065 'l'=0x006C 'l'=0x006C 'o'=0x006F (little-endian)
+            expect(view[0]).toBe(0x68); expect(view[1]).toBe(0x00);
+            expect(view[2]).toBe(0x65); expect(view[3]).toBe(0x00);
+            expect(view[4]).toBe(0x6C); expect(view[5]).toBe(0x00);
+        });
+
+        test('empty string returns [0, 0]', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
+            const { ctx } = createMockMemoryContext();
+
+            const [ptr, codeUnits] = lifter(ctx, '') as [number, number];
+            expect(ptr).toBe(0);
+            expect(codeUnits).toBe(0);
+        });
+
+        test('BMP characters encode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            // Japanese characters — all BMP (2 bytes each in UTF-16)
+            const [ptr, codeUnits] = lifter(ctx, '日本') as [number, number];
+            expect(codeUnits).toBe(2);
+            const dv = new DataView(buffer, ptr, 4);
+            expect(dv.getUint16(0, true)).toBe('日'.charCodeAt(0));
+            expect(dv.getUint16(2, true)).toBe('本'.charCodeAt(0));
+        });
+
+        test('surrogate pairs encode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.String));
+            const { ctx, buffer } = createMockMemoryContext();
+
+            // 𝄞 = U+1D11E → surrogate pair D834 DD1E
+            const [ptr, codeUnits] = lifter(ctx, '𝄞') as [number, number];
+            expect(codeUnits).toBe(2); // surrogate pair = 2 code units
+            const dv = new DataView(buffer, ptr, 4);
+            expect(dv.getUint16(0, true)).toBe(0xD834);
+            expect(dv.getUint16(2, true)).toBe(0xDD1E);
+        });
+    });
+
+    describe('lowering (WASM memory → JS)', () => {
+        test('UTF-16LE in memory decodes to JS string', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write "hi" as UTF-16LE at offset 16
+            const dv = new DataView(buffer);
+            dv.setUint16(16, 'h'.charCodeAt(0), true);
+            dv.setUint16(18, 'i'.charCodeAt(0), true);
+
+            const result = (lowerer as any)(ctx, 16, 2);
+            expect(result).toBe('hi');
+        });
+
+        test('empty string (0 code units) loads correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
+
+            const { ctx } = createMockMemoryContext();
+            const result = (lowerer as any)(ctx, 0, 0);
+            expect(result).toBe('');
+        });
+
+        test('surrogate pairs in memory decode correctly', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write 𝄞 (U+1D11E) as surrogate pair at offset 16
+            const dv = new DataView(buffer);
+            dv.setUint16(16, 0xD834, true);
+            dv.setUint16(18, 0xDD1E, true);
+
+            const result = (lowerer as any)(ctx, 16, 2);
+            expect(result).toBe('𝄞');
+        });
+
+        test('misaligned UTF-16 pointer traps', () => {
+            const rctx = createUtf16Rctx();
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
+
+            const { ctx, buffer } = createMockMemoryContext();
+            // Write at odd offset
+            new Uint8Array(buffer).set([0x68, 0x00], 17);
+
+            expect(() => (lowerer as any)(ctx, 17, 1))
+                .toThrow('UTF-16 string pointer not aligned');
+        });
+    });
+
+    describe('memory path (storeToMemory/loadFromMemory)', () => {
+        test('UTF-16 string round-trips through memory', () => {
+            const rctx = createUtf16Rctx();
+            const { ctx } = createMockMemoryContext();
+
+            const strType = prim(PrimitiveValType.String);
+            storeToMemory(ctx, 32, strType as any, 'hëllo', rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+
+            const result = loadFromMemory(ctx, 32, strType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            expect(result).toBe('hëllo');
+        });
+
+        test('UTF-16 Japanese string round-trips through memory', () => {
+            const rctx = createUtf16Rctx();
+            const { ctx } = createMockMemoryContext();
+
+            const strType = prim(PrimitiveValType.String);
+            storeToMemory(ctx, 32, strType as any, '日本語', rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+
+            const result = loadFromMemory(ctx, 32, strType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            expect(result).toBe('日本語');
+        });
     });
 });

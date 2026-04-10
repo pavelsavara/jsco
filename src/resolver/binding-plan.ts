@@ -1,7 +1,7 @@
 import { isDebug } from '../utils/assert';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from './context';
-import { BinderArgs, BindingContext, ResolverContext, ResolverRes } from './types';
+import { BinderArgs, BindingContext, ResolverRes } from './types';
 
 export const enum PlanOpKind {
     CoreInstantiate,
@@ -33,12 +33,11 @@ export type ExportBindOp = {
 }
 
 export async function executePlan<TJSExports>(
-    rctx: ResolverContext,
     plan: PlanOp[],
     componentImports?: JsImports,
 ): Promise<WasmComponentInstance<TJSExports>> {
     componentImports = componentImports ?? {};
-    const ctx: BindingContext = createBindingContext(rctx, componentImports);
+    const ctx: BindingContext = createBindingContext(componentImports);
 
     const imports = {};
     const exports = {};

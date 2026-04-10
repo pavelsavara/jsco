@@ -75,6 +75,7 @@ export const enum ModelTag {
     ComponentTypeInstance,
     ComponentTypeResource,
     ComponentValTypePrimitive,
+    ComponentValTypeResolved,
     ComponentValTypeType,
     CoreTypeFunc,
     CoreTypeModule,

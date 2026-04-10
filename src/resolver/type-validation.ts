@@ -121,7 +121,16 @@ function compareFuncTypes(name: string, declared: ComponentFuncType, actual: Com
 
 function valTypesEqual(a: ComponentValType, b: ComponentValType): boolean {
     if (a.tag !== b.tag) return false;
-    return a.value === b.value;
+    if (a.tag === ModelTag.ComponentValTypePrimitive && b.tag === ModelTag.ComponentValTypePrimitive) {
+        return a.value === b.value;
+    }
+    if (a.tag === ModelTag.ComponentValTypeType && b.tag === ModelTag.ComponentValTypeType) {
+        return a.value === b.value;
+    }
+    if (a.tag === ModelTag.ComponentValTypeResolved && b.tag === ModelTag.ComponentValTypeResolved) {
+        return a.resolved === b.resolved;
+    }
+    return false;
 }
 
 export function validateImportType(rctx: ResolverContext, componentImport: ComponentImport): void {

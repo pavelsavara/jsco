@@ -4,20 +4,26 @@ import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/
 import { ExternalKind } from '../model/core';
 import { ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolverContext, ResourceTable } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
+import type { ComponentImport } from '../model/imports';
+import type { ComponentTypeInstance } from '../model/types';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
-        usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+        resolved: {
+            usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+            stringEncoding: StringEncoding.Utf8,
+            liftingCache: new Map(),
+            loweringCache: new Map(),
+            resolvedTypes: new Map(),
+            canonicalResourceIds: new Map(),
+        },
         validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
-        canonicalResourceIds: new Map(),
         resourceAliasGroups: new Map(),
         indexes: {
             componentExports: [],
@@ -46,31 +52,44 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             rctx.indexes.componentTypeResource.push({ ...section } as any);
         }
 
-        // ComponentImport with Instance kind creates an entry in the instance sort.
-        // The instance sort is built from imports (instance kind) + instance sections,
-        // in binary order. The imported instance's type definition (ComponentTypeInstance)
-        // is looked up from componentTypes and pushed to componentInstances.
+        // ComponentImport contributions to sort index spaces.
+        // Each import kind contributes to its respective sort, and we track the
+        // mapping from import index → sort index for kinds that need it at bind time.
         if (section.tag === ModelTag.ComponentImport) {
-            const imp = section as import('../model/imports').ComponentImport;
+            const imp = section as ComponentImport;
             if (imp.ty.tag === ModelTag.ComponentTypeRefInstance) {
-                // The ty.value is a type sort index pointing to a ComponentTypeInstance
+                // Instance import → instance sort.
+                // The ty.value is a type sort index pointing to a ComponentTypeInstance.
                 const instanceType = indexes.componentTypes[imp.ty.value];
                 if (instanceType) {
                     const instanceIndex = indexes.componentInstances.length;
                     // Shallow clone: the same object lives in componentTypes[] too.
                     // setSelfIndex runs on both arrays, so a shared reference would
                     // get its selfSortIndex clobbered by whichever array runs last.
-                    // Cloning lets each array track its own position.
-                    indexes.componentInstances.push({ ...instanceType } as import('../model/types').ComponentTypeInstance);
-                    // Track import→instance mapping: import's position in componentImports
-                    // may differ from its position in componentInstances when there are
-                    // non-instance imports or other entries in the instance sort.
+                    indexes.componentInstances.push({ ...instanceType } as ComponentTypeInstance);
                     const importIndex = indexes.componentImports.length - 1;
                     rctx.importToInstanceIndex.set(importIndex, instanceIndex);
                 }
             }
+            if (imp.ty.tag === ModelTag.ComponentTypeRefComponent) {
+                // Component import → instance sort (for JS binding, imported components
+                // are provided as objects with exports, equivalent to instances).
+                // Also pushed to componentSections (component sort) so
+                // ComponentInstanceInstantiate.component_index can reference it.
+                const instanceIndex = indexes.componentInstances.length;
+                const componentType = indexes.componentTypes[imp.ty.value];
+                if (componentType) {
+                    indexes.componentInstances.push({ ...componentType } as ComponentTypeInstance);
+                } else {
+                    // No type definition found — create a placeholder instance entry
+                    indexes.componentInstances.push({ tag: ModelTag.ComponentTypeInstance, declarations: [] } as any);
+                }
+                indexes.componentSections.push(imp as any);
+                const importIndex = indexes.componentImports.length - 1;
+                rctx.importToInstanceIndex.set(importIndex, instanceIndex);
+            }
             // Func imports contribute to the component function index space.
-            // CanonicalFunctionLower.func_index may reference imported functions.
+            // CanonicalFunctionLower.func_index references imported functions by index.
             if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
                 indexes.componentFunctions.push(imp);
             }
@@ -84,7 +103,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     // while type_index references componentTypes (TYPE sort).
     setSelfIndex(rctx);
     buildCanonicalResourceIds(rctx);
-    rctx.resolvedTypes = buildResolvedTypeMap(rctx);
+    rctx.resolved.resolvedTypes = buildResolvedTypeMap(rctx);
     return rctx;
 }
 
@@ -115,7 +134,7 @@ export function setSelfIndex(rctx: ResolverContext) {
 /// correctly across different aliases to the same underlying resource.
 function buildCanonicalResourceIds(rctx: ResolverContext): void {
     const types = rctx.indexes.componentTypes;
-    const map = rctx.canonicalResourceIds;
+    const map = rctx.resolved.canonicalResourceIds;
 
     // Phase 1: Assign canonical IDs to resource source types.
     // For ComponentTypeResource: the type index IS the canonical ID.
@@ -144,7 +163,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
 
 /// Resolves a type index to its canonical resource ID.
 /// Handles own<T>/borrow<T> (follows .value) and direct resource/alias references.
-export function getCanonicalResourceId(rctx: ResolverContext, resourceTypeIdx: number): number {
+export function getCanonicalResourceId(rctx: ResolvedContext, resourceTypeIdx: number): number {
     return rctx.canonicalResourceIds?.get(resourceTypeIdx) ?? resourceTypeIdx;
 }
 
@@ -230,7 +249,7 @@ export function createResourceTable(): ResourceTable {
     };
 }
 
-export function createBindingContext(rctx: ResolverContext, componentImports: JsImports): BindingContext {
+export function createBindingContext(componentImports: JsImports): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();

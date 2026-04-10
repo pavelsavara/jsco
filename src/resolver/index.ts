@@ -73,8 +73,27 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     // are not exported but still needed)
     const sortedPlan = sortPlanForExecution(plan);
 
+    // Free the large indexes structure — no longer needed after resolution.
+    // Binder closures capture rctx.resolved (ResolvedContext) — a separate object
+    // from rctx, so rctx itself (with indexes, importToInstanceIndex, etc.) is GC-eligible.
+    // The innermost trampoline closures don't capture resolved at all — they pre-capture
+    // only stringEncoding (number) and canonicalResourceIds (Map) values.
+    rctx.indexes = null!;
+
+    const resolved = rctx.resolved;
+    let firstInstantiation = true;
     const component: WasmComponent<TJSExports> = {
-        instantiate: (imports) => executePlan(rctx, sortedPlan, imports),
+        instantiate: async (imports) => {
+            const result = await executePlan<TJSExports>(sortedPlan, imports);
+            if (firstInstantiation) {
+                firstInstantiation = false;
+                // After first instantiation all memoize factories have run.
+                // Null heavy maps — lift/lower caches still serve cached lifters/lowerers.
+                resolved.resolvedTypes = null!;
+                resolved.canonicalResourceIds = null!;
+            }
+            return result;
+        },
         plan: sortedPlan,
     };
     return component;

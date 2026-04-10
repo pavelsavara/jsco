@@ -1,11 +1,11 @@
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
-import { BindingContext, ResolverContext } from '../types';
+import { BindingContext, ResolvedContext, StringEncoding } from '../types';
 import { jsco_assert } from '../../utils/assert';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, storeToMemory } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
@@ -22,37 +22,43 @@ _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
 
 
-export function createFunctionLowering(rctx: ResolverContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
-    return memoize(rctx.memoizeCache, exportModel, () => {
-        const callingConvention = determineFunctionCallingConvention(rctx, exportModel);
-        // Pre-resolve param/result types for spilled path
-        const paramResolvedTypes = exportModel.params.map(p => resolveValType(rctx, p.type));
+export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
+    return memoize(rctx.loweringCache, exportModel, () => {
+        const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
+        // Pre-resolve param/result types for spilled path — deep-resolve ensures
+        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
+        const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
         let resultType: ResolvedType | undefined;
         if (exportModel.results.tag === ModelTag.ComponentFuncResultUnnamed) {
-            resultType = resolveValType(rctx, exportModel.results.type);
+            resultType = deepResolveType(rctx, resolveValType(rctx, exportModel.results.type));
         }
 
-        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
-
-            const paramLowerers: Function[] = [];
-            for (const param of exportModel.params) {
-                const lowerer = createLowering(rctx, param.type);
-                paramLowerers.push(lowerer);
-            }
-            const resultLifters: Function[] = [];
-            switch (exportModel.results.tag) {
-                case ModelTag.ComponentFuncResultNamed: {
-                    for (const res of exportModel.results.values) {
-                        const lifter = createLifting(rctx, res.type);
-                        resultLifters.push(lifter);
-                    }
-                    break;
-                }
-                case ModelTag.ComponentFuncResultUnnamed: {
-                    const lifter = createLifting(rctx, exportModel.results.type);
+        // Pre-create lowerers/lifters at resolution time (matches createFunctionLifting pattern)
+        const paramLowerers: Function[] = [];
+        for (const param of exportModel.params) {
+            const lowerer = createLowering(rctx, param.type);
+            paramLowerers.push(lowerer);
+        }
+        const resultLifters: Function[] = [];
+        switch (exportModel.results.tag) {
+            case ModelTag.ComponentFuncResultNamed: {
+                for (const res of exportModel.results.values) {
+                    const lifter = createLifting(rctx, res.type);
                     resultLifters.push(lifter);
                 }
+                break;
             }
+            case ModelTag.ComponentFuncResultUnnamed: {
+                const lifter = createLifting(rctx, exportModel.results.type);
+                resultLifters.push(lifter);
+            }
+        }
+
+        // Pre-capture rctx properties needed at call time — after this, rctx is not captured
+        const stringEncoding = rctx.stringEncoding;
+        const canonicalResourceIds = rctx.canonicalResourceIds;
+
+        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
             function loweringTrampoline(...args: any[]): any {
                 let covertedArgs: any[] = [];
@@ -62,10 +68,10 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
                     let memOffset = 0;
                     for (let i = 0; i < paramResolvedTypes.length; i++) {
                         const pt = paramResolvedTypes[i];
-                        const a = alignOf(rctx, pt);
+                        const a = alignOf(pt);
                         memOffset = alignUp(memOffset, a);
-                        covertedArgs.push(loadFromMemory(ctx, rctx, ptr + memOffset, pt));
-                        memOffset += sizeOf(rctx, pt);
+                        covertedArgs.push(loadFromMemory(ctx, ptr + memOffset, pt, stringEncoding, canonicalResourceIds));
+                        memOffset += sizeOf(pt);
                     }
                 } else {
                     // Flat/Scalar: read each param using lowerers
@@ -85,7 +91,7 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
                     const retptr = args[args.length - 1] as number;
                     const resJs = jsFunction(...covertedArgs);
                     if (resultType !== undefined) {
-                        storeToMemory(ctx, rctx, retptr, resultType, resJs);
+                        storeToMemory(ctx, retptr, resultType, resJs, stringEncoding, canonicalResourceIds);
                     }
                     // No return value - WASM reads from retptr
                 } else {
@@ -100,14 +106,14 @@ export function createFunctionLowering(rctx: ResolverContext, exportModel: Compo
     });
 }
 
-export function createLowering(rctx: ResolverContext, typeModel: ComponentValType | ResolvedType): LoweringToJs {
-    return memoize(rctx.memoizeCache, typeModel, () => {
+export function createLowering(rctx: ResolvedContext, typeModel: ComponentValType | ResolvedType): LoweringToJs {
+    return memoize(rctx.loweringCache, typeModel, () => {
         switch (typeModel.tag) {
             case ModelTag.ComponentValTypePrimitive:
             case ModelTag.ComponentTypeDefinedPrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
-                        return createStringLowering(rctx);
+                        return createStringLowering(rctx.stringEncoding);
                     case PrimitiveValType.Bool:
                         return createBoolLowering();
                     case PrimitiveValType.S8:
@@ -297,7 +303,7 @@ function createCharLowering(): LoweringToJs {
     return fn;
 }
 
-function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
+function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
     const fieldLowerers: { name: string, lowerer: LoweringToJs }[] = [];
     for (const member of recordModel.members) {
         const lowerer = createLowering(rctx, member.type);
@@ -322,7 +328,17 @@ function createRecordLowering(rctx: ResolverContext, recordModel: ComponentTypeD
     return fn;
 }
 
-function createStringLowering(_rctx: ResolverContext): LoweringToJs {
+function createStringLowering(encoding: StringEncoding): LoweringToJs {
+    if (encoding === StringEncoding.Utf16) {
+        return createStringLoweringUtf16();
+    }
+    if (encoding === StringEncoding.CompactUtf16) {
+        throw new Error('CompactUTF-16 (latin1+utf16) string encoding not yet supported');
+    }
+    return createStringLoweringUtf8();
+}
+
+function createStringLoweringUtf8(): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const pointer = args[0] as WasmPointer;
         const len = args[1] as WasmSize;
@@ -345,13 +361,38 @@ function createStringLowering(_rctx: ResolverContext): LoweringToJs {
     return fn;
 }
 
+function createStringLoweringUtf16(): LoweringToJs {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
+        const pointer = args[0] as WasmPointer;
+        const codeUnits = args[1] as WasmSize;
+        if (codeUnits as number > 0) {
+            const byteLen = (codeUnits as number) * 2;
+            // Validate pointer alignment (UTF-16 = 2-byte alignment)
+            if ((pointer as number) & 1) {
+                throw new Error(`UTF-16 string pointer not aligned: ptr=${pointer}`);
+            }
+            // Validate bounds
+            const memorySize = ctx.memory.getMemory().buffer.byteLength;
+            if ((pointer as number) + byteLen > memorySize) {
+                throw new Error(`string pointer out of bounds: ptr=${pointer} byte_len=${byteLen} memory_size=${memorySize}`);
+            }
+        }
+        const byteLen = (codeUnits as number) * 2;
+        const view = ctx.memory.getView(pointer, byteLen as WasmSize);
+        const u16 = new Uint16Array(view.buffer, view.byteOffset, codeUnits as number);
+        return String.fromCharCode(...u16);
+    };
+    fn.spill = 2;
+    return fn;
+}
+
 // --- Memory load helpers (for list element loading) ---
 
 function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
-function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType): any {
+function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType, encoding: StringEncoding): any {
     switch (prim) {
         case PrimitiveValType.Bool: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
@@ -405,26 +446,32 @@ function loadPrimitive(ctx: BindingContext, ptr: number, prim: PrimitiveValType)
             const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
             const strPtr = dv.getInt32(0, true);
             const strLen = dv.getInt32(4, true);
+            if (encoding === StringEncoding.Utf16) {
+                const byteLen = strLen * 2;
+                const strView = ctx.memory.getView(strPtr as WasmPointer, byteLen as WasmSize);
+                const u16 = new Uint16Array(strView.buffer, strView.byteOffset, strLen);
+                return String.fromCharCode(...u16);
+            }
             const strView = ctx.memory.getView(strPtr as WasmPointer, strLen as WasmSize);
             return ctx.utf8Decoder.decode(strView);
         }
     }
 }
 
-export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: number, type: ResolvedType): any {
+export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): any {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return loadPrimitive(ctx, ptr, type.value);
+            return loadPrimitive(ctx, ptr, type.value, stringEncoding);
         case ModelTag.ComponentTypeDefinedRecord: {
             const result: Record<string, unknown> = {};
             let offset = 0;
             for (const member of type.members) {
-                const fieldType = resolveValType(rctx, member.type);
-                const fieldAlign = alignOf(rctx, fieldType);
+                const fieldType = resolveValTypePure(member.type);
+                const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
-                result[member.name] = loadFromMemory(ctx, rctx, ptr + offset, fieldType);
-                offset += sizeOf(rctx, fieldType);
+                result[member.name] = loadFromMemory(ctx, ptr + offset, fieldType, stringEncoding, canonicalResourceIds);
+                offset += sizeOf(fieldType);
             }
             return result;
         }
@@ -432,38 +479,38 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
             const listPtr = dv.getInt32(0, true);
             const len = dv.getInt32(4, true);
-            const elemType = resolveValType(rctx, type.value);
-            const elemSize = sizeOf(rctx, elemType);
+            const elemType = resolveValTypePure(type.value);
+            const elemSize = sizeOf(elemType);
             const result: any[] = [];
             for (let i = 0; i < len; i++) {
-                result.push(loadFromMemory(ctx, rctx, listPtr + i * elemSize, elemType));
+                result.push(loadFromMemory(ctx, listPtr + i * elemSize, elemType, stringEncoding, canonicalResourceIds));
             }
             return result;
         }
         case ModelTag.ComponentTypeDefinedOption: {
-            const payloadType = resolveValType(rctx, type.value);
-            const payloadAlign = alignOf(rctx, payloadType);
+            const payloadType = resolveValTypePure(type.value);
+            const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
             const disc = dv.getUint8(0);
             if (disc === 0) return null;
-            return loadFromMemory(ctx, rctx, ptr + payloadOffset, payloadType);
+            return loadFromMemory(ctx, ptr + payloadOffset, payloadType, stringEncoding, canonicalResourceIds);
         }
         case ModelTag.ComponentTypeDefinedResult: {
             let payloadAlign = 1;
-            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.ok));
-            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(rctx, type.err));
+            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
+            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
             const disc = dv.getUint8(0);
             if (disc === 0) {
                 const val = type.ok !== undefined
-                    ? loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, type.ok))
+                    ? loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds)
                     : undefined;
                 return { tag: 'ok', val };
             } else {
                 const val = type.err !== undefined
-                    ? loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, type.err))
+                    ? loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(type.err), stringEncoding, canonicalResourceIds)
                     : undefined;
                 return { tag: 'err', val };
             }
@@ -472,7 +519,7 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const discSize = discriminantSize(type.variants.length);
             let maxPayloadAlign = 1;
             for (const c of type.variants) {
-                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(rctx, c.ty));
+                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(c.ty));
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
@@ -482,7 +529,7 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             else disc = dv.getUint32(0, true);
             const c = type.variants[disc];
             if (c.ty !== undefined) {
-                return { tag: c.name, val: loadFromMemory(ctx, rctx, ptr + payloadOffset, resolveValType(rctx, c.ty)) };
+                return { tag: c.name, val: loadFromMemory(ctx, ptr + payloadOffset, resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds) };
             }
             return { tag: c.name };
         }
@@ -511,23 +558,23 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
             const result: any[] = [];
             let offset = 0;
             for (const member of type.members) {
-                const memberType = resolveValType(rctx, member);
-                const memberAlign = alignOf(rctx, memberType);
+                const memberType = resolveValTypePure(member);
+                const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                result.push(loadFromMemory(ctx, rctx, ptr + offset, memberType));
-                offset += sizeOf(rctx, memberType);
+                result.push(loadFromMemory(ctx, ptr + offset, memberType, stringEncoding, canonicalResourceIds));
+                offset += sizeOf(memberType);
             }
             return result;
         }
         case ModelTag.ComponentTypeDefinedOwn: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.remove(getCanonicalResourceId(rctx, type.value), handle);
+            return ctx.resources.remove(canonicalResourceIds?.get(type.value) ?? type.value, handle);
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const dv = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize);
             const handle = dv.getInt32(0, true);
-            return ctx.resources.get(getCanonicalResourceId(rctx, type.value), handle);
+            return ctx.resources.get(canonicalResourceIds?.get(type.value) ?? type.value, handle);
         }
         default:
             throw new Error('loadFromMemory not implemented for tag ' + type.tag);
@@ -536,10 +583,12 @@ export function loadFromMemory(ctx: BindingContext, rctx: ResolverContext, ptr: 
 
 // --- List lowering ---
 
-function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefinedList): LoweringToJs {
+function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LoweringToJs {
     const elementType = resolveValType(rctx, listModel.value);
-    const elemSize = sizeOf(rctx, elementType);
-    const elemAlign = alignOf(rctx, elementType);
+    const elemSize = sizeOf(elementType);
+    const elemAlign = alignOf(elementType);
+    const stringEncoding = rctx.stringEncoding;
+    const canonicalResourceIds = rctx.canonicalResourceIds;
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const ptr = args[0] as number;
@@ -555,7 +604,7 @@ function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefin
         }
         const result: any[] = [];
         for (let i = 0; i < len; i++) {
-            result.push(loadFromMemory(ctx, rctx, ptr + i * elemSize, elementType));
+            result.push(loadFromMemory(ctx, ptr + i * elemSize, elementType, stringEncoding, canonicalResourceIds));
         }
         return result;
     };
@@ -565,7 +614,7 @@ function createListLowering(rctx: ResolverContext, listModel: ComponentTypeDefin
 
 // --- Option lowering ---
 
-function createOptionLowering(rctx: ResolverContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
+function createOptionLowering(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
     const innerLowerer = createLowering(rctx, optionModel.value);
     const innerSpill = (innerLowerer as any).spill as number;
 
@@ -582,7 +631,7 @@ function createOptionLowering(rctx: ResolverContext, optionModel: ComponentTypeD
 
 // --- Result lowering ---
 
-function createResultLowering(rctx: ResolverContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
+function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
     const okLowerer = resultModel.ok ? createLowering(rctx, resultModel.ok) : undefined;
     const errLowerer = resultModel.err ? createLowering(rctx, resultModel.err) : undefined;
     const okSpill = okLowerer ? (okLowerer as any).spill as number : 0;
@@ -607,7 +656,7 @@ function createResultLowering(rctx: ResolverContext, resultModel: ComponentTypeD
 
 // --- Variant lowering ---
 
-function createVariantLowering(rctx: ResolverContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
+function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
     const cases = variantModel.variants.map((c) => ({
         name: c.name,
         lowerer: c.ty ? createLowering(rctx, c.ty) : undefined,
@@ -631,7 +680,7 @@ function createVariantLowering(rctx: ResolverContext, variantModel: ComponentTyp
 
 // --- Enum lowering ---
 
-function createEnumLowering(_rctx: ResolverContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
+function createEnumLowering(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
     const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
         const disc = args[0] as number;
         if (disc >= enumModel.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${enumModel.members.length}`);
@@ -643,7 +692,7 @@ function createEnumLowering(_rctx: ResolverContext, enumModel: ComponentTypeDefi
 
 // --- Flags lowering ---
 
-function createFlagsLowering(_rctx: ResolverContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
+function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
 
     const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
@@ -660,7 +709,7 @@ function createFlagsLowering(_rctx: ResolverContext, flagsModel: ComponentTypeDe
 
 // --- Tuple lowering ---
 
-function createTupleLowering(rctx: ResolverContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
+function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
     const elementLowerers = tupleModel.members.map(m => createLowering(rctx, m));
 
     let totalSpill = 0;
@@ -682,7 +731,7 @@ function createTupleLowering(rctx: ResolverContext, tupleModel: ComponentTypeDef
 
 // --- Resource handle lowering ---
 
-function createOwnLowering(rctx: ResolverContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
+function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
@@ -692,7 +741,7 @@ function createOwnLowering(rctx: ResolverContext, ownModel: ComponentTypeDefined
     return fn;
 }
 
-function createBorrowLowering(rctx: ResolverContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
+function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;

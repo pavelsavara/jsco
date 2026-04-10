@@ -10,9 +10,11 @@ import { WasmPointer, WasmSize } from './types';
 
 function createMinimalRctx(): ResolverContext {
     return {
-        memoizeCache: new Map(),
-        resolvedTypes: new Map(),
-        usesNumberForInt64: false,
+        resolved: {
+            liftingCache: new Map(), loweringCache: new Map(),
+            resolvedTypes: new Map(),
+            usesNumberForInt64: false,
+        },
     } as any as ResolverContext;
 }
 
@@ -91,32 +93,32 @@ describe('option lifting (JS → WASM)', () => {
     });
 
     test('null lifts to [0, 0] (None)', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lifter(bctx, null)).toEqual([0, 0]);
     });
 
     test('undefined lifts to [0, 0] (None)', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lifter(bctx, undefined)).toEqual([0, 0]);
     });
 
     test('42 lifts to [1, 42] (Some(42))', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lifter(bctx, 42)).toEqual([1, 42]);
     });
 
     test('0 lifts to [1, 0] (Some(0), not None)', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lifter(bctx, 0)).toEqual([1, 0]);
     });
 
     test('false lifts to [1, 0] for option<bool>', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.Bool)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.Bool)));
         expect(lifter(bctx, false)).toEqual([1, 0]);
     });
 
     test('true lifts to [1, 1] for option<bool>', () => {
-        const lifter = createLifting(rctx, optionModel(prim(PrimitiveValType.Bool)));
+        const lifter = createLifting(rctx.resolved, optionModel(prim(PrimitiveValType.Bool)));
         expect(lifter(bctx, true)).toEqual([1, 1]);
     });
 });
@@ -133,22 +135,22 @@ describe('option lowering (WASM → JS)', () => {
     });
 
     test('discriminant 0 lowers to null (None)', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lowerer(bctx, 0, 0)).toBeNull();
     });
 
     test('discriminant 1 with 42 lowers to 42 (Some(42))', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lowerer(bctx, 1, 42)).toBe(42);
     });
 
     test('discriminant 1 with 0 lowers to 0 (Some(0))', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect(lowerer(bctx, 1, 0)).toBe(0);
     });
 
     test('spill is 2 (1 discriminant + 1 u32)', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -175,18 +177,18 @@ describe('nested option<option<u32>>', () => {
         // Actually, for nested options to work with inline models, the inner model
         // needs to be a ComponentTypeDefinedOption directly. Let's use resolvedTypes.
         const innerOption = optionModel(prim(PrimitiveValType.U32));
-        rctx.resolvedTypes = new Map([[0 as any, innerOption as any]]);
+        rctx.resolved.resolvedTypes = new Map([[0 as any, innerOption as any]]);
     });
 
     test('null lifts to [0, 0, 0] (outer None)', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, null)).toEqual([0, 0, 0]);
     });
 
     test('null inner lifts to [1, 0, 0] (outer Some, inner None)', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, null)).toEqual([0, 0, 0]);
         // Passing null → inner None: the inner lifter is called with null
         // outer Some(null) means the JS value is null, which means inner is None
@@ -195,31 +197,31 @@ describe('nested option<option<u32>>', () => {
 
     test('42 lifts to [1, 1, 42] (outer Some, inner Some(42))', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lifter = createLifting(rctx, model);
+        const lifter = createLifting(rctx.resolved, model);
         expect(lifter(bctx, 42)).toEqual([1, 1, 42]);
     });
 
     test('nested option lowering: [0, 0, 0] → null (outer None)', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx, 0, 0, 0)).toBeNull();
     });
 
     test('nested option lowering: [1, 0, 0] → null (outer Some, inner None)', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx, 1, 0, 0)).toBeNull();
     });
 
     test('nested option lowering: [1, 1, 42] → 42 (outer Some, inner Some(42))', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect(lowerer(bctx, 1, 1, 42)).toBe(42);
     });
 
     test('nested option spill is 3 (1 + 1 + 1)', () => {
         const model = optionModel({ tag: ModelTag.ComponentValTypeType, value: 0 } as ComponentValType);
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(3);
     });
 });
@@ -242,17 +244,17 @@ describe('result lifting (JS → WASM)', () => {
     });
 
     test('{tag:"ok", val:42} lifts to [0, 42]', () => {
-        const lifter = createLifting(rctx, resultU32S32Model);
+        const lifter = createLifting(rctx.resolved, resultU32S32Model);
         expect(lifter(bctx, { tag: 'ok', val: 42 })).toEqual([0, 42]);
     });
 
     test('{tag:"err", val:-1} lifts to [1, -1]', () => {
-        const lifter = createLifting(rctx, resultU32S32Model);
+        const lifter = createLifting(rctx.resolved, resultU32S32Model);
         expect(lifter(bctx, { tag: 'err', val: -1 })).toEqual([1, -1]);
     });
 
     test('{tag:"ok", val:0} lifts to [0, 0]', () => {
-        const lifter = createLifting(rctx, resultU32S32Model);
+        const lifter = createLifting(rctx.resolved, resultU32S32Model);
         expect(lifter(bctx, { tag: 'ok', val: 0 })).toEqual([0, 0]);
     });
 });
@@ -275,22 +277,22 @@ describe('result lowering (WASM → JS)', () => {
     });
 
     test('discriminant 0 with 42 lowers to {tag:"ok", val:42}', () => {
-        const lowerer = createLowering(rctx, resultU32S32Model);
+        const lowerer = createLowering(rctx.resolved, resultU32S32Model);
         expect(lowerer(bctx, 0, 42)).toEqual({ tag: 'ok', val: 42 });
     });
 
     test('discriminant 1 with -1 lowers to {tag:"err", val:-1}', () => {
-        const lowerer = createLowering(rctx, resultU32S32Model);
+        const lowerer = createLowering(rctx.resolved, resultU32S32Model);
         expect(lowerer(bctx, 1, -1)).toEqual({ tag: 'err', val: -1 });
     });
 
     test('discriminant 0 with 0 lowers to {tag:"ok", val:0}', () => {
-        const lowerer = createLowering(rctx, resultU32S32Model);
+        const lowerer = createLowering(rctx.resolved, resultU32S32Model);
         expect(lowerer(bctx, 0, 0)).toEqual({ tag: 'ok', val: 0 });
     });
 
     test('spill is 2 (1 discriminant + max(1,1))', () => {
-        const lowerer = createLowering(rctx, resultU32S32Model);
+        const lowerer = createLowering(rctx.resolved, resultU32S32Model);
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -312,27 +314,27 @@ describe('result with no error type', () => {
     });
 
     test('{tag:"ok", val:42} lifts to [0, 42]', () => {
-        const lifter = createLifting(rctx, resultOkOnlyModel);
+        const lifter = createLifting(rctx.resolved, resultOkOnlyModel);
         expect(lifter(bctx, { tag: 'ok', val: 42 })).toEqual([0, 42]);
     });
 
     test('{tag:"err"} lifts to [1, 0]', () => {
-        const lifter = createLifting(rctx, resultOkOnlyModel);
+        const lifter = createLifting(rctx.resolved, resultOkOnlyModel);
         expect(lifter(bctx, { tag: 'err' })).toEqual([1, 0]);
     });
 
     test('lowering ok: discriminant 0 with 42 → {tag:"ok", val:42}', () => {
-        const lowerer = createLowering(rctx, resultOkOnlyModel);
+        const lowerer = createLowering(rctx.resolved, resultOkOnlyModel);
         expect(lowerer(bctx, 0, 42)).toEqual({ tag: 'ok', val: 42 });
     });
 
     test('lowering err: discriminant 1 → {tag:"err", val:undefined}', () => {
-        const lowerer = createLowering(rctx, resultOkOnlyModel);
+        const lowerer = createLowering(rctx.resolved, resultOkOnlyModel);
         expect(lowerer(bctx, 1, 0)).toEqual({ tag: 'err', val: undefined });
     });
 
     test('spill is 2 (1 discriminant + max(1,0)=1)', () => {
-        const lowerer = createLowering(rctx, resultOkOnlyModel);
+        const lowerer = createLowering(rctx.resolved, resultOkOnlyModel);
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -354,22 +356,22 @@ describe('result with no ok type (error-only)', () => {
     });
 
     test('{tag:"ok"} lifts to [0, 0]', () => {
-        const lifter = createLifting(rctx, resultErrOnlyModel);
+        const lifter = createLifting(rctx.resolved, resultErrOnlyModel);
         expect(lifter(bctx, { tag: 'ok' })).toEqual([0, 0]);
     });
 
     test('{tag:"err", val:-99} lifts to [1, -99]', () => {
-        const lifter = createLifting(rctx, resultErrOnlyModel);
+        const lifter = createLifting(rctx.resolved, resultErrOnlyModel);
         expect(lifter(bctx, { tag: 'err', val: -99 })).toEqual([1, -99]);
     });
 
     test('lowering ok: discriminant 0 → {tag:"ok", val:undefined}', () => {
-        const lowerer = createLowering(rctx, resultErrOnlyModel);
+        const lowerer = createLowering(rctx.resolved, resultErrOnlyModel);
         expect(lowerer(bctx, 0, 0)).toEqual({ tag: 'ok', val: undefined });
     });
 
     test('lowering err: discriminant 1 with -99 → {tag:"err", val:-99}', () => {
-        const lowerer = createLowering(rctx, resultErrOnlyModel);
+        const lowerer = createLowering(rctx.resolved, resultErrOnlyModel);
         expect(lowerer(bctx, 1, -99)).toEqual({ tag: 'err', val: -99 });
     });
 });
@@ -390,7 +392,7 @@ describe('list lifting (JS → WASM)', () => {
     test('[1, 2, 3] lifts to [ptr, 3] with correct memory layout', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
-        const lifter = createLifting(rctx, listU32Model);
+        const lifter = createLifting(rctx.resolved, listU32Model);
         const result = lifter(ctx, [1, 2, 3]);
 
         expect(result).toHaveLength(2);
@@ -407,14 +409,14 @@ describe('list lifting (JS → WASM)', () => {
     test('empty array lifts to [0, 0]', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lifter = createLifting(rctx, listU32Model);
+        const lifter = createLifting(rctx.resolved, listU32Model);
         expect(lifter(ctx, [])).toEqual([0, 0]);
     });
 
     test('single-element list lifts correctly', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
-        const lifter = createLifting(rctx, listU32Model);
+        const lifter = createLifting(rctx.resolved, listU32Model);
         const result = lifter(ctx, [99]);
 
         expect(result).toHaveLength(2);
@@ -428,7 +430,7 @@ describe('list lifting (JS → WASM)', () => {
     test('list<bool> [true, false, true] stores [1, 0, 1] in memory', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
-        const lifter = createLifting(rctx, listBoolModel);
+        const lifter = createLifting(rctx.resolved, listBoolModel);
         const result = lifter(ctx, [true, false, true]);
 
         expect(result).toHaveLength(2);
@@ -466,14 +468,14 @@ describe('list lowering (WASM → JS)', () => {
         dv.setUint32(4, 2, true);
         dv.setUint32(8, 3, true);
 
-        const lowerer = createLowering(rctx, listU32Model);
+        const lowerer = createLowering(rctx.resolved, listU32Model);
         expect(lowerer(ctx, 0, 3)).toEqual([1, 2, 3]);
     });
 
     test('[ptr, 0] lowers to empty array', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
-        const lowerer = createLowering(rctx, listU32Model);
+        const lowerer = createLowering(rctx.resolved, listU32Model);
         expect(lowerer(ctx, 0, 0)).toEqual([]);
     });
 
@@ -487,13 +489,13 @@ describe('list lowering (WASM → JS)', () => {
         view[1] = 0;
         view[2] = 1;
 
-        const lowerer = createLowering(rctx, listBoolModel);
+        const lowerer = createLowering(rctx.resolved, listBoolModel);
         expect(lowerer(ctx, 0, 3)).toEqual([true, false, true]);
     });
 
     test('spill is 2 (ptr + len)', () => {
         const rctx = createMinimalRctx();
-        const lowerer = createLowering(rctx, listU32Model);
+        const lowerer = createLowering(rctx.resolved, listU32Model);
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -508,17 +510,17 @@ describe('compound type spill counts', () => {
     });
 
     test('option<u32> spill = 2', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.U32)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.U32)));
         expect((lowerer as any).spill).toBe(2);
     });
 
     test('option<bool> spill = 2', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.Bool)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.Bool)));
         expect((lowerer as any).spill).toBe(2);
     });
 
     test('option<f64> spill = 2', () => {
-        const lowerer = createLowering(rctx, optionModel(prim(PrimitiveValType.Float64)));
+        const lowerer = createLowering(rctx.resolved, optionModel(prim(PrimitiveValType.Float64)));
         expect((lowerer as any).spill).toBe(2);
     });
 
@@ -528,7 +530,7 @@ describe('compound type spill counts', () => {
             ok: prim(PrimitiveValType.U32),
             err: prim(PrimitiveValType.S32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(2);
     });
 
@@ -537,7 +539,7 @@ describe('compound type spill counts', () => {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             err: prim(PrimitiveValType.S32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(2);
     });
 
@@ -546,7 +548,7 @@ describe('compound type spill counts', () => {
             tag: ModelTag.ComponentTypeDefinedResult as const,
             ok: prim(PrimitiveValType.U32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(2);
     });
 
@@ -555,7 +557,7 @@ describe('compound type spill counts', () => {
             tag: ModelTag.ComponentTypeDefinedList as const,
             value: prim(PrimitiveValType.U32),
         };
-        const lowerer = createLowering(rctx, model);
+        const lowerer = createLowering(rctx.resolved, model);
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -571,10 +573,10 @@ describe('list round-trip', () => {
             value: prim(PrimitiveValType.U32),
         };
 
-        const lifter = createLifting(rctx, listU32Model);
+        const lifter = createLifting(rctx.resolved, listU32Model);
         // Need a separate rctx to avoid memoization returning the same object
         const rctx2 = createMinimalRctx();
-        const lowerer = createLowering(rctx2, listU32Model);
+        const lowerer = createLowering(rctx2.resolved, listU32Model);
 
         const original = [10, 20, 30, 40, 50];
         const [ptr, len] = lifter(ctx, original);
@@ -604,22 +606,22 @@ describe('variant lifting', () => {
     });
 
     test('{tag:"none"} lifts to [0, 0]', () => {
-        const lifter = createLifting(rctx, variantModel);
+        const lifter = createLifting(rctx.resolved, variantModel);
         expect(lifter(bctx, { tag: 'none' })).toEqual([0, 0]);
     });
 
     test('{tag:"some-int", val:42} lifts to [1, 42]', () => {
-        const lifter = createLifting(rctx, variantModel);
+        const lifter = createLifting(rctx.resolved, variantModel);
         expect(lifter(bctx, { tag: 'some-int', val: 42 })).toEqual([1, 42]);
     });
 
     test('{tag:"some-bool", val:true} lifts to [2, 1]', () => {
-        const lifter = createLifting(rctx, variantModel);
+        const lifter = createLifting(rctx.resolved, variantModel);
         expect(lifter(bctx, { tag: 'some-bool', val: true })).toEqual([2, 1]);
     });
 
     test('unknown tag throws', () => {
-        const lifter = createLifting(rctx, variantModel);
+        const lifter = createLifting(rctx.resolved, variantModel);
         expect(() => lifter(bctx, { tag: 'unknown' })).toThrow('Unknown variant case: unknown');
     });
 });
@@ -645,22 +647,22 @@ describe('variant lowering', () => {
     });
 
     test('discriminant 0 lowers to {tag:"none"}', () => {
-        const lowerer = createLowering(rctx, variantModel);
+        const lowerer = createLowering(rctx.resolved, variantModel);
         expect(lowerer(bctx, 0, 0)).toEqual({ tag: 'none' });
     });
 
     test('discriminant 1 with 42 lowers to {tag:"some-int", val:42}', () => {
-        const lowerer = createLowering(rctx, variantModel);
+        const lowerer = createLowering(rctx.resolved, variantModel);
         expect(lowerer(bctx, 1, 42)).toEqual({ tag: 'some-int', val: 42 });
     });
 
     test('discriminant 2 with 1 lowers to {tag:"some-bool", val:true}', () => {
-        const lowerer = createLowering(rctx, variantModel);
+        const lowerer = createLowering(rctx.resolved, variantModel);
         expect(lowerer(bctx, 2, 1)).toEqual({ tag: 'some-bool', val: true });
     });
 
     test('spill is 2 (1 discriminant + max 1 payload)', () => {
-        const lowerer = createLowering(rctx, variantModel);
+        const lowerer = createLowering(rctx.resolved, variantModel);
         expect((lowerer as any).spill).toBe(2);
     });
 });
@@ -682,22 +684,22 @@ describe('enum lifting', () => {
     });
 
     test('"red" lifts to [0]', () => {
-        const lifter = createLifting(rctx, enumModel);
+        const lifter = createLifting(rctx.resolved, enumModel);
         expect(lifter(bctx, 'red')).toEqual([0]);
     });
 
     test('"green" lifts to [1]', () => {
-        const lifter = createLifting(rctx, enumModel);
+        const lifter = createLifting(rctx.resolved, enumModel);
         expect(lifter(bctx, 'green')).toEqual([1]);
     });
 
     test('"blue" lifts to [2]', () => {
-        const lifter = createLifting(rctx, enumModel);
+        const lifter = createLifting(rctx.resolved, enumModel);
         expect(lifter(bctx, 'blue')).toEqual([2]);
     });
 
     test('unknown name throws', () => {
-        const lifter = createLifting(rctx, enumModel);
+        const lifter = createLifting(rctx.resolved, enumModel);
         expect(() => lifter(bctx, 'yellow')).toThrow('Unknown enum value: yellow');
     });
 });
@@ -719,22 +721,22 @@ describe('enum lowering', () => {
     });
 
     test('discriminant 0 lowers to "red"', () => {
-        const lowerer = createLowering(rctx, enumModel);
+        const lowerer = createLowering(rctx.resolved, enumModel);
         expect(lowerer(bctx, 0)).toBe('red');
     });
 
     test('discriminant 1 lowers to "green"', () => {
-        const lowerer = createLowering(rctx, enumModel);
+        const lowerer = createLowering(rctx.resolved, enumModel);
         expect(lowerer(bctx, 1)).toBe('green');
     });
 
     test('discriminant 2 lowers to "blue"', () => {
-        const lowerer = createLowering(rctx, enumModel);
+        const lowerer = createLowering(rctx.resolved, enumModel);
         expect(lowerer(bctx, 2)).toBe('blue');
     });
 
     test('spill is 1', () => {
-        const lowerer = createLowering(rctx, enumModel);
+        const lowerer = createLowering(rctx.resolved, enumModel);
         expect((lowerer as any).spill).toBe(1);
     });
 });
@@ -756,22 +758,22 @@ describe('flags lifting', () => {
     });
 
     test('{readable:true, writable:false, executable:true} lifts to [5]', () => {
-        const lifter = createLifting(rctx, flagsModel);
+        const lifter = createLifting(rctx.resolved, flagsModel);
         expect(lifter(bctx, { readable: true, writable: false, executable: true })).toEqual([5]);
     });
 
     test('all false lifts to [0]', () => {
-        const lifter = createLifting(rctx, flagsModel);
+        const lifter = createLifting(rctx.resolved, flagsModel);
         expect(lifter(bctx, { readable: false, writable: false, executable: false })).toEqual([0]);
     });
 
     test('all true lifts to [7]', () => {
-        const lifter = createLifting(rctx, flagsModel);
+        const lifter = createLifting(rctx.resolved, flagsModel);
         expect(lifter(bctx, { readable: true, writable: true, executable: true })).toEqual([7]);
     });
 
     test('empty object lifts to [0] (missing flags are false)', () => {
-        const lifter = createLifting(rctx, flagsModel);
+        const lifter = createLifting(rctx.resolved, flagsModel);
         expect(lifter(bctx, {})).toEqual([0]);
     });
 
@@ -780,7 +782,7 @@ describe('flags lifting', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members: Array.from({ length: 33 }, (_, i) => `flag${i}`),
         };
-        const lifter = createLifting(rctx, bigFlagsModel);
+        const lifter = createLifting(rctx.resolved, bigFlagsModel);
         // Set flag0 (bit 0 of word 0) and flag32 (bit 0 of word 1)
         const flags: Record<string, boolean> = {};
         for (let i = 0; i < 33; i++) flags[`flag${i}`] = false;
@@ -807,22 +809,22 @@ describe('flags lowering', () => {
     });
 
     test('5 lowers to {readable:true, writable:false, executable:true}', () => {
-        const lowerer = createLowering(rctx, flagsModel);
+        const lowerer = createLowering(rctx.resolved, flagsModel);
         expect(lowerer(bctx, 5)).toEqual({ readable: true, writable: false, executable: true });
     });
 
     test('0 lowers to all false', () => {
-        const lowerer = createLowering(rctx, flagsModel);
+        const lowerer = createLowering(rctx.resolved, flagsModel);
         expect(lowerer(bctx, 0)).toEqual({ readable: false, writable: false, executable: false });
     });
 
     test('7 lowers to all true', () => {
-        const lowerer = createLowering(rctx, flagsModel);
+        const lowerer = createLowering(rctx.resolved, flagsModel);
         expect(lowerer(bctx, 7)).toEqual({ readable: true, writable: true, executable: true });
     });
 
     test('spill is 1', () => {
-        const lowerer = createLowering(rctx, flagsModel);
+        const lowerer = createLowering(rctx.resolved, flagsModel);
         expect((lowerer as any).spill).toBe(1);
     });
 
@@ -831,7 +833,7 @@ describe('flags lowering', () => {
             tag: ModelTag.ComponentTypeDefinedFlags as const,
             members: Array.from({ length: 33 }, (_, i) => `flag${i}`),
         };
-        const lowerer = createLowering(rctx, bigFlagsModel);
+        const lowerer = createLowering(rctx.resolved, bigFlagsModel);
         expect((lowerer as any).spill).toBe(2);
         // word0 = 1 (flag0 set), word1 = 1 (flag32 set)
         const result = lowerer(bctx, 1, 1);
@@ -861,12 +863,12 @@ describe('tuple lifting', () => {
     });
 
     test('[-5, 200] lifts to [-5, 200]', () => {
-        const lifter = createLifting(rctx, tupleModel);
+        const lifter = createLifting(rctx.resolved, tupleModel);
         expect(lifter(bctx, [-5, 200])).toEqual([-5, 200]);
     });
 
     test('[0, 0] lifts to [0, 0]', () => {
-        const lifter = createLifting(rctx, tupleModel);
+        const lifter = createLifting(rctx.resolved, tupleModel);
         expect(lifter(bctx, [0, 0])).toEqual([0, 0]);
     });
 });
@@ -891,12 +893,12 @@ describe('tuple lowering', () => {
     });
 
     test('(-5, 200) lowers to [-5, 200]', () => {
-        const lowerer = createLowering(rctx, tupleModel);
+        const lowerer = createLowering(rctx.resolved, tupleModel);
         expect(lowerer(bctx, -5, 200)).toEqual([-5, 200]);
     });
 
     test('spill is 2', () => {
-        const lowerer = createLowering(rctx, tupleModel);
+        const lowerer = createLowering(rctx.resolved, tupleModel);
         expect((lowerer as any).spill).toBe(2);
     });
 });
