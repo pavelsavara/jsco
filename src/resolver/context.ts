@@ -12,7 +12,7 @@ import { buildResolvedTypeMap } from './type-resolution';
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     const rctx: ResolverContext = {
         usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
-        validateTypes: (options.validateTypes === true) ? true : false,
+        validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         memoizeCache: new Map(),
         resolvedTypes: new Map(),
