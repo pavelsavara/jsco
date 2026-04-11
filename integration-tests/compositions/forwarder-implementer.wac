@@ -10,6 +10,9 @@ let fwd = new jsco:forwarder {
     "wasi:random/random@0.2.11": impl["wasi:random/random@0.2.11"],
     "wasi:clocks/monotonic-clock@0.2.11": impl["wasi:clocks/monotonic-clock@0.2.11"],
     "wasi:clocks/wall-clock@0.2.11": impl["wasi:clocks/wall-clock@0.2.11"],
+    "jsco:test/echo-primitives@0.1.0": impl["jsco:test/echo-primitives@0.1.0"],
+    "jsco:test/echo-compound@0.1.0": impl["jsco:test/echo-compound@0.1.0"],
+    "jsco:test/echo-algebraic@0.1.0": impl["jsco:test/echo-algebraic@0.1.0"],
     ...
 };
 export fwd...;

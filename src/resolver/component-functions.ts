@@ -14,13 +14,21 @@ import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
+    const cached = rctx.componentFunctionCache.get(rargs.element);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.componentFunctionCacheHits++;
+        return { ...cached, callerElement: rargs.callerElement };
+    }
     const coreInstance = rargs.element;
+    let result: ResolverRes;
     switch (coreInstance.tag) {
-        case ModelTag.CanonicalFunctionLift: return resolveCanonicalFunctionLift(rctx, rargs as any);
-        case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
-        case ModelTag.ComponentImport: return resolveComponentImport(rctx, rargs as any);
+        case ModelTag.CanonicalFunctionLift: result = resolveCanonicalFunctionLift(rctx, rargs as any); break;
+        case ModelTag.ComponentAliasInstanceExport: result = resolveComponentAliasInstanceExport(rctx, rargs as any); break;
+        case ModelTag.ComponentImport: result = resolveComponentImport(rctx, rargs as any); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
+    rctx.componentFunctionCache.set(rargs.element, result);
+    return result;
 };
 
 export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rctx, rargs) => {

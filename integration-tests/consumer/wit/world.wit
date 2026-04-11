@@ -14,5 +14,8 @@ world consumer {
     import wasi:clocks/wall-clock@0.2.11;
     import jsco:test/logger@0.1.0;
     import jsco:test/counter@0.1.0;
+    import jsco:test/echo-primitives@0.1.0;
+    import jsco:test/echo-compound@0.1.0;
+    import jsco:test/echo-algebraic@0.1.0;
     export wasi:cli/run@0.2.11;
 }

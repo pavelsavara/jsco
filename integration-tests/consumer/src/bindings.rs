@@ -257,6 +257,1096 @@ pub mod jsco {
                 }
             }
         }
+        /// Primitives: all numeric types, bool, char, string
+        #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+        pub mod echo_primitives {
+            #[used]
+            #[doc(hidden)]
+            static __FORCE_SECTION_REF: fn() = super::super::super::__link_custom_section_describing_imports;
+            use super::super::super::_rt;
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_bool(v: bool) -> bool {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-bool"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe {
+                        wit_import0(
+                            match &v {
+                                true => 1,
+                                false => 0,
+                            },
+                        )
+                    };
+                    _rt::bool_lift(ret as u8)
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_u8(v: u8) -> u8 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-u8"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret as u8
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_u16(v: u16) -> u16 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-u16"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret as u16
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_u32(v: u32) -> u32 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-u32"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret as u32
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_u64(v: u64) -> u64 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-u64"]
+                        fn wit_import0(_: i64) -> i64;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i64) -> i64 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i64(&v)) };
+                    ret as u64
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_s8(v: i8) -> i8 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-s8"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret as i8
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_s16(v: i16) -> i16 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-s16"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret as i16
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_s32(v: i32) -> i32 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-s32"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    ret
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_s64(v: i64) -> i64 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-s64"]
+                        fn wit_import0(_: i64) -> i64;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i64) -> i64 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i64(&v)) };
+                    ret
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_f32(v: f32) -> f32 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-f32"]
+                        fn wit_import0(_: f32) -> f32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: f32) -> f32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_f32(&v)) };
+                    ret
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_f64(v: f64) -> f64 {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-f64"]
+                        fn wit_import0(_: f64) -> f64;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: f64) -> f64 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_f64(&v)) };
+                    ret
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_char(v: char) -> char {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-char"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(_rt::as_i32(&v)) };
+                    _rt::char_lift(ret as u32)
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_string(v: &str) -> _rt::String {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 2
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let vec0 = v;
+                    let ptr0 = vec0.as_ptr().cast::<u8>();
+                    let len0 = vec0.len();
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-primitives@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-string"]
+                        fn wit_import2(_: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(_: *mut u8, _: usize, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import2(ptr0.cast_mut(), len0, ptr1) };
+                    let l3 = *ptr1.add(0).cast::<*mut u8>();
+                    let l4 = *ptr1
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let len5 = l4;
+                    let bytes5 = _rt::Vec::from_raw_parts(l3.cast(), len5, len5);
+                    let result6 = _rt::string_lift(bytes5);
+                    result6
+                }
+            }
+        }
+        /// Compound: records, tuples, lists, options, results
+        #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+        pub mod echo_compound {
+            #[used]
+            #[doc(hidden)]
+            static __FORCE_SECTION_REF: fn() = super::super::super::__link_custom_section_describing_imports;
+            use super::super::super::_rt;
+            #[repr(C)]
+            #[derive(Clone, Copy)]
+            pub struct Point {
+                pub x: f64,
+                pub y: f64,
+            }
+            impl ::core::fmt::Debug for Point {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("Point")
+                        .field("x", &self.x)
+                        .field("y", &self.y)
+                        .finish()
+                }
+            }
+            #[derive(Clone)]
+            pub struct LabeledPoint {
+                pub label: _rt::String,
+                pub coords: Point,
+                pub elevation: Option<f64>,
+            }
+            impl ::core::fmt::Debug for LabeledPoint {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("LabeledPoint")
+                        .field("label", &self.label)
+                        .field("coords", &self.coords)
+                        .field("elevation", &self.elevation)
+                        .finish()
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_tuple2(v: (u32, &str)) -> (u32, _rt::String) {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 3 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 3
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let (t0_0, t0_1) = v;
+                    let vec1 = t0_1;
+                    let ptr1 = vec1.as_ptr().cast::<u8>();
+                    let len1 = vec1.len();
+                    let ptr2 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-tuple2"]
+                        fn wit_import3(_: i32, _: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import3(
+                        _: i32,
+                        _: *mut u8,
+                        _: usize,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe {
+                        wit_import3(_rt::as_i32(t0_0), ptr1.cast_mut(), len1, ptr2)
+                    };
+                    let l4 = *ptr2.add(0).cast::<i32>();
+                    let l5 = *ptr2
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<*mut u8>();
+                    let l6 = *ptr2
+                        .add(2 * ::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let len7 = l6;
+                    let bytes7 = _rt::Vec::from_raw_parts(l5.cast(), len7, len7);
+                    let result8 = (l4 as u32, _rt::string_lift(bytes7));
+                    result8
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_tuple3(v: (f32, f32, f32)) -> (f32, f32, f32) {
+                unsafe {
+                    #[repr(align(4))]
+                    struct RetArea([::core::mem::MaybeUninit<u8>; 12]);
+                    let mut ret_area = RetArea([::core::mem::MaybeUninit::uninit(); 12]);
+                    let (t0_0, t0_1, t0_2) = v;
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-tuple3"]
+                        fn wit_import2(_: f32, _: f32, _: f32, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(
+                        _: f32,
+                        _: f32,
+                        _: f32,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe {
+                        wit_import2(
+                            _rt::as_f32(t0_0),
+                            _rt::as_f32(t0_1),
+                            _rt::as_f32(t0_2),
+                            ptr1,
+                        )
+                    };
+                    let l3 = *ptr1.add(0).cast::<f32>();
+                    let l4 = *ptr1.add(4).cast::<f32>();
+                    let l5 = *ptr1.add(8).cast::<f32>();
+                    let result6 = (l3, l4, l5);
+                    result6
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_record(v: Point) -> Point {
+                unsafe {
+                    #[repr(align(8))]
+                    struct RetArea([::core::mem::MaybeUninit<u8>; 16]);
+                    let mut ret_area = RetArea([::core::mem::MaybeUninit::uninit(); 16]);
+                    let Point { x: x0, y: y0 } = v;
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-record"]
+                        fn wit_import2(_: f64, _: f64, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(_: f64, _: f64, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import2(_rt::as_f64(x0), _rt::as_f64(y0), ptr1) };
+                    let l3 = *ptr1.add(0).cast::<f64>();
+                    let l4 = *ptr1.add(8).cast::<f64>();
+                    let result5 = Point { x: l3, y: l4 };
+                    result5
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_nested_record(v: &LabeledPoint) -> LabeledPoint {
+                unsafe {
+                    #[repr(align(8))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 32 + 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 32
+                            + 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let LabeledPoint {
+                        label: label0,
+                        coords: coords0,
+                        elevation: elevation0,
+                    } = v;
+                    let vec1 = label0;
+                    let ptr1 = vec1.as_ptr().cast::<u8>();
+                    let len1 = vec1.len();
+                    let Point { x: x2, y: y2 } = coords0;
+                    let (result3_0, result3_1) = match elevation0 {
+                        Some(e) => (1i32, _rt::as_f64(e)),
+                        None => (0i32, 0.0f64),
+                    };
+                    let ptr4 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-nested-record"]
+                        fn wit_import5(
+                            _: *mut u8,
+                            _: usize,
+                            _: f64,
+                            _: f64,
+                            _: i32,
+                            _: f64,
+                            _: *mut u8,
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import5(
+                        _: *mut u8,
+                        _: usize,
+                        _: f64,
+                        _: f64,
+                        _: i32,
+                        _: f64,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe {
+                        wit_import5(
+                            ptr1.cast_mut(),
+                            len1,
+                            _rt::as_f64(x2),
+                            _rt::as_f64(y2),
+                            result3_0,
+                            result3_1,
+                            ptr4,
+                        )
+                    };
+                    let l6 = *ptr4.add(0).cast::<*mut u8>();
+                    let l7 = *ptr4
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let len8 = l7;
+                    let bytes8 = _rt::Vec::from_raw_parts(l6.cast(), len8, len8);
+                    let l9 = *ptr4
+                        .add(2 * ::core::mem::size_of::<*const u8>())
+                        .cast::<f64>();
+                    let l10 = *ptr4
+                        .add(8 + 2 * ::core::mem::size_of::<*const u8>())
+                        .cast::<f64>();
+                    let l11 = i32::from(
+                        *ptr4
+                            .add(16 + 2 * ::core::mem::size_of::<*const u8>())
+                            .cast::<u8>(),
+                    );
+                    let result13 = LabeledPoint {
+                        label: _rt::string_lift(bytes8),
+                        coords: Point { x: l9, y: l10 },
+                        elevation: match l11 {
+                            0 => None,
+                            1 => {
+                                let e = {
+                                    let l12 = *ptr4
+                                        .add(24 + 2 * ::core::mem::size_of::<*const u8>())
+                                        .cast::<f64>();
+                                    l12
+                                };
+                                Some(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    };
+                    result13
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_list_u8(v: &[u8]) -> _rt::Vec<u8> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 2
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let vec0 = v;
+                    let ptr0 = vec0.as_ptr().cast::<u8>();
+                    let len0 = vec0.len();
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-list-u8"]
+                        fn wit_import2(_: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(_: *mut u8, _: usize, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import2(ptr0.cast_mut(), len0, ptr1) };
+                    let l3 = *ptr1.add(0).cast::<*mut u8>();
+                    let l4 = *ptr1
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let len5 = l4;
+                    let result6 = _rt::Vec::from_raw_parts(l3.cast(), len5, len5);
+                    result6
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_list_string(v: &[_rt::String]) -> _rt::Vec<_rt::String> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 2
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let vec1 = v;
+                    let len1 = vec1.len();
+                    let layout1 = _rt::alloc::Layout::from_size_align_unchecked(
+                        vec1.len() * (2 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result1 = if layout1.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout1).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout1);
+                        }
+                        ptr
+                    } else {
+                        ::core::ptr::null_mut()
+                    };
+                    for (i, e) in vec1.into_iter().enumerate() {
+                        let base = result1
+                            .add(i * (2 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let vec0 = e;
+                            let ptr0 = vec0.as_ptr().cast::<u8>();
+                            let len0 = vec0.len();
+                            *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len0;
+                            *base.add(0).cast::<*mut u8>() = ptr0.cast_mut();
+                        }
+                    }
+                    let ptr2 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-list-string"]
+                        fn wit_import3(_: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import3(_: *mut u8, _: usize, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import3(result1, len1, ptr2) };
+                    let l4 = *ptr2.add(0).cast::<*mut u8>();
+                    let l5 = *ptr2
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base9 = l4;
+                    let len9 = l5;
+                    let mut result9 = _rt::Vec::with_capacity(len9);
+                    for i in 0..len9 {
+                        let base = base9
+                            .add(i * (2 * ::core::mem::size_of::<*const u8>()));
+                        let e9 = {
+                            let l6 = *base.add(0).cast::<*mut u8>();
+                            let l7 = *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            let len8 = l7;
+                            let bytes8 = _rt::Vec::from_raw_parts(l6.cast(), len8, len8);
+                            _rt::string_lift(bytes8)
+                        };
+                        result9.push(e9);
+                    }
+                    _rt::cabi_dealloc(
+                        base9,
+                        len9 * (2 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result10 = result9;
+                    if layout1.size() != 0 {
+                        _rt::alloc::dealloc(result1.cast(), layout1);
+                    }
+                    result10
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_list_record(v: &[Point]) -> _rt::Vec<Point> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 2 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 2
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let vec0 = v;
+                    let ptr0 = vec0.as_ptr().cast::<u8>();
+                    let len0 = vec0.len();
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-list-record"]
+                        fn wit_import2(_: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(_: *mut u8, _: usize, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import2(ptr0.cast_mut(), len0, ptr1) };
+                    let l3 = *ptr1.add(0).cast::<*mut u8>();
+                    let l4 = *ptr1
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let len5 = l4;
+                    let result6 = _rt::Vec::from_raw_parts(l3.cast(), len5, len5);
+                    result6
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_option_u32(v: Option<u32>) -> Option<u32> {
+                unsafe {
+                    #[repr(align(4))]
+                    struct RetArea([::core::mem::MaybeUninit<u8>; 8]);
+                    let mut ret_area = RetArea([::core::mem::MaybeUninit::uninit(); 8]);
+                    let (result0_0, result0_1) = match v {
+                        Some(e) => (1i32, _rt::as_i32(e)),
+                        None => (0i32, 0i32),
+                    };
+                    let ptr1 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-option-u32"]
+                        fn wit_import2(_: i32, _: i32, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import2(_: i32, _: i32, _: *mut u8) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import2(result0_0, result0_1, ptr1) };
+                    let l3 = i32::from(*ptr1.add(0).cast::<u8>());
+                    let result5 = match l3 {
+                        0 => None,
+                        1 => {
+                            let e = {
+                                let l4 = *ptr1.add(4).cast::<i32>();
+                                l4 as u32
+                            };
+                            Some(e)
+                        }
+                        _ => _rt::invalid_enum_discriminant(),
+                    };
+                    result5
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_option_string(v: Option<&str>) -> Option<_rt::String> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 3 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 3
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let (result1_0, result1_1, result1_2) = match v {
+                        Some(e) => {
+                            let vec0 = e;
+                            let ptr0 = vec0.as_ptr().cast::<u8>();
+                            let len0 = vec0.len();
+                            (1i32, ptr0.cast_mut(), len0)
+                        }
+                        None => (0i32, ::core::ptr::null_mut(), 0usize),
+                    };
+                    let ptr2 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-option-string"]
+                        fn wit_import3(_: i32, _: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import3(
+                        _: i32,
+                        _: *mut u8,
+                        _: usize,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import3(result1_0, result1_1, result1_2, ptr2) };
+                    let l4 = i32::from(*ptr2.add(0).cast::<u8>());
+                    let result8 = match l4 {
+                        0 => None,
+                        1 => {
+                            let e = {
+                                let l5 = *ptr2
+                                    .add(::core::mem::size_of::<*const u8>())
+                                    .cast::<*mut u8>();
+                                let l6 = *ptr2
+                                    .add(2 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len7 = l6;
+                                let bytes7 = _rt::Vec::from_raw_parts(
+                                    l5.cast(),
+                                    len7,
+                                    len7,
+                                );
+                                _rt::string_lift(bytes7)
+                            };
+                            Some(e)
+                        }
+                        _ => _rt::invalid_enum_discriminant(),
+                    };
+                    result8
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_result_ok(
+                v: Result<&str, &str>,
+            ) -> Result<_rt::String, _rt::String> {
+                unsafe {
+                    #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                    #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                    struct RetArea(
+                        [::core::mem::MaybeUninit<
+                            u8,
+                        >; 3 * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let mut ret_area = RetArea(
+                        [::core::mem::MaybeUninit::uninit(); 3
+                            * ::core::mem::size_of::<*const u8>()],
+                    );
+                    let (result2_0, result2_1, result2_2) = match v {
+                        Ok(e) => {
+                            let vec0 = e;
+                            let ptr0 = vec0.as_ptr().cast::<u8>();
+                            let len0 = vec0.len();
+                            (0i32, ptr0.cast_mut(), len0)
+                        }
+                        Err(e) => {
+                            let vec1 = e;
+                            let ptr1 = vec1.as_ptr().cast::<u8>();
+                            let len1 = vec1.len();
+                            (1i32, ptr1.cast_mut(), len1)
+                        }
+                    };
+                    let ptr3 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-compound@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-result-ok"]
+                        fn wit_import4(_: i32, _: *mut u8, _: usize, _: *mut u8);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import4(
+                        _: i32,
+                        _: *mut u8,
+                        _: usize,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import4(result2_0, result2_1, result2_2, ptr3) };
+                    let l5 = i32::from(*ptr3.add(0).cast::<u8>());
+                    let result12 = match l5 {
+                        0 => {
+                            let e = {
+                                let l6 = *ptr3
+                                    .add(::core::mem::size_of::<*const u8>())
+                                    .cast::<*mut u8>();
+                                let l7 = *ptr3
+                                    .add(2 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len8 = l7;
+                                let bytes8 = _rt::Vec::from_raw_parts(
+                                    l6.cast(),
+                                    len8,
+                                    len8,
+                                );
+                                _rt::string_lift(bytes8)
+                            };
+                            Ok(e)
+                        }
+                        1 => {
+                            let e = {
+                                let l9 = *ptr3
+                                    .add(::core::mem::size_of::<*const u8>())
+                                    .cast::<*mut u8>();
+                                let l10 = *ptr3
+                                    .add(2 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len11 = l10;
+                                let bytes11 = _rt::Vec::from_raw_parts(
+                                    l9.cast(),
+                                    len11,
+                                    len11,
+                                );
+                                _rt::string_lift(bytes11)
+                            };
+                            Err(e)
+                        }
+                        _ => _rt::invalid_enum_discriminant(),
+                    };
+                    result12
+                }
+            }
+        }
+        /// Algebraic: enums, variants, flags
+        #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+        pub mod echo_algebraic {
+            #[used]
+            #[doc(hidden)]
+            static __FORCE_SECTION_REF: fn() = super::super::super::__link_custom_section_describing_imports;
+            use super::super::super::_rt;
+            #[repr(u8)]
+            #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+            pub enum Color {
+                Red,
+                Green,
+                Blue,
+                Yellow,
+            }
+            impl ::core::fmt::Debug for Color {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    match self {
+                        Color::Red => f.debug_tuple("Color::Red").finish(),
+                        Color::Green => f.debug_tuple("Color::Green").finish(),
+                        Color::Blue => f.debug_tuple("Color::Blue").finish(),
+                        Color::Yellow => f.debug_tuple("Color::Yellow").finish(),
+                    }
+                }
+            }
+            impl Color {
+                #[doc(hidden)]
+                pub unsafe fn _lift(val: u8) -> Color {
+                    if !cfg!(debug_assertions) {
+                        return ::core::mem::transmute(val);
+                    }
+                    match val {
+                        0 => Color::Red,
+                        1 => Color::Green,
+                        2 => Color::Blue,
+                        3 => Color::Yellow,
+                        _ => panic!("invalid enum discriminant"),
+                    }
+                }
+            }
+            wit_bindgen_rt::bitflags::bitflags! {
+                #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)] pub
+                struct Permissions : u8 { const READ = 1 << 0; const WRITE = 1 << 1;
+                const EXECUTE = 1 << 2; }
+            }
+            #[derive(Clone)]
+            pub enum Shape {
+                Circle(f64),
+                Rectangle((f64, f64)),
+                NamedPolygon(_rt::String),
+                Dot,
+            }
+            impl ::core::fmt::Debug for Shape {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    match self {
+                        Shape::Circle(e) => {
+                            f.debug_tuple("Shape::Circle").field(e).finish()
+                        }
+                        Shape::Rectangle(e) => {
+                            f.debug_tuple("Shape::Rectangle").field(e).finish()
+                        }
+                        Shape::NamedPolygon(e) => {
+                            f.debug_tuple("Shape::NamedPolygon").field(e).finish()
+                        }
+                        Shape::Dot => f.debug_tuple("Shape::Dot").finish(),
+                    }
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_enum(v: Color) -> Color {
+                unsafe {
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-algebraic@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-enum"]
+                        fn wit_import0(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import0(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import0(v.clone() as i32) };
+                    Color::_lift(ret as u8)
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_flags(v: Permissions) -> Permissions {
+                unsafe {
+                    let flags0 = v;
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-algebraic@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-flags"]
+                        fn wit_import1(_: i32) -> i32;
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import1(_: i32) -> i32 {
+                        unreachable!()
+                    }
+                    let ret = unsafe { wit_import1((flags0.bits() >> 0) as i32) };
+                    Permissions::empty()
+                        | Permissions::from_bits_retain(((ret as u8) << 0) as _)
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn echo_variant(v: &Shape) -> Shape {
+                unsafe {
+                    #[repr(align(8))]
+                    struct RetArea([::core::mem::MaybeUninit<u8>; 24]);
+                    let mut ret_area = RetArea([::core::mem::MaybeUninit::uninit(); 24]);
+                    let (result2_0, result2_1, result2_2) = match v {
+                        Shape::Circle(e) => {
+                            (
+                                0i32,
+                                ::core::mem::MaybeUninit::new(
+                                    (_rt::as_f64(e)).to_bits() as i64 as u64,
+                                ),
+                                0i64,
+                            )
+                        }
+                        Shape::Rectangle(e) => {
+                            let (t0_0, t0_1) = e;
+                            (
+                                1i32,
+                                ::core::mem::MaybeUninit::new(
+                                    (_rt::as_f64(t0_0)).to_bits() as i64 as u64,
+                                ),
+                                (_rt::as_f64(t0_1)).to_bits() as i64,
+                            )
+                        }
+                        Shape::NamedPolygon(e) => {
+                            let vec1 = e;
+                            let ptr1 = vec1.as_ptr().cast::<u8>();
+                            let len1 = vec1.len();
+                            (
+                                2i32,
+                                {
+                                    let mut t = ::core::mem::MaybeUninit::<u64>::uninit();
+                                    t.as_mut_ptr().cast::<*mut u8>().write(ptr1.cast_mut());
+                                    t
+                                },
+                                len1 as i64,
+                            )
+                        }
+                        Shape::Dot => {
+                            (3i32, ::core::mem::MaybeUninit::<u64>::zeroed(), 0i64)
+                        }
+                    };
+                    let ptr3 = ret_area.0.as_mut_ptr().cast::<u8>();
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "jsco:test/echo-algebraic@0.1.0")]
+                    unsafe extern "C" {
+                        #[link_name = "echo-variant"]
+                        fn wit_import4(
+                            _: i32,
+                            _: ::core::mem::MaybeUninit<u64>,
+                            _: i64,
+                            _: *mut u8,
+                        );
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    unsafe extern "C" fn wit_import4(
+                        _: i32,
+                        _: ::core::mem::MaybeUninit<u64>,
+                        _: i64,
+                        _: *mut u8,
+                    ) {
+                        unreachable!()
+                    }
+                    unsafe { wit_import4(result2_0, result2_1, result2_2, ptr3) };
+                    let l5 = i32::from(*ptr3.add(0).cast::<u8>());
+                    let v12 = match l5 {
+                        0 => {
+                            let e12 = {
+                                let l6 = *ptr3.add(8).cast::<f64>();
+                                l6
+                            };
+                            Shape::Circle(e12)
+                        }
+                        1 => {
+                            let e12 = {
+                                let l7 = *ptr3.add(8).cast::<f64>();
+                                let l8 = *ptr3.add(16).cast::<f64>();
+                                (l7, l8)
+                            };
+                            Shape::Rectangle(e12)
+                        }
+                        2 => {
+                            let e12 = {
+                                let l9 = *ptr3.add(8).cast::<*mut u8>();
+                                let l10 = *ptr3
+                                    .add(8 + 1 * ::core::mem::size_of::<*const u8>())
+                                    .cast::<usize>();
+                                let len11 = l10;
+                                let bytes11 = _rt::Vec::from_raw_parts(
+                                    l9.cast(),
+                                    len11,
+                                    len11,
+                                );
+                                _rt::string_lift(bytes11)
+                            };
+                            Shape::NamedPolygon(e12)
+                        }
+                        n => {
+                            debug_assert_eq!(n, 3, "invalid enum discriminant");
+                            Shape::Dot
+                        }
+                    };
+                    let result13 = v12;
+                    result13
+                }
+            }
+        }
     }
 }
 #[rustfmt::skip]
@@ -2228,6 +3318,106 @@ mod _rt {
             self as i64
         }
     }
+    pub fn as_i32<T: AsI32>(t: T) -> i32 {
+        t.as_i32()
+    }
+    pub trait AsI32 {
+        fn as_i32(self) -> i32;
+    }
+    impl<'a, T: Copy + AsI32> AsI32 for &'a T {
+        fn as_i32(self) -> i32 {
+            (*self).as_i32()
+        }
+    }
+    impl AsI32 for i32 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for u32 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for i16 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for u16 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for i8 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for u8 {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for char {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    impl AsI32 for usize {
+        #[inline]
+        fn as_i32(self) -> i32 {
+            self as i32
+        }
+    }
+    pub fn as_f32<T: AsF32>(t: T) -> f32 {
+        t.as_f32()
+    }
+    pub trait AsF32 {
+        fn as_f32(self) -> f32;
+    }
+    impl<'a, T: Copy + AsF32> AsF32 for &'a T {
+        fn as_f32(self) -> f32 {
+            (*self).as_f32()
+        }
+    }
+    impl AsF32 for f32 {
+        #[inline]
+        fn as_f32(self) -> f32 {
+            self as f32
+        }
+    }
+    pub fn as_f64<T: AsF64>(t: T) -> f64 {
+        t.as_f64()
+    }
+    pub trait AsF64 {
+        fn as_f64(self) -> f64;
+    }
+    impl<'a, T: Copy + AsF64> AsF64 for &'a T {
+        fn as_f64(self) -> f64 {
+            (*self).as_f64()
+        }
+    }
+    impl AsF64 for f64 {
+        #[inline]
+        fn as_f64(self) -> f64 {
+            self as f64
+        }
+    }
+    pub unsafe fn char_lift(val: u32) -> char {
+        if cfg!(debug_assertions) {
+            core::char::from_u32(val).unwrap()
+        } else {
+            core::char::from_u32_unchecked(val)
+        }
+    }
     #[cfg(target_arch = "wasm32")]
     pub fn run_ctors_once() {
         wit_bindgen_rt::run_ctors_once();
@@ -2270,23 +3460,23 @@ pub(crate) use __export_consumer_impl as export;
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2505] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xca\x12\x01A\x02\x01\
-A\x20\x01B\x0a\x01o\x02ss\x01p\0\x01@\0\0\x01\x04\0\x0fget-environment\x01\x02\x01\
-ps\x01@\0\0\x03\x04\0\x0dget-arguments\x01\x04\x01ks\x01@\0\0\x05\x04\0\x0biniti\
-al-cwd\x01\x06\x03\0\x1bwasi:cli/environment@0.2.11\x05\0\x01B\x03\x01j\0\0\x01@\
-\x01\x06status\0\x01\0\x04\0\x04exit\x01\x01\x03\0\x14wasi:cli/exit@0.2.11\x05\x01\
-\x01B\x04\x04\0\x05error\x03\x01\x01h\0\x01@\x01\x04self\x01\0s\x04\0\x1d[method\
-]error.to-debug-string\x01\x02\x03\0\x14wasi:io/error@0.2.11\x05\x02\x01B\x0a\x04\
-\0\x08pollable\x03\x01\x01h\0\x01@\x01\x04self\x01\0\x7f\x04\0\x16[method]pollab\
-le.ready\x01\x02\x01@\x01\x04self\x01\x01\0\x04\0\x16[method]pollable.block\x01\x03\
-\x01p\x01\x01py\x01@\x01\x02in\x04\0\x05\x04\0\x04poll\x01\x06\x03\0\x13wasi:io/\
-poll@0.2.11\x05\x03\x02\x03\0\x02\x05error\x02\x03\0\x03\x08pollable\x01B(\x02\x03\
-\x02\x01\x04\x04\0\x05error\x03\0\0\x02\x03\x02\x01\x05\x04\0\x08pollable\x03\0\x02\
-\x01i\x01\x01q\x02\x15last-operation-failed\x01\x04\0\x06closed\0\0\x04\0\x0cstr\
-eam-error\x03\0\x05\x04\0\x0cinput-stream\x03\x01\x04\0\x0doutput-stream\x03\x01\
-\x01h\x07\x01p}\x01j\x01\x0a\x01\x06\x01@\x02\x04self\x09\x03lenw\0\x0b\x04\0\x19\
-[method]input-stream.read\x01\x0c\x04\0\"[method]input-stream.blocking-read\x01\x0c\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 3480] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x99\x1a\x01A\x02\x01\
+A&\x01B\x0a\x01o\x02ss\x01p\0\x01@\0\0\x01\x04\0\x0fget-environment\x01\x02\x01p\
+s\x01@\0\0\x03\x04\0\x0dget-arguments\x01\x04\x01ks\x01@\0\0\x05\x04\0\x0binitia\
+l-cwd\x01\x06\x03\0\x1bwasi:cli/environment@0.2.11\x05\0\x01B\x03\x01j\0\0\x01@\x01\
+\x06status\0\x01\0\x04\0\x04exit\x01\x01\x03\0\x14wasi:cli/exit@0.2.11\x05\x01\x01\
+B\x04\x04\0\x05error\x03\x01\x01h\0\x01@\x01\x04self\x01\0s\x04\0\x1d[method]err\
+or.to-debug-string\x01\x02\x03\0\x14wasi:io/error@0.2.11\x05\x02\x01B\x0a\x04\0\x08\
+pollable\x03\x01\x01h\0\x01@\x01\x04self\x01\0\x7f\x04\0\x16[method]pollable.rea\
+dy\x01\x02\x01@\x01\x04self\x01\x01\0\x04\0\x16[method]pollable.block\x01\x03\x01\
+p\x01\x01py\x01@\x01\x02in\x04\0\x05\x04\0\x04poll\x01\x06\x03\0\x13wasi:io/poll\
+@0.2.11\x05\x03\x02\x03\0\x02\x05error\x02\x03\0\x03\x08pollable\x01B(\x02\x03\x02\
+\x01\x04\x04\0\x05error\x03\0\0\x02\x03\x02\x01\x05\x04\0\x08pollable\x03\0\x02\x01\
+i\x01\x01q\x02\x15last-operation-failed\x01\x04\0\x06closed\0\0\x04\0\x0cstream-\
+error\x03\0\x05\x04\0\x0cinput-stream\x03\x01\x04\0\x0doutput-stream\x03\x01\x01\
+h\x07\x01p}\x01j\x01\x0a\x01\x06\x01@\x02\x04self\x09\x03lenw\0\x0b\x04\0\x19[me\
+thod]input-stream.read\x01\x0c\x04\0\"[method]input-stream.blocking-read\x01\x0c\
 \x01j\x01w\x01\x06\x01@\x02\x04self\x09\x03lenw\0\x0d\x04\0\x19[method]input-str\
 eam.skip\x01\x0e\x04\0\"[method]input-stream.blocking-skip\x01\x0e\x01i\x03\x01@\
 \x01\x04self\x09\0\x0f\x04\0\x1e[method]input-stream.subscribe\x01\x10\x01h\x08\x01\
@@ -2321,11 +3511,34 @@ messages\x0aproperties\x04\x01\0\x04\0\x0estructured-log\x01\x05\x03\0\x16jsco:t
 est/logger@0.1.0\x05\x0f\x01B\x09\x04\0\x07counter\x03\x01\x01i\0\x01@\x01\x04na\
 mes\0\x01\x04\0\x14[constructor]counter\x01\x02\x01h\0\x01@\x01\x04self\x03\x01\0\
 \x04\0\x19[method]counter.increment\x01\x04\x01@\x01\x04self\x03\0w\x04\0\x13[me\
-thod]counter.get\x01\x05\x03\0\x17jsco:test/counter@0.1.0\x05\x10\x01B\x03\x01j\0\
-\0\x01@\0\0\0\x04\0\x03run\x01\x01\x04\0\x13wasi:cli/run@0.2.11\x05\x11\x04\0\x1c\
-jsco:consumer/consumer@0.1.0\x04\0\x0b\x0e\x01\0\x08consumer\x03\0\0\0G\x09produ\
-cers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x06\
-0.41.0";
+thod]counter.get\x01\x05\x03\0\x17jsco:test/counter@0.1.0\x05\x10\x01B\x1a\x01@\x01\
+\x01v\x7f\0\x7f\x04\0\x09echo-bool\x01\0\x01@\x01\x01v}\0}\x04\0\x07echo-u8\x01\x01\
+\x01@\x01\x01v{\0{\x04\0\x08echo-u16\x01\x02\x01@\x01\x01vy\0y\x04\0\x08echo-u32\
+\x01\x03\x01@\x01\x01vw\0w\x04\0\x08echo-u64\x01\x04\x01@\x01\x01v~\0~\x04\0\x07\
+echo-s8\x01\x05\x01@\x01\x01v|\0|\x04\0\x08echo-s16\x01\x06\x01@\x01\x01vz\0z\x04\
+\0\x08echo-s32\x01\x07\x01@\x01\x01vx\0x\x04\0\x08echo-s64\x01\x08\x01@\x01\x01v\
+v\0v\x04\0\x08echo-f32\x01\x09\x01@\x01\x01vu\0u\x04\0\x08echo-f64\x01\x0a\x01@\x01\
+\x01vt\0t\x04\0\x09echo-char\x01\x0b\x01@\x01\x01vs\0s\x04\0\x0becho-string\x01\x0c\
+\x03\0\x1fjsco:test/echo-primitives@0.1.0\x05\x11\x01B!\x01r\x02\x01xu\x01yu\x04\
+\0\x05point\x03\0\0\x01ku\x01r\x03\x05labels\x06coords\x01\x09elevation\x02\x04\0\
+\x0dlabeled-point\x03\0\x03\x01o\x02ys\x01@\x01\x01v\x05\0\x05\x04\0\x0becho-tup\
+le2\x01\x06\x01o\x03vvv\x01@\x01\x01v\x07\0\x07\x04\0\x0becho-tuple3\x01\x08\x01\
+@\x01\x01v\x01\0\x01\x04\0\x0becho-record\x01\x09\x01@\x01\x01v\x04\0\x04\x04\0\x12\
+echo-nested-record\x01\x0a\x01p}\x01@\x01\x01v\x0b\0\x0b\x04\0\x0cecho-list-u8\x01\
+\x0c\x01ps\x01@\x01\x01v\x0d\0\x0d\x04\0\x10echo-list-string\x01\x0e\x01p\x01\x01\
+@\x01\x01v\x0f\0\x0f\x04\0\x10echo-list-record\x01\x10\x01ky\x01@\x01\x01v\x11\0\
+\x11\x04\0\x0fecho-option-u32\x01\x12\x01ks\x01@\x01\x01v\x13\0\x13\x04\0\x12ech\
+o-option-string\x01\x14\x01j\x01s\x01s\x01@\x01\x01v\x15\0\x15\x04\0\x0eecho-res\
+ult-ok\x01\x16\x03\0\x1djsco:test/echo-compound@0.1.0\x05\x12\x01B\x0d\x01m\x04\x03\
+red\x05green\x04blue\x06yellow\x04\0\x05color\x03\0\0\x01n\x03\x04read\x05write\x07\
+execute\x04\0\x0bpermissions\x03\0\x02\x01o\x02uu\x01q\x04\x06circle\x01u\0\x09r\
+ectangle\x01\x04\0\x0dnamed-polygon\x01s\0\x03dot\0\0\x04\0\x05shape\x03\0\x05\x01\
+@\x01\x01v\x01\0\x01\x04\0\x09echo-enum\x01\x07\x01@\x01\x01v\x03\0\x03\x04\0\x0a\
+echo-flags\x01\x08\x01@\x01\x01v\x06\0\x06\x04\0\x0cecho-variant\x01\x09\x03\0\x1e\
+jsco:test/echo-algebraic@0.1.0\x05\x13\x01B\x03\x01j\0\0\x01@\0\0\0\x04\0\x03run\
+\x01\x01\x04\0\x13wasi:cli/run@0.2.11\x05\x14\x04\0\x1cjsco:consumer/consumer@0.\
+1.0\x04\0\x0b\x0e\x01\0\x08consumer\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\
+\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

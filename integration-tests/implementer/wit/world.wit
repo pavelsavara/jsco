@@ -10,4 +10,7 @@ world implementer {
     export wasi:random/random@0.2.11;
     export wasi:clocks/monotonic-clock@0.2.11;
     export wasi:clocks/wall-clock@0.2.11;
+    export jsco:test/echo-primitives@0.1.0;
+    export jsco:test/echo-compound@0.1.0;
+    export jsco:test/echo-algebraic@0.1.0;
 }

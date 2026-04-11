@@ -17,15 +17,23 @@ import { Resolver, BinderRes, ResolverRes, ResolverContext, resolveCanonicalOpti
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
+    const cached = rctx.coreFunctionCache.get(rargs.element);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.coreFunctionCacheHits++;
+        return { ...cached, callerElement: rargs.callerElement };
+    }
     const coreInstance = rargs.element;
+    let result: ResolverRes;
     switch (coreInstance.tag) {
-        case ModelTag.ComponentAliasCoreInstanceExport: return resolveComponentAliasCoreInstanceExport(rctx, rargs as any) as ResolverRes;
-        case ModelTag.CanonicalFunctionLower: return resolveCanonicalFunctionLower(rctx, rargs as any);
-        case ModelTag.CanonicalFunctionResourceDrop: return resolveCanonicalFunctionResourceDrop(rctx, rargs as any);
-        case ModelTag.CanonicalFunctionResourceNew: return resolveCanonicalFunctionResourceNew(rctx, rargs as any);
-        case ModelTag.CanonicalFunctionResourceRep: return resolveCanonicalFunctionResourceRep(rctx, rargs as any);
+        case ModelTag.ComponentAliasCoreInstanceExport: result = resolveComponentAliasCoreInstanceExport(rctx, rargs as any) as ResolverRes; break;
+        case ModelTag.CanonicalFunctionLower: result = resolveCanonicalFunctionLower(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionResourceDrop: result = resolveCanonicalFunctionResourceDrop(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionResourceNew: result = resolveCanonicalFunctionResourceNew(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionResourceRep: result = resolveCanonicalFunctionResourceRep(rctx, rargs as any); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
+    rctx.coreFunctionCache.set(rargs.element, result);
+    return result;
 };
 
 export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (rctx, rargs) => {

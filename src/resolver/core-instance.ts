@@ -2,7 +2,7 @@ import { Export, ExternalKind } from '../model/core';
 import { CoreInstanceIndex } from '../model/indices';
 import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArg, InstantiationArgKind } from '../model/instances';
 import { ModelTag, TaggedElement } from '../model/tags';
-import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert, isDebug } from '../utils/assert';
 import { TCabiRealloc } from './binding/types';
 import { resolveCoreFunction } from './core-functions';
 import { resolveCoreModule } from './core-module';
@@ -10,12 +10,20 @@ import { getCoreInstance, getCoreModule } from './indices';
 import { Resolver, ResolverRes, BinderRes, BinderArgs } from './types';
 
 export const resolveCoreInstance: Resolver<CoreInstance> = (rctx, rargs) => {
+    const cached = rctx.coreInstanceCache.get(rargs.element);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.coreInstanceCacheHits++;
+        return { ...cached, callerElement: rargs.callerElement };
+    }
     const coreInstance = rargs.element;
+    let result: ResolverRes;
     switch (coreInstance.tag) {
-        case ModelTag.CoreInstanceFromExports: return resolveCoreInstanceFromExports(rctx, rargs as any);
-        case ModelTag.CoreInstanceInstantiate: return resolveCoreInstanceInstantiate(rctx, rargs as any);
+        case ModelTag.CoreInstanceFromExports: result = resolveCoreInstanceFromExports(rctx, rargs as any); break;
+        case ModelTag.CoreInstanceInstantiate: result = resolveCoreInstanceInstantiate(rctx, rargs as any); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
+    rctx.coreInstanceCache.set(rargs.element, result);
+    return result;
 };
 
 export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> = (rctx, rargs) => {

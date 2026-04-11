@@ -14,6 +14,7 @@ export { createWasiHost } from './host/wasip2';
 export { instantiateWasiComponent } from './host/wasip2/instantiate';
 export type { WasiInstantiateOptions } from './host/wasip2/instantiate';
 export type { WasiConfig } from './host/wasip2/types';
+export type { WasmComponent, WasmComponentInstance, ResolutionStats } from './resolver/api-types';
 export { LogLevel, setLogger } from './utils/assert';
 export type { Verbosity, LogFn } from './utils/assert';
 export { printWAT } from './utils/wat-printer';

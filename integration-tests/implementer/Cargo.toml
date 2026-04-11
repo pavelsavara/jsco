@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wit-bindgen-rt = { workspace = true }
+wit-bindgen-rt = { workspace = true, features = ["bitflags"] }
 
 [lib]
 crate-type = ["cdylib"]
@@ -19,5 +19,6 @@ target.path = "wit"
 "wasi:io" = { path = "../../wit/wasip2/cli/deps/io.wit" }
 "wasi:clocks" = { path = "../../wit/wasip2/cli/deps/clocks.wit" }
 "wasi:random" = { path = "../../wit/wasip2/cli/deps/random.wit" }
+"jsco:test" = { path = "../../wit" }
 "wasi:filesystem" = { path = "../../wit/wasip2/cli/deps/filesystem.wit" }
 "wasi:sockets" = { path = "../../wit/wasip2/cli/deps/sockets.wit" }

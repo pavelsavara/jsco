@@ -25,6 +25,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            componentSectionCache: new Map(),
+            stats: isDebug ? { resolveComponentSection: 0, resolveComponentInstanceInstantiate: 0, createScopedResolverContext: 0, componentSectionCacheHits: 0, componentInstanceCacheHits: 0, coreInstanceCacheHits: 0, coreFunctionCacheHits: 0, componentFunctionCacheHits: 0 } : undefined,
             verbose,
             logger,
         },
@@ -32,6 +34,10 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
+        componentInstanceCache: new Map(),
+        coreInstanceCache: new Map(),
+        coreFunctionCache: new Map(),
+        componentFunctionCache: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -138,6 +144,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
 /// This function builds local indexes from the section's declarations so that
 /// lookups (e.g., component_index in ComponentInstanceInstantiate) resolve correctly.
 export function createScopedResolverContext(parentRctx: ResolverContext, sections: TaggedElement[]): ResolverContext {
+    if (isDebug && parentRctx.resolved.stats) parentRctx.resolved.stats.createScopedResolverContext++;
     const scopedRctx: ResolverContext = {
         resolved: {
             ...parentRctx.resolved,
@@ -152,6 +159,10 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
         wasmInstantiate: parentRctx.wasmInstantiate,
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
+        componentInstanceCache: new Map(),
+        coreInstanceCache: new Map(),
+        coreFunctionCache: new Map(),
+        componentFunctionCache: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],

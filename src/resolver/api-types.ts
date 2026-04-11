@@ -11,8 +11,20 @@ export type WasmComponentInstance<TJSExports> = {
 export type JsExports<TJSExports> = TJSExports & JsInterfaceCollection
 export type JsImports = JsInterfaceCollection
 
+export type ResolutionStats = {
+    resolveComponentSection: number
+    resolveComponentInstanceInstantiate: number
+    createScopedResolverContext: number
+    componentSectionCacheHits: number
+    componentInstanceCacheHits: number
+    coreInstanceCacheHits: number
+    coreFunctionCacheHits: number
+    componentFunctionCacheHits: number
+}
+
 export type WasmComponent<TJSExports> = {
     instantiate: WasmComponentFactory<TJSExports>
     plan?: PlanOp[]
+    stats?: ResolutionStats
 }
 export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>

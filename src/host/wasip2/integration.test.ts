@@ -1,5 +1,5 @@
 /**
- * Integration tests — consumer, forwarder, implementer composition scenarios
+ * Integration tests — flat composition scenarios (A–E) and WAC composition scenarios (F–K)
  *
  * Scenario A: consumer ← JS host (direct)
  * Scenario B: consumer ← forwarder ← JS host (2-level composition)
@@ -14,713 +14,241 @@
  * Scenario K: consumer ← (forwarder ← (forwarder ← implementer)) (nested wac, implementer inside)
  */
 
-import { createComponent } from '../../resolver';
 import { createWasiHost } from './index';
-import { WasiExit } from './types';
 import { setConfiguration } from '../../utils/assert';
-import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
+import { useVerboseOnFailure, runWithVerbose } from '../../test-utils/verbose-logger';
+import {
+    yieldToGC, fullWasiConfig, forwardedInterfaces, implementerInterfaces,
+    forwarderWasm, implementerWasm,
+    wrappedForwarderWasm, doubleForwarderWasm, nestedDoubleForwarderWasm,
+    forwarderImplementerWasm, doubleForwarderImplementerWasm, nestedForwarderImplementerWasm,
+    runConsumerScenario, instantiateComponent, wireExportsToImports,
+} from './integration-helpers';
+import type { ImportsMap } from './integration-helpers';
 
 setConfiguration('Debug');
 
-const consumerWasm = './integration-tests/target/wasm32-wasip1/release/consumer.wasm';
-const forwarderWasm = './integration-tests/target/wasm32-wasip1/release/forwarder.wasm';
-const implementerWasm = './integration-tests/target/wasm32-wasip1/release/implementer.wasm';
-const wrappedForwarderWasm = './integration-tests/compositions/wrapped-forwarder.wasm';
-const doubleForwarderWasm = './integration-tests/compositions/double-forwarder.wasm';
-const nestedDoubleForwarderWasm = './integration-tests/compositions/nested-double-forwarder.wasm';
-const forwarderImplementerWasm = './integration-tests/compositions/forwarder-implementer.wasm';
-const doubleForwarderImplementerWasm = './integration-tests/compositions/double-forwarder-implementer.wasm';
-const nestedForwarderImplementerWasm = './integration-tests/compositions/nested-forwarder-implementer.wasm';
-
-interface CounterState {
-    value: number;
-}
-
-function createTestImports(logMessages: string[], _stderrChunks: string[]) {
-    const counters = new Map<number, CounterState>();
-    let nextCounterId = 1;
-
-    const loggerImport = {
-        log: (level: number, message: string) => {
-            const levels = ['trace', 'debug', 'info', 'warn', 'error'];
-            logMessages.push(`[${levels[level] ?? level}] ${message}`);
-        },
-        'structured-log': (level: number, message: string, properties: Array<[string, string]>) => {
-            const levels = ['trace', 'debug', 'info', 'warn', 'error'];
-            const props = properties.map(([k, v]) => `${k}=${v}`).join(', ');
-            logMessages.push(`[${levels[level] ?? level}] ${message} {${props}}`);
-        },
-    };
-
-    const counterImport = {
-        '[constructor]counter': (_name: string): number => {
-            const id = nextCounterId++;
-            counters.set(id, { value: 0 });
-            return id;
-        },
-        '[method]counter.increment': (self: number) => {
-            const c = counters.get(self);
-            if (c) c.value++;
-        },
-        '[method]counter.get': (self: number): bigint => {
-            const c = counters.get(self);
-            return BigInt(c?.value ?? 0);
-        },
-        '[resource-drop]counter': (self: number) => {
-            counters.delete(self);
-        },
-    };
-
-    return {
-        'jsco:test/logger@0.1.0': loggerImport,
-        'jsco:test/counter@0.1.0': counterImport,
-    };
-}
-
-function parseTestResults(stdout: string): { name: string; passed: boolean; reason?: string }[] {
-    const results: { name: string; passed: boolean; reason?: string }[] = [];
-    for (const line of stdout.split('\n')) {
-        const passMatch = line.match(/^\[PASS\] (.+)$/);
-        if (passMatch) {
-            results.push({ name: passMatch[1], passed: true });
-            continue;
-        }
-        const failMatch = line.match(/^\[FAIL\] ([^:]+): (.+)$/);
-        if (failMatch) {
-            results.push({ name: failMatch[1], passed: false, reason: failMatch[2] });
-        }
-    }
-    return results;
-}
-
-const forwardedInterfaces = [
-    'wasi:cli/environment', 'wasi:cli/exit',
-    'wasi:cli/stdin', 'wasi:cli/stdout', 'wasi:cli/stderr',
-    'wasi:random/random',
-    'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
-];
-
-const implementerInterfaces = [
-    'wasi:cli/environment', 'wasi:cli/exit',
-    'wasi:random/random',
-    'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
-];
-
-function wireExportsToImports(
-    exports: Record<string, Record<string, Function>>,
-    target: Record<string, Record<string, Function>>,
-    interfaces: string[],
-) {
-    for (const iface of interfaces) {
-        const exported = exports[`${iface}@0.2.11`] ?? exports[iface];
-        if (exported) {
-            target[iface] = exported;
-            target[`${iface}@0.2.11`] = exported;
-        }
-    }
-}
-
-function assertTestResults(
-    stdout: string,
-    logMessages: string[],
-    exitCode: number | undefined,
-    expectForwarderLogs: boolean | number = false,
-) {
-    const testResults = parseTestResults(stdout);
-    expect(testResults.length).toBeGreaterThan(0);
-
-    for (const result of testResults) {
-        expect({ test: result.name, passed: result.passed, reason: result.reason })
-            .toEqual({ test: result.name, passed: true, reason: undefined });
-    }
-
-    expect(logMessages.length).toBeGreaterThan(0);
-
-    if (expectForwarderLogs === true || (typeof expectForwarderLogs === 'number' && expectForwarderLogs >= 1)) {
-        const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
-        expect(forwarderLogs.length).toBeGreaterThan(0);
-    }
-
-    if (typeof expectForwarderLogs === 'number' && expectForwarderLogs >= 2) {
-        // With two forwarders, each intercepted WASI call is logged by both forwarders independently.
-        // Verify that the same operation was logged at least twice (once per forwarder in the chain).
-        const envLogs = logMessages.filter(m => m.includes('[forwarder]') && m.includes('get-environment'));
-        expect(envLogs.length).toBeGreaterThanOrEqual(2);
-    }
-
-    expect(exitCode).toBe(0);
-}
-
-describe('Integration tests', () => {
+describe('Integration tests (flat)', () => {
     const verbose = useVerboseOnFailure();
 
-    describe('Scenario A: consumer-direct', () => {
-        test('consumer runs all tests via JS WASI host', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'A'],
-                env: [
-                    ['TEST_SPECIAL', 'hello=world 🌍'],
-                    ['HOME', '/test/home'],
-                    ['PATH', '/usr/bin'],
-                ],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => {
-                    stderrChunks.push(new TextDecoder().decode(bytes));
-                },
-            });
-
-            const extraImports = createTestImports(logMessages, stderrChunks);
-            const mergedImports = { ...wasiImports, ...extraImports };
-
-            const component = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-
-            try {
-                const instance = await component.instantiate(mergedImports);
-                // Find the run export — could be versioned
-                const runNs = (instance.exports['wasi:cli/run@0.2.11']
-                    ?? instance.exports['wasi:cli/run']) as any;
-                expect(runNs).toBeDefined();
-                const result = runNs.run();
-                // result is { tag: 'ok' } or { tag: 'err' }
-                if (result && typeof result === 'object' && 'tag' in result) {
-                    exitCode = result.tag === 'ok' ? 0 : 1;
-                } else {
-                    exitCode = 0;
-                }
-            } catch (e) {
-                if (e instanceof WasiExit) {
-                    exitCode = e.code;
-                } else {
-                    throw e;
-                }
-            }
-
-            const stdout = new TextDecoder().decode(
-                new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
-            );
-            const testResults = parseTestResults(stdout);
-
-            // Check we got test results
-            expect(testResults.length).toBeGreaterThan(0);
-
-            // Create individual assertions per test
-            for (const result of testResults) {
-                expect({ test: result.name, passed: result.passed, reason: result.reason })
-                    .toEqual({ test: result.name, passed: true, reason: undefined });
-            }
-
-            // Verify logger was called
-            expect(logMessages.length).toBeGreaterThan(0);
-
-            // Verify exit code
-            expect(exitCode).toBe(0);
-        }));
-    });
-
-    describe('Scenario B: consumer ← forwarder ← JS host', () => {
-        test('consumer runs all tests through forwarder', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            // 1. Create full JS WASI host
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'B'],
-                env: [
-                    ['TEST_SPECIAL', 'hello=world 🌍'],
-                    ['HOME', '/test/home'],
-                    ['PATH', '/usr/bin'],
-                ],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => {
-                    stderrChunks.push(new TextDecoder().decode(bytes));
-                },
-            });
-
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // 2. Instantiate forwarder with JS WASI host + logger
-            const forwarderComponent = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const forwarderInstance = await forwarderComponent.instantiate({
-                ...wasiImports,
-                ...extraImports,
-            });
-
-            // 3. Build consumer imports: forwarder's exported WASI + JS host io + custom imports
-            const forwarderExports = forwarderInstance.exports as Record<string, Record<string, Function>>;
-
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-
-            // Override with forwarder's exports (try versioned first, then unversioned)
-            wireExportsToImports(forwarderExports, consumerImports, forwardedInterfaces);
-
-            // 4. Instantiate consumer with merged imports
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11']
-                    ?? instance.exports['wasi:cli/run']) as any;
-                expect(runNs).toBeDefined();
-                const result = runNs.run();
-                if (result && typeof result === 'object' && 'tag' in result) {
-                    exitCode = result.tag === 'ok' ? 0 : 1;
-                } else {
-                    exitCode = 0;
-                }
-            } catch (e) {
-                if (e instanceof WasiExit) {
-                    exitCode = e.code;
-                } else {
-                    throw e;
-                }
-            }
-
-            const stdout = new TextDecoder().decode(
-                new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
-            );
-            const testResults = parseTestResults(stdout);
-
-            expect(testResults.length).toBeGreaterThan(0);
-
-            for (const result of testResults) {
-                expect({ test: result.name, passed: result.passed, reason: result.reason })
-                    .toEqual({ test: result.name, passed: true, reason: undefined });
-            }
-
-            // Verify logger was called AND forwarder logged its interceptions
-            expect(logMessages.length).toBeGreaterThan(0);
-            const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
-            expect(forwarderLogs.length).toBeGreaterThan(0);
-
-            expect(exitCode).toBe(0);
-        }));
-    });
-
-    describe('Scenario C: consumer ← forwarder ← implementer', () => {
-        test('consumer runs all tests through forwarder + implementer', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            // 1. Instantiate implementer — needs io/* from JS host even though it only exports
-            //    (WASI preview1 adapter embedded in the component requires io/streams)
-            const implHostImports = createWasiHost({});
-            const implementerComponent = await createComponent(implementerWasm, verboseOptions(verbose));
-            const implementerInstance = await implementerComponent.instantiate(implHostImports);
-            const implExports = implementerInstance.exports as Record<string, Record<string, Function>>;
-
-            // 2. Create JS WASI host for stdin/stdout/stderr + io interfaces
-            const wasiImports = createWasiHost({
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => {
-                    stderrChunks.push(new TextDecoder().decode(bytes));
-                },
-            });
-
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // 3. Instantiate forwarder with implementer's WASI + JS host stdin/stdout/stderr + logger
-            //    Implementer provides: environment, exit, random, clocks
-            //    JS host provides: stdin, stdout, stderr, io/*
-
-            const forwarderImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(implExports, forwarderImports, implementerInterfaces);
-
-            const forwarderComponent = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const forwarderInstance = await forwarderComponent.instantiate(forwarderImports);
-            const forwarderExports = forwarderInstance.exports as Record<string, Record<string, Function>>;
-
-            // 4. Build consumer imports: forwarder's exported WASI + JS host io + custom imports
-
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(forwarderExports, consumerImports, forwardedInterfaces);
-
-            // 5. Instantiate consumer with merged imports
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11']
-                    ?? instance.exports['wasi:cli/run']) as any;
-                expect(runNs).toBeDefined();
-                const result = runNs.run();
-                if (result && typeof result === 'object' && 'tag' in result) {
-                    exitCode = result.tag === 'ok' ? 0 : 1;
-                } else {
-                    exitCode = 0;
-                }
-            } catch (e) {
-                if (e instanceof WasiExit) {
-                    exitCode = e.code;
-                } else {
-                    throw e;
-                }
-            }
-
-            const stdout = new TextDecoder().decode(
-                new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
-            );
-            const testResults = parseTestResults(stdout);
-
-            expect(testResults.length).toBeGreaterThan(0);
-
-            for (const result of testResults) {
-                expect({ test: result.name, passed: result.passed, reason: result.reason })
-                    .toEqual({ test: result.name, passed: true, reason: undefined });
-            }
-
-            // Verify forwarder logged its interceptions
-            const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
-            expect(forwarderLogs.length).toBeGreaterThan(0);
-
-            expect(exitCode).toBe(0);
-        }));
-    });
-
-    describe('Scenario D: consumer ← fwd ← fwd ← implementer (flat)', () => {
-        test('consumer runs through two forwarders + implementer', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            // 1. Instantiate implementer
-            const implHostImports = createWasiHost({});
-            const implementerComponent = await createComponent(implementerWasm, verboseOptions(verbose));
-            const implementerInstance = await implementerComponent.instantiate(implHostImports);
-            const implExports = implementerInstance.exports as Record<string, Record<string, Function>>;
-
-            // 2. JS WASI host for io/streams
-            const wasiImports = createWasiHost({
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // 3. Inner forwarder (fwd2) ← implementer + JS host io
-            const fwd2Imports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(implExports, fwd2Imports, implementerInterfaces);
-
-            const fwd2Component = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const fwd2Instance = await fwd2Component.instantiate(fwd2Imports);
-            const fwd2Exports = fwd2Instance.exports as Record<string, Record<string, Function>>;
-
-            // 4. Outer forwarder (fwd1) ← fwd2 + JS host io
-            const fwd1Imports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(fwd2Exports, fwd1Imports, forwardedInterfaces);
-
-            const fwd1Component = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const fwd1Instance = await fwd1Component.instantiate(fwd1Imports);
-            const fwd1Exports = fwd1Instance.exports as Record<string, Record<string, Function>>;
-
-            // 5. Consumer ← fwd1
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(fwd1Exports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario E: consumer ← fwd ← fwd ← host (flat)', () => {
-        test('consumer runs through two forwarders to JS host', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'E'],
-                env: [['TEST_SPECIAL', 'hello=world 🌍'], ['HOME', '/test/home'], ['PATH', '/usr/bin']],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Inner forwarder (fwd2) ← JS host
-            const fwd2Component = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const fwd2Instance = await fwd2Component.instantiate({ ...wasiImports, ...extraImports });
-            const fwd2Exports = fwd2Instance.exports as Record<string, Record<string, Function>>;
-
-            // Outer forwarder (fwd1) ← fwd2
-            const fwd1Imports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(fwd2Exports, fwd1Imports, forwardedInterfaces);
-
-            const fwd1Component = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const fwd1Instance = await fwd1Component.instantiate(fwd1Imports);
-            const fwd1Exports = fwd1Instance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← fwd1
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(fwd1Exports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario F: consumer ← fwd ← (fwd ← host) wac-wrapped', () => {
-        test('consumer runs through forwarder + wac-wrapped forwarder', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'F'],
-                env: [['TEST_SPECIAL', 'hello=world 🌍'], ['HOME', '/test/home'], ['PATH', '/usr/bin']],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Inner: wac-wrapped forwarder (nested component) ← JS host
-            const wrappedComponent = await createComponent(wrappedForwarderWasm, verboseOptions(verbose));
-            const wrappedInstance = await wrappedComponent.instantiate({ ...wasiImports, ...extraImports });
-            const wrappedExports = wrappedInstance.exports as Record<string, Record<string, Function>>;
-
-            // Outer: forwarder ← wrapped forwarder
-            const fwdImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(wrappedExports, fwdImports, forwardedInterfaces);
-
-            const fwdComponent = await createComponent(forwarderWasm, verboseOptions(verbose));
-            const fwdInstance = await fwdComponent.instantiate(fwdImports);
-            const fwdExports = fwdInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← forwarder
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(fwdExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario G: consumer ← (fwd ← fwd ← host) wac-composed', () => {
-        test('consumer runs through wac-composed double forwarder', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'G'],
-                env: [['TEST_SPECIAL', 'hello=world 🌍'], ['HOME', '/test/home'], ['PATH', '/usr/bin']],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Composed double-forwarder ← JS host
-            const doubleComponent = await createComponent(doubleForwarderWasm, verboseOptions(verbose));
-            const doubleInstance = await doubleComponent.instantiate({ ...wasiImports, ...extraImports });
-            const doubleExports = doubleInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← composed double-forwarder
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(doubleExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario H: consumer ← (fwd ← (fwd ← host)) nested wac', () => {
-        test('consumer runs through nested wac-composed double forwarder', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                args: ['consumer-test', '--scenario', 'H'],
-                env: [['TEST_SPECIAL', 'hello=world 🌍'], ['HOME', '/test/home'], ['PATH', '/usr/bin']],
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Nested composed component (fwd → (fwd → host)) ← JS host
-            const nestedComponent = await createComponent(nestedDoubleForwarderWasm, verboseOptions(verbose));
-            const nestedInstance = await nestedComponent.instantiate({ ...wasiImports, ...extraImports });
-            const nestedExports = nestedInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← nested composed component
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(nestedExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario I: consumer ← (fwd ← implementer) wac-composed', () => {
-        test('consumer runs through wac-composed forwarder + implementer', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            // JS host provides only io/streams + logger (implementer is inside the composition)
-            const wasiImports = createWasiHost({
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Composed component (fwd ← implementer) ← JS host io + logger
-            const composedComponent = await createComponent(forwarderImplementerWasm, verboseOptions(verbose));
-            const composedInstance = await composedComponent.instantiate({ ...wasiImports, ...extraImports });
-            const composedExports = composedInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← composed component
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(composedExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, true);
-        }));
-    });
-
-    describe('Scenario J: consumer ← (fwd ← fwd ← implementer) wac-composed', () => {
-        test('consumer runs through wac-composed double forwarder + implementer', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Composed component (fwd ← fwd ← implementer) ← JS host io + logger
-            const composedComponent = await createComponent(doubleForwarderImplementerWasm, verboseOptions(verbose));
-            const composedInstance = await composedComponent.instantiate({ ...wasiImports, ...extraImports });
-            const composedExports = composedInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← composed component
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(composedExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
-
-    describe('Scenario K: consumer ← (fwd ← (fwd ← implementer)) nested wac', () => {
-        test('consumer runs through nested wac-composed forwarder + implementer', () => runWithVerbose(verbose, async () => {
-            const stdoutChunks: Uint8Array[] = [];
-            const stderrChunks: string[] = [];
-            const logMessages: string[] = [];
-
-            const wasiImports = createWasiHost({
-                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
-                stderr: (bytes) => { stderrChunks.push(new TextDecoder().decode(bytes)); },
-            });
-            const extraImports = createTestImports(logMessages, stderrChunks);
-
-            // Nested composed component (fwd ← (fwd ← implementer)) ← JS host io + logger
-            const nestedComponent = await createComponent(nestedForwarderImplementerWasm, verboseOptions(verbose));
-            const nestedInstance = await nestedComponent.instantiate({ ...wasiImports, ...extraImports });
-            const nestedExports = nestedInstance.exports as Record<string, Record<string, Function>>;
-
-            // Consumer ← nested composed component
-            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
-            wireExportsToImports(nestedExports, consumerImports, forwardedInterfaces);
-
-            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
-            let exitCode: number | undefined;
-            try {
-                const instance = await consumerComponent.instantiate(consumerImports);
-                const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-                const result = runNs.run();
-                exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
-            } catch (e) {
-                if (e instanceof WasiExit) exitCode = e.code; else throw e;
-            }
-
-            const stdout = new TextDecoder().decode(new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[])));
-            assertTestResults(stdout, logMessages, exitCode, 2);
-        }));
-    });
+    afterEach(yieldToGC);
+
+    test('Scenario A: consumer-direct', async () => runWithVerbose(verbose, async () => {
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => ({ ...wasiImports, ...extraImports }),
+            false,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario B: consumer ← forwarder ← JS host', async () => runWithVerbose(verbose, async () => {
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const fwd = await instantiateComponent(forwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario C: consumer ← forwarder ← implementer', async () => runWithVerbose(verbose, async () => {
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const impl = await instantiateComponent(implementerWasm, createWasiHost({}), verbose);
+
+                const fwdImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(impl.exports, fwdImports, implementerInterfaces);
+                const fwd = await instantiateComponent(forwarderWasm, fwdImports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+        );
+    }));
+
+    test('Scenario D: consumer ← fwd ← fwd ← implementer (flat)', async () => runWithVerbose(verbose, async () => {
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const impl = await instantiateComponent(implementerWasm, createWasiHost({}), verbose);
+
+                const fwd2Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(impl.exports, fwd2Imports, implementerInterfaces);
+                const fwd2 = await instantiateComponent(forwarderWasm, fwd2Imports, verbose);
+
+                const fwd1Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd2.exports, fwd1Imports, forwardedInterfaces);
+                const fwd1 = await instantiateComponent(forwarderWasm, fwd1Imports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd1.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+    }));
+
+    test('Scenario E: consumer ← fwd ← fwd ← host (flat)', async () => runWithVerbose(verbose, async () => {
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const fwd2 = await instantiateComponent(forwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+
+                const fwd1Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd2.exports, fwd1Imports, forwardedInterfaces);
+                const fwd1 = await instantiateComponent(forwarderWasm, fwd1Imports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd1.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+    }));
+});
+
+describe('Integration tests (WAC compositions)', () => {
+    const verbose = useVerboseOnFailure();
+
+    test('Scenario F: consumer ← fwd ← (fwd ← host) wac-wrapped', async () => runWithVerbose(verbose, async () => {
+        let wrappedStats;
+        let fwdStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const wrapped = await instantiateComponent(wrappedForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+                wrappedStats = wrapped.stats;
+
+                const fwdImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(wrapped.exports, fwdImports, forwardedInterfaces);
+                const fwd = await instantiateComponent(forwarderWasm, fwdImports, verbose);
+                fwdStats = fwd.stats;
+
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+        // wrapped-forwarder: 13 scoped contexts, 53 instance cache hits, 123 core instance cache hits
+        expect(wrappedStats!.createScopedResolverContext).toBe(13);
+        expect(wrappedStats!.componentSectionCacheHits).toBe(0);
+        expect(wrappedStats!.componentInstanceCacheHits).toBe(53);
+        expect(wrappedStats!.coreInstanceCacheHits).toBe(123);
+        // plain forwarder: 12 unique sub-components, 42 instance cache hits
+        expect(fwdStats!.createScopedResolverContext).toBe(12);
+        expect(fwdStats!.componentInstanceCacheHits).toBe(42);
+    }));
+
+    test('Scenario G: consumer ← (fwd ← fwd ← host) wac-composed', async () => runWithVerbose(verbose, async () => {
+        let dblStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const dbl = await instantiateComponent(doubleForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+                dblStats = dbl.stats;
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(dbl.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+        // double-forwarder: 13 scoped contexts, 1 section cache hit, 69 instance cache hits
+        expect(dblStats!.createScopedResolverContext).toBe(13);
+        expect(dblStats!.componentSectionCacheHits).toBe(1);
+        expect(dblStats!.componentInstanceCacheHits).toBe(69);
+        expect(dblStats!.coreInstanceCacheHits).toBe(123);
+    }));
+
+    test('Scenario H: consumer ← (fwd ← (fwd ← host)) nested wac', async () => runWithVerbose(verbose, async () => {
+        let nestedStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const nested = await instantiateComponent(nestedDoubleForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+                nestedStats = nested.stats;
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(nested.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+        // nested-double-forwarder: 27 scoped contexts, 122 instance cache hits
+        expect(nestedStats!.createScopedResolverContext).toBe(27);
+        expect(nestedStats!.componentSectionCacheHits).toBe(0);
+        expect(nestedStats!.componentInstanceCacheHits).toBe(122);
+        expect(nestedStats!.coreInstanceCacheHits).toBe(246);
+    }));
+
+    test('Scenario I: consumer ← (fwd ← implementer) wac-composed', async () => runWithVerbose(verbose, async () => {
+        let composedStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const composed = await instantiateComponent(forwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+                composedStats = composed.stats;
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(composed.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+        );
+        // forwarder-implementer: 25 scoped contexts, 62 instance cache hits
+        expect(composedStats!.createScopedResolverContext).toBe(25);
+        expect(composedStats!.componentSectionCacheHits).toBe(0);
+        expect(composedStats!.componentInstanceCacheHits).toBe(62);
+        expect(composedStats!.coreInstanceCacheHits).toBe(177);
+    }));
+
+    test('Scenario J: consumer ← (fwd ← fwd ← implementer) wac-composed', async () => runWithVerbose(verbose, async () => {
+        let composedStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const composed = await instantiateComponent(doubleForwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+                composedStats = composed.stats;
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(composed.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+        // double-forwarder-implementer: 25 scoped contexts, 1 section cache hit, 78 instance cache hits
+        expect(composedStats!.createScopedResolverContext).toBe(25);
+        expect(composedStats!.componentSectionCacheHits).toBe(1);
+        expect(composedStats!.componentInstanceCacheHits).toBe(78);
+        expect(composedStats!.coreInstanceCacheHits).toBe(177);
+    }));
+
+    test('Scenario K: consumer ← (fwd ← (fwd ← implementer)) nested wac', async () => runWithVerbose(verbose, async () => {
+        let nestedStats;
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const nested = await instantiateComponent(nestedForwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+                nestedStats = nested.stats;
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(nested.exports, consumerImports, forwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+        // nested-forwarder-implementer: 39 scoped contexts, 131 instance cache hits
+        expect(nestedStats!.createScopedResolverContext).toBe(39);
+        expect(nestedStats!.componentSectionCacheHits).toBe(0);
+        expect(nestedStats!.componentInstanceCacheHits).toBe(131);
+        expect(nestedStats!.coreInstanceCacheHits).toBe(300);
+    }));
 });

@@ -17,6 +17,11 @@ world forwarder {
     // Import logger for intercepting/logging forwarded calls
     import jsco:test/logger@0.1.0;
 
+    // Import echo interfaces (forwarded to upstream consumer)
+    import jsco:test/echo-primitives@0.1.0;
+    import jsco:test/echo-compound@0.1.0;
+    import jsco:test/echo-algebraic@0.1.0;
+
     // Export the same WASI interfaces (to upstream consumer)
     export wasi:cli/environment@0.2.11;
     export wasi:cli/exit@0.2.11;
@@ -26,6 +31,11 @@ world forwarder {
     export wasi:random/random@0.2.11;
     export wasi:clocks/monotonic-clock@0.2.11;
     export wasi:clocks/wall-clock@0.2.11;
+
+    // Export echo interfaces (forwarded from import)
+    export jsco:test/echo-primitives@0.1.0;
+    export jsco:test/echo-compound@0.1.0;
+    export jsco:test/echo-algebraic@0.1.0;
 
     // Export run so it can be composed as a command wrapper
     export wasi:cli/run@0.2.11;

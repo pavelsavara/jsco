@@ -101,6 +101,8 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
             const op = sortedPlan[i];
             lines.push(`  ${i + 1}. ${planOpKindName(op.kind).padEnd(16)} ${op.label}`);
         }
+        lines.push('');
+        lines.push(`Resolution stats: resolveComponentSection=${rctx.resolved.stats!.resolveComponentSection} resolveComponentInstanceInstantiate=${rctx.resolved.stats!.resolveComponentInstanceInstantiate} createScopedResolverContext=${rctx.resolved.stats!.createScopedResolverContext} cacheHits=${rctx.resolved.stats!.componentSectionCacheHits} instanceCacheHits=${rctx.resolved.stats!.componentInstanceCacheHits} coreInstanceCacheHits=${rctx.resolved.stats!.coreInstanceCacheHits} coreFuncCacheHits=${rctx.resolved.stats!.coreFunctionCacheHits} compFuncCacheHits=${rctx.resolved.stats!.componentFunctionCacheHits}`);
         rctx.resolved.logger!('resolver', LogLevel.Summary, lines.join('\n'));
     }
 
@@ -126,6 +128,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
             return result;
         },
         plan: sortedPlan,
+        stats: isDebug ? { ...rctx.resolved.stats! } : undefined,
     };
     return component;
 }

@@ -3,6 +3,9 @@ mod bindings;
 
 use bindings::jsco::test::counter::Counter;
 use bindings::jsco::test::logger::{self, Level};
+use bindings::jsco::test::echo_primitives;
+use bindings::jsco::test::echo_compound;
+use bindings::jsco::test::echo_algebraic;
 use bindings::wasi::clocks::{monotonic_clock, wall_clock};
 use bindings::wasi::random::random;
 use bindings::exports::wasi::cli::run::Guest;
@@ -212,6 +215,90 @@ impl Guest for Component {
                 fail("counter_independent", &format!("a={}, b={}", a.get(), b.get()));
                 failures += 1;
             }
+        }
+
+        // --- Echo primitives tests ---
+        {
+            if echo_primitives::echo_bool(true) == true {
+                pass("echo_bool");
+            } else { fail("echo_bool", "wrong value"); failures += 1; }
+        }
+        {
+            if echo_primitives::echo_u32(42) == 42 {
+                pass("echo_u32");
+            } else { fail("echo_u32", "wrong value"); failures += 1; }
+        }
+        {
+            if echo_primitives::echo_s64(-999) == -999 {
+                pass("echo_s64");
+            } else { fail("echo_s64", "wrong value"); failures += 1; }
+        }
+        {
+            if echo_primitives::echo_f64(3.14) == 3.14 {
+                pass("echo_f64");
+            } else { fail("echo_f64", "wrong value"); failures += 1; }
+        }
+        {
+            if echo_primitives::echo_char('🎯') == '🎯' {
+                pass("echo_char");
+            } else { fail("echo_char", "wrong value"); failures += 1; }
+        }
+        {
+            if echo_primitives::echo_string("hello 🌍") == "hello 🌍" {
+                pass("echo_string");
+            } else { fail("echo_string", "wrong value"); failures += 1; }
+        }
+
+        // --- Echo compound tests ---
+        {
+            let v = echo_compound::echo_tuple2((7, "tuple"));
+            if v.0 == 7 && v.1 == "tuple" {
+                pass("echo_tuple2");
+            } else { fail("echo_tuple2", "wrong value"); failures += 1; }
+        }
+        {
+            let p = echo_compound::echo_record(echo_compound::Point { x: 1.0, y: 2.0 });
+            if p.x == 1.0 && p.y == 2.0 {
+                pass("echo_record");
+            } else { fail("echo_record", "wrong value"); failures += 1; }
+        }
+        {
+            let v = echo_compound::echo_list_u8(&[1, 2, 3]);
+            if v == vec![1, 2, 3] {
+                pass("echo_list_u8");
+            } else { fail("echo_list_u8", "wrong value"); failures += 1; }
+        }
+        {
+            let v = echo_compound::echo_option_u32(Some(42));
+            if v == Some(42) {
+                pass("echo_option_u32");
+            } else { fail("echo_option_u32", "wrong value"); failures += 1; }
+        }
+        {
+            let v = echo_compound::echo_result_ok(Ok("ok"));
+            if v == Ok("ok".to_string()) {
+                pass("echo_result_ok");
+            } else { fail("echo_result_ok", "wrong value"); failures += 1; }
+        }
+
+        // --- Echo algebraic tests ---
+        {
+            let v = echo_algebraic::echo_enum(echo_algebraic::Color::Blue);
+            if matches!(v, echo_algebraic::Color::Blue) {
+                pass("echo_enum");
+            } else { fail("echo_enum", "wrong value"); failures += 1; }
+        }
+        {
+            let v = echo_algebraic::echo_flags(echo_algebraic::Permissions::READ | echo_algebraic::Permissions::EXECUTE);
+            if v.contains(echo_algebraic::Permissions::READ) && v.contains(echo_algebraic::Permissions::EXECUTE) && !v.contains(echo_algebraic::Permissions::WRITE) {
+                pass("echo_flags");
+            } else { fail("echo_flags", "wrong value"); failures += 1; }
+        }
+        {
+            let v = echo_algebraic::echo_variant(&echo_algebraic::Shape::Circle(5.0));
+            if matches!(v, echo_algebraic::Shape::Circle(r) if r == 5.0) {
+                pass("echo_variant");
+            } else { fail("echo_variant", "wrong value"); failures += 1; }
         }
 
         if failures > 0 {

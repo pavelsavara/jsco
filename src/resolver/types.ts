@@ -12,6 +12,7 @@ import type { ComponentTypeIndex } from '../model/indices';
 import type { ResolvedType } from './type-resolution';
 import type { CanonicalOption } from '../model/canonicals';
 import type { LogFn, Verbosity } from '../utils/assert';
+import type { ResolutionStats } from './api-types';
 import { ModelTag } from '../model/tags';
 
 export const enum StringEncoding {
@@ -100,6 +101,12 @@ export type ResolvedContext = {
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
     /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
     canonicalResourceIds: Map<number, number>
+    /** Caches resolution results for ComponentSection objects. Same ComponentSection
+     *  (by identity) produces the same resolution — avoids exponential re-resolution
+     *  in WAC compositions where the same component type is instantiated multiple times. */
+    componentSectionCache: Map<ComponentSection, ResolverRes>
+    /** Resolution phase counters for diagnostics and test assertions. Only populated in Debug builds. */
+    stats?: ResolutionStats
     /** Current string encoding for the canonical function being resolved. Set per lift/lower. */
     stringEncoding: StringEncoding
     usesNumberForInt64: boolean
@@ -114,6 +121,11 @@ export type ResolverContext = {
     importToInstanceIndex: Map<number, number>;
     /** Maps "instanceIndex:exportName" → canonical resource ID for resource type alias deduplication */
     resourceAliasGroups: Map<string, number>;
+    /** Per-context resolver caches — prevents duplicate resolution of the same element within one context. */
+    componentInstanceCache: Map<ComponentInstance, ResolverRes>;
+    coreInstanceCache: Map<CoreInstance, ResolverRes>;
+    coreFunctionCache: Map<CoreFunction, ResolverRes>;
+    componentFunctionCache: Map<ComponentFunction, ResolverRes>;
     validateTypes: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
 }
