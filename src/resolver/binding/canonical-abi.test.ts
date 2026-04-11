@@ -5,10 +5,21 @@ import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext, StringEncoding } from '../types';
 import { createResourceTable } from '../context';
-import { createLifting, createFunctionLifting, storeToMemory } from './to-abi';
-import { createLowering, loadFromMemory } from './to-js';
-import { WasmPointer, WasmSize } from './types';
+import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
+import { createLowering } from './to-js';
+import { storeToMemory, loadFromMemory } from './test-helpers';
+import { WasmPointer, WasmSize, WasmValue } from './types';
 import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+
+// Wrap BYO-buffer lifters to return arrays for test convenience
+function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+    const lifter = _createLifting(rctx, model);
+    return (ctx: BindingContext, value: any) => {
+        const out = new Array<WasmValue>(64);
+        const count = lifter(ctx, value, out, 0);
+        return out.slice(0, count);
+    };
+}
 import { deepResolveType } from '../calling-convention';
 
 // --- Test helpers ---

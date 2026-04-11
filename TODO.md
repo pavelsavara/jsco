@@ -1,7 +1,6 @@
 # Resolver todo
 - nested modules / nested components
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
-- make sure we don't keep references to model after component was created (memory leak risk)
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
 
 # Binder todo
@@ -10,26 +9,33 @@
 - fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
 - validate string, list and buffer sizes to not cause OOM or out of range
 - validate HTTP API to not receive evil payload, like unlimited body or headers
+- limit runtime allocations: `for (const { name, lowerer } of fieldLowerers)`
+- use decoder/encoder `String.fromCharCode(...u16)`
+- unroll `loadFromMemory` during binding
+- free memory and resource handles
+- make i64 -> number vs bingint configurable again, add tests for it. usesNumberForInt64
 
 # Parser todo
 - add options to delay parsing core modules
 - add options to skip parsing/storing custom sections
 
 # Testing
-- improve zoo test coverage (currently test.failing — debug remaining resolver gaps)
-- add more WIT text based test scenarios into parser tests (parser coverage 67% — needs improvement)
-- change `zoo` to be program with main, not lib
-- create sample app with nested modules
+- update `zoo` sample with new methods that have all possible types of parameters and return types. Use them in tests.
+- create `city` component which be program with main, not a lib
+- use `zoo` as nested component in `city`
+
 - create sample app in go
 - create sample app in JS
 - use JSCO to bind multiple components at runtime
-- add Firefox browser test (Chrome done via Playwright)
+- improve zoo test coverage (currently test.failing — debug remaining resolver gaps)
+- add more WIT text based test scenarios into parser tests (parser coverage 67% — needs improvement)
 - improve utils/ coverage (47% — lowest in project)
 - Nested compound types | `option<option<u8>>`, `result<list<u8>, string>` | High |
 - Resource borrow accounting | `trap_if(h.num_lends != 0)` for own lift/drop | High |
 - Discriminant size boundaries | Variant/enum 255 vs 256 cases | Medium |
 - Multi-word flags | >32 flag members | Medium |
 - Empty containers | Empty record, empty tuple | Low |
+- add Firefox browser test (Chrome done via Playwright)
 
 # Integration Test Plan
 - Implementation, consumer, forwarder components
@@ -56,6 +62,7 @@
 # WASI Preview 3
 - interleaved suspension
 - re-entry on async - queue
+- zero copy bring-your-own-buffer
 
 # Minification
 - `jsco_assert` should be eliminated in Release builds via Rollup plugin (inline macro)

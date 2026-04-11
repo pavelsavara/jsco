@@ -1,3 +1,4 @@
+import { ComponentAliasInstanceExport } from './aliases';
 import { Export, u32 } from './core';
 import { ComponentExport, ComponentExternalKind } from './exports';
 import { CoreModuleIndex, ComponentTypeIndex } from './indices';
@@ -56,6 +57,7 @@ export type ComponentInstance =
     | ComponentInstanceInstantiate
     | ComponentInstanceFromExports
     | ComponentTypeInstance
+    | ComponentAliasInstanceExport
 
 /// The instance is from instantiating a WebAssembly component.
 export type ComponentInstanceInstantiate = IndexedElement & {

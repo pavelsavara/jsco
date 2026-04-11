@@ -1,8 +1,9 @@
 export namespace ZooFoodFood {
   export function hideFood(food: FoodInfo, message: string): void;
   export function consumeFood(foodinfo: FoodInfo, packageinfo: PackageInfo, message: string): void;
-  export function openPackage(packageinfo: PackageInfo, message: string): void;
-  export function trashPackage(sealingstate: SealingState, message: string): void;
+  export function openPackage(sealingstate: SealingState, packageinfo: PackageInfo, message: string): void;
+  export function trashPackage(trashed: PackageInfo[], message: string): boolean;
+  export function planMeal(plan: MealPlan): Result<string, string>;
 }
 export interface FoodInfo {
   name: string,
@@ -19,13 +20,13 @@ export interface FoodInfo {
 /**
  * # Variants
  * 
- * ## `"carbohyrdate"`
+ * ## `"carbohydrate"`
  * 
  * ## `"protein"`
  * 
  * ## `"vitamin"`
  */
-export type NutritionType = 'carbohyrdate' | 'protein' | 'vitamin';
+export type NutritionType = 'carbohydrate' | 'protein' | 'vitamin';
 export interface NutritionInfo {
   percentage: number,
   nutritionType: NutritionType,
@@ -37,18 +38,18 @@ export interface MaterialTypePlasticBag {
 export interface MaterialTypeMetalCan {
   tag: 'metal-can',
 }
-/**
- * # Variants
- * 
- * ## `"opened"`
- * 
- * ## `"closed"`
- * 
- * ## `"damaged"`
- */
-export type SealingState = 'opened' | 'closed' | 'damaged';
+export interface SealingState {
+  opened?: boolean,
+  closed?: boolean,
+  damaged?: boolean,
+}
 export interface PackageInfo {
   nutrition: NutritionInfo,
   material: MaterialType,
   sealing: SealingState,
 }
+export interface MealPlan {
+  foods: FoodInfo[],
+  label?: string | undefined,
+}
+export type Result<T, E> = { tag: 'ok', val: T } | { tag: 'err', val: E };

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    paths: [ "hello/**", "zoo/**", ".github/workflows/rust.yml" ]
+    paths: [ "hello/**", "zoo/**", "city/**", ".github/workflows/rust.yml" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,12 +29,19 @@ jobs:
         workspaces: |
           hello
           zoo
+          city
         cache-on-failure: true
 
     - name: Install cargo-component
       uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-component
+        locked: true
+
+    - name: Install wasm-tools
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: wasm-tools
         locked: true
 
     - name: Install JCO
@@ -58,6 +65,18 @@ jobs:
     - name: Export demo as .wat JCO javaScript
       run: npm run build:zoo-js
 
+    - name: Build city component
+      run: npm run build:city
+
+    - name: Export city as .wat
+      run: npm run build:city-wat
+
+    - name: Compose city+zoo
+      run: npm run build:city-zoo
+
+    - name: Export city-zoo as .wat
+      run: npm run build:city-zoo-wat
+
     - name: Sanity test that JCO can run hello component
       run: npm run test:jco
 
@@ -72,6 +91,18 @@ jobs:
       with:
         name: zoo.${{github.sha}}
         path: zoo/target/wasm32-unknown-unknown/release/zoo.wa*
+
+    - name: WASM city component artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: city.${{github.sha}}
+        path: city/target/wasm32-unknown-unknown/release/city.wa*
+
+    - name: WASM city-zoo composed artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: city-zoo.${{github.sha}}
+        path: city/wasm/city-zoo.wasm
 
     - name: JCO component artifact
       uses: actions/upload-artifact@v6

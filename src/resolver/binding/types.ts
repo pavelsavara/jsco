@@ -16,6 +16,6 @@ export type FnLoweringCallToJs = (ctx: BindingContext, jsExport: JsFunction) => 
 export type FnLiftingCallFromJs = (ctx: BindingContext, wasmFunction: WasmFunction) => JsFunction;
 
 export type LoweringToJs = (ctx: BindingContext, ...args: WasmValue[]) => JsValue;
-export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue) => WasmValue[];
+export type LiftingFromJs = (ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number) => number;
 
 export type TCabiRealloc = (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;

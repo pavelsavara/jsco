@@ -153,7 +153,7 @@ describe('function trampolines', () => {
             // Lowering trampoline receives flat WASM args, calls JS, lifts result back
             const result = wasmFunc(10, 20);
             // Result should be a single lifted WASM value (u32)
-            expect(result).toEqual([30]);
+            expect(result).toEqual(30);
         });
     });
 
@@ -266,7 +266,7 @@ describe('function trampolines', () => {
             expect(receivedArgs[0]).toBe(10);
             expect(receivedArgs[17]).toBe(180);
             // Result is lifted back: sum of 10+20+...+180 = 1710
-            expect(result).toEqual([1710]);
+            expect(result).toEqual(1710);
         });
     });
 
