@@ -139,6 +139,23 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
             }
         }
     }
+
+    // Phase 3: global deep-resolve — replace any remaining ComponentValTypeType
+    // references in all resolved types. This covers function types and defined types
+    // at the top level that reference other type indices (e.g., a record field whose
+    // type is a primitive at another index).
+    const globalRctx: ResolvedContext = {
+        resolvedTypes: map,
+        liftingCache: new Map(),
+        loweringCache: new Map(),
+        canonicalResourceIds: new Map(),
+        stringEncoding: StringEncoding.Utf8,
+        usesNumberForInt64: false,
+    };
+    for (const [idx, resolved] of map) {
+        map.set(idx, deepResolveType(globalRctx, resolved));
+    }
+
     return map;
 }
 

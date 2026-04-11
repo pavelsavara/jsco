@@ -1,0 +1,76 @@
+package jsco:test@0.1.0;
+
+/// Primitives: all numeric types, bool, char, string
+interface echo-primitives {
+    echo-bool: func(v: bool) -> bool;
+    echo-u8: func(v: u8) -> u8;
+    echo-u16: func(v: u16) -> u16;
+    echo-u32: func(v: u32) -> u32;
+    echo-u64: func(v: u64) -> u64;
+    echo-s8: func(v: s8) -> s8;
+    echo-s16: func(v: s16) -> s16;
+    echo-s32: func(v: s32) -> s32;
+    echo-s64: func(v: s64) -> s64;
+    echo-f32: func(v: f32) -> f32;
+    echo-f64: func(v: f64) -> f64;
+    echo-char: func(v: char) -> char;
+    echo-string: func(v: string) -> string;
+}
+
+/// Compound: records, tuples, lists, options, results
+interface echo-compound {
+    record point {
+        x: f64,
+        y: f64,
+    }
+
+    record labeled-point {
+        label: string,
+        coords: point,
+        elevation: option<f64>,
+    }
+
+    echo-tuple2: func(v: tuple<u32, string>) -> tuple<u32, string>;
+    echo-tuple3: func(v: tuple<f32, f32, f32>) -> tuple<f32, f32, f32>;
+    echo-record: func(v: point) -> point;
+    echo-nested-record: func(v: labeled-point) -> labeled-point;
+    echo-list-u8: func(v: list<u8>) -> list<u8>;
+    echo-list-string: func(v: list<string>) -> list<string>;
+    echo-list-record: func(v: list<point>) -> list<point>;
+    echo-option-u32: func(v: option<u32>) -> option<u32>;
+    echo-option-string: func(v: option<string>) -> option<string>;
+    echo-result-ok: func(v: result<string, string>) -> result<string, string>;
+}
+
+/// Algebraic: enums, variants, flags
+interface echo-algebraic {
+    enum color {
+        red,
+        green,
+        blue,
+        yellow,
+    }
+
+    flags permissions {
+        read,
+        write,
+        execute,
+    }
+
+    variant shape {
+        circle(f64),
+        rectangle(tuple<f64, f64>),
+        named-polygon(string),
+        dot,
+    }
+
+    echo-enum: func(v: color) -> color;
+    echo-flags: func(v: permissions) -> permissions;
+    echo-variant: func(v: shape) -> shape;
+}
+
+/// Sink: import-side functions that wasm calls to push transformed data back to JS
+interface echo-sink {
+    report-primitive: func(label: string, value: string);
+    report-record: func(label: string, x: f64, y: f64);
+}

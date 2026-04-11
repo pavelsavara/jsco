@@ -1,0 +1,18 @@
+[package]
+name = "echo-reactor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen-rt = { version = "0.41.0", features = ["bitflags"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "jsco:echo-reactor"
+target.path = "wit/world.wit"
+target.world = "echo-reactor"
+
+[package.metadata.component.target.dependencies]
+"jsco:test" = { path = "../../wit/jsco-echo.wit" }

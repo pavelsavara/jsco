@@ -340,6 +340,13 @@ export function readDestructor(src: SyncSource): number | undefined {
 }
 
 export function readComponentTypeDefined(src: SyncSource, type: number): ComponentTypeDefined {
+    // Handle primitive types (0x73-0x7f) that appear as type definitions
+    if (0x73 <= type && type <= 0x7f) {
+        return {
+            tag: ModelTag.ComponentTypeDefinedPrimitive,
+            value: parsePrimitiveValType(type),
+        };
+    }
     switch (type) {
         case 0x68: {
             return {

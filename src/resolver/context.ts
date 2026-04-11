@@ -2,7 +2,7 @@ import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
-import { ComponentExternalKind } from '../model/exports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { configuration } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
@@ -94,9 +94,27 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
                 indexes.componentFunctions.push(imp);
             }
         }
-    }
 
-    // componentSections (section id 4) are in the COMPONENT sort — separate from TYPE sort.
+        // Component model spec: export definitions extend the index space of their kind.
+        // An (export "name" (instance N)) creates a new entry in the instance index space, etc.
+        if (section.tag === ModelTag.ComponentExport) {
+            const exp = section as ComponentExport;
+            switch (exp.kind) {
+                case ComponentExternalKind.Instance:
+                    indexes.componentInstances.push(exp as any);
+                    break;
+                case ComponentExternalKind.Func:
+                    indexes.componentFunctions.push(exp as any);
+                    break;
+                case ComponentExternalKind.Type:
+                    indexes.componentTypes.push(exp as any);
+                    break;
+                case ComponentExternalKind.Component:
+                    indexes.componentSections.push(exp as any);
+                    break;
+            }
+        }
+    }
     // Previously merged into componentTypes, but this is incorrect: the TYPE sort should
     // only contain entries from section id 7 (type definitions) and type aliases.
     // ComponentInstanceInstantiate.component_index references componentSections (COMPONENT sort),
@@ -177,6 +195,25 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
             }
             if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
                 indexes.componentFunctions.push(imp);
+            }
+        }
+
+        // Component model spec: export definitions extend the index space of their kind.
+        if (section.tag === ModelTag.ComponentExport) {
+            const exp = section as ComponentExport;
+            switch (exp.kind) {
+                case ComponentExternalKind.Instance:
+                    indexes.componentInstances.push(exp as any);
+                    break;
+                case ComponentExternalKind.Func:
+                    indexes.componentFunctions.push(exp as any);
+                    break;
+                case ComponentExternalKind.Type:
+                    indexes.componentTypes.push(exp as any);
+                    break;
+                case ComponentExternalKind.Component:
+                    indexes.componentSections.push(exp as any);
+                    break;
             }
         }
     }

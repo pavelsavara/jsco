@@ -1,0 +1,13 @@
+package jsco:hello-world;
+
+world hello-world {
+    import wasi:cli/environment@0.2.11;
+    import wasi:cli/exit@0.2.11;
+    import wasi:io/error@0.2.11;
+    import wasi:io/streams@0.2.11;
+    import wasi:cli/stdin@0.2.11;
+    import wasi:cli/stdout@0.2.11;
+    import wasi:cli/stderr@0.2.11;
+
+    export wasi:cli/run@0.2.11;
+}

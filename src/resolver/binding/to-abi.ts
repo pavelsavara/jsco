@@ -285,7 +285,7 @@ function createS64LiftingNumber(): LiftingFromJs {
 function createS64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
         const num = srcJsValue as bigint;
-        out[offset] = BigInt.asIntN(52, num);
+        out[offset] = BigInt.asIntN(64, num);
         return 1;
     };
 }

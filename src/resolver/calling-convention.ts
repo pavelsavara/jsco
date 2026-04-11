@@ -332,29 +332,41 @@ export function resolveValTypePure(valType: ComponentValType): ResolvedType {
  * looking up rctx.resolvedTypes at call time.
  */
 export function deepResolveType(rctx: ResolvedContext, type: ResolvedType): ResolvedType {
-    return _deepResolve(rctx, type, new Set());
+    return _deepResolve(rctx, type, new Map());
 }
 
-function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, visited: Set<unknown>): ComponentValType {
+function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, cache: Map<unknown, ResolvedType>): ComponentValType {
     if (valType.tag === ModelTag.ComponentValTypePrimitive) {
         return valType; // primitives are self-contained
     }
     if (valType.tag === ModelTag.ComponentValTypeResolved) {
-        return valType; // already resolved
+        // Still need to deep-resolve the inner type — it may contain
+        // unresolved ComponentValTypeType references from partial resolution
+        const deepInner = _deepResolve(rctx, valType.resolved as ResolvedType, cache);
+        if (deepInner === valType.resolved) return valType;
+        return { tag: ModelTag.ComponentValTypeResolved, resolved: deepInner };
     }
     // ComponentValTypeType — resolve and wrap inline
     const resolved = rctx.resolvedTypes.get(valType.value as ComponentTypeIndex);
     if (resolved === undefined) {
-        throw new Error(`Unresolved type at index ${valType.value}`);
+        // Type index not found in current scope — may reference a type in a nested
+        // or parent scope. Leave it as-is; it will be resolved when the correct scope runs.
+        return valType;
     }
-    const deepResolved = _deepResolve(rctx, resolved, visited);
+    const deepResolved = _deepResolve(rctx, resolved, cache);
     return { tag: ModelTag.ComponentValTypeResolved, resolved: deepResolved };
 }
 
-function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<unknown>): ResolvedType {
-    // Guard against infinite recursion from circular type references
-    if (visited.has(type)) return type;
-    visited.add(type);
+function _deepResolve(rctx: ResolvedContext, type: ResolvedType, cache: Map<unknown, ResolvedType>): ResolvedType {
+    // Guard against infinite recursion from circular type references.
+    // Use a cache Map instead of a Set so that shared type references
+    // return the already-deep-resolved copy, not the original.
+    const cached = cache.get(type);
+    if (cached !== undefined) return cached;
+    // Insert a placeholder to break cycles — will be overwritten with the real result
+    cache.set(type, type);
+
+    let result: ResolvedType;
 
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
@@ -364,72 +376,84 @@ function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<un
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
             // No nested ComponentValType references needing resolution
-            return type;
+            result = type;
+            break;
 
         case ModelTag.ComponentTypeDefinedRecord:
-            return {
+            result = {
                 ...type,
                 members: type.members.map(m => ({
                     name: m.name,
-                    type: _deepResolveValType(rctx, m.type, visited),
+                    type: _deepResolveValType(rctx, m.type, cache),
                 })),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedTuple:
-            return {
+            result = {
                 ...type,
-                members: type.members.map(m => _deepResolveValType(rctx, m, visited)),
+                members: type.members.map(m => _deepResolveValType(rctx, m, cache)),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedList:
-            return {
+            result = {
                 ...type,
-                value: _deepResolveValType(rctx, type.value, visited),
+                value: _deepResolveValType(rctx, type.value, cache),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedOption:
-            return {
+            result = {
                 ...type,
-                value: _deepResolveValType(rctx, type.value, visited),
+                value: _deepResolveValType(rctx, type.value, cache),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedResult:
-            return {
+            result = {
                 ...type,
-                ok: type.ok !== undefined ? _deepResolveValType(rctx, type.ok, visited) : undefined,
-                err: type.err !== undefined ? _deepResolveValType(rctx, type.err, visited) : undefined,
+                ok: type.ok !== undefined ? _deepResolveValType(rctx, type.ok, cache) : undefined,
+                err: type.err !== undefined ? _deepResolveValType(rctx, type.err, cache) : undefined,
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedVariant:
-            return {
+            result = {
                 ...type,
                 variants: type.variants.map(c => ({
                     ...c,
-                    ty: c.ty !== undefined ? _deepResolveValType(rctx, c.ty, visited) : undefined,
+                    ty: c.ty !== undefined ? _deepResolveValType(rctx, c.ty, cache) : undefined,
                 })),
             };
+            break;
 
         case ModelTag.ComponentTypeFunc:
-            return {
+            result = {
                 ...type,
                 params: type.params.map(p => ({
                     name: p.name,
-                    type: _deepResolveValType(rctx, p.type, visited),
+                    type: _deepResolveValType(rctx, p.type, cache),
                 })),
                 results: type.results.tag === ModelTag.ComponentFuncResultUnnamed
-                    ? { tag: ModelTag.ComponentFuncResultUnnamed, type: _deepResolveValType(rctx, type.results.type, visited) }
+                    ? { tag: ModelTag.ComponentFuncResultUnnamed, type: _deepResolveValType(rctx, type.results.type, cache) }
                     : {
                         tag: ModelTag.ComponentFuncResultNamed,
                         values: type.results.values.map(v => ({
                             name: v.name,
-                            type: _deepResolveValType(rctx, v.type, visited),
+                            type: _deepResolveValType(rctx, v.type, cache),
                         })),
                     },
             };
+            break;
 
         default:
-            return type;
+            result = type;
+            break;
     }
+
+    cache.set(type, result);
+    return result;
 }
 
 export function sizeOfValType(valType: ComponentValType): number {
