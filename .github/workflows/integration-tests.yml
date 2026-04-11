@@ -40,6 +40,12 @@ jobs:
         crate: cargo-component
         locked: true
 
+    - name: Install wac-cli
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: wac-cli
+        locked: true
+
     - uses: actions/setup-node@v5
       with:
         node-version: 24
@@ -50,6 +56,9 @@ jobs:
     - name: Build integration test components
       run: npm run build:integration
 
+    - name: Build wac compositions
+      run: npm run build:compositions
+
     - name: Run integration tests
       run: npm run test:integration
 
@@ -58,4 +67,7 @@ jobs:
       if: always()
       with:
         name: integration-wasm.${{github.sha}}
-        path: integration-tests/target/wasm32-wasip1/release/*.wasm
+        path: |
+          integration-tests/target/wasm32-wasip1/release/*.wasm
+          integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
+          integration-tests/compositions/*.wasm

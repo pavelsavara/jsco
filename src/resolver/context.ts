@@ -228,6 +228,7 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
     }
 
     setSelfIndex(scopedRctx);
+    buildCanonicalResourceIds(scopedRctx);
     scopedRctx.resolved.resolvedTypes = buildResolvedTypeMap(scopedRctx);
     return scopedRctx;
 }

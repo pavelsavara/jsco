@@ -14,5 +14,6 @@ export default {
         '/node_modules/@bytecodealliance/'
     ],
     extensionsToTreatAsEsm: ['.ts'],
+    testTimeout: 30_000,
     setupFiles: ['<rootDir>/jest.setup.ts'],
 };

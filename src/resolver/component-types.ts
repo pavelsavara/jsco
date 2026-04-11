@@ -75,6 +75,9 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentInstanceInstantiate:
             case ModelTag.CanonicalFunctionLift:
             case ModelTag.CanonicalFunctionLower:
+            case ModelTag.CanonicalFunctionResourceDrop:
+            case ModelTag.CanonicalFunctionResourceNew:
+            case ModelTag.CanonicalFunctionResourceRep:
             case ModelTag.CustomSection:
             case ModelTag.SkippedSection:
             case ModelTag.ComponentTypeDefinedRecord:

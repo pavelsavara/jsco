@@ -47,11 +47,10 @@ export function createVerboseCapture(): VerboseCapture {
 export function verboseOptions(capture: VerboseCapture, levels?: Partial<Verbosity>) {
     return {
         verbose: {
-            parser: LogLevel.Summary,
-            resolver: LogLevel.Summary,
-            binder: LogLevel.Summary,
-            executor: LogLevel.Summary,
-            ...levels,
+            parser: levels?.parser ?? LogLevel.Off,
+            resolver: levels?.resolver ?? LogLevel.Off,
+            binder: levels?.binder ?? LogLevel.Off,
+            executor: levels?.executor ?? LogLevel.Off,
         } as Verbosity,
         logger: capture.logger,
     };

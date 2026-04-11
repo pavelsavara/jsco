@@ -1,0 +1,15 @@
+// Forwarder composed with implementer — implementer satisfies forwarder's WASI imports
+// for environment, exit, random, clocks. stdin/stdout/stderr pass through from host.
+// Used by Scenario I
+package jsco:forwarder-implementer;
+
+let impl = new jsco:implementer { ... };
+let fwd = new jsco:forwarder {
+    "wasi:cli/environment@0.2.11": impl["wasi:cli/environment@0.2.11"],
+    "wasi:cli/exit@0.2.11": impl["wasi:cli/exit@0.2.11"],
+    "wasi:random/random@0.2.11": impl["wasi:random/random@0.2.11"],
+    "wasi:clocks/monotonic-clock@0.2.11": impl["wasi:clocks/monotonic-clock@0.2.11"],
+    "wasi:clocks/wall-clock@0.2.11": impl["wasi:clocks/wall-clock@0.2.11"],
+    ...
+};
+export fwd...;
