@@ -10,6 +10,7 @@ import { createComponent } from '../../resolver';
 import { createWasiHost } from './index';
 import { WasiExit } from './types';
 import { setConfiguration } from '../../utils/assert';
+import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
 setConfiguration('Debug');
 
@@ -77,8 +78,10 @@ function parseTestResults(stdout: string): { name: string; passed: boolean; reas
 }
 
 describe('Integration tests', () => {
+    const verbose = useVerboseOnFailure();
+
     describe('Scenario A: consumer-direct', () => {
-        test('consumer runs all tests via JS WASI host', async () => {
+        test('consumer runs all tests via JS WASI host', () => runWithVerbose(verbose, async () => {
             const stdoutChunks: Uint8Array[] = [];
             const stderrChunks: string[] = [];
             const logMessages: string[] = [];
@@ -99,7 +102,7 @@ describe('Integration tests', () => {
             const extraImports = createTestImports(logMessages, stderrChunks);
             const mergedImports = { ...wasiImports, ...extraImports };
 
-            const component = await createComponent(consumerWasm);
+            const component = await createComponent(consumerWasm, verboseOptions(verbose));
             let exitCode: number | undefined;
 
             try {
@@ -142,6 +145,6 @@ describe('Integration tests', () => {
 
             // Verify exit code
             expect(exitCode).toBe(0);
-        });
+        }));
     });
 });

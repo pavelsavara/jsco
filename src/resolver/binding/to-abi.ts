@@ -788,6 +788,8 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
 
 function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return 1;
@@ -796,6 +798,8 @@ function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedO
 
 function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return 1;

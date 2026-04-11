@@ -1,3 +1,31 @@
+# Skipped Tests
+
+## JSPI — end-to-end with stdout capture (hello-world.test.ts)
+`WebAssembly.promising()` wrapping causes the WASM adapter to receive a Promise where
+it expects a sync i32 value, coercing handle to 0. The `descriptor.get-type` call then
+fails with `Invalid resource handle: 0` because handle 0 was never created (handles
+start at 1). Additionally, the JSPI test poisons Node.js state, causing subsequent
+tests in the same file to fail. Root cause is in how JSPI suspension/resumption
+interacts with the component model's synchronous resource handle creation chain
+(fd_write → get-directories → descriptor.get-type).
+**Blocked on**: understanding how `WebAssembly.promising()` interacts with adapter-
+generated trampolines. May require WASIp3 async model (native WASM stack switching)
+to solve properly.
+
+## Flat-type join — echo-variant round-trips all cases (echo-reactor.test.ts)
+The component model spec requires "joining" flat types across variant cases when the
+variant is passed in flat calling convention. For example, f64 and i32 join to i64.
+The current lifting code doesn't implement this join operation — it assumes all cases
+use the same flat types. This causes incorrect value interpretation when a variant
+has mixed payload types (f64/tuple/string).
+**Fix**: Implement `join(flat_types_a, flat_types_b)` per the canonical ABI spec
+in `calling-convention.ts`, and apply the join when computing flat layouts for variants.
+
+## Non-JSPI error message — block() throws JSPI error (poll.test.ts)
+Intentionally skipped when running with `--experimental-wasm-jspi`. The test verifies
+the error message shown to users who don't have JSPI enabled. It only runs when JSPI
+is absent. Not a bug — test infrastructure design.
+
 # Resolver todo
 - nested modules / nested components
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
@@ -50,6 +78,7 @@
 - rollup magic to eliminate debug helpers and asserts (jsco_assert TODO in assert.ts)
 - use quoted properties for identifiers that must survive terser mangling (e.g. `leb128DecodeU64`, `buf`, `memory`)
 - reduce Release bundle size (264KB debug — target <40KB minified+gzipped)
+- `isDebug` doesn't trim, use proper virtual/const import
 
 # WASI Preview 1
 - implement by forwarding to WASIp2 or WASIp3

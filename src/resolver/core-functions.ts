@@ -4,8 +4,8 @@ import { ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration } from '../model/types';
-import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
+import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
+import { debugStack, withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
 import { createFunctionLowering } from './binding';
 import { JsFunction } from './binding/types';
 import { resolveComponentFunction } from './component-functions';
@@ -49,6 +49,13 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     const savedResolvedTypes = new Map(rctx.resolved.resolvedTypes);
 
     const funcType = resolveLoweredFuncType(rctx, componentFunction);
+
+    if (isDebug && (rctx.resolved.verbose?.binder ?? 0) >= LogLevel.Summary) {
+        const chain = `canon.lower[${canonicalFunctionLowerElem.selfSortIndex}] → ${componentFunction.tag}[${componentFunction.selfSortIndex}]`;
+        const funcName = (componentFunction as any).name ?? '';
+        rctx.resolved.logger!('binder', LogLevel.Summary,
+            `type chain: ${chain}${funcName ? ` name="${funcName}"` : ''} → ComponentTypeFunc[${funcType.selfSortIndex ?? '?'}]`);
+    }
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
 
@@ -135,6 +142,8 @@ function resolveAliasedFuncType(
 ): ComponentTypeFunc | undefined {
     if (maxDepth <= 0) return undefined;
 
+    jsco_assert(alias.instance_index < rctx.indexes.componentInstances.length,
+        () => `instance_index ${alias.instance_index} out of bounds (${rctx.indexes.componentInstances.length} instances)`);
     const instance = rctx.indexes.componentInstances[alias.instance_index];
 
     if (instance.tag === ModelTag.ComponentTypeInstance) {
@@ -236,17 +245,33 @@ function isTypeCreatingDeclaration(decl: InstanceTypeDeclaration): boolean {
  * to resolvedTypes at their local indices, which may overwrite global entries.
  *
  */
+// Guard against applying own/borrow fixups multiple times when the same instance
+// type is processed by multiple calls to registerInstanceLocalTypes (which happens
+// when multiple functions alias from the same instance).
+const fixedUpOwnBorrow = new WeakSet<ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow>();
+
 function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTypeInstance, instanceIndex: number): void {
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Detailed) {
+        rctx.resolved.logger!('resolver', LogLevel.Detailed,
+            `registerInstanceLocalTypes: instance=${instanceIndex} declarations=${instance.declarations.length}`);
+    }
+
     // Snapshot global resolved types before local overwrites. Outer alias lookups must
     // read original global types, not local types that were written earlier
     // in this same loop (which may share the same numeric index).
-    // Note: canonicalResourceIds is NOT snapshotted — its entries are additive
-    // (local→canonical mappings needed by resource.drop/new/rep resolvers).
     const globalResolvedTypes = new Map(rctx.resolved.resolvedTypes);
 
     const localTypes: (ResolvedType | undefined)[] = [];
+    // LOCAL canonical resource ID map — maps local type indices to canonical IDs.
+    // This avoids polluting the global canonicalResourceIds with local indices
+    // that would collide across different instance type definitions.
+    const localCanonicalIds = new Map<number, number>();
     // Track which local indices are resources, keyed by export name
     const localResourceNames = new Map<number, string>();
+    // Track own/borrow types that need their .value rewritten to canonical IDs.
+    // Only collect types that haven't been fixed up yet (guard against multiple calls
+    // to registerInstanceLocalTypes for the same instance type sharing the same objects).
+    const ownBorrowFixups: { type: ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow; localValueIdx: number }[] = [];
     let localTypeIdx = 0;
 
     for (const decl of instance.declarations) {
@@ -269,11 +294,18 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
                     case ModelTag.ComponentTypeDefinedEnum:
                     case ModelTag.ComponentTypeDefinedOption:
                     case ModelTag.ComponentTypeDefinedResult:
-                    case ModelTag.ComponentTypeDefinedOwn:
-                    case ModelTag.ComponentTypeDefinedBorrow:
                     case ModelTag.ComponentTypeDefinedPrimitive:
                     case ModelTag.ComponentTypeFunc:
                         resolved = value;
+                        break;
+                    case ModelTag.ComponentTypeDefinedOwn:
+                    case ModelTag.ComponentTypeDefinedBorrow:
+                        resolved = value;
+                        // Track for Phase 2 fixup — .value references a local type index.
+                        // Skip if already fixed up by a previous call for the same instance.
+                        if (!fixedUpOwnBorrow.has(value as ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow)) {
+                            ownBorrowFixups.push({ type: value as ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow, localValueIdx: value.value });
+                        }
                         break;
                     default:
                         // ComponentTypeInstance, ComponentTypeComponent, etc. — skip
@@ -290,11 +322,10 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
                     if (outerResolved) {
                         resolved = outerResolved;
                     }
-                    // Propagate canonical resource ID from the outer scope.
-                    // If the outer type is a resource alias, this local index inherits its canonical ID.
+                    // Propagate canonical resource ID from the outer scope into LOCAL map.
                     const outerCanonicalId = rctx.resolved.canonicalResourceIds?.get(alias.index);
                     if (outerCanonicalId !== undefined) {
-                        rctx.resolved.canonicalResourceIds.set(localTypeIdx, outerCanonicalId);
+                        localCanonicalIds.set(localTypeIdx, outerCanonicalId);
                     }
                 }
                 break;
@@ -306,10 +337,10 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
                         // Eq(N) → same type as local type N
                         const eqIdx = decl.ty.value.value;
                         resolved = localTypes[eqIdx];
-                        // Inherit canonical resource ID from the equal type.
-                        const eqCanonicalId = rctx.resolved.canonicalResourceIds?.get(eqIdx);
+                        // Inherit canonical resource ID from the equal type via LOCAL map.
+                        const eqCanonicalId = localCanonicalIds.get(eqIdx);
                         if (eqCanonicalId !== undefined) {
-                            rctx.resolved.canonicalResourceIds.set(localTypeIdx, eqCanonicalId);
+                            localCanonicalIds.set(localTypeIdx, eqCanonicalId);
                         }
                     }
                     if (decl.ty.value.tag === ModelTag.TypeBoundsSubResource) {
@@ -329,17 +360,31 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
         localTypeIdx++;
     }
 
-    // Phase 2: Register canonical resource IDs for local resource indices.
-    // When an instance declares resources (SubResource exports), borrow<T>/own<T>
-    // types reference the local resource index. Map these local indices to the
-    // canonical resource ID that the global aliases use, so ResourceTable per-type
-    // isolation works correctly across local and global contexts.
+    // Phase 2a: Register canonical resource IDs for local resource indices (SubResource exports).
     for (const [localIdx, resourceName] of localResourceNames) {
         const key = `${instanceIndex}:${resourceName}`;
         const canonicalId = rctx.resourceAliasGroups?.get(key);
         if (canonicalId !== undefined) {
-            rctx.resolved.canonicalResourceIds.set(localIdx, canonicalId);
+            localCanonicalIds.set(localIdx, canonicalId);
         }
+    }
+
+    // Phase 2b: Rewrite own<T>/borrow<T> .value fields from local type indices
+    // to global canonical resource IDs. This ensures getCanonicalResourceId()
+    // returns the correct ID regardless of which instance type was processed last.
+    for (const fixup of ownBorrowFixups) {
+        const canonicalId = localCanonicalIds.get(fixup.localValueIdx);
+        if (canonicalId !== undefined) {
+            fixup.type.value = canonicalId;
+            fixedUpOwnBorrow.add(fixup.type);
+        }
+    }
+
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Detailed) {
+        const canonicalEntries = [...localCanonicalIds.entries()].map(([k, v]) => `${k}→${v}`).join(', ');
+        const fixupEntries = ownBorrowFixups.map(f => `${f.type.tag}(local=${f.localValueIdx}→canonical=${f.type.value})`).join(', ');
+        rctx.resolved.logger!('resolver', LogLevel.Detailed,
+            `registerInstanceLocalTypes done: localTypes=${localTypes.length} canonicalIds=[${canonicalEntries}] fixups=[${fixupEntries}]`);
     }
 }
 

@@ -8,6 +8,7 @@
 
 import { createComponent } from '../../resolver';
 import { setConfiguration } from '../../utils/assert';
+import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
 setConfiguration('Debug');
 
@@ -45,10 +46,12 @@ function createEchoImports() {
 }
 
 describe('echo-reactor', () => {
+    const verbose = useVerboseOnFailure();
+
     describe('primitives', () => {
-        test('echo-bool round-trips true and false', async () => {
+        test('echo-bool round-trips true and false', () => runWithVerbose(verbose, async () => {
             const { imports, primitiveReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -56,11 +59,11 @@ describe('echo-reactor', () => {
             expect(ns['echo-bool'](false)).toBe(false);
             expect(primitiveReports).toContainEqual({ label: 'bool', value: 'true' });
             expect(primitiveReports).toContainEqual({ label: 'bool', value: 'false' });
-        });
+        }));
 
         test('echo-u8 round-trips boundary values', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -71,7 +74,7 @@ describe('echo-reactor', () => {
 
         test('echo-u16 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -81,7 +84,7 @@ describe('echo-reactor', () => {
 
         test('echo-u32 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -91,7 +94,7 @@ describe('echo-reactor', () => {
 
         test('echo-u64 round-trips as bigint', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -101,7 +104,7 @@ describe('echo-reactor', () => {
 
         test('echo-s8 round-trips negative values', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -112,7 +115,7 @@ describe('echo-reactor', () => {
 
         test('echo-s16 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -122,7 +125,7 @@ describe('echo-reactor', () => {
 
         test('echo-s32 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -132,7 +135,7 @@ describe('echo-reactor', () => {
 
         test('echo-s64 round-trips as bigint', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -142,7 +145,7 @@ describe('echo-reactor', () => {
 
         test('echo-f32 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -153,7 +156,7 @@ describe('echo-reactor', () => {
 
         test('echo-f64 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -164,7 +167,7 @@ describe('echo-reactor', () => {
 
         test('echo-char round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -174,7 +177,7 @@ describe('echo-reactor', () => {
 
         test('echo-string round-trips', async () => {
             const { imports, primitiveReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
 
@@ -189,7 +192,7 @@ describe('echo-reactor', () => {
     describe('compound types', () => {
         test('echo-tuple2 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -199,7 +202,7 @@ describe('echo-reactor', () => {
 
         test('echo-tuple3 round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -211,7 +214,7 @@ describe('echo-reactor', () => {
 
         test('echo-record round-trips point', async () => {
             const { imports, recordReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -222,7 +225,7 @@ describe('echo-reactor', () => {
 
         test('echo-nested-record round-trips labeled point', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -239,7 +242,7 @@ describe('echo-reactor', () => {
 
         test('echo-nested-record with none elevation', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -255,7 +258,7 @@ describe('echo-reactor', () => {
 
         test('echo-list-u8 round-trips bytes', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -266,7 +269,7 @@ describe('echo-reactor', () => {
 
         test('echo-list-string round-trips', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -276,7 +279,7 @@ describe('echo-reactor', () => {
 
         test('echo-list-record round-trips list of points', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -291,7 +294,7 @@ describe('echo-reactor', () => {
 
         test('echo-option-u32 with some and none', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -301,7 +304,7 @@ describe('echo-reactor', () => {
 
         test('echo-option-string with some and none', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -311,7 +314,7 @@ describe('echo-reactor', () => {
 
         test('echo-result ok and err variants', async () => {
             const { imports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
 
@@ -325,7 +328,7 @@ describe('echo-reactor', () => {
     describe('algebraic types', () => {
         test('echo-enum round-trips all variants', async () => {
             const { imports, primitiveReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-algebraic@0.1.0']) as any;
 
@@ -340,7 +343,7 @@ describe('echo-reactor', () => {
 
         test('echo-flags round-trips individual and combined', async () => {
             const { imports, primitiveReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-algebraic@0.1.0']) as any;
 
@@ -362,7 +365,7 @@ describe('echo-reactor', () => {
         // e.g., f64 and i32 join to i64. The current lifting code doesn't handle this.
         test.skip('echo-variant round-trips all cases', async () => {
             const { imports, primitiveReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             const ns = (instance.exports['jsco:test/echo-algebraic@0.1.0']) as any;
 
@@ -390,7 +393,7 @@ describe('echo-reactor', () => {
     describe('sink round-trip', () => {
         test('wasm calls JS sink imports during echo', async () => {
             const { imports, primitiveReports, recordReports } = createEchoImports();
-            const component = await createComponent(echoWasm);
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
 
             const prim = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;

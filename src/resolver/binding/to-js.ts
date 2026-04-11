@@ -794,6 +794,8 @@ function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDef
 
 function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.remove(resourceTypeIdx, handle);
@@ -804,6 +806,8 @@ function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefined
 
 function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.get(resourceTypeIdx, handle);
