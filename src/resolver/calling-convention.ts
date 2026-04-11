@@ -1,6 +1,6 @@
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
 
@@ -18,6 +18,17 @@ export const enum CallingConvention {
 }
 
 export const CallingConvention_Count = CallingConvention.Spilled + 1;
+
+/**
+ * Core wasm value types for flat representation.
+ * Follows the component model spec's flatten_type/join functions.
+ */
+export const enum FlatType {
+    I32,
+    I64,
+    F32,
+    F64,
+}
 
 export type FunctionCallingConvention = {
     params: CallingConvention;
@@ -478,6 +489,137 @@ export function discriminantSize(caseCount: number): number {
     if (caseCount <= 0xFF) return 1;
     if (caseCount <= 0xFFFF) return 2;
     return 4;
+}
+
+// --- Flat type representation per canonical ABI ---
+
+function primitiveFlatType(prim: PrimitiveValType): FlatType[] {
+    switch (prim) {
+        case PrimitiveValType.Bool:
+        case PrimitiveValType.S8:
+        case PrimitiveValType.U8:
+        case PrimitiveValType.S16:
+        case PrimitiveValType.U16:
+        case PrimitiveValType.S32:
+        case PrimitiveValType.U32:
+        case PrimitiveValType.Char:
+            return [FlatType.I32];
+        case PrimitiveValType.S64:
+        case PrimitiveValType.U64:
+            return [FlatType.I64];
+        case PrimitiveValType.Float32:
+            return [FlatType.F32];
+        case PrimitiveValType.Float64:
+            return [FlatType.F64];
+        case PrimitiveValType.String:
+            return [FlatType.I32, FlatType.I32]; // pointer + length
+    }
+}
+
+/** Spec: join(a, b) — find the common flat type for two slots */
+export function joinFlatType(a: FlatType, b: FlatType): FlatType {
+    if (a === b) return a;
+    if ((a === FlatType.I32 && b === FlatType.F32) || (a === FlatType.F32 && b === FlatType.I32)) return FlatType.I32;
+    return FlatType.I64;
+}
+
+/** Spec: flatten_type(t) — return the flat representation of a resolved type */
+export function flattenType(type: ResolvedType): FlatType[] {
+    switch (type.tag) {
+        case ModelTag.ComponentValTypePrimitive:
+        case ModelTag.ComponentTypeDefinedPrimitive:
+            return primitiveFlatType(type.value);
+
+        case ModelTag.ComponentTypeDefinedRecord: {
+            const flat: FlatType[] = [];
+            for (const member of type.members) {
+                flat.push(...flattenValType(member.type));
+            }
+            return flat;
+        }
+
+        case ModelTag.ComponentTypeDefinedTuple: {
+            const flat: FlatType[] = [];
+            for (const member of type.members) {
+                flat.push(...flattenValType(member));
+            }
+            return flat;
+        }
+
+        case ModelTag.ComponentTypeDefinedList:
+            return [FlatType.I32, FlatType.I32]; // pointer + length
+
+        case ModelTag.ComponentTypeDefinedOption:
+            return [FlatType.I32, ...flattenValType(type.value)]; // discriminant + payload
+
+        case ModelTag.ComponentTypeDefinedResult:
+            return flattenResult(type);
+
+        case ModelTag.ComponentTypeDefinedVariant:
+            return flattenVariant(type);
+
+        case ModelTag.ComponentTypeDefinedEnum:
+            return [FlatType.I32]; // single i32 discriminant
+
+        case ModelTag.ComponentTypeDefinedFlags:
+            return new Array(Math.ceil(type.members.length / 32) || 1).fill(FlatType.I32);
+
+        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedBorrow:
+            return [FlatType.I32]; // i32 handle
+
+        case ModelTag.ComponentTypeFunc:
+            return [];
+    }
+}
+
+/** Spec: flatten_variant(cases) with type joining */
+export function flattenVariant(type: ComponentTypeDefinedVariant): FlatType[] {
+    const flat: FlatType[] = [];
+    for (const c of type.variants) {
+        if (c.ty !== undefined) {
+            const caseFlatTypes = flattenValType(c.ty);
+            for (let i = 0; i < caseFlatTypes.length; i++) {
+                if (i < flat.length) {
+                    flat[i] = joinFlatType(flat[i], caseFlatTypes[i]);
+                } else {
+                    flat.push(caseFlatTypes[i]);
+                }
+            }
+        }
+    }
+    // discriminant (i32) + joined payload
+    return [FlatType.I32, ...flat];
+}
+
+/** Flatten a result type (despecialized as variant with ok/error cases) */
+function flattenResult(type: ComponentTypeDefinedResult): FlatType[] {
+    const flat: FlatType[] = [];
+    if (type.ok !== undefined) {
+        const okFlat = flattenValType(type.ok);
+        for (let i = 0; i < okFlat.length; i++) {
+            if (i < flat.length) {
+                flat[i] = joinFlatType(flat[i], okFlat[i]);
+            } else {
+                flat.push(okFlat[i]);
+            }
+        }
+    }
+    if (type.err !== undefined) {
+        const errFlat = flattenValType(type.err);
+        for (let i = 0; i < errFlat.length; i++) {
+            if (i < flat.length) {
+                flat[i] = joinFlatType(flat[i], errFlat[i]);
+            } else {
+                flat.push(errFlat[i]);
+            }
+        }
+    }
+    return [FlatType.I32, ...flat];
+}
+
+export function flattenValType(valType: ComponentValType): FlatType[] {
+    return flattenType(resolveValTypePure(valType));
 }
 
 // --- Function-level calling convention decision ---

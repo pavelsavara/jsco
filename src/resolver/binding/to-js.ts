@@ -6,7 +6,7 @@ import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
@@ -694,48 +694,117 @@ function createOptionLowering(rctx: ResolvedContext, optionModel: ComponentTypeD
 function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
     const okLowerer = resultModel.ok ? createLowering(rctx, resultModel.ok) : undefined;
     const errLowerer = resultModel.err ? createLowering(rctx, resultModel.err) : undefined;
-    const okSpill = okLowerer ? (okLowerer as any).spill as number : 0;
-    const errSpill = errLowerer ? (errLowerer as any).spill as number : 0;
-    const maxPayloadSpill = Math.max(okSpill, errSpill);
+
+    // Compute joined flat types for the result
+    const resolved = deepResolveType(rctx, resultModel) as ComponentTypeDefinedResult;
+    const joinedFlatTypes = flattenType(resolved);
+    const payloadJoined = joinedFlatTypes.slice(1);
+    const totalSpill = joinedFlatTypes.length;
+
+    const okFlatTypes = resolved.ok ? flattenValType(resolved.ok) : [];
+    const errFlatTypes = resolved.err ? flattenValType(resolved.err) : [];
+    const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
+    const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const discriminant = args[0] as number;
         if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
-        const payload = args.slice(1, 1 + maxPayloadSpill);
+        const payload = args.slice(1, 1 + payloadJoined.length);
         if (discriminant === 0) {
-            const val = okLowerer ? okLowerer(ctx, ...payload.slice(0, okSpill)) : undefined;
+            if (okNeedsCoercion) {
+                for (let i = 0; i < okFlatTypes.length; i++) {
+                    if (payloadJoined[i] !== okFlatTypes[i]) {
+                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], okFlatTypes[i]);
+                    }
+                }
+            }
+            const val = okLowerer ? okLowerer(ctx, ...payload.slice(0, okFlatTypes.length)) : undefined;
             return { tag: 'ok', val };
         } else {
-            const val = errLowerer ? errLowerer(ctx, ...payload.slice(0, errSpill)) : undefined;
+            if (errNeedsCoercion) {
+                for (let i = 0; i < errFlatTypes.length; i++) {
+                    if (payloadJoined[i] !== errFlatTypes[i]) {
+                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], errFlatTypes[i]);
+                    }
+                }
+            }
+            const val = errLowerer ? errLowerer(ctx, ...payload.slice(0, errFlatTypes.length)) : undefined;
             return { tag: 'err', val };
         }
     };
-    fn.spill = 1 + maxPayloadSpill;
+    fn.spill = totalSpill;
     return fn;
 }
 
 // --- Variant lowering ---
 
 function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
-    const cases = variantModel.variants.map((c) => ({
-        name: c.name,
-        lowerer: c.ty ? createLowering(rctx, c.ty) : undefined,
-        spill: c.ty ? (createLowering(rctx, c.ty) as any).spill as number : 0,
-    }));
-    const maxPayloadSpill = Math.max(0, ...cases.map(c => c.spill));
+    // Compute the joined flat types per the spec's flatten_variant
+    const joinedFlatTypes = flattenVariant(deepResolveType(rctx, variantModel) as ComponentTypeDefinedVariant);
+    const payloadJoined = joinedFlatTypes.slice(1);
+    const totalSpill = joinedFlatTypes.length;
+
+    const cases = variantModel.variants.map((c) => {
+        const resolved = c.ty ? deepResolveType(rctx, resolveValType(rctx, c.ty)) : undefined;
+        const caseFlatTypes = resolved ? flattenType(resolved) : [];
+        const needsCoercion = caseFlatTypes.some((ct, si) => ct !== payloadJoined[si]);
+        return {
+            name: c.name,
+            lowerer: c.ty ? createLowering(rctx, c.ty) : undefined,
+            caseFlatTypes,
+            needsCoercion,
+        };
+    });
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const disc = args[0] as number;
         const c = cases[disc];
         if (!c) throw new Error(`Invalid variant discriminant: ${disc}`);
         if (c.lowerer) {
-            const payload = args.slice(1, 1 + c.spill);
+            // Coerce payload args from joined flat types to case's natural flat types
+            const payload = args.slice(1, 1 + c.caseFlatTypes.length);
+            if (c.needsCoercion) {
+                for (let i = 0; i < c.caseFlatTypes.length; i++) {
+                    const have = payloadJoined[i];
+                    const want = c.caseFlatTypes[i];
+                    if (have !== want) {
+                        payload[i] = coerceFlatLower(payload[i], have, want);
+                    }
+                }
+            }
             return { tag: c.name, val: c.lowerer(ctx, ...payload) };
         }
         return { tag: c.name };
     };
-    fn.spill = 1 + maxPayloadSpill;
+    fn.spill = totalSpill;
     return fn;
+}
+
+/**
+ * Coerce a value from the joined flat type to the case's natural flat type during lowering (WASM→JS).
+ * Follows the spec's lift_flat_variant CoerceValueIter.
+ */
+function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
+    // (i32, f32): decode_i32_as_float
+    if (have === FlatType.I32 && want === FlatType.F32) {
+        _i32[0] = value as number;
+        return _f32[0];
+    }
+    // (i64, i32): wrap_i64_to_i32
+    if (have === FlatType.I64 && want === FlatType.I32) {
+        return Number(BigInt.asUintN(32, value as bigint));
+    }
+    // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
+    if (have === FlatType.I64 && want === FlatType.F32) {
+        _i32[0] = Number(BigInt.asUintN(32, value as bigint));
+        return _f32[0];
+    }
+    // (i64, f64): decode_i64_as_float
+    if (have === FlatType.I64 && want === FlatType.F64) {
+        _i64[0] = value as bigint;
+        return _f64[0];
+    }
+    return value;
 }
 
 // --- Enum lowering ---

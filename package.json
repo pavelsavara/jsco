@@ -21,6 +21,8 @@
         "build:city-wat": "cd city && jco print target/wasm32-unknown-unknown/release/city.wasm -o wat/city.wat",
         "build:city-zoo": "wasm-tools compose city/target/wasm32-unknown-unknown/release/city.wasm -d zoo/target/wasm32-unknown-unknown/release/zoo.wasm -o city/wasm/city-zoo.wasm",
         "build:city-zoo-wat": "cd city && jco print wasm/city-zoo.wasm -o wat/city-zoo.wat",
+        "build:integration": "cd integration-tests && cargo component build --release --target wasm32-wasip1",
+        "test:integration": "node --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --no-coverage --testPathPattern=integration",
         "lint": "eslint --no-color \"./**/*.ts\"",
         "lint:fix": "eslint --fix \"./**/*.ts\"",
         "TODO: strict lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",

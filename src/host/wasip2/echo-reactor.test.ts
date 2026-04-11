@@ -360,10 +360,7 @@ describe('echo-reactor', () => {
             expect(primitiveReports).toContainEqual({ label: 'flags', value: 'read|write|execute' });
         });
 
-        // TODO: variant with mixed payload types (f64/tuple/string) causes flat-type join issue
-        // The component model spec requires "joining" flat types across variant cases,
-        // e.g., f64 and i32 join to i64. The current lifting code doesn't handle this.
-        test.skip('echo-variant round-trips all cases', async () => {
+        test('echo-variant round-trips all cases', async () => {
             const { imports, primitiveReports } = createEchoImports();
             const component = await createComponent(echoWasm, verboseOptions(verbose));
             const instance = await component.instantiate(imports);

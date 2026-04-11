@@ -15,6 +15,8 @@ import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-
 setConfiguration('Debug');
 
 const consumerWasm = './integration-tests/target/wasm32-wasip1/release/consumer.wasm';
+const forwarderWasm = './integration-tests/target/wasm32-wasip1/release/forwarder.wasm';
+const implementerWasm = './integration-tests/target/wasm32-wasip1/release/implementer.wasm';
 
 interface CounterState {
     value: number;
@@ -144,6 +146,207 @@ describe('Integration tests', () => {
             expect(logMessages.length).toBeGreaterThan(0);
 
             // Verify exit code
+            expect(exitCode).toBe(0);
+        }));
+    });
+
+    describe('Scenario B: consumer ← forwarder ← JS host', () => {
+        test('consumer runs all tests through forwarder', () => runWithVerbose(verbose, async () => {
+            const stdoutChunks: Uint8Array[] = [];
+            const stderrChunks: string[] = [];
+            const logMessages: string[] = [];
+
+            // 1. Create full JS WASI host
+            const wasiImports = createWasiHost({
+                args: ['consumer-test', '--scenario', 'B'],
+                env: [
+                    ['TEST_SPECIAL', 'hello=world 🌍'],
+                    ['HOME', '/test/home'],
+                    ['PATH', '/usr/bin'],
+                ],
+                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
+                stderr: (bytes) => {
+                    stderrChunks.push(new TextDecoder().decode(bytes));
+                },
+            });
+
+            const extraImports = createTestImports(logMessages, stderrChunks);
+
+            // 2. Instantiate forwarder with JS WASI host + logger
+            const forwarderComponent = await createComponent(forwarderWasm, verboseOptions(verbose));
+            const forwarderInstance = await forwarderComponent.instantiate({
+                ...wasiImports,
+                ...extraImports,
+            });
+
+            // 3. Build consumer imports: forwarder's exported WASI + JS host io + custom imports
+            const forwarderExports = forwarderInstance.exports as Record<string, Record<string, Function>>;
+
+            // Interfaces the forwarder exports (overriding JS host)
+            const forwardedInterfaces = [
+                'wasi:cli/environment', 'wasi:cli/exit',
+                'wasi:cli/stdin', 'wasi:cli/stdout', 'wasi:cli/stderr',
+                'wasi:random/random',
+                'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
+            ];
+
+            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
+
+            // Override with forwarder's exports (try versioned first, then unversioned)
+            for (const iface of forwardedInterfaces) {
+                const exported = forwarderExports[`${iface}@0.2.11`] ?? forwarderExports[iface];
+                if (exported) {
+                    // Register both versioned and unversioned
+                    consumerImports[iface] = exported;
+                    consumerImports[`${iface}@0.2.11`] = exported;
+                }
+            }
+
+            // 4. Instantiate consumer with merged imports
+            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
+            let exitCode: number | undefined;
+
+            try {
+                const instance = await consumerComponent.instantiate(consumerImports);
+                const runNs = (instance.exports['wasi:cli/run@0.2.11']
+                    ?? instance.exports['wasi:cli/run']) as any;
+                expect(runNs).toBeDefined();
+                const result = runNs.run();
+                if (result && typeof result === 'object' && 'tag' in result) {
+                    exitCode = result.tag === 'ok' ? 0 : 1;
+                } else {
+                    exitCode = 0;
+                }
+            } catch (e) {
+                if (e instanceof WasiExit) {
+                    exitCode = e.code;
+                } else {
+                    throw e;
+                }
+            }
+
+            const stdout = new TextDecoder().decode(
+                new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
+            );
+            const testResults = parseTestResults(stdout);
+
+            expect(testResults.length).toBeGreaterThan(0);
+
+            for (const result of testResults) {
+                expect({ test: result.name, passed: result.passed, reason: result.reason })
+                    .toEqual({ test: result.name, passed: true, reason: undefined });
+            }
+
+            // Verify logger was called AND forwarder logged its interceptions
+            expect(logMessages.length).toBeGreaterThan(0);
+            const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
+            expect(forwarderLogs.length).toBeGreaterThan(0);
+
+            expect(exitCode).toBe(0);
+        }));
+    });
+
+    describe('Scenario C: consumer ← forwarder ← implementer', () => {
+        test('consumer runs all tests through forwarder + implementer', () => runWithVerbose(verbose, async () => {
+            const stdoutChunks: Uint8Array[] = [];
+            const stderrChunks: string[] = [];
+            const logMessages: string[] = [];
+
+            // 1. Instantiate implementer — needs io/* from JS host even though it only exports
+            //    (WASI preview1 adapter embedded in the component requires io/streams)
+            const implHostImports = createWasiHost({});
+            const implementerComponent = await createComponent(implementerWasm, verboseOptions(verbose));
+            const implementerInstance = await implementerComponent.instantiate(implHostImports);
+            const implExports = implementerInstance.exports as Record<string, Record<string, Function>>;
+
+            // 2. Create JS WASI host for stdin/stdout/stderr + io interfaces
+            const wasiImports = createWasiHost({
+                stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
+                stderr: (bytes) => {
+                    stderrChunks.push(new TextDecoder().decode(bytes));
+                },
+            });
+
+            const extraImports = createTestImports(logMessages, stderrChunks);
+
+            // 3. Instantiate forwarder with implementer's WASI + JS host stdin/stdout/stderr + logger
+            //    Implementer provides: environment, exit, random, clocks
+            //    JS host provides: stdin, stdout, stderr, io/*
+            const implementerInterfaces = [
+                'wasi:cli/environment', 'wasi:cli/exit',
+                'wasi:random/random',
+                'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
+            ];
+
+            const forwarderImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
+            for (const iface of implementerInterfaces) {
+                const exported = implExports[`${iface}@0.2.11`] ?? implExports[iface];
+                if (exported) {
+                    forwarderImports[iface] = exported;
+                    forwarderImports[`${iface}@0.2.11`] = exported;
+                }
+            }
+
+            const forwarderComponent = await createComponent(forwarderWasm, verboseOptions(verbose));
+            const forwarderInstance = await forwarderComponent.instantiate(forwarderImports);
+            const forwarderExports = forwarderInstance.exports as Record<string, Record<string, Function>>;
+
+            // 4. Build consumer imports: forwarder's exported WASI + JS host io + custom imports
+            const forwardedInterfaces = [
+                'wasi:cli/environment', 'wasi:cli/exit',
+                'wasi:cli/stdin', 'wasi:cli/stdout', 'wasi:cli/stderr',
+                'wasi:random/random',
+                'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
+            ];
+
+            const consumerImports: Record<string, Record<string, Function>> = { ...wasiImports, ...extraImports };
+            for (const iface of forwardedInterfaces) {
+                const exported = forwarderExports[`${iface}@0.2.11`] ?? forwarderExports[iface];
+                if (exported) {
+                    consumerImports[iface] = exported;
+                    consumerImports[`${iface}@0.2.11`] = exported;
+                }
+            }
+
+            // 5. Instantiate consumer with merged imports
+            const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
+            let exitCode: number | undefined;
+
+            try {
+                const instance = await consumerComponent.instantiate(consumerImports);
+                const runNs = (instance.exports['wasi:cli/run@0.2.11']
+                    ?? instance.exports['wasi:cli/run']) as any;
+                expect(runNs).toBeDefined();
+                const result = runNs.run();
+                if (result && typeof result === 'object' && 'tag' in result) {
+                    exitCode = result.tag === 'ok' ? 0 : 1;
+                } else {
+                    exitCode = 0;
+                }
+            } catch (e) {
+                if (e instanceof WasiExit) {
+                    exitCode = e.code;
+                } else {
+                    throw e;
+                }
+            }
+
+            const stdout = new TextDecoder().decode(
+                new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
+            );
+            const testResults = parseTestResults(stdout);
+
+            expect(testResults.length).toBeGreaterThan(0);
+
+            for (const result of testResults) {
+                expect({ test: result.name, passed: result.passed, reason: result.reason })
+                    .toEqual({ test: result.name, passed: true, reason: undefined });
+            }
+
+            // Verify forwarder logged its interceptions
+            const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
+            expect(forwarderLogs.length).toBeGreaterThan(0);
+
             expect(exitCode).toBe(0);
         }));
     });
