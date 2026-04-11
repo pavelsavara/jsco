@@ -2,7 +2,8 @@ import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert } from '../../utils/assert';
+import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
+import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
@@ -22,6 +23,10 @@ const _i64 = new BigInt64Array(_f64.buffer);
 _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
 
+function bigIntReplacer(_key: string, value: unknown): unknown {
+    return typeof value === 'bigint' ? value.toString() + 'n' : value;
+}
+
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(rctx.liftingCache, importModel, () => {
@@ -29,6 +34,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         const paramLifters: Function[] = [];
         for (const param of importModel.params) {
             const lifter = createLifting(rctx, param.type);
+
             paramLifters.push(lifter);
         }
         const resultLowerers: Function[] = [];
@@ -73,12 +79,23 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         }
         const totalFlatParams = paramResolvedTypes.reduce((sum, pt) => sum + flatCount(pt), 0);
 
+        if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
+            const paramNames = importModel.params.map(p => p.name).join(', ');
+            rctx.logger!('binder', LogLevel.Summary,
+                `createFunctionLifting: params=[${paramNames}] count=${importModel.params.length} results=${resultLowerers.length}` +
+                ` convention: params=${callingConventionName(callingConvention.params)} results=${callingConventionName(callingConvention.results)}` +
+                ` flatParams=${totalFlatParams} spilledSize=${spilledParamsTotalSize}`);
+        }
+
         return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
             function liftingTrampoline(...args: any[]): any {
                 // C4: Runtime behavioral guarantees
                 checkNotPoisoned(ctx);
                 checkNotReentrant(ctx);
                 ctx.inExport = true;
+                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                    ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
+                }
                 try {
                     let wasmArgs: any[];
                     if (callingConvention.params === CallingConvention.Spilled) {
@@ -117,6 +134,9 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         ctx.postReturnFn = undefined;
                     }
 
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← lifting result=${JSON.stringify(result, bigIntReplacer)}`);
+                    }
                     return result;
                 } catch (e) {
                     // Poison the instance on trap

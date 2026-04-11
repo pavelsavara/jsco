@@ -14,4 +14,5 @@ export default {
         '/node_modules/@bytecodealliance/'
     ],
     extensionsToTreatAsEsm: ['.ts'],
+    setupFiles: ['<rootDir>/jest.setup.ts'],
 };

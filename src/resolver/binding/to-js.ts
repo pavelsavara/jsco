@@ -2,7 +2,8 @@ import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert } from '../../utils/assert';
+import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
+import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
@@ -21,6 +22,10 @@ const _f64 = new Float64Array(1);
 const _i64 = new BigInt64Array(_f64.buffer);
 _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
+
+function bigIntReplacer(_key: string, value: unknown): unknown {
+    return typeof value === 'bigint' ? value.toString() + 'n' : value;
+}
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
@@ -78,6 +83,13 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         // Pre-allocate result buffer for flat result path (MAX_FLAT_RESULTS=1, so always 1 value)
         const resultBuf: WasmValue[] = [0];
 
+        if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
+            const paramNames = exportModel.params.map(p => p.name).join(', ');
+            rctx.logger!('binder', LogLevel.Summary,
+                `createFunctionLowering: params=[${paramNames}] count=${exportModel.params.length} results=${resultLifters.length}` +
+                ` convention: params=${callingConventionName(callingConvention.params)} results=${callingConventionName(callingConvention.results)}`);
+        }
+
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
             function loweringTrampoline(...args: any[]): any {
@@ -98,16 +110,26 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                     }
                 }
 
+                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                    ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
+                }
+
                 if (callingConvention.results === CallingConvention.Spilled) {
                     // canon_lower: WASM passed retptr as last flat arg
                     const retptr = args[args.length - 1] as number;
                     const resJs = jsFunction(...convertedArgs);
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+                    }
                     if (resultStorer !== undefined) {
                         resultStorer(ctx, retptr, resJs);
                     }
                     // No return value - WASM reads from retptr
                 } else {
                     const resJs = jsFunction(...convertedArgs);
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+                    }
                     if (resultLifters.length === 1) {
                         resultLifters[0](ctx, resJs, resultBuf, 0);
                         return resultBuf[0];

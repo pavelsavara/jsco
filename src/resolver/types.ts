@@ -11,6 +11,7 @@ import { JsImports } from './api-types';
 import type { ComponentTypeIndex } from '../model/indices';
 import type { ResolvedType } from './type-resolution';
 import type { CanonicalOption } from '../model/canonicals';
+import type { LogFn, Verbosity } from '../utils/assert';
 import { ModelTag } from '../model/tags';
 
 export const enum StringEncoding {
@@ -62,6 +63,8 @@ export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
     validateTypes?: boolean
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
+    verbose?: Partial<Verbosity>
+    logger?: LogFn
 }
 
 export type ComponentFactoryInput = WITModel
@@ -100,6 +103,8 @@ export type ResolvedContext = {
     /** Current string encoding for the canonical function being resolved. Set per lift/lower. */
     stringEncoding: StringEncoding
     usesNumberForInt64: boolean
+    verbose?: Verbosity
+    logger?: LogFn
 }
 
 export type ResolverContext = {
@@ -153,6 +158,8 @@ export type BindingContext = {
     poisoned?: boolean;
     inExport?: boolean;
     postReturnFn?: Function;
+    verbose?: Verbosity;
+    logger?: LogFn;
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes

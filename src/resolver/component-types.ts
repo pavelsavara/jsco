@@ -106,7 +106,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             // Nested sections have their own local index spaces (core instances,
             // functions, etc.) that would collide with the parent's if they shared
             // the same binding context.
-            const scopedBctx = createBindingContext(bargs.imports ?? {});
+            const scopedBctx = createBindingContext(bargs.imports ?? {}, scopedRctx.resolved);
 
             // Phase 1: Bind imports — wire up component args from the parent's instantiation.
             for (const importResolution of importResolutions) {

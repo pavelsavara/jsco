@@ -3,7 +3,8 @@ import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { configuration } from '../utils/assert';
+import { configuration, defaultVerbosity } from '../utils/assert';
+import type { LogFn } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
@@ -12,6 +13,10 @@ import type { ComponentImport } from '../model/imports';
 import type { ComponentTypeInstance } from '../model/types';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
+    // eslint-disable-next-line no-console
+    const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
+    const verbose = { ...defaultVerbosity, ...options.verbose };
+    const logger = options.logger ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
             usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
@@ -20,6 +25,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            verbose,
+            logger,
         },
         validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
@@ -138,6 +145,8 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
             liftingCache: new Map(),
             loweringCache: new Map(),
             canonicalResourceIds: new Map(),
+            verbose: parentRctx.resolved.verbose,
+            logger: parentRctx.resolved.logger,
         },
         validateTypes: parentRctx.validateTypes,
         wasmInstantiate: parentRctx.wasmInstantiate,
@@ -365,7 +374,7 @@ export function createResourceTable(): ResourceTable {
     };
 }
 
-export function createBindingContext(componentImports: JsImports): BindingContext {
+export function createBindingContext(componentImports: JsImports, resolved: ResolvedContext): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
@@ -379,6 +388,8 @@ export function createBindingContext(componentImports: JsImports): BindingContex
         resources,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
+        verbose: resolved.verbose,
+        logger: resolved.logger,
         abort: () => {
             // Per Component Model spec: poisoning the instance prevents all future
             // export calls from executing. checkNotPoisoned() in the lifting

@@ -17,6 +17,8 @@ export const enum CallingConvention {
     Spilled,
 }
 
+export const CallingConvention_Count = CallingConvention.Spilled + 1;
+
 export type FunctionCallingConvention = {
     params: CallingConvention;
     results: CallingConvention;

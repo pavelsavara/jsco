@@ -1,13 +1,16 @@
-import { isDebug } from '../utils/assert';
+import { isDebug, LogLevel } from '../utils/assert';
+import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from './context';
-import { BinderArgs, BindingContext, ResolverRes } from './types';
+import { BinderArgs, BindingContext, ResolvedContext, ResolverRes } from './types';
 
 export const enum PlanOpKind {
     CoreInstantiate,
     ImportBind,
     ExportBind,
 }
+
+export const PlanOpKind_Count = PlanOpKind.ExportBind + 1;
 
 export type PlanOp =
     | CoreInstantiateOp
@@ -34,10 +37,11 @@ export type ExportBindOp = {
 
 export async function executePlan<TJSExports>(
     plan: PlanOp[],
+    resolved: ResolvedContext,
     componentImports?: JsImports,
 ): Promise<WasmComponentInstance<TJSExports>> {
     componentImports = componentImports ?? {};
-    const ctx: BindingContext = createBindingContext(componentImports);
+    const ctx: BindingContext = createBindingContext(componentImports, resolved);
 
     const imports = {};
     const exports = {};
@@ -49,6 +53,9 @@ export async function executePlan<TJSExports>(
 
     // Phase 1: ImportBind — independent, run in parallel
     await Promise.all(importOps.map(async (op) => {
+        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            ctx.logger!('executor', LogLevel.Detailed, `executing ${planOpKindName(op.kind)}: ${op.label}`);
+        }
         const args: BinderArgs = { imports: componentImports };
         if (isDebug) args.debugStack = [];
         const result = await op.resolution.binder(ctx, args);
@@ -57,6 +64,9 @@ export async function executePlan<TJSExports>(
 
     // Phase 2: CoreInstantiate — may have inter-dependencies, run sequentially
     for (const op of coreOps) {
+        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            ctx.logger!('executor', LogLevel.Detailed, `executing ${planOpKindName(op.kind)}: ${op.label}`);
+        }
         const args: BinderArgs = {};
         if (isDebug) args.debugStack = [];
         await op.resolution.binder(ctx, args);
@@ -64,6 +74,9 @@ export async function executePlan<TJSExports>(
 
     // Phase 3: ExportBind — independent, run in parallel
     await Promise.all(exportOps.map(async (op) => {
+        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            ctx.logger!('executor', LogLevel.Detailed, `executing ${planOpKindName(op.kind)}: ${op.label}`);
+        }
         const args: BinderArgs = {};
         if (isDebug) args.debugStack = [];
         const result = await op.resolution.binder(ctx, args);

@@ -116,6 +116,8 @@ export const enum ModelTag {
     ValTypeV128,
 }
 
+export const ModelTag_Count = ModelTag.ValTypeV128 + 1;
+
 /** @deprecated Use TaggedElement instead */
 export type ModelElement = TaggedElement;
 
