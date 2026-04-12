@@ -683,16 +683,38 @@ export function readComponentFuncResult(src: SyncSource): ComponentFuncResult | 
 }
 
 export function readComponentValType(src: SyncSource): ComponentValType {
-    const b = readU32(src);
-    if (0x73 <= b && b <= 0x7f) {
+    // Component Model valtype is encoded as s33 (signed 33-bit LEB128).
+    // Negative values (-1 to -13) represent primitive types and are encoded
+    // as single bytes 0x73-0x7F. Non-negative values are type indices.
+    //
+    // Primitives are always single-byte (high bit = 0, value 0x73-0x7F).
+    // Type indices use standard ULEB128; multi-byte encodings have high bit
+    // set on non-final bytes, so the first byte of a multi-byte index will
+    // never be in 0x73-0x7F. We read the first byte to distinguish.
+    const first = src.read();
+    if (first <= 0x7f && first >= 0x73) {
+        // Single-byte primitive (no continuation bit, in primitive range)
         return {
             tag: ModelTag.ComponentValTypePrimitive,
-            value: parsePrimitiveValType(b),
+            value: parsePrimitiveValType(first),
         };
+    }
+    // Reconstruct the LEB128 value from the first byte onward.
+    // If high bit is clear (first < 0x80), it's a single-byte type index.
+    // If high bit is set (first >= 0x80), read continuation bytes.
+    let result = first & 0x7f;
+    if (first & 0x80) {
+        let shift = 7;
+        let byte: number;
+        do {
+            byte = src.read();
+            result |= (byte & 0x7f) << shift;
+            shift += 7;
+        } while (byte & 0x80);
     }
     return {
         tag: ModelTag.ComponentValTypeType,
-        value: b,
+        value: result,
     };
 }
 

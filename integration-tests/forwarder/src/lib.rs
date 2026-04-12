@@ -14,6 +14,7 @@ use bindings::exports::wasi::clocks::wall_clock::Guest as WallClockGuest;
 use bindings::exports::jsco::test::echo_primitives::Guest as EchoPrimitivesGuest;
 use bindings::exports::jsco::test::echo_compound::Guest as EchoCompoundGuest;
 use bindings::exports::jsco::test::echo_algebraic::Guest as EchoAlgebraicGuest;
+use bindings::exports::jsco::test::echo_complex::Guest as EchoComplexGuest;
 
 use bindings::jsco::test::logger::{self, Level};
 
@@ -239,5 +240,165 @@ impl EchoAlgebraicGuest for Component {
             IS::NamedPolygon(n) => ES::NamedPolygon(n),
             IS::Dot => ES::Dot,
         }
+    }
+}
+
+// --- echo-complex forwarding ---
+// Type aliases for readability
+use bindings::exports::jsco::test::echo_complex as ec_exp;
+use bindings::jsco::test::echo_complex as ec_imp;
+
+fn person_to_import(v: &ec_exp::Person) -> ec_imp::Person {
+    ec_imp::Person {
+        name: v.name.clone(),
+        age: v.age,
+        email: v.email.clone(),
+        address: ec_imp::Address { street: v.address.street.clone(), city: v.address.city.clone(), zip: v.address.zip.clone() },
+        tags: v.tags.clone(),
+    }
+}
+fn person_from_import(v: ec_imp::Person) -> ec_exp::Person {
+    ec_exp::Person {
+        name: v.name,
+        age: v.age,
+        email: v.email,
+        address: ec_exp::Address { street: v.address.street, city: v.address.city, zip: v.address.zip },
+        tags: v.tags,
+    }
+}
+fn address_to_import(v: &ec_exp::Address) -> ec_imp::Address {
+    ec_imp::Address { street: v.street.clone(), city: v.city.clone(), zip: v.zip.clone() }
+}
+fn address_from_import(v: ec_imp::Address) -> ec_exp::Address {
+    ec_exp::Address { street: v.street, city: v.city, zip: v.zip }
+}
+fn vec2_to_import(v: &ec_exp::Vec2) -> ec_imp::Vec2 {
+    ec_imp::Vec2 { x: v.x, y: v.y }
+}
+fn vec2_from_import(v: ec_imp::Vec2) -> ec_exp::Vec2 {
+    ec_exp::Vec2 { x: v.x, y: v.y }
+}
+fn vec3_from_import(v: ec_imp::Vec3) -> ec_exp::Vec3 {
+    ec_exp::Vec3 { x: v.x, y: v.y, z: v.z }
+}
+fn geometry_to_import(v: &ec_exp::Geometry) -> ec_imp::Geometry {
+    match v {
+        ec_exp::Geometry::Point2d(p) => ec_imp::Geometry::Point2d(vec2_to_import(p)),
+        ec_exp::Geometry::Point3d(p) => ec_imp::Geometry::Point3d(ec_imp::Vec3 { x: p.x, y: p.y, z: p.z }),
+        ec_exp::Geometry::Line((a, b)) => ec_imp::Geometry::Line((vec2_to_import(a), vec2_to_import(b))),
+        ec_exp::Geometry::Polygon(pts) => ec_imp::Geometry::Polygon(pts.iter().map(vec2_to_import).collect()),
+        ec_exp::Geometry::Labeled((s, pts)) => ec_imp::Geometry::Labeled((s.clone(), pts.iter().map(vec2_to_import).collect())),
+        ec_exp::Geometry::Empty => ec_imp::Geometry::Empty,
+    }
+}
+fn geometry_from_import(v: ec_imp::Geometry) -> ec_exp::Geometry {
+    match v {
+        ec_imp::Geometry::Point2d(p) => ec_exp::Geometry::Point2d(vec2_from_import(p)),
+        ec_imp::Geometry::Point3d(p) => ec_exp::Geometry::Point3d(vec3_from_import(p)),
+        ec_imp::Geometry::Line((a, b)) => ec_exp::Geometry::Line((vec2_from_import(a), vec2_from_import(b))),
+        ec_imp::Geometry::Polygon(pts) => ec_exp::Geometry::Polygon(pts.into_iter().map(vec2_from_import).collect()),
+        ec_imp::Geometry::Labeled((s, pts)) => ec_exp::Geometry::Labeled((s, pts.into_iter().map(vec2_from_import).collect())),
+        ec_imp::Geometry::Empty => ec_exp::Geometry::Empty,
+    }
+}
+fn message_to_import(v: &ec_exp::Message) -> ec_imp::Message {
+    match v {
+        ec_exp::Message::Text(s) => ec_imp::Message::Text(s.clone()),
+        ec_exp::Message::Binary(b) => ec_imp::Message::Binary(b.clone()),
+        ec_exp::Message::Structured(p) => ec_imp::Message::Structured(person_to_import(p)),
+        ec_exp::Message::ErrorResult(r) => ec_imp::Message::ErrorResult(r.as_ref().map(|s| s.clone()).map_err(|s| s.clone())),
+        ec_exp::Message::Tagged((s, o)) => ec_imp::Message::Tagged((s.clone(), o.clone())),
+        ec_exp::Message::Empty => ec_imp::Message::Empty,
+    }
+}
+fn message_from_import(v: ec_imp::Message) -> ec_exp::Message {
+    match v {
+        ec_imp::Message::Text(s) => ec_exp::Message::Text(s),
+        ec_imp::Message::Binary(b) => ec_exp::Message::Binary(b),
+        ec_imp::Message::Structured(p) => ec_exp::Message::Structured(person_from_import(p)),
+        ec_imp::Message::ErrorResult(r) => ec_exp::Message::ErrorResult(r),
+        ec_imp::Message::Tagged((s, o)) => ec_exp::Message::Tagged((s, o)),
+        ec_imp::Message::Empty => ec_exp::Message::Empty,
+    }
+}
+fn ks_to_import(v: &ec_exp::KitchenSink) -> ec_imp::KitchenSink {
+    ec_imp::KitchenSink {
+        name: v.name.clone(),
+        values: v.values.clone(),
+        nested: v.nested.clone(),
+        pairs: v.pairs.clone(),
+        maybe: v.maybe.clone(),
+        result_field: v.result_field.as_ref().map(|v| v.clone()).map_err(|e| e.clone()),
+    }
+}
+fn ks_from_import(v: ec_imp::KitchenSink) -> ec_exp::KitchenSink {
+    ec_exp::KitchenSink {
+        name: v.name,
+        values: v.values,
+        nested: v.nested,
+        pairs: v.pairs,
+        maybe: v.maybe,
+        result_field: v.result_field,
+    }
+}
+
+impl EchoComplexGuest for Component {
+    fn echo_deeply_nested(v: ec_exp::Team) -> ec_exp::Team {
+        log_forward("echo-deeply-nested");
+        let r = ec_imp::echo_deeply_nested(&ec_imp::Team {
+            name: v.name.clone(),
+            lead: person_to_import(&v.lead),
+            members: v.members.iter().map(person_to_import).collect(),
+            metadata: v.metadata.clone(),
+        });
+        ec_exp::Team {
+            name: r.name,
+            lead: person_from_import(r.lead),
+            members: r.members.into_iter().map(person_from_import).collect(),
+            metadata: r.metadata,
+        }
+    }
+    fn echo_list_of_records(v: Vec<ec_exp::Person>) -> Vec<ec_exp::Person> {
+        log_forward("echo-list-of-records");
+        let r = ec_imp::echo_list_of_records(&v.iter().map(person_to_import).collect::<Vec<_>>());
+        r.into_iter().map(person_from_import).collect()
+    }
+    fn echo_tuple_of_records(v: (ec_exp::Person, ec_exp::Address)) -> (ec_exp::Person, ec_exp::Address) {
+        log_forward("echo-tuple-of-records");
+        let imp_person = person_to_import(&v.0);
+        let imp_addr = address_to_import(&v.1);
+        let r = ec_imp::echo_tuple_of_records((&imp_person, &imp_addr));
+        (person_from_import(r.0), address_from_import(r.1))
+    }
+    fn echo_complex_variant(v: ec_exp::Geometry) -> ec_exp::Geometry {
+        log_forward("echo-complex-variant");
+        geometry_from_import(ec_imp::echo_complex_variant(&geometry_to_import(&v)))
+    }
+    fn echo_message(v: ec_exp::Message) -> ec_exp::Message {
+        log_forward("echo-message");
+        message_from_import(ec_imp::echo_message(&message_to_import(&v)))
+    }
+    fn echo_kitchen_sink(v: ec_exp::KitchenSink) -> ec_exp::KitchenSink {
+        log_forward("echo-kitchen-sink");
+        ks_from_import(ec_imp::echo_kitchen_sink(&ks_to_import(&v)))
+    }
+    fn echo_nested_lists(v: Vec<Vec<u32>>) -> Vec<Vec<u32>> {
+        log_forward("echo-nested-lists");
+        ec_imp::echo_nested_lists(&v)
+    }
+    fn echo_option_record(v: Option<ec_exp::Person>) -> Option<ec_exp::Person> {
+        log_forward("echo-option-record");
+        let imp_v = v.as_ref().map(person_to_import);
+        ec_imp::echo_option_record(imp_v.as_ref()).map(person_from_import)
+    }
+    fn echo_result_record(v: Result<ec_exp::Person, String>) -> Result<ec_exp::Person, String> {
+        log_forward("echo-result-record");
+        let imp_v = v.as_ref().map(person_to_import).map_err(|s| s.clone());
+        ec_imp::echo_result_record(imp_v.as_ref().map_err(|s| s.as_str())).map(person_from_import)
+    }
+    fn echo_list_of_variants(v: Vec<ec_exp::Geometry>) -> Vec<ec_exp::Geometry> {
+        log_forward("echo-list-of-variants");
+        let imp_v: Vec<ec_imp::Geometry> = v.iter().map(geometry_to_import).collect();
+        ec_imp::echo_list_of_variants(&imp_v).into_iter().map(geometry_from_import).collect()
     }
 }

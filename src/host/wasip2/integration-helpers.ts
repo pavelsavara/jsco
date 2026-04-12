@@ -41,6 +41,7 @@ export const forwardedInterfaces = [
     'wasi:random/random',
     'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
     'jsco:test/echo-primitives', 'jsco:test/echo-compound', 'jsco:test/echo-algebraic',
+    'jsco:test/echo-complex',
 ];
 
 export const implementerInterfaces = [
@@ -48,6 +49,7 @@ export const implementerInterfaces = [
     'wasi:random/random',
     'wasi:clocks/monotonic-clock', 'wasi:clocks/wall-clock',
     'jsco:test/echo-primitives', 'jsco:test/echo-compound', 'jsco:test/echo-algebraic',
+    'jsco:test/echo-complex',
 ];
 
 /** Yield to the event loop so the GC can reclaim memory between heavy operations. */
@@ -127,12 +129,116 @@ export function createTestImports(logMessages: string[], _stderrChunks: string[]
         'echo-variant': (v: unknown) => v,
     };
 
+    const echoComplexImport = {
+        'echo-deeply-nested': (v: unknown) => v,
+        'echo-list-of-records': (v: unknown) => v,
+        'echo-tuple-of-records': (v: unknown) => v,
+        'echo-complex-variant': (v: unknown) => v,
+        'echo-message': (v: unknown) => v,
+        'echo-kitchen-sink': (v: unknown) => v,
+        'echo-nested-lists': (v: unknown) => v,
+        'echo-option-record': (v: unknown) => v,
+        'echo-result-record': (v: unknown) => v,
+        'echo-list-of-variants': (v: unknown) => v,
+    };
+
+    // Resource: accumulator — stores mutable state keyed by handle ID
+    interface AccState { total: number }
+    const accumulators = new Map<number, AccState>();
+    let nextAccId = 1;
+
+    // Resource: byte-buffer — stores data + read position
+    interface BufState { data: Uint8Array; pos: number }
+    const byteBuffers = new Map<number, BufState>();
+    let nextBufId = 1;
+
+    const echoResourcesImport = {
+        '[constructor]accumulator': (initial: bigint): number => {
+            const id = nextAccId++;
+            accumulators.set(id, { total: Number(initial) });
+            return id;
+        },
+        '[method]accumulator.add': (self: number, value: bigint) => {
+            const acc = accumulators.get(self);
+            if (acc) acc.total += Number(value);
+        },
+        '[method]accumulator.get-total': (self: number): bigint => {
+            const acc = accumulators.get(self);
+            return BigInt(acc?.total ?? 0);
+        },
+        '[method]accumulator.snapshot': (self: number): number => {
+            const acc = accumulators.get(self);
+            const id = nextAccId++;
+            accumulators.set(id, { total: acc?.total ?? 0 });
+            return id;
+        },
+        '[resource-drop]accumulator': (self: number) => {
+            accumulators.delete(self);
+        },
+        'transform-owned': (accHandle: number): number => {
+            const acc = accumulators.get(accHandle);
+            const doubled = (acc?.total ?? 0) * 2;
+            accumulators.delete(accHandle);
+            const id = nextAccId++;
+            accumulators.set(id, { total: doubled });
+            return id;
+        },
+        'inspect-borrowed': (accHandle: number): bigint => {
+            const acc = accumulators.get(accHandle);
+            return BigInt(acc?.total ?? 0);
+        },
+        'merge-accumulators': (aHandle: number, bHandle: number): number => {
+            const a = accumulators.get(aHandle);
+            const b = accumulators.get(bHandle);
+            const merged = (a?.total ?? 0) + (b?.total ?? 0);
+            accumulators.delete(aHandle);
+            accumulators.delete(bHandle);
+            const id = nextAccId++;
+            accumulators.set(id, { total: merged });
+            return id;
+        },
+        '[constructor]byte-buffer': (data: Uint8Array): number => {
+            const id = nextBufId++;
+            byteBuffers.set(id, { data: new Uint8Array(data), pos: 0 });
+            return id;
+        },
+        '[method]byte-buffer.read': (self: number, n: number): Uint8Array => {
+            const buf = byteBuffers.get(self);
+            if (!buf) return new Uint8Array(0);
+            const end = Math.min(buf.pos + n, buf.data.length);
+            const result = buf.data.slice(buf.pos, end);
+            buf.pos = end;
+            return result;
+        },
+        '[method]byte-buffer.remaining': (self: number): number => {
+            const buf = byteBuffers.get(self);
+            return buf ? buf.data.length - buf.pos : 0;
+        },
+        '[method]byte-buffer.is-empty': (self: number): boolean => {
+            const buf = byteBuffers.get(self);
+            return buf ? buf.pos >= buf.data.length : true;
+        },
+        '[resource-drop]byte-buffer': (self: number) => {
+            byteBuffers.delete(self);
+        },
+        'echo-buffer': (bufHandle: number): number => {
+            const buf = byteBuffers.get(bufHandle);
+            const remaining = buf ? buf.data.slice(buf.pos) : new Uint8Array(0);
+            byteBuffers.delete(bufHandle);
+            const id = nextBufId++;
+            byteBuffers.set(id, { data: remaining, pos: 0 });
+            return id;
+        },
+    };
+
     return {
         'jsco:test/logger@0.1.0': loggerImport,
         'jsco:test/counter@0.1.0': counterImport,
         'jsco:test/echo-primitives@0.1.0': echoPrimitivesImport,
         'jsco:test/echo-compound@0.1.0': echoCompoundImport,
         'jsco:test/echo-algebraic@0.1.0': echoAlgebraicImport,
+        'jsco:test/echo-complex@0.1.0': echoComplexImport,
+        'jsco:test/echo-resources@0.1.0': echoResourcesImport,
     };
 }
 

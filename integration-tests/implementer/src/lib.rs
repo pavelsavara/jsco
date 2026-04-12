@@ -15,6 +15,10 @@ use bindings::exports::jsco::test::echo_compound::Guest as EchoCompoundGuest;
 use bindings::exports::jsco::test::echo_compound::{LabeledPoint, Point};
 use bindings::exports::jsco::test::echo_algebraic::Guest as EchoAlgebraicGuest;
 use bindings::exports::jsco::test::echo_algebraic::{Color, Permissions, Shape};
+use bindings::exports::jsco::test::echo_complex::Guest as EchoComplexGuest;
+use bindings::exports::jsco::test::echo_complex::{
+    Address, Geometry, KitchenSink, Message, Person, Team,
+};
 
 struct Component;
 
@@ -149,4 +153,17 @@ impl EchoAlgebraicGuest for Component {
     fn echo_enum(v: Color) -> Color { v }
     fn echo_flags(v: Permissions) -> Permissions { v }
     fn echo_variant(v: Shape) -> Shape { v }
+}
+
+impl EchoComplexGuest for Component {
+    fn echo_deeply_nested(v: Team) -> Team { v }
+    fn echo_list_of_records(v: Vec<Person>) -> Vec<Person> { v }
+    fn echo_tuple_of_records(v: (Person, Address)) -> (Person, Address) { v }
+    fn echo_complex_variant(v: Geometry) -> Geometry { v }
+    fn echo_message(v: Message) -> Message { v }
+    fn echo_kitchen_sink(v: KitchenSink) -> KitchenSink { v }
+    fn echo_nested_lists(v: Vec<Vec<u32>>) -> Vec<Vec<u32>> { v }
+    fn echo_option_record(v: Option<Person>) -> Option<Person> { v }
+    fn echo_result_record(v: Result<Person, String>) -> Result<Person, String> { v }
+    fn echo_list_of_variants(v: Vec<Geometry>) -> Vec<Geometry> { v }
 }

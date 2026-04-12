@@ -110,6 +110,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentTypeDefinedOwn:
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedPrimitive:
+            case ModelTag.ComponentTypeResource:
                 // Type declarations within a component section define the
                 // component's type graph (records, enums, functions, etc.).
                 // These are structural — consumed by the type resolution pass

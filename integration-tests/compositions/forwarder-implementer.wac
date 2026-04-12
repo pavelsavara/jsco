@@ -13,6 +13,7 @@ let fwd = new jsco:forwarder {
     "jsco:test/echo-primitives@0.1.0": impl["jsco:test/echo-primitives@0.1.0"],
     "jsco:test/echo-compound@0.1.0": impl["jsco:test/echo-compound@0.1.0"],
     "jsco:test/echo-algebraic@0.1.0": impl["jsco:test/echo-algebraic@0.1.0"],
+    "jsco:test/echo-complex@0.1.0": impl["jsco:test/echo-complex@0.1.0"],
     ...
 };
 export fwd...;
