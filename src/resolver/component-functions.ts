@@ -66,7 +66,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
     rctx.resolved.stringEncoding = savedEncoding;
 
-    const useJspi = rctx.resolved.jspi;
+    const noJspi = rctx.resolved.noJspi;
 
     return {
         callerElement: rargs.callerElement,
@@ -93,8 +93,13 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             // JSPI: wrap the core function with promising() so that the WASM stack
             // can suspend when an async (Suspending-wrapped) import is called.
             // Only the component export entry point needs this — NOT all core exports.
+            // noJspi can be true (disable all), an array of export names to exclude, or false/undefined (enable all).
             let coreFn = functionResult.result as WasmFunction;
-            if (useJspi) {
+            const exportName = bargs.arguments?.[0] as string | undefined;
+            const shouldWrapJspi = noJspi === true ? false
+                : Array.isArray(noJspi) ? (exportName !== undefined && !noJspi.includes(exportName))
+                    : true;
+            if (shouldWrapJspi) {
                 coreFn = (WebAssembly as any)[PROMISING](coreFn);
             }
 

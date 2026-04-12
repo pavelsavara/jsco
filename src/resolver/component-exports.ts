@@ -51,7 +51,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
                 element: componentExport,
                 binder: withDebugTrace(async (bctx, bargs) => {
                     const args = {
-                        arguments: bargs.arguments,
+                        arguments: [componentExport.name.name],
                         imports: bargs.imports,
                         callerArgs: bargs,
                         debugStack: bargs.debugStack,

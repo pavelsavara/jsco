@@ -74,6 +74,11 @@ jobs:
     - name: Run integration tests
       run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-world\.test'
 
+    - name: Run integration tests (Release)
+      env:
+        Configuration: Release
+      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-world\.test'
+
     - name: Upload wasm artifacts
       uses: actions/upload-artifact@v6
       if: always()

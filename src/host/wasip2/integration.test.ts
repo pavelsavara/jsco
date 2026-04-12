@@ -27,6 +27,7 @@ import {
     runConsumerScenario, instantiateComponent, wireExportsToImports,
 } from './integration-helpers';
 import type { ImportsMap } from './integration-helpers';
+import isDebug from 'env:isDebug';
 
 initializeAsserts();
 
@@ -143,13 +144,15 @@ describe('Integration tests (WAC compositions)', () => {
             fullWasiConfig,
         );
         // wrapped-forwarder: 14 scoped contexts, 63 instance cache hits, 123 core instance cache hits
-        expect(wrappedStats!.createScopedResolverContext).toBe(14);
-        expect(wrappedStats!.componentSectionCacheHits).toBe(0);
-        expect(wrappedStats!.componentInstanceCacheHits).toBe(63);
-        expect(wrappedStats!.coreInstanceCacheHits).toBe(154);
-        // plain forwarder: 13 unique sub-components, 42 instance cache hits
-        expect(fwdStats!.createScopedResolverContext).toBe(13);
-        expect(fwdStats!.componentInstanceCacheHits).toBe(51);
+        if (isDebug) {
+            expect(wrappedStats!.createScopedResolverContext).toBe(14);
+            expect(wrappedStats!.componentSectionCacheHits).toBe(0);
+            expect(wrappedStats!.componentInstanceCacheHits).toBe(63);
+            expect(wrappedStats!.coreInstanceCacheHits).toBe(154);
+            // plain forwarder: 13 unique sub-components, 42 instance cache hits
+            expect(fwdStats!.createScopedResolverContext).toBe(13);
+            expect(fwdStats!.componentInstanceCacheHits).toBe(51);
+        }
     }));
 
     test('Scenario G: consumer ← (fwd ← fwd ← host) wac-composed', async () => runWithVerbose(verbose, async () => {
@@ -167,10 +170,12 @@ describe('Integration tests (WAC compositions)', () => {
             fullWasiConfig,
         );
         // double-forwarder: 14 scoped contexts, 1 section cache hit, 80 instance cache hits
-        expect(dblStats!.createScopedResolverContext).toBe(14);
-        expect(dblStats!.componentSectionCacheHits).toBe(1);
-        expect(dblStats!.componentInstanceCacheHits).toBe(80);
-        expect(dblStats!.coreInstanceCacheHits).toBe(154);
+        if (isDebug) {
+            expect(dblStats!.createScopedResolverContext).toBe(14);
+            expect(dblStats!.componentSectionCacheHits).toBe(1);
+            expect(dblStats!.componentInstanceCacheHits).toBe(80);
+            expect(dblStats!.coreInstanceCacheHits).toBe(154);
+        }
     }));
 
     test('Scenario H: consumer ← (fwd ← (fwd ← host)) nested wac', async () => runWithVerbose(verbose, async () => {
@@ -188,10 +193,12 @@ describe('Integration tests (WAC compositions)', () => {
             fullWasiConfig,
         );
         // nested-double-forwarder: 29 scoped contexts, 143 instance cache hits
-        expect(nestedStats!.createScopedResolverContext).toBe(29);
-        expect(nestedStats!.componentSectionCacheHits).toBe(0);
-        expect(nestedStats!.componentInstanceCacheHits).toBe(143);
-        expect(nestedStats!.coreInstanceCacheHits).toBe(308);
+        if (isDebug) {
+            expect(nestedStats!.createScopedResolverContext).toBe(29);
+            expect(nestedStats!.componentSectionCacheHits).toBe(0);
+            expect(nestedStats!.componentInstanceCacheHits).toBe(143);
+            expect(nestedStats!.coreInstanceCacheHits).toBe(308);
+        }
     }));
 
     test('Scenario I: consumer ← (fwd ← implementer) wac-composed', async () => runWithVerbose(verbose, async () => {
@@ -208,10 +215,12 @@ describe('Integration tests (WAC compositions)', () => {
             true,
         );
         // forwarder-implementer: 27 scoped contexts, 73 instance cache hits
-        expect(composedStats!.createScopedResolverContext).toBe(27);
-        expect(composedStats!.componentSectionCacheHits).toBe(0);
-        expect(composedStats!.componentInstanceCacheHits).toBe(73);
-        expect(composedStats!.coreInstanceCacheHits).toBe(228);
+        if (isDebug) {
+            expect(composedStats!.createScopedResolverContext).toBe(27);
+            expect(composedStats!.componentSectionCacheHits).toBe(0);
+            expect(composedStats!.componentInstanceCacheHits).toBe(73);
+            expect(composedStats!.coreInstanceCacheHits).toBe(228);
+        }
     }));
 
     test('Scenario J: consumer ← (fwd ← fwd ← implementer) wac-composed', async () => runWithVerbose(verbose, async () => {
@@ -228,10 +237,12 @@ describe('Integration tests (WAC compositions)', () => {
             2,
         );
         // double-forwarder-implementer: 27 scoped contexts, 1 section cache hit, 90 instance cache hits
-        expect(composedStats!.createScopedResolverContext).toBe(27);
-        expect(composedStats!.componentSectionCacheHits).toBe(1);
-        expect(composedStats!.componentInstanceCacheHits).toBe(90);
-        expect(composedStats!.coreInstanceCacheHits).toBe(228);
+        if (isDebug) {
+            expect(composedStats!.createScopedResolverContext).toBe(27);
+            expect(composedStats!.componentSectionCacheHits).toBe(1);
+            expect(composedStats!.componentInstanceCacheHits).toBe(90);
+            expect(composedStats!.coreInstanceCacheHits).toBe(228);
+        }
     }));
 
     test('Scenario K: consumer ← (fwd ← (fwd ← implementer)) nested wac', async () => runWithVerbose(verbose, async () => {
@@ -248,10 +259,12 @@ describe('Integration tests (WAC compositions)', () => {
             2,
         );
         // nested-forwarder-implementer: 42 scoped contexts, 153 instance cache hits
-        expect(nestedStats!.createScopedResolverContext).toBe(42);
-        expect(nestedStats!.componentSectionCacheHits).toBe(0);
-        expect(nestedStats!.componentInstanceCacheHits).toBe(153);
-        expect(nestedStats!.coreInstanceCacheHits).toBe(382);
+        if (isDebug) {
+            expect(nestedStats!.createScopedResolverContext).toBe(42);
+            expect(nestedStats!.componentSectionCacheHits).toBe(0);
+            expect(nestedStats!.componentInstanceCacheHits).toBe(153);
+            expect(nestedStats!.coreInstanceCacheHits).toBe(382);
+        }
     }));
 
     test('Scenario L: consumer ← echo-reactor-wat + JS host', async () => runWithVerbose(verbose, async () => {

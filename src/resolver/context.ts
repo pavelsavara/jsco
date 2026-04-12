@@ -21,7 +21,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     const logger = options[LOGGER] ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
-            jspi: options[NO_JSPI] !== true,
+            noJspi: options[NO_JSPI],
             usesNumberForInt64: (options[USE_NUMBER_FOR_INT64] === true) ? true : false,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),

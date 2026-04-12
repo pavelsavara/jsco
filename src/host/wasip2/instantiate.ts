@@ -41,9 +41,10 @@ export async function instantiateWasiComponent<TJSExports>(
     extraImports?: JsImports,
     options?: WasiInstantiateOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    const useJspi = options?.[NO_JSPI] !== true;
+    const noJspi = options?.[NO_JSPI];
+    const needsJspi = noJspi !== true; // false or array both need JSPI available
 
-    if (useJspi && !hasJspi()) {
+    if (needsJspi && !hasJspi()) {
         throw new Error(
             'JSPI required for WASI components. ' +
             'Enable with --experimental-wasm-jspi (Node.js) or ' +

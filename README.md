@@ -66,6 +66,7 @@ Prints `Welcome to Kladno!` to the console.
 |--------|---------|-------------|
 | `validateTypes` | `false` | Validate export/import type annotations against the component's type index. Catches kind mismatches and structural function type differences. |
 | `useNumberForInt64` | `false` | Use `number` instead of `bigint` for 64-bit integers |
+| `noJspi` | `false` | Disable JSPI wrapping of exports. `false` (default) — all exports are wrapped with `WebAssembly.promising()` and return `Promise`s. `true` — no exports are wrapped (synchronous, blocking WASI will not work). `string[]` — only the listed export names are synchronous; all others remain async. |
 | `wasmInstantiate` | `WebAssembly.instantiate` | Custom WASM instantiation function (used by JSPI wrapping) |
 
 See [./usage.mjs](./usage.mjs) for full commented sample.
@@ -84,7 +85,20 @@ WASI preview 2 APIs that perform blocking operations require [JSPI (JavaScript P
 - **Node.js:** `--experimental-wasm-jspi`
 - **Chrome:** Enable via `chrome://flags/#enable-experimental-webassembly-jspi`
 
-Non-blocking WASI APIs (random, wall-clock, environment, exit) and pure component model bindings (no WASI) work without JSPI. Pass `{ noJspi: true }` to `instantiateWasiComponent` to disable JSPI wrapping.
+**Exports are async by default:** When JSPI is available (the default), all component exports are wrapped with `WebAssembly.promising()` and return `Promise`s. Callers must `await` every export call:
+```js
+const result = await ns.myFunction(arg); // ← await required
+```
+You can selectively opt out specific exports with an array of export names:
+```js
+// Only 'my:pkg/fast-path' is synchronous; everything else returns Promises
+const component = await createComponent(wasm, {
+    noJspi: ['my:pkg/fast-path']
+});
+```
+Pass `{ noJspi: true }` to `createComponent` or `instantiateWasiComponent` to make all exports synchronous — but blocking WASI operations will not work in that mode.
+
+Non-blocking WASI APIs (random, wall-clock, environment, exit) and pure component model bindings (no WASI) work with `{ noJspi: true }`.
 
 **WASIp3 outlook:** WASI preview 3 replaces the current blocking-call pattern with native async support via the Component Model [async proposal](https://github.com/WebAssembly/component-model/blob/main/design/mvp/Async.md) (`stream`, `future`, `error-context` built-ins). On the **host side**, this eliminates JSPI — async imports/exports become first-class, and the host can use native `Promise`/`async` directly. However, **guest components** compiled from languages with synchronous calling conventions (C, C#, Rust with blocking I/O) still need the async canonical ABI to suspend the WASM stack while awaiting the host's async result. In a browser JS host, that suspension mechanism **is JSPI** (`WebAssembly.Suspending` + `WebAssembly.promising`). JSPI is only fully eliminated when the guest uses async/callback patterns natively (e.g., async Rust reactor). jsco plans to support WASIp3 when the spec stabilizes.
 
