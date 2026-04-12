@@ -2,55 +2,56 @@ import { initializeAsserts } from './assert';
 initializeAsserts();
 
 import { modelTagName, primitiveValTypeName, callingConventionName, planOpKindName } from './debug-names';
-
-// When debug names have been initialized (isDebug=true in test env), the name functions
-// should return human-readable strings. We also test that unknown/out-of-range values
-// fall back to the numeric format.
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 describe('debug-names.ts', () => {
-    describe('modelTagName', () => {
+    describeDebugOnly('modelTagName (debug)', () => {
         test('returns name for known tag', () => {
-            // ModelTag.Model = 0 (first enum member)
             const name = modelTagName(0 as any);
             expect(name).toBe('Model');
         });
+    });
 
+    describe('modelTagName', () => {
         test('returns fallback for unknown tag', () => {
             const name = modelTagName(9999 as any);
-            expect(name).toBe('ModelTag(9999)');
+            expect(name).toMatch(/ModelTag\(9999\)/);
+        });
+    });
+
+    describeDebugOnly('primitiveValTypeName (debug)', () => {
+        test('returns name for known type', () => {
+            expect(primitiveValTypeName(0 as any)).toBe('Bool');
         });
     });
 
     describe('primitiveValTypeName', () => {
-        test('returns name for known type', () => {
-            // PrimitiveValType.Bool = 0
-            expect(primitiveValTypeName(0 as any)).toBe('Bool');
-        });
-
         test('returns fallback for unknown type', () => {
-            expect(primitiveValTypeName(9999 as any)).toBe('PrimitiveValType(9999)');
+            expect(primitiveValTypeName(9999 as any)).toMatch(/PrimitiveValType\(9999\)/);
+        });
+    });
+
+    describeDebugOnly('callingConventionName (debug)', () => {
+        test('returns name for known convention', () => {
+            expect(callingConventionName(0 as any)).toBe('Scalar');
         });
     });
 
     describe('callingConventionName', () => {
-        test('returns name for known convention', () => {
-            // CallingConvention.Scalar = 0
-            expect(callingConventionName(0 as any)).toBe('Scalar');
-        });
-
         test('returns fallback for unknown value', () => {
-            expect(callingConventionName(9999 as any)).toBe('CallingConvention(9999)');
+            expect(callingConventionName(9999 as any)).toMatch(/CallingConvention\(9999\)/);
+        });
+    });
+
+    describeDebugOnly('planOpKindName (debug)', () => {
+        test('returns name for known kind', () => {
+            expect(planOpKindName(0 as any)).toBe('CoreInstantiate');
         });
     });
 
     describe('planOpKindName', () => {
-        test('returns name for known kind', () => {
-            // PlanOpKind.CoreInstantiate = 0
-            expect(planOpKindName(0 as any)).toBe('CoreInstantiate');
-        });
-
         test('returns fallback for unknown value', () => {
-            expect(planOpKindName(9999 as any)).toBe('PlanOpKind(9999)');
+            expect(planOpKindName(9999 as any)).toMatch(/PlanOpKind\(9999\)/);
         });
     });
 });

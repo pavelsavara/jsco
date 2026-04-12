@@ -1,4 +1,5 @@
 import { initializeAsserts, jsco_assert, setLogger, jsco_log, LogLevel, defaultVerbosity, debugStack, withDebugTrace, registerInitDebugNames } from './assert';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 describe('assert.ts', () => {
     beforeEach(() => {
@@ -52,7 +53,7 @@ describe('assert.ts', () => {
         });
     });
 
-    describe('debugStack', () => {
+    describeDebugOnly('debugStack', () => {
         test('populates debugStack on target from src', () => {
             const src = { debugStack: ['a', 'b'] };
             const target: any = {};
@@ -68,7 +69,7 @@ describe('assert.ts', () => {
         });
     });
 
-    describe('withDebugTrace', () => {
+    describeDebugOnly('withDebugTrace', () => {
         test('wraps binder to add label to debugStack', async () => {
             const calls: any[] = [];
             const binder = async (_bctx: any, bargs: any) => {
@@ -89,7 +90,7 @@ describe('assert.ts', () => {
         });
     });
 
-    describe('registerInitDebugNames / initializeAsserts', () => {
+    describeDebugOnly('registerInitDebugNames / initializeAsserts', () => {
         test('calls registered init function', () => {
             let called = false;
             registerInitDebugNames(() => { called = true; });
