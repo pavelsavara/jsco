@@ -10,6 +10,7 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
+import { INSTANTIATE } from '../constants';
 
 export async function instantiateComponent<TJSExports>(
     modelOrComponentOrUrl: ComponentFactoryInput,
@@ -21,7 +22,7 @@ export async function instantiateComponent<TJSExports>(
         input = await parse(input, options ?? {});
     }
     const component = await createComponent<TJSExports>(input, options);
-    return component.instantiate(imports);
+    return component[INSTANTIATE](imports);
 }
 
 export async function createComponent<TJSExports>(modelOrComponentOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
@@ -116,8 +117,8 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
 
     const resolved = rctx.resolved;
     let firstInstantiation = true;
-    const component: WasmComponent<TJSExports> = {
-        instantiate: async (imports) => {
+    const component = {
+        [INSTANTIATE]: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
                 firstInstantiation = false;
@@ -131,7 +132,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
         plan: sortedPlan,
         stats: isDebug ? { ...rctx.resolved.stats! } : undefined,
     };
-    return component;
+    return component as WasmComponent<TJSExports>;
 }
 
 const executionOrder: Record<PlanOpKind, number> = {

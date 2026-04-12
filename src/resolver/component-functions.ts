@@ -13,6 +13,7 @@ import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
+import { PROMISING } from '../constants';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const cached = rctx.componentFunctionCache.get(rargs.element);
@@ -94,7 +95,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             // Only the component export entry point needs this — NOT all core exports.
             let coreFn = functionResult.result as WasmFunction;
             if (useJspi) {
-                coreFn = (WebAssembly as any).promising(coreFn);
+                coreFn = (WebAssembly as any)[PROMISING](coreFn);
             }
 
             const jsFunction = liftingBinder(bctx, coreFn);

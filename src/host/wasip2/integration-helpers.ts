@@ -199,7 +199,7 @@ export async function runConsumerScenario(
     try {
         const instance = await consumerComponent.instantiate(consumerImports);
         const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
-        const result = runNs.run();
+        const result = await runNs.run();
         exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
     } catch (e) {
         if (e instanceof WasiExit) exitCode = e.status; else throw e;
@@ -209,7 +209,7 @@ export async function runConsumerScenario(
         new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
     );
     assertTestResults(stdout, logMessages, exitCode, expectForwarderLogs);
-    return consumerComponent.stats;
+    return (consumerComponent as any).stats;
 }
 
 /** Instantiate a component with yield points for GC. */
@@ -219,7 +219,7 @@ export async function instantiateComponent(
     verbose: VerboseCapture,
 ): Promise<ComponentResult> {
     await yieldToGC();
-    const component = await createComponent(wasmPath, verboseOptions(verbose));
+    const component = await createComponent(wasmPath, { noJspi: true, ...verboseOptions(verbose) });
     const instance = await component.instantiate(imports);
-    return { exports: instance.exports as ImportsMap, stats: component.stats };
+    return { exports: instance.exports as ImportsMap, stats: (component as any).stats };
 }

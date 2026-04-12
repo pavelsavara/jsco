@@ -12,16 +12,17 @@ import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../model/imports';
 import type { ComponentTypeInstance } from '../model/types';
+import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER } from '../constants';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
     const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
-    const verbose = { ...defaultVerbosity, ...options.verbose };
-    const logger = options.logger ?? defaultLogger;
+    const verbose = { ...defaultVerbosity, ...options[VERBOSE] };
+    const logger = options[LOGGER] ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
-            jspi: options.jspi === true,
-            usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+            jspi: options[NO_JSPI] !== true,
+            usesNumberForInt64: (options[USE_NUMBER_FOR_INT64] === true) ? true : false,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),
             loweringCache: new Map(),
@@ -33,8 +34,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             verbose,
             logger,
         },
-        validateTypes: (options.validateTypes === false) ? false : true,
-        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
+        validateTypes: (options[VALIDATE_TYPES] === false) ? false : true,
+        wasmInstantiate: options[WASM_INSTANTIATE] ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
         componentInstanceCache: new Map(),

@@ -60,7 +60,7 @@ describe('hello-world component', () => {
                 const runNs = (instance.exports['wasi:cli/run@0.2.11']
                     ?? instance.exports['wasi:cli/run']) as any;
                 expect(runNs).toBeDefined();
-                const result = runNs.run();
+                const result = await runNs.run();
                 exitCode = (result?.tag === 'ok') ? 0 : 1;
             } catch (e) {
                 if (e instanceof WasiExit) {

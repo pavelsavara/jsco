@@ -63,7 +63,7 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
     validateTypes?: boolean
-    jspi?: boolean
+    noJspi?: boolean
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
     verbose?: Partial<Verbosity>
     logger?: LogFn

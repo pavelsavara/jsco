@@ -31,12 +31,15 @@ const plugins = isDebug ? [] : [terser({
         module: true,
         ecma: 2022,
         toplevel: true,
-        passes: 4
+        passes: 4,
+        computed_props: false,
     },
     mangle: {
         module: true,
         toplevel: true,
-        // TODO properties:{ reserved:['leb128DecodeU64', 'leb128DecodeI64', 'leb128EncodeU64', 'leb128EncodeI64', 'buf', 'memory'] }
+        properties: {
+            keep_quoted: 'strict',
+        },
     },
 })];
 const banner = '//! Pavel Savara licenses this file to you under the MIT license.\n';

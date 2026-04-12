@@ -5,6 +5,8 @@
  * JSPI: block() awaits the internal promise when JSPI is available.
  */
 
+import { SUSPENDING } from '../../constants';
+
 /** wasi:io/poll — pollable resource */
 export interface WasiPollable {
     /** Check if the pollable is ready (non-blocking) */
@@ -119,7 +121,7 @@ export function hasJspi(): boolean {
     if (_jspiCached !== undefined) return _jspiCached;
     try {
         _jspiCached = typeof WebAssembly !== 'undefined'
-            && typeof (WebAssembly as any).Suspending === 'function';
+            && typeof (WebAssembly as any)[SUSPENDING] === 'function';
     } catch {
         _jspiCached = false;
     }

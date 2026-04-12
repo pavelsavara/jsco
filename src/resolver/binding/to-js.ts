@@ -13,6 +13,7 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import camelCase from 'just-camel-case';
+import { TAG, VAL, OK, ERR } from '../../constants';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 const _f32 = new Float32Array(1);
@@ -579,10 +580,10 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
                 if (disc === 0) {
                     const val = okLoader ? okLoader(ctx, ptr + payloadOffset) : undefined;
-                    return { tag: 'ok', val };
+                    return { [TAG]: OK, [VAL]: val };
                 } else {
                     const val = errLoader ? errLoader(ctx, ptr + payloadOffset) : undefined;
-                    return { tag: 'err', val };
+                    return { [TAG]: ERR, [VAL]: val };
                 }
             };
         }
@@ -607,9 +608,9 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 if (disc >= numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${numCases}`);
                 const loader = caseLoaders[disc];
                 if (loader) {
-                    return { tag: caseNames[disc], val: loader(ctx, ptr + payloadOffset) };
+                    return { [TAG]: caseNames[disc], [VAL]: loader(ctx, ptr + payloadOffset) };
                 }
-                return { tag: caseNames[disc] };
+                return { [TAG]: caseNames[disc] };
             };
         }
         case ModelTag.ComponentTypeDefinedEnum: {
@@ -761,7 +762,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
                 }
             }
             const val = okLowerer ? okLowerer(ctx, ...payload.slice(0, okFlatTypes.length)) : undefined;
-            return { tag: 'ok', val };
+            return { [TAG]: OK, [VAL]: val };
         } else {
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
@@ -771,7 +772,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
                 }
             }
             const val = errLowerer ? errLowerer(ctx, ...payload.slice(0, errFlatTypes.length)) : undefined;
-            return { tag: 'err', val };
+            return { [TAG]: ERR, [VAL]: val };
         }
     };
     fn.spill = totalSpill;
@@ -814,9 +815,9 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
                     }
                 }
             }
-            return { tag: c.name, val: c.lowerer(ctx, ...payload) };
+            return { [TAG]: c.name, [VAL]: c.lowerer(ctx, ...payload) };
         }
-        return { tag: c.name };
+        return { [TAG]: c.name };
     };
     fn.spill = totalSpill;
     return fn;

@@ -5,6 +5,7 @@ import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
+import { GIT_HASH, CONFIGURATION } from './constants';
 
 export type { WITModel } from './parser';
 export { parse } from './parser';
@@ -21,8 +22,8 @@ export { printWAT } from './utils/wat-printer';
 
 export function getBuildInfo() {
     return {
-        gitHash,
-        configuration,
+        [GIT_HASH]: gitHash,
+        [CONFIGURATION]: configuration,
     };
 }
 
