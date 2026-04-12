@@ -1142,5 +1142,83 @@ describe('echo-reactor', () => {
             // If we get here without crash, all post_return deallocations worked
             expect(prim['echo-u32'](42)).toBe(42);
         }));
+
+        test('deeply-nested post-return deallocation stress loop', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const team = {
+                name: 'Team',
+                lead: {
+                    name: 'Lead',
+                    age: 40,
+                    email: 'lead@test.com',
+                    address: { street: '1 St', city: 'City', zip: '00000' },
+                    tags: ['a', 'b'],
+                },
+                members: [
+                    {
+                        name: 'M1',
+                        age: 20,
+                        email: undefined,
+                        address: { street: '2 St', city: 'Town', zip: '11111' },
+                        tags: ['c'],
+                    },
+                    {
+                        name: 'M2',
+                        age: 25,
+                        email: 'm2@test.com',
+                        address: { street: '3 St', city: 'Village', zip: '22222' },
+                        tags: ['d', 'e', 'f'],
+                    },
+                ],
+                metadata: [['k1', 'v1'], ['k2', 'v2']],
+            };
+
+            // Repeated calls exercise post_return deallocation of deeply nested
+            // Team → Person → Address → tags chains. If any inner dealloc loop
+            // has wrong offsets, memory will corrupt or leak-then-OOM.
+            for (let i = 0; i < 50; i++) {
+                const result = ns['echo-deeply-nested'](team);
+                expect(result.name).toBe('Team');
+                expect(result.members).toHaveLength(2);
+                expect(result.members[1].tags).toEqual(['d', 'e', 'f']);
+            }
+        }));
+
+        test('list-of-records post-return deallocation stress loop', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const people = [
+                {
+                    name: 'Alice',
+                    age: 30,
+                    email: 'alice@test.com',
+                    address: { street: '1 St', city: 'A', zip: '00000' },
+                    tags: ['x', 'y'],
+                },
+                {
+                    name: 'Bob',
+                    age: 25,
+                    email: undefined,
+                    address: { street: '2 St', city: 'B', zip: '11111' },
+                    tags: ['z'],
+                },
+            ];
+
+            // Repeated calls exercise post_return deallocation of list<person>
+            // where each person has nested strings and a list<string> tags field.
+            for (let i = 0; i < 50; i++) {
+                const result = ns['echo-list-of-records'](people);
+                expect(result).toHaveLength(2);
+                expect(result[0].name).toBe('Alice');
+                expect(result[1].tags).toEqual(['z']);
+            }
+        }));
     });
 });

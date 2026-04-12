@@ -13,6 +13,7 @@
 - unroll `loadFromMemory` during binding
 - free memory and resource handles
 - make i64 -> number vs bingint configurable again, add tests for it. usesNumberForInt64
+- multiple memories
 
 # Parser todo
 - add options to delay parsing core modules
@@ -25,6 +26,7 @@
 - improve utils/ coverage (47% — lowest in project)
 - add Firefox browser test (Chrome done via Playwright)
 - scenarios testing memory leaks
+- consider too many HTTP headers or too large body
 
 # Build
 - add coverage to CI, fail if lower than some %

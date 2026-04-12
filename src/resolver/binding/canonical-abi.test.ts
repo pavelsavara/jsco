@@ -9,7 +9,43 @@ import { createLifting as _createLifting, createFunctionLifting } from './to-abi
 import { createLowering } from './to-js';
 import { storeToMemory, loadFromMemory } from './test-helpers';
 import { WasmPointer, WasmSize, WasmValue } from './types';
-import { validateAllocResult, validatePointerAlignment, validateUtf8, checkNotPoisoned, checkNotReentrant } from './validation';
+import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from './validation';
+
+/** Test-only UTF-8 validator with detailed error messages. */
+function validateUtf8(bytes: Uint8Array): void {
+    let i = 0;
+    while (i < bytes.length) {
+        const b0 = bytes[i];
+        if (b0 < 0x80) {
+            i++;
+        } else if ((b0 & 0xE0) === 0xC0) {
+            if (b0 < 0xC2) throw new Error(`invalid UTF-8: overlong 2-byte sequence at offset ${i}`);
+            if (i + 1 >= bytes.length) throw new Error(`invalid UTF-8: truncated 2-byte sequence at offset ${i}`);
+            if ((bytes[i + 1] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
+            i += 2;
+        } else if ((b0 & 0xF0) === 0xE0) {
+            if (i + 2 >= bytes.length) throw new Error(`invalid UTF-8: truncated 3-byte sequence at offset ${i}`);
+            const b1 = bytes[i + 1];
+            if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
+            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if (b0 === 0xE0 && b1 < 0xA0) throw new Error(`invalid UTF-8: overlong 3-byte sequence at offset ${i}`);
+            if (b0 === 0xED && b1 >= 0xA0) throw new Error(`invalid UTF-8: surrogate codepoint at offset ${i}`);
+            i += 3;
+        } else if ((b0 & 0xF8) === 0xF0) {
+            if (b0 > 0xF4) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
+            if (i + 3 >= bytes.length) throw new Error(`invalid UTF-8: truncated 4-byte sequence at offset ${i}`);
+            const b1 = bytes[i + 1];
+            if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
+            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if ((bytes[i + 3] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
+            if (b0 === 0xF0 && b1 < 0x90) throw new Error(`invalid UTF-8: overlong 4-byte sequence at offset ${i}`);
+            if (b0 === 0xF4 && b1 > 0x8F) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
+            i += 4;
+        } else {
+            throw new Error(`invalid UTF-8: unexpected byte 0x${b0.toString(16)} at offset ${i}`);
+        }
+    }
+}
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -79,7 +115,7 @@ function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buff
         memory,
         allocator,
         utf8Encoder: new TextEncoder(),
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
     } as any as BindingContext;
 
@@ -116,7 +152,7 @@ function createMisalignedAllocContext(): { ctx: BindingContext, buffer: ArrayBuf
     const ctx = {
         memory, allocator,
         utf8Encoder: new TextEncoder(),
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
     } as any as BindingContext;
 
@@ -144,7 +180,7 @@ function _createTinyBufferContext(size: number): { ctx: BindingContext, buffer: 
     const ctx = {
         memory, allocator,
         utf8Encoder: new TextEncoder(),
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
     } as any as BindingContext;
 
@@ -482,8 +518,9 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
         // Write invalid UTF-8 at offset 16: standalone continuation byte
         new Uint8Array(buffer).set([0x80, 0x80, 0x80], 16);
 
+        // TextDecoder({ fatal: true }) throws on invalid UTF-8
         expect(() => (lowerer as any)(ctx, 16, 3))
-            .toThrow('invalid UTF-8');
+            .toThrow('not valid');
     });
 
     test('surrogate in UTF-8 string traps on load', () => {
@@ -495,7 +532,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
         new Uint8Array(buffer).set([0xED, 0xA0, 0x80], 16);
 
         expect(() => (lowerer as any)(ctx, 16, 3))
-            .toThrow('invalid UTF-8: surrogate codepoint');
+            .toThrow('not valid');
     });
 
     test('overlong encoding traps on load', () => {
@@ -507,7 +544,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
         new Uint8Array(buffer).set([0xC0, 0xAF], 16);
 
         expect(() => (lowerer as any)(ctx, 16, 2))
-            .toThrow('invalid UTF-8: overlong 2-byte');
+            .toThrow('not valid');
     });
 
     test('empty string (len=0) loads without validation', () => {
@@ -1202,6 +1239,295 @@ describe('UTF-16 string encoding', () => {
 
             const result = loadFromMemory(ctx, 32, strType as any, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
             expect(result).toBe('日本語');
+        });
+    });
+});
+
+// =============================================================================
+// Security: spilled-path boundary validation (CVE-inspired)
+// =============================================================================
+
+describe('Security: spilled-path memory loader validation', () => {
+
+    describe('string loader bounds checking', () => {
+        test('traps on out-of-bounds string pointer in memory (spilled path)', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const strType = prim(PrimitiveValType.String);
+
+            // Write a string descriptor at offset 0: ptr=200 (out of 128-byte buffer), len=5
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 200, true); // ptr beyond memory
+            dv.setUint32(4, 5, true); // len
+
+            expect(() => loadFromMemory(ctx, 0, strType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('string pointer out of bounds');
+        });
+
+        test('traps on invalid UTF-8 in spilled-path string', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(256);
+
+            // Write invalid UTF-8 bytes at offset 100
+            new Uint8Array(buffer).set([0xC3, 0x28], 100); // invalid continuation byte
+
+            // Write string descriptor at offset 0: ptr=100, len=2
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 100, true);
+            dv.setUint32(4, 2, true);
+
+            const strType = prim(PrimitiveValType.String);
+            // TextDecoder({ fatal: true }) throws on invalid UTF-8
+            expect(() => loadFromMemory(ctx, 0, strType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('not valid');
+        });
+
+        test('handles zero-length string in spilled path', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 0, true);
+            dv.setUint32(4, 0, true);
+
+            const strType = prim(PrimitiveValType.String);
+            const result = loadFromMemory(ctx, 0, strType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            expect(result).toBe('');
+        });
+    });
+
+    describe('list loader bounds checking', () => {
+        test('traps on out-of-bounds list pointer in memory (spilled path)', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const listModel = { tag: ModelTag.ComponentTypeDefinedList, value: prim(PrimitiveValType.U32) } as any;
+
+            // Write list descriptor at offset 0: ptr=200 (beyond memory), len=3
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 200, true);
+            dv.setUint32(4, 3, true);
+
+            expect(() => loadFromMemory(ctx, 0, listModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('list pointer out of bounds');
+        });
+
+        test('traps on list with length causing overflow past memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const listModel = { tag: ModelTag.ComponentTypeDefinedList, value: prim(PrimitiveValType.U32) } as any;
+
+            // ptr=16, len=100 → 16 + 100*4 = 416 > 128
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 16, true);
+            dv.setUint32(4, 100, true);
+
+            expect(() => loadFromMemory(ctx, 0, listModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('list pointer out of bounds');
+        });
+
+        test('traps on misaligned list pointer in memory (spilled path)', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(256);
+
+            const listModel = { tag: ModelTag.ComponentTypeDefinedList, value: prim(PrimitiveValType.U32) } as any;
+
+            // ptr=3 (not aligned to 4), len=1
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 3, true);
+            dv.setUint32(4, 1, true);
+
+            expect(() => loadFromMemory(ctx, 0, listModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('list pointer not aligned');
+        });
+
+        test('zero-length list accepted without bounds check', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const listModel = { tag: ModelTag.ComponentTypeDefinedList, value: prim(PrimitiveValType.U32) } as any;
+
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 0, true);
+            dv.setUint32(4, 0, true);
+
+            const result = loadFromMemory(ctx, 0, listModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            expect(result).toEqual([]);
+        });
+    });
+
+    describe('discriminant validation in spilled path', () => {
+        test('traps on invalid option discriminant in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const optionModel = {
+                tag: ModelTag.ComponentTypeDefinedOption,
+                value: prim(PrimitiveValType.U32),
+            } as any;
+
+            // Write discriminant=2 (invalid for option: must be 0 or 1)
+            new DataView(buffer).setUint8(0, 2);
+
+            expect(() => loadFromMemory(ctx, 0, optionModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid option discriminant: 2');
+        });
+
+        test('traps on invalid result discriminant in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const resultModel = {
+                tag: ModelTag.ComponentTypeDefinedResult,
+                ok: prim(PrimitiveValType.U32),
+                err: prim(PrimitiveValType.String),
+            } as any;
+
+            // Write discriminant=5 (invalid for result: must be 0 or 1)
+            new DataView(buffer).setUint8(0, 5);
+
+            expect(() => loadFromMemory(ctx, 0, resultModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid result discriminant: 5');
+        });
+
+        test('traps on invalid variant discriminant in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const variantModel = {
+                tag: ModelTag.ComponentTypeDefinedVariant,
+                variants: [
+                    { name: 'a', ty: prim(PrimitiveValType.U32) },
+                    { name: 'b', ty: undefined },
+                ],
+            } as any;
+
+            // discriminant=2 (only 0 and 1 valid)
+            new DataView(buffer).setUint8(0, 2);
+
+            expect(() => loadFromMemory(ctx, 0, variantModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid variant discriminant: 2 >= 2');
+        });
+
+        test('traps on invalid enum discriminant in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            const enumModel = {
+                tag: ModelTag.ComponentTypeDefinedEnum,
+                members: ['red', 'green', 'blue'],
+            } as any;
+
+            // discriminant=3 (only 0, 1, 2 valid)
+            new DataView(buffer).setUint8(0, 3);
+
+            expect(() => loadFromMemory(ctx, 0, enumModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid enum discriminant: 3 >= 3');
+        });
+
+        test('valid discriminants accepted for option/result/variant/enum', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+
+            // Option: disc=0 → null
+            dv.setUint8(0, 0);
+            const optionModel = { tag: ModelTag.ComponentTypeDefinedOption, value: prim(PrimitiveValType.U32) } as any;
+            expect(loadFromMemory(ctx, 0, optionModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toBeNull();
+
+            // Option: disc=1 → Some(value)
+            dv.setUint8(16, 1);
+            dv.setUint32(20, 42, true);
+            expect(loadFromMemory(ctx, 16, optionModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toBe(42);
+
+            // Result: disc=0 → ok
+            dv.setUint8(32, 0);
+            dv.setUint32(36, 99, true);
+            const resultModel = { tag: ModelTag.ComponentTypeDefinedResult, ok: prim(PrimitiveValType.U32), err: undefined } as any;
+            expect(loadFromMemory(ctx, 32, resultModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toEqual({ tag: 'ok', val: 99 });
+
+            // Enum: disc=2 → 'blue'
+            dv.setUint8(48, 2);
+            const enumModel = { tag: ModelTag.ComponentTypeDefinedEnum, members: ['red', 'green', 'blue'] } as any;
+            expect(loadFromMemory(ctx, 48, enumModel, rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds)).toBe('blue');
+        });
+    });
+
+    describe('char codepoint validation in spilled path', () => {
+        test('traps on codepoint >= 0x110000 in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            new DataView(buffer).setUint32(0, 0x110000, true);
+
+            const charType = prim(PrimitiveValType.Char);
+            expect(() => loadFromMemory(ctx, 0, charType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid char codepoint');
+        });
+
+        test('traps on surrogate codepoint in memory', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            new DataView(buffer).setUint32(0, 0xD800, true);
+
+            const charType = prim(PrimitiveValType.Char);
+            expect(() => loadFromMemory(ctx, 0, charType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds))
+                .toThrow('Invalid char codepoint: surrogate');
+        });
+
+        test('accepts valid char at boundary (U+10FFFF)', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+
+            new DataView(buffer).setUint32(0, 0x10FFFF, true);
+
+            const charType = prim(PrimitiveValType.Char);
+            const result = loadFromMemory(ctx, 0, charType as any,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds);
+            expect(result).toBe(String.fromCodePoint(0x10FFFF));
+        });
+    });
+
+    describe('flat-path unsigned coercion', () => {
+        test('list lowering treats length as unsigned', () => {
+            const rctx = createMinimalRctx();
+            const { ctx } = createMockMemoryContext(128);
+
+            const listModel = { tag: ModelTag.ComponentTypeDefinedList, value: prim(PrimitiveValType.U8) } as any;
+            const lowerer = createLowering(rctx.resolved, listModel);
+
+            // Simulate WASM passing ptr=0, len=0 (should work fine)
+            const result = (lowerer as any)(ctx, 16, 3);
+            expect(result).toEqual([0, 0, 0]);
+        });
+
+        test('string lowering treats ptr/len as unsigned', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(256);
+
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
+
+            // Write valid UTF-8 at offset 16
+            const bytes = new TextEncoder().encode('hi');
+            new Uint8Array(buffer).set(bytes, 16);
+
+            const result = (lowerer as any)(ctx, 16, 2);
+            expect(result).toBe('hi');
         });
     });
 });

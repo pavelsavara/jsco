@@ -450,7 +450,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         memory,
         allocator,
         resources,
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
         logger: resolved.logger,
