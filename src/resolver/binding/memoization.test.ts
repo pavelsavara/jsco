@@ -4,6 +4,7 @@ import { ResolvedContext, BindingContext, StringEncoding } from '../types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
 import type { WasmValue } from './types';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -34,7 +35,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 // ─── Memoization key identity tests ──────────────────────────────────────
 
-describe('memoization keys', () => {
+describeDebugOnly('memoization keys', () => {
 
     describe('cache hit by object identity', () => {
         test('createLifting returns same result for same object reference', () => {

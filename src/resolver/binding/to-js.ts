@@ -1,38 +1,26 @@
+import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
+import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
+import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-
-// Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
-const _f32 = new Float32Array(1);
-const _i32 = new Int32Array(_f32.buffer);
-_i32[0] = 0x7fc00000;
-const canonicalNaN32: number = _f32[0];
-const _f64 = new Float64Array(1);
-const _i64 = new BigInt64Array(_f64.buffer);
-_i64[0] = 0x7ff8000000000000n;
-const canonicalNaN64: number = _f64[0];
-
-function bigIntReplacer(_key: string, value: unknown): unknown {
-    return typeof value === 'bigint' ? value.toString() + 'n' : value;
-}
+import { TAG, VAL, OK, ERR } from '../../constants';
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
     return memoize(rctx.loweringCache, exportModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
-        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
         const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
         let resultType: ResolvedType | undefined;
         if (exportModel.results.tag === ModelTag.ComponentFuncResultUnnamed) {
@@ -422,10 +410,6 @@ function createStringLoweringUtf16(): LoweringToJs {
 
 // --- Memory load helpers (for list element loading) ---
 
-function alignUp(offset: number, align: number): number {
-    return (offset + align - 1) & ~(align - 1);
-}
-
 export type MemoryLoader = (ctx: BindingContext, ptr: number) => any;
 
 function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding): MemoryLoader {
@@ -578,10 +562,10 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
                 if (disc === 0) {
                     const val = okLoader ? okLoader(ctx, ptr + payloadOffset) : undefined;
-                    return { tag: 'ok', val };
+                    return { [TAG]: OK, [VAL]: val };
                 } else {
                     const val = errLoader ? errLoader(ctx, ptr + payloadOffset) : undefined;
-                    return { tag: 'err', val };
+                    return { [TAG]: ERR, [VAL]: val };
                 }
             };
         }
@@ -606,9 +590,9 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 if (disc >= numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${numCases}`);
                 const loader = caseLoaders[disc];
                 if (loader) {
-                    return { tag: caseNames[disc], val: loader(ctx, ptr + payloadOffset) };
+                    return { [TAG]: caseNames[disc], [VAL]: loader(ctx, ptr + payloadOffset) };
                 }
-                return { tag: caseNames[disc] };
+                return { [TAG]: caseNames[disc] };
             };
         }
         case ModelTag.ComponentTypeDefinedEnum: {
@@ -760,7 +744,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
                 }
             }
             const val = okLowerer ? okLowerer(ctx, ...payload.slice(0, okFlatTypes.length)) : undefined;
-            return { tag: 'ok', val };
+            return { [TAG]: OK, [VAL]: val };
         } else {
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
@@ -770,7 +754,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
                 }
             }
             const val = errLowerer ? errLowerer(ctx, ...payload.slice(0, errFlatTypes.length)) : undefined;
-            return { tag: 'err', val };
+            return { [TAG]: ERR, [VAL]: val };
         }
     };
     fn.spill = totalSpill;
@@ -813,9 +797,9 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
                     }
                 }
             }
-            return { tag: c.name, val: c.lowerer(ctx, ...payload) };
+            return { [TAG]: c.name, [VAL]: c.lowerer(ctx, ...payload) };
         }
-        return { tag: c.name };
+        return { [TAG]: c.name };
     };
     fn.spill = totalSpill;
     return fn;

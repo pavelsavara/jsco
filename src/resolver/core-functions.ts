@@ -1,3 +1,4 @@
+import isDebug from 'env:isDebug';
 import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
 import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
@@ -5,7 +6,7 @@ import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
-import { debugStack, withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLowering } from './binding';
 import { JsFunction } from './binding/types';
 import { resolveComponentFunction } from './component-functions';

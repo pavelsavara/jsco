@@ -1,4 +1,5 @@
-import { isDebug, LogLevel } from '../../utils/assert';
+import isDebug from 'env:isDebug';
+import { LogLevel } from '../../utils/assert';
 import { modelTagName } from '../../utils/debug-names';
 import type { LogFn, Verbosity } from '../../utils/assert';
 

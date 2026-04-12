@@ -1,6 +1,7 @@
+import isDebug from 'env:isDebug';
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
-import { isDebug, LogLevel } from '../utils/assert';
+import { LogLevel } from '../utils/assert';
 import { planOpKindName, modelTagName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance, WasmComponent } from './api-types';
 import { PlanOp, PlanOpKind, executePlan } from './binding-plan';
@@ -9,22 +10,23 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
+import { INSTANTIATE } from '../constants';
 
 export async function instantiateComponent<TJSExports>(
-    modelOrComponentOrUrl: ComponentFactoryInput,
+    componentBytesOrUrl: ComponentFactoryInput,
     imports?: JsImports,
     options?: ComponentFactoryOptions & ParserOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    let input = modelOrComponentOrUrl as any;
+    let input = componentBytesOrUrl as any;
     if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
         input = await parse(input, options ?? {});
     }
     const component = await createComponent<TJSExports>(input, options);
-    return component.instantiate(imports);
+    return component[INSTANTIATE](imports);
 }
 
-export async function createComponent<TJSExports>(modelOrComponentOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
-    let input = modelOrComponentOrUrl as any;
+export async function createComponent<TJSExports>(componentBytesOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
+    let input = componentBytesOrUrl as any;
     if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
         input = await parse(input, options ?? {});
     }
@@ -115,8 +117,8 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
 
     const resolved = rctx.resolved;
     let firstInstantiation = true;
-    const component: WasmComponent<TJSExports> = {
-        instantiate: async (imports) => {
+    const component = {
+        [INSTANTIATE]: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
                 firstInstantiation = false;
@@ -130,7 +132,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
         plan: sortedPlan,
         stats: isDebug ? { ...rctx.resolved.stats! } : undefined,
     };
-    return component;
+    return component as WasmComponent<TJSExports>;
 }
 
 const executionOrder: Record<PlanOpKind, number> = {

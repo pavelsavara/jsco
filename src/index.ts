@@ -3,27 +3,23 @@
 
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
-import { setConfiguration } from './utils/assert';
+import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
+import { GIT_HASH, CONFIGURATION } from './constants';
 
-export type { WITModel } from './parser';
-export { parse } from './parser';
-export { instantiateComponent, createComponent } from './resolver';
-export { createLifting, createLowering } from './resolver/binding';
-export { createWasiHost } from './host/wasip2';
-export { instantiateWasiComponent } from './host/wasip2/instantiate';
 export type { WasiInstantiateOptions } from './host/wasip2/instantiate';
 export type { WasiConfig } from './host/wasip2/types';
-export type { WasmComponent, WasmComponentInstance, ResolutionStats } from './resolver/api-types';
+export type { WasmComponent, WasmComponentInstance } from './resolver/api-types';
+export { instantiateComponent, createComponent } from './resolver';
+export { createWasiP2Host } from './host/wasip2';
+export { instantiateWasiComponent } from './host/wasip2/instantiate';
 export { LogLevel, setLogger } from './utils/assert';
-export type { Verbosity, LogFn } from './utils/assert';
-export { printWAT } from './utils/wat-printer';
 
 export function getBuildInfo() {
     return {
-        gitHash,
-        configuration,
+        [GIT_HASH]: gitHash,
+        [CONFIGURATION]: configuration,
     };
 }
 
-setConfiguration(configuration);
+initializeAsserts();

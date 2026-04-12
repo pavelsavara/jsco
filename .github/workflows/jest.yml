@@ -8,8 +8,12 @@ on:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
     env:
       NODE_OPTIONS: --experimental-vm-modules
+      Configuration: ${{ matrix.configuration }}
 
     steps:
     - uses: actions/checkout@v6
@@ -20,8 +24,36 @@ jobs:
     - name: Install npm dependencies
       run: npm ci
 
-    - name: Run Jest unit tests
+    - name: Run Jest unit tests (${{ matrix.configuration }})
       run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test
+
+  release-bundle-size:
+    runs-on: ubuntu-latest
+    env:
+      Configuration: Release
+      ContinuousIntegrationBuild: 'true'
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Build release bundle
+      run: npm run build
+
+    - name: Assert bundle size under 90 KB
+      run: |
+        size=$(stat --format=%s dist/index.js)
+        echo "Release bundle size: ${size} bytes"
+        if [ "$size" -gt 92160 ]; then
+          echo "::error::Release bundle size ${size} bytes exceeds 90 KB limit (92160 bytes)"
+          exit 1
+        fi
+        echo "✓ Bundle size OK (under 90 KB)"
 
   browser-tests:
     runs-on: ubuntu-latest

@@ -1,9 +1,10 @@
+import isDebug from 'env:isDebug';
 import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
 import { CanonicalFunctionLift } from '../model/canonicals';
-import { ComponentExternalKind } from '../model/exports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
+import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLifting } from './binding';
 import { WasmFunction } from './binding/types';
 import { resolveComponentInstance } from './component-instances';
@@ -12,6 +13,7 @@ import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
+import { PROMISING } from '../constants';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const cached = rctx.componentFunctionCache.get(rargs.element);
@@ -60,11 +62,37 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         postReturnResolution = resolveCoreFunction(rctx, { element: postReturnFunc, callerElement: canonicalFunctionLift });
     }
 
+    // When useNumberForInt64 is string[], check if this function's export name
+    // matches and temporarily switch to Number-mode with separate caches.
+    const numberForMethods = rctx.resolved.useNumberForInt64Methods;
+    let savedUsesNumber: boolean | undefined;
+    let savedLiftingCache: Map<unknown, unknown> | undefined;
+    let savedLoweringCache: Map<unknown, unknown> | undefined;
+    if (numberForMethods) {
+        const callerExport = rargs.callerElement;
+        const exportName = callerExport && callerExport.tag === ModelTag.ComponentExport
+            ? (callerExport as ComponentExport).name.name : undefined;
+        const useNumber = exportName !== undefined && numberForMethods.includes(exportName);
+        if (useNumber) {
+            savedUsesNumber = rctx.resolved.usesNumberForInt64;
+            savedLiftingCache = rctx.resolved.liftingCache;
+            savedLoweringCache = rctx.resolved.loweringCache;
+            rctx.resolved.usesNumberForInt64 = true;
+            rctx.resolved.liftingCache = rctx.resolved.numberModeLiftingCache!;
+            rctx.resolved.loweringCache = rctx.resolved.numberModeLoweringCache!;
+        }
+    }
+
     const liftingBinder = createFunctionLifting(rctx.resolved, sectionFunType);
 
+    if (savedUsesNumber !== undefined) {
+        rctx.resolved.usesNumberForInt64 = savedUsesNumber;
+        rctx.resolved.liftingCache = savedLiftingCache!;
+        rctx.resolved.loweringCache = savedLoweringCache!;
+    }
     rctx.resolved.stringEncoding = savedEncoding;
 
-    const useJspi = rctx.resolved.jspi;
+    const noJspi = rctx.resolved.noJspi;
 
     return {
         callerElement: rargs.callerElement,
@@ -91,9 +119,14 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             // JSPI: wrap the core function with promising() so that the WASM stack
             // can suspend when an async (Suspending-wrapped) import is called.
             // Only the component export entry point needs this — NOT all core exports.
+            // noJspi can be true (disable all), an array of export names to exclude, or false/undefined (enable all).
             let coreFn = functionResult.result as WasmFunction;
-            if (useJspi) {
-                coreFn = (WebAssembly as any).promising(coreFn);
+            const exportName = bargs.arguments?.[0] as string | undefined;
+            const shouldWrapJspi = noJspi === true ? false
+                : Array.isArray(noJspi) ? (exportName !== undefined && !noJspi.includes(exportName))
+                    : true;
+            if (shouldWrapJspi) {
+                coreFn = (WebAssembly as any)[PROMISING](coreFn);
             }
 
             const jsFunction = liftingBinder(bctx, coreFn);

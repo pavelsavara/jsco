@@ -1,3 +1,5 @@
+import isDebug from 'env:isDebug';
+
 // TODO inline rollup macro
 export function jsco_assert(condition: unknown, messageFactory: string | (() => string)): asserts condition {
     if (condition) return;
@@ -38,12 +40,7 @@ export function jsco_log(phase: string, level: LogLevel, ...args: unknown[]): vo
     _logger(phase, level, ...args);
 }
 
-// TODO figure out how to get jest to use virtual modules
-export let configuration = 'Debug';
-export let isDebug = false;
-export function setConfiguration(value: string) {
-    configuration = value;
-    isDebug = value === 'Debug';
+export function initializeAsserts() {
     if (isDebug) {
         initDebugNames();
     }

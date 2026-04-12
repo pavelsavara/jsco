@@ -1,9 +1,10 @@
+import isDebug from 'env:isDebug';
 import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { configuration, defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
@@ -11,16 +12,20 @@ import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../model/imports';
 import type { ComponentTypeInstance } from '../model/types';
+import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER } from '../constants';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
     const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
-    const verbose = { ...defaultVerbosity, ...options.verbose };
-    const logger = options.logger ?? defaultLogger;
+    const verbose = { ...defaultVerbosity, ...(options as any)[VERBOSE] };
+    const logger = (options as any)[LOGGER] ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
-            jspi: options.jspi === true,
-            usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
+            noJspi: options[NO_JSPI],
+            usesNumberForInt64: options[USE_NUMBER_FOR_INT64] === true,
+            useNumberForInt64Methods: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? options[USE_NUMBER_FOR_INT64] : undefined,
+            numberModeLiftingCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
+            numberModeLoweringCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),
             loweringCache: new Map(),
@@ -32,8 +37,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             verbose,
             logger,
         },
-        validateTypes: (options.validateTypes === false) ? false : true,
-        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
+        validateTypes: (options[VALIDATE_TYPES] === false) ? false : true,
+        wasmInstantiate: options[WASM_INSTANTIATE] ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
         componentInstanceCache: new Map(),
@@ -461,7 +466,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
             ctx.poisoned = true;
         },
     };
-    if (configuration === 'Debug') {
+    if (isDebug) {
         ctx.debugStack = [];
     }
     return ctx;

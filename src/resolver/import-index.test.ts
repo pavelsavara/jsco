@@ -1,5 +1,5 @@
-import { setConfiguration } from '../utils/assert';
-setConfiguration('Debug');
+import { initializeAsserts } from '../utils/assert';
+initializeAsserts();
 
 import { ModelTag, WITSection } from '../model/tags';
 import { PrimitiveValType, ComponentTypeInstance, ComponentTypeFunc } from '../model/types';
@@ -209,5 +209,44 @@ describe('import index mapping', () => {
         expect(rctx.indexes.componentInstances.length).toBe(2);
         expect(rctx.indexes.componentFunctions.length).toBe(1);
         expect(rctx.indexes.componentSections.length).toBe(1);
+    });
+});
+
+describe('useNumberForInt64 option initialization', () => {
+    test('undefined → usesNumberForInt64 = false, no method filter', () => {
+        const rctx = createResolverContext([], {});
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+        expect(rctx.resolved.useNumberForInt64Methods).toBeUndefined();
+        expect(rctx.resolved.numberModeLiftingCache).toBeUndefined();
+        expect(rctx.resolved.numberModeLoweringCache).toBeUndefined();
+    });
+
+    test('false → usesNumberForInt64 = false, no method filter', () => {
+        const rctx = createResolverContext([], { useNumberForInt64: false });
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+        expect(rctx.resolved.useNumberForInt64Methods).toBeUndefined();
+    });
+
+    test('true → usesNumberForInt64 = true, no method filter', () => {
+        const rctx = createResolverContext([], { useNumberForInt64: true });
+        expect(rctx.resolved.usesNumberForInt64).toBe(true);
+        expect(rctx.resolved.useNumberForInt64Methods).toBeUndefined();
+        expect(rctx.resolved.numberModeLiftingCache).toBeUndefined();
+    });
+
+    test('string[] → usesNumberForInt64 = false, method filter set', () => {
+        const methods = ['my-func', 'other-func'];
+        const rctx = createResolverContext([], { useNumberForInt64: methods });
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+        expect(rctx.resolved.useNumberForInt64Methods).toBe(methods);
+        expect(rctx.resolved.numberModeLiftingCache).toBeInstanceOf(Map);
+        expect(rctx.resolved.numberModeLoweringCache).toBeInstanceOf(Map);
+    });
+
+    test('empty string[] → usesNumberForInt64 = false, empty method filter', () => {
+        const rctx = createResolverContext([], { useNumberForInt64: [] });
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+        expect(rctx.resolved.useNumberForInt64Methods).toEqual([]);
+        expect(rctx.resolved.numberModeLiftingCache).toBeInstanceOf(Map);
     });
 });

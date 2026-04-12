@@ -1,7 +1,7 @@
 /**
  * instantiateWasiComponent — Dedicated WASI component instantiator
  *
- * Wraps createComponent + createWasiHost with JSPI integration.
+ * Wraps createComponent + createWasiP2Host with JSPI integration.
  * JSPI wraps blocking WASI imports with WebAssembly.Suspending
  * and component exports with WebAssembly.promising, so WASM can
  * call async host functions synchronously.
@@ -14,13 +14,12 @@ import { ComponentFactoryInput, ComponentFactoryOptions } from '../../resolver/t
 import { ParserOptions } from '../../parser/types';
 import { JsImports, WasmComponentInstance } from '../../resolver/api-types';
 import { WasiConfig } from './types';
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 import { hasJspi } from './poll';
+import { NO_JSPI, INSTANTIATE } from '../../constants';
 
 /** Options for WASI component instantiation */
 export interface WasiInstantiateOptions extends ComponentFactoryOptions, ParserOptions {
-    /** Disable JSPI wrapping. Default: false (JSPI enabled). */
-    noJspi?: boolean;
 }
 
 /**
@@ -42,9 +41,10 @@ export async function instantiateWasiComponent<TJSExports>(
     extraImports?: JsImports,
     options?: WasiInstantiateOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    const useJspi = !options?.noJspi;
+    const noJspi = options?.[NO_JSPI];
+    const needsJspi = noJspi !== true; // false or array both need JSPI available
 
-    if (useJspi && !hasJspi()) {
+    if (needsJspi && !hasJspi()) {
         throw new Error(
             'JSPI required for WASI components. ' +
             'Enable with --experimental-wasm-jspi (Node.js) or ' +
@@ -54,28 +54,19 @@ export async function instantiateWasiComponent<TJSExports>(
     }
 
     // Build WASI host
-    const wasiImports = createWasiHost(wasiConfig);
+    const wasiExports = createWasiP2Host(wasiConfig);
 
     // Merge: WASI first, then user extras override
-    const mergedImports: JsImports = { ...wasiImports };
+    const mergedImports: JsImports = { ...wasiExports };
     if (extraImports) {
         Object.assign(mergedImports, extraImports);
     }
 
-    // Create component with optional JSPI-aware WASM instantiation
+    // Create component — noJspi flows through from options
     const componentOptions: ComponentFactoryOptions & ParserOptions = {
         ...(options ?? {}),
     };
 
-    if (useJspi) {
-        // Tell the resolver to wrap component export entry points with
-        // WebAssembly.promising(). This is applied only to the specific core
-        // function referenced by canon.lift — NOT to all core module exports.
-        // Wrapping all exports breaks core-to-core module linking because
-        // promising()-wrapped functions return Promises, which WASM coerces to 0.
-        componentOptions.jspi = true;
-    }
-
     const component = await createComponent<TJSExports>(source, componentOptions);
-    return component.instantiate(mergedImports);
+    return component[INSTANTIATE](mergedImports);
 }

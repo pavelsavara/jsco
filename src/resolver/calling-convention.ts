@@ -1,6 +1,6 @@
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
 
@@ -37,66 +37,28 @@ export type FunctionCallingConvention = {
     resultFlatCount: number;
 }
 
-// --- Primitive size/alignment tables ---
+// --- Primitive size/alignment/flat tables (indexed by PrimitiveValType) ---
+// PrimitiveValType: Bool=0, S8=1, U8=2, S16=3, U16=4, S32=5, U32=6, S64=7, U64=8, Float32=9, Float64=10, Char=11, String=12
 
-function primitiveSizeOf(prim: PrimitiveValType): number {
-    switch (prim) {
-        case PrimitiveValType.Bool:
-        case PrimitiveValType.S8:
-        case PrimitiveValType.U8:
-            return 1;
-        case PrimitiveValType.S16:
-        case PrimitiveValType.U16:
-            return 2;
-        case PrimitiveValType.S32:
-        case PrimitiveValType.U32:
-        case PrimitiveValType.Float32:
-        case PrimitiveValType.Char:
-            return 4;
-        case PrimitiveValType.S64:
-        case PrimitiveValType.U64:
-        case PrimitiveValType.Float64:
-            return 8;
-        case PrimitiveValType.String:
-            return 8; // pointer + length
-    }
-}
+// Bool=0, S8=1, U8=2, S16=3, U16=4, S32=5, U32=6, S64=7, U64=8, Float32=9, Float64=10, Char=11, String=12
+const _primSize: number[] = [1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8, 4, 8];
+const _primAlign: number[] = [1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8, 4, 4];
+const _primFC: number[] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2];
+const _I32: FlatType[] = [FlatType.I32];
+const _I64: FlatType[] = [FlatType.I64];
+const _F32: FlatType[] = [FlatType.F32];
+const _F64: FlatType[] = [FlatType.F64];
+const _I32I32: FlatType[] = [FlatType.I32, FlatType.I32];
+const _primFT: FlatType[][] = [_I32, _I32, _I32, _I32, _I32, _I32, _I32, _I64, _I64, _F32, _F64, _I32, _I32I32];
 
-function primitiveAlignOf(prim: PrimitiveValType): number {
-    switch (prim) {
-        case PrimitiveValType.Bool:
-        case PrimitiveValType.S8:
-        case PrimitiveValType.U8:
-            return 1;
-        case PrimitiveValType.S16:
-        case PrimitiveValType.U16:
-            return 2;
-        case PrimitiveValType.S32:
-        case PrimitiveValType.U32:
-        case PrimitiveValType.Float32:
-        case PrimitiveValType.Char:
-            return 4;
-        case PrimitiveValType.S64:
-        case PrimitiveValType.U64:
-        case PrimitiveValType.Float64:
-            return 8;
-        case PrimitiveValType.String:
-            return 4; // pointer alignment
-    }
-}
-
-function primitiveFlatCount(prim: PrimitiveValType): number {
-    switch (prim) {
-        case PrimitiveValType.String:
-            return 2; // pointer + length
-        default:
-            return 1;
-    }
+function primIdx(v: number): number {
+    if (v < 0 || v >= PrimitiveValType_Count) throw new Error(`PrimitiveValType out of range: ${v}`);
+    return v;
 }
 
 // --- Composite type calculations ---
 
-function alignUp(offset: number, align: number): number {
+export function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
@@ -104,7 +66,7 @@ export function sizeOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return primitiveSizeOf(type.value);
+            return _primSize[primIdx(type.value)];
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let size = 0;
@@ -189,7 +151,7 @@ export function alignOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return primitiveAlignOf(type.value);
+            return _primAlign[primIdx(type.value)];
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let maxAlign = 1;
@@ -250,7 +212,7 @@ export function flatCount(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return primitiveFlatCount(type.value);
+            return _primFC[primIdx(type.value)];
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let count = 0;
@@ -493,29 +455,6 @@ export function discriminantSize(caseCount: number): number {
 
 // --- Flat type representation per canonical ABI ---
 
-function primitiveFlatType(prim: PrimitiveValType): FlatType[] {
-    switch (prim) {
-        case PrimitiveValType.Bool:
-        case PrimitiveValType.S8:
-        case PrimitiveValType.U8:
-        case PrimitiveValType.S16:
-        case PrimitiveValType.U16:
-        case PrimitiveValType.S32:
-        case PrimitiveValType.U32:
-        case PrimitiveValType.Char:
-            return [FlatType.I32];
-        case PrimitiveValType.S64:
-        case PrimitiveValType.U64:
-            return [FlatType.I64];
-        case PrimitiveValType.Float32:
-            return [FlatType.F32];
-        case PrimitiveValType.Float64:
-            return [FlatType.F64];
-        case PrimitiveValType.String:
-            return [FlatType.I32, FlatType.I32]; // pointer + length
-    }
-}
-
 /** Spec: join(a, b) — find the common flat type for two slots */
 export function joinFlatType(a: FlatType, b: FlatType): FlatType {
     if (a === b) return a;
@@ -528,7 +467,7 @@ export function flattenType(type: ResolvedType): FlatType[] {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return primitiveFlatType(type.value);
+            return _primFT[primIdx(type.value)];
 
         case ModelTag.ComponentTypeDefinedRecord: {
             const flat: FlatType[] = [];

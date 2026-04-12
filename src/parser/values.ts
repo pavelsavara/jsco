@@ -307,6 +307,8 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
                 };
                 break;
             }
+            default:
+                throw new Error(`unknown instance type declaration kind: 0x${type.toString(16)}`);
         }
         declarations.push(declaration);
     }
@@ -706,10 +708,13 @@ export function readComponentValType(src: SyncSource): ComponentValType {
     if (first & 0x80) {
         let shift = 7;
         let byte: number;
+        let count = 1;
         do {
             byte = src.read();
             result |= (byte & 0x7f) << shift;
             shift += 7;
+            count++;
+            if (count > 5) throw new Error('LEB128 overflow in component val type index');
         } while (byte & 0x80);
     }
     return {

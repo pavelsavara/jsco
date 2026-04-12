@@ -1,6 +1,4 @@
 
-import { PlanOp } from './binding-plan';
-
 export type JsInterface = Record<string, Function>;
 export type JsInterfaceCollection = Record<string, JsInterface>;
 
@@ -24,7 +22,5 @@ export type ResolutionStats = {
 
 export type WasmComponent<TJSExports> = {
     instantiate: WasmComponentFactory<TJSExports>
-    plan?: PlanOp[]
-    stats?: ResolutionStats
 }
 export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>

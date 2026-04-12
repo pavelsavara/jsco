@@ -1,7 +1,7 @@
 /**
  * WASI Preview 2 Host — Browser-native implementation
  *
- * Entry point for the WASI host. Provides createWasiHost(config) factory
+ * Entry point for the WASI host. Provides createWasiP2Host(config) factory
  * that returns a flat JsImports object ready to pass to instantiate().
  *
  * Implemented interfaces:
@@ -54,7 +54,7 @@ export type { SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, Sock
 export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
 
 /** JsImports-compatible flat map: { 'wasi:cli/stdin': { 'get-stdin': fn }, ... } */
-export type WasiHostImports = Record<string, Record<string, Function>>;
+export type WasiP2HostExports = Record<string, Record<string, Function>>;
 
 /**
  * Create a flat JsImports object containing all WASI host implementations.
@@ -68,7 +68,7 @@ export type WasiHostImports = Record<string, Record<string, Function>>;
  * @param config Optional configuration for CLI, filesystem, HTTP, etc.
  * @returns A flat JsImports object ready to pass to instantiate() or merge with other imports.
  */
-export function createWasiHost(config?: WasiConfig): WasiHostImports {
+export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     const random = createWasiRandom();
     const insecure = createWasiRandomInsecure();
     const insecureSeed = createWasiRandomInsecureSeed();
@@ -78,161 +78,164 @@ export function createWasiHost(config?: WasiConfig): WasiHostImports {
     const filesystem = createWasiFilesystem(config?.fs);
     const outgoingHandler = createOutgoingHandler();
 
-    const interfaces: Record<string, Record<string, Function>> = {
-        // wasi:random/*
-        'wasi:random/random': {
-            'get-random-bytes': random.getRandomBytes,
-            'get-random-u64': random.getRandomU64,
-        },
-        'wasi:random/insecure': {
-            'get-insecure-random-bytes': insecure.getInsecureRandomBytes,
-            'get-insecure-random-u64': insecure.getInsecureRandomU64,
-        },
-        'wasi:random/insecure-seed': {
-            'insecure-seed': insecureSeed.insecureSeed,
-        },
-
-        // wasi:clocks/*
-        'wasi:clocks/wall-clock': {
-            'now': wallClock.now,
-            'resolution': wallClock.resolution,
-        },
-        'wasi:clocks/monotonic-clock': {
-            'now': monotonicClock.now,
-            'resolution': monotonicClock.resolution,
-            'subscribe-duration': monotonicClock.subscribeDuration,
-            'subscribe-instant': monotonicClock.subscribeInstant,
-        },
-
-        // wasi:io/*
-        'wasi:io/poll': {
-            'poll': poll,
-        },
-        // wasi:io/error — resource methods dispatched on WasiError objects
-        'wasi:io/error': {
-            '[method]error.to-debug-string': (self: WasiError) => self.toDebugString(),
-            '[resource-drop]error': (_self: WasiError) => { /* GC handles cleanup */ },
-        },
-        // wasi:io/streams — resource methods dispatched on stream objects
-        'wasi:io/streams': {
-            // InputStream methods
-            '[method]input-stream.read': (self: WasiInputStream, len: bigint) => self.read(len),
-            '[method]input-stream.blocking-read': (self: WasiInputStream, len: bigint) => self.blockingRead(len),
-            '[method]input-stream.skip': (self: WasiInputStream, len: bigint) => self.skip(len),
-            '[method]input-stream.blocking-skip': (self: WasiInputStream, len: bigint) => self.blockingSkip(len),
-            '[method]input-stream.subscribe': (self: WasiInputStream) => self.subscribe(),
-            '[resource-drop]input-stream': (_self: WasiInputStream) => { /* GC handles cleanup */ },
-            // OutputStream methods
-            '[method]output-stream.check-write': (self: WasiOutputStream) => self.checkWrite(),
-            '[method]output-stream.write': (self: WasiOutputStream, contents: Uint8Array) => self.write(contents),
-            '[method]output-stream.blocking-write-and-flush': (self: WasiOutputStream, contents: Uint8Array) => self.blockingWriteAndFlush(contents),
-            '[method]output-stream.flush': (self: WasiOutputStream) => self.flush(),
-            '[method]output-stream.blocking-flush': (self: WasiOutputStream) => self.blockingFlush(),
-            '[method]output-stream.write-zeroes': (self: WasiOutputStream, len: bigint) => self.writeZeroes(len),
-            '[method]output-stream.blocking-write-zeroes-and-flush': (self: WasiOutputStream, len: bigint) => self.blockingWriteZeroesAndFlush(len),
-            '[method]output-stream.subscribe': (self: WasiOutputStream) => self.subscribe(),
-            '[resource-drop]output-stream': (_self: WasiOutputStream) => { /* GC handles cleanup */ },
-        },
-
-        // wasi:cli/*
-        'wasi:cli/environment': {
-            'get-environment': cli.environment.getEnvironment,
-            'get-arguments': cli.environment.getArguments,
-            'initial-cwd': cli.environment.initialCwd,
-        },
-        'wasi:cli/exit': {
-            'exit': cli.exit.exit,
-        },
-        'wasi:cli/stdin': {
-            'get-stdin': cli.stdin.getStdin,
-        },
-        'wasi:cli/stdout': {
-            'get-stdout': cli.stdout.getStdout,
-        },
-        'wasi:cli/stderr': {
-            'get-stderr': cli.stderr.getStderr,
-        },
-        'wasi:cli/terminal-input': {
-            'get-terminal-stdin': cli.terminalInput.getTerminalStdin,
-        },
-        'wasi:cli/terminal-stdout': {
-            'get-terminal-stdout': cli.terminalOutput.getTerminalStdout,
-        },
-        'wasi:cli/terminal-stderr': {
-            'get-terminal-stderr': cli.terminalOutput.getTerminalStderr,
-        },
-
-        // wasi:filesystem/*
-        'wasi:filesystem/types': {
-            'filesystem-error-code': (_err: WasiError) => {
-                // In our VFS, stream errors don't carry filesystem error codes.
-                // Return none (undefined) per the WIT spec.
-                return undefined;
-            },
-            '[resource-drop]descriptor': (_self: WasiDescriptor) => { /* GC handles cleanup */ },
-            '[method]descriptor.read-via-stream': (self: WasiDescriptor, offset: bigint) => self.readViaStream(offset),
-            '[method]descriptor.write-via-stream': (self: WasiDescriptor, offset: bigint) => self.writeViaStream(offset),
-            '[method]descriptor.append-via-stream': (self: WasiDescriptor) => self.appendViaStream(),
-            '[method]descriptor.get-type': (self: WasiDescriptor) => self.getType(),
-            '[method]descriptor.stat': (self: WasiDescriptor) => self.stat(),
-            '[method]descriptor.stat-at': (self: WasiDescriptor, pathFlags: any, path: string) => self.statAt(pathFlags, path),
-            '[method]descriptor.open-at': (self: WasiDescriptor, pathFlags: any, path: string, openFlags: any, descFlags: any) => self.openAt(pathFlags, path, openFlags, descFlags),
-            '[method]descriptor.read-directory': (self: WasiDescriptor) => self.readDirectory(),
-            '[method]descriptor.create-directory-at': (self: WasiDescriptor, path: string) => self.createDirectoryAt(path),
-            '[method]descriptor.remove-directory-at': (self: WasiDescriptor, path: string) => self.removeDirectoryAt(path),
-            '[method]descriptor.unlink-file-at': (self: WasiDescriptor, path: string) => self.unlinkFileAt(path),
-            '[method]descriptor.read': (self: WasiDescriptor, length: bigint, offset: bigint) => self.read(length, offset),
-            '[method]descriptor.write': (self: WasiDescriptor, buffer: Uint8Array, offset: bigint) => self.write(buffer, offset),
-            '[method]descriptor.get-flags': (self: WasiDescriptor) => self.getFlags(),
-            '[method]descriptor.set-size': (self: WasiDescriptor, size: bigint) => self.setSize(size),
-            '[method]descriptor.sync': (self: WasiDescriptor) => self.sync(),
-            '[method]descriptor.sync-data': (self: WasiDescriptor) => self.syncData(),
-            '[method]descriptor.metadata-hash': (self: WasiDescriptor) => self.metadataHash(),
-            '[method]descriptor.metadata-hash-at': (self: WasiDescriptor, pathFlags: any, path: string) => self.metadataHashAt(pathFlags, path),
-            '[method]descriptor.rename-at': (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
-            '[method]descriptor.set-times': (self: WasiDescriptor, atime: any, mtime: any) => self.setTimes(atime, mtime),
-            '[method]descriptor.set-times-at': (self: WasiDescriptor, pathFlags: any, path: string, atime: any, mtime: any) => self.setTimesAt(pathFlags, path, atime, mtime),
-            '[method]descriptor.is-same-object': (self: WasiDescriptor, other: WasiDescriptor) => self.isSameObject(other),
-            '[method]descriptor.advise': (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
-            '[resource-drop]directory-entry-stream': (_self: WasiDirectoryEntryStream) => { /* GC handles cleanup */ },
-            '[method]directory-entry-stream.read-directory-entry': (self: WasiDirectoryEntryStream) => self.readDirectoryEntry(),
-        },
-        'wasi:filesystem/preopens': {
-            'get-directories': filesystem.preopens.getDirectories,
-        },
-
-        // wasi:http/*
-        'wasi:http/outgoing-handler': {
-            'handle': outgoingHandler.handle,
-        },
-
-        // wasi:sockets/* (all stubs)
-        'wasi:sockets/instance-network': {
-            'instance-network': instanceNetwork,
-        },
-        'wasi:sockets/tcp-create-socket': {
-            'create-tcp-socket': (family: any) => createTcpSocket(family),
-        },
-        'wasi:sockets/udp-create-socket': {
-            'create-udp-socket': (family: any) => createUdpSocket(family),
-        },
-        'wasi:sockets/ip-name-lookup': {
-            'resolve-addresses': (network: any, name: string) => resolveAddresses(network, name),
-        },
-    };
-
-    // Register versioned aliases — WASI components use versioned import names
-    // like 'wasi:cli/stdin@0.2.0'. Register all known WASI preview 2 versions.
-    const result: WasiHostImports = {};
+    const result: WasiP2HostExports = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
-    for (const [iface, methods] of Object.entries(interfaces)) {
-        // Unversioned
-        result[iface] = methods;
-        // Versioned
-        for (const version of versions) {
-            result[`${iface}@${version}`] = methods;
-        }
+    const wasiPrefix = 'wasi:';
+    const methodPrefix = '[method]';
+    const resourceDropPrefix = '[resource-drop]';
+    const method = (cls: string, name: string) => methodPrefix + cls + '.' + name;
+    const drop = (cls: string) => resourceDropPrefix + cls;
+    function register(ns: string, methods: Record<string, Function>) {
+        const key = wasiPrefix + ns;
+        result[key] = methods;
+        for (const v of versions) result[key + '@' + v] = methods;
     }
+
+    // wasi:random/*
+    register('random/random', {
+        'get-random-bytes': random.getRandomBytes,
+        'get-random-u64': random.getRandomU64,
+    });
+    register('random/insecure', {
+        'get-insecure-random-bytes': insecure.getInsecureRandomBytes,
+        'get-insecure-random-u64': insecure.getInsecureRandomU64,
+    });
+    register('random/insecure-seed', {
+        'insecure-seed': insecureSeed.insecureSeed,
+    });
+
+    // wasi:clocks/*
+    register('clocks/wall-clock', {
+        'now': wallClock.now,
+        'resolution': wallClock.resolution,
+    });
+    register('clocks/monotonic-clock', {
+        'now': monotonicClock.now,
+        'resolution': monotonicClock.resolution,
+        'subscribe-duration': monotonicClock.subscribeDuration,
+        'subscribe-instant': monotonicClock.subscribeInstant,
+    });
+
+    // wasi:io/*
+    register('io/poll', {
+        'poll': poll,
+    });
+    // wasi:io/error — resource methods dispatched on WasiError objects
+    const _error = 'error';
+    register('io/error', {
+        [method(_error, 'to-debug-string')]: (self: WasiError) => self.toDebugString(),
+        [drop(_error)]: (_self: WasiError) => { /* GC handles cleanup */ },
+    });
+    // wasi:io/streams — resource methods dispatched on stream objects
+    const inputStreamPrefix = 'input-stream';
+    const outputStreamPrefix = 'output-stream';
+    register('io/streams', {
+        // InputStream methods
+        [method(inputStreamPrefix, 'read')]: (self: WasiInputStream, len: bigint) => self.read(len),
+        [method(inputStreamPrefix, 'blocking-read')]: (self: WasiInputStream, len: bigint) => self.blockingRead(len),
+        [method(inputStreamPrefix, 'skip')]: (self: WasiInputStream, len: bigint) => self.skip(len),
+        [method(inputStreamPrefix, 'blocking-skip')]: (self: WasiInputStream, len: bigint) => self.blockingSkip(len),
+        [method(inputStreamPrefix, 'subscribe')]: (self: WasiInputStream) => self.subscribe(),
+        [drop(inputStreamPrefix)]: (_self: WasiInputStream) => { /* GC handles cleanup */ },
+        // OutputStream methods
+        [method(outputStreamPrefix, 'check-write')]: (self: WasiOutputStream) => self.checkWrite(),
+        [method(outputStreamPrefix, 'write')]: (self: WasiOutputStream, contents: Uint8Array) => self.write(contents),
+        [method(outputStreamPrefix, 'blocking-write-and-flush')]: (self: WasiOutputStream, contents: Uint8Array) => self.blockingWriteAndFlush(contents),
+        [method(outputStreamPrefix, 'flush')]: (self: WasiOutputStream) => self.flush(),
+        [method(outputStreamPrefix, 'blocking-flush')]: (self: WasiOutputStream) => self.blockingFlush(),
+        [method(outputStreamPrefix, 'write-zeroes')]: (self: WasiOutputStream, len: bigint) => self.writeZeroes(len),
+        [method(outputStreamPrefix, 'blocking-write-zeroes-and-flush')]: (self: WasiOutputStream, len: bigint) => self.blockingWriteZeroesAndFlush(len),
+        [method(outputStreamPrefix, 'subscribe')]: (self: WasiOutputStream) => self.subscribe(),
+        [drop(outputStreamPrefix)]: (_self: WasiOutputStream) => { /* GC handles cleanup */ },
+    });
+
+    // wasi:cli/*
+    register('cli/environment', {
+        'get-environment': cli.environment.getEnvironment,
+        'get-arguments': cli.environment.getArguments,
+        'initial-cwd': cli.environment.initialCwd,
+    });
+    register('cli/exit', {
+        'exit': cli.exit.exit,
+    });
+    register('cli/stdin', {
+        'get-stdin': cli.stdin.getStdin,
+    });
+    register('cli/stdout', {
+        'get-stdout': cli.stdout.getStdout,
+    });
+    register('cli/stderr', {
+        'get-stderr': cli.stderr.getStderr,
+    });
+    register('cli/terminal-input', {
+        'get-terminal-stdin': cli.terminalInput.getTerminalStdin,
+    });
+    register('cli/terminal-stdout', {
+        'get-terminal-stdout': cli.terminalOutput.getTerminalStdout,
+    });
+    register('cli/terminal-stderr', {
+        'get-terminal-stderr': cli.terminalOutput.getTerminalStderr,
+    });
+
+    // wasi:filesystem/*
+    const descriptorPrefix = 'descriptor';
+    const directoryPrefix = 'directory-entry-stream';
+    register('filesystem/types', {
+        'filesystem-error-code': (_err: WasiError) => {
+            // In our VFS, stream errors don't carry filesystem error codes.
+            // Return none (undefined) per the WIT spec.
+            return undefined;
+        },
+        [drop(descriptorPrefix)]: (_self: WasiDescriptor) => { /* GC handles cleanup */ },
+        [method(descriptorPrefix, 'read-via-stream')]: (self: WasiDescriptor, offset: bigint) => self.readViaStream(offset),
+        [method(descriptorPrefix, 'write-via-stream')]: (self: WasiDescriptor, offset: bigint) => self.writeViaStream(offset),
+        [method(descriptorPrefix, 'append-via-stream')]: (self: WasiDescriptor) => self.appendViaStream(),
+        [method(descriptorPrefix, 'get-type')]: (self: WasiDescriptor) => self.getType(),
+        [method(descriptorPrefix, 'stat')]: (self: WasiDescriptor) => self.stat(),
+        [method(descriptorPrefix, 'stat-at')]: (self: WasiDescriptor, pathFlags: any, path: string) => self.statAt(pathFlags, path),
+        [method(descriptorPrefix, 'open-at')]: (self: WasiDescriptor, pathFlags: any, path: string, openFlags: any, descFlags: any) => self.openAt(pathFlags, path, openFlags, descFlags),
+        [method(descriptorPrefix, 'read-directory')]: (self: WasiDescriptor) => self.readDirectory(),
+        [method(descriptorPrefix, 'create-directory-at')]: (self: WasiDescriptor, path: string) => self.createDirectoryAt(path),
+        [method(descriptorPrefix, 'remove-directory-at')]: (self: WasiDescriptor, path: string) => self.removeDirectoryAt(path),
+        [method(descriptorPrefix, 'unlink-file-at')]: (self: WasiDescriptor, path: string) => self.unlinkFileAt(path),
+        [method(descriptorPrefix, 'read')]: (self: WasiDescriptor, length: bigint, offset: bigint) => self.read(length, offset),
+        [method(descriptorPrefix, 'write')]: (self: WasiDescriptor, buffer: Uint8Array, offset: bigint) => self.write(buffer, offset),
+        [method(descriptorPrefix, 'get-flags')]: (self: WasiDescriptor) => self.getFlags(),
+        [method(descriptorPrefix, 'set-size')]: (self: WasiDescriptor, size: bigint) => self.setSize(size),
+        [method(descriptorPrefix, 'sync')]: (self: WasiDescriptor) => self.sync(),
+        [method(descriptorPrefix, 'sync-data')]: (self: WasiDescriptor) => self.syncData(),
+        [method(descriptorPrefix, 'metadata-hash')]: (self: WasiDescriptor) => self.metadataHash(),
+        [method(descriptorPrefix, 'metadata-hash-at')]: (self: WasiDescriptor, pathFlags: any, path: string) => self.metadataHashAt(pathFlags, path),
+        [method(descriptorPrefix, 'rename-at')]: (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
+        [method(descriptorPrefix, 'set-times')]: (self: WasiDescriptor, atime: any, mtime: any) => self.setTimes(atime, mtime),
+        [method(descriptorPrefix, 'set-times-at')]: (self: WasiDescriptor, pathFlags: any, path: string, atime: any, mtime: any) => self.setTimesAt(pathFlags, path, atime, mtime),
+        [method(descriptorPrefix, 'is-same-object')]: (self: WasiDescriptor, other: WasiDescriptor) => self.isSameObject(other),
+        [method(descriptorPrefix, 'advise')]: (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
+        [drop(directoryPrefix)]: (_self: WasiDirectoryEntryStream) => { /* GC handles cleanup */ },
+        [method(directoryPrefix, 'read-directory-entry')]: (self: WasiDirectoryEntryStream) => self.readDirectoryEntry(),
+    });
+    register('filesystem/preopens', {
+        'get-directories': filesystem.preopens.getDirectories,
+    });
+
+    // wasi:http/*
+    register('http/outgoing-handler', {
+        'handle': outgoingHandler.handle,
+    });
+
+    // wasi:sockets/* (all stubs)
+    register('sockets/instance-network', {
+        'instance-network': instanceNetwork,
+    });
+    register('sockets/tcp-create-socket', {
+        'create-tcp-socket': (family: any) => createTcpSocket(family),
+    });
+    register('sockets/udp-create-socket', {
+        'create-udp-socket': (family: any) => createUdpSocket(family),
+    });
+    register('sockets/ip-name-lookup', {
+        'resolve-addresses': (network: any, name: string) => resolveAddresses(network, name),
+    });
 
     return result;
 }

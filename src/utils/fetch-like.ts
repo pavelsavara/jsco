@@ -1,11 +1,11 @@
-const isNode = typeof process == 'object' && typeof process.versions == 'object' && typeof process.versions.node == 'string';
+const isNode = typeof process == 'object' && typeof process['versions'] == 'object' && typeof process['versions']['node'] == 'string';
 
 export function fetchLike(url: string) {
     const isFileUrl = url.startsWith('file://');
     const isHttpUrl = url.startsWith('https://') || url.startsWith('http://');
     if (isNode && (isFileUrl || !isHttpUrl)) {
         return import('fs/promises').then((fs) => {
-            return fs.readFile(url);
+            return fs['readFile'](url);
         });
     }
     if (typeof globalThis.fetch !== 'function') {
@@ -25,7 +25,7 @@ export async function getBodyIfResponse(
         return input;
     }
     if ('body' in input) {
-        return getBodyIfResponse(input.body!);
+        return getBodyIfResponse((input as Response)['body']!);
     }
     if ('then' in input) {
         return getBodyIfResponse(await input);

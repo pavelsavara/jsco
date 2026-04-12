@@ -1,9 +1,10 @@
+import isDebug from 'env:isDebug';
 import { ComponentFunction, CoreFunction } from '../model/aliases';
 import { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../model/indices';
 import { CoreInstance, ComponentInstance } from '../model/instances';
 import { ComponentType } from '../model/types';
 import { CoreModule } from '../parser/types';
-import { isDebug, jsco_assert } from '../utils/assert';
+import { jsco_assert } from '../utils/assert';
 import { modelTagName } from '../utils/debug-names';
 import { ResolverContext } from './types';
 

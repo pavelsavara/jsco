@@ -1,31 +1,20 @@
+import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
+import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
+import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-
-// Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
-const _f32 = new Float32Array(1);
-const _i32 = new Int32Array(_f32.buffer);
-_i32[0] = 0x7fc00000;
-const canonicalNaN32: number = _f32[0];
-const _f64 = new Float64Array(1);
-const _i64 = new BigInt64Array(_f64.buffer);
-_i64[0] = 0x7ff8000000000000n;
-const canonicalNaN64: number = _f64[0];
-
-function bigIntReplacer(_key: string, value: unknown): unknown {
-    return typeof value === 'bigint' ? value.toString() + 'n' : value;
-}
+import { TAG, VAL, OK } from '../../constants';
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
@@ -55,7 +44,6 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         }
 
         // Pre-resolve param types for spilled path — deep-resolve ensures
-        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
         const paramResolvedTypes = importModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
 
         // Pre-capture rctx properties needed at call time — after this, rctx is not captured
@@ -450,10 +438,6 @@ function createStringLiftingUtf16(): LiftingFromJs {
 
 // --- Memory store helpers (for list element storage) ---
 
-function alignUp(offset: number, align: number): number {
-    return (offset + align - 1) & ~(align - 1);
-}
-
 export type MemoryStorer = (ctx: BindingContext, ptr: number, jsValue: JsValue) => void;
 
 function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding): MemoryStorer {
@@ -565,9 +549,9 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
-                const { tag, val } = jsValue as { tag: string, val?: any };
+                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
-                if (tag === 'ok') {
+                if (tag === OK) {
                     dv.setUint8(0, 0);
                     if (okStorer && val !== undefined) {
                         okStorer(ctx, ptr + payloadOffset, val);
@@ -594,7 +578,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
-                const { tag, val } = jsValue as { tag: string, val?: any };
+                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 const caseIndex = nameToIndex.get(tag)!;
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
@@ -745,10 +729,10 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     return (ctx, srcJsValue, out, offset) => {
-        const { tag, val } = srcJsValue as { tag: string, val?: any };
+        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
-        if (tag === 'ok') {
+        if (tag === OK) {
             if (okLifter) okLifter(ctx, val, out, offset + 1);
             if (okNeedsCoercion) {
                 for (let i = 0; i < okFlatTypes.length; i++) {
@@ -799,7 +783,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     const nameToCase = new Map(cases.map(c => [c.name, c]));
 
     return (ctx, srcJsValue, out, offset) => {
-        const { tag, val } = srcJsValue as { tag: string, val?: any };
+        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);

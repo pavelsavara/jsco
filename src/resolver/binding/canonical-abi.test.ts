@@ -1,5 +1,5 @@
-import { setConfiguration } from '../../utils/assert';
-setConfiguration('Debug');
+import { initializeAsserts } from '../../utils/assert';
+initializeAsserts();
 
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType } from '../../model/types';
@@ -10,6 +10,7 @@ import { createLowering } from './to-js';
 import { storeToMemory, loadFromMemory } from './test-helpers';
 import { WasmPointer, WasmSize, WasmValue } from './types';
 import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from './validation';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 /** Test-only UTF-8 validator with detailed error messages. */
 function validateUtf8(bytes: Uint8Array): void {
@@ -191,7 +192,7 @@ function _createTinyBufferContext(size: number): { ctx: BindingContext, buffer: 
 // Phase C1: Memory Alignment & Bounds Validation
 // =============================================================================
 
-describe('C1: validateAllocResult', () => {
+describeDebugOnly('C1: validateAllocResult', () => {
     test('accepts aligned pointer with sufficient bounds', () => {
         const { ctx } = createMockMemoryContext();
         // ptr=16, align=4, size=8 — valid (16 is aligned to 4, 16+8 < 4096)
@@ -245,7 +246,7 @@ describe('C1: validateAllocResult', () => {
     });
 });
 
-describe('C1: validatePointerAlignment', () => {
+describeDebugOnly('C1: validatePointerAlignment', () => {
     test('accepts aligned pointer', () => {
         expect(() => validatePointerAlignment(16, 4, 'list')).not.toThrow();
     });
@@ -265,7 +266,7 @@ describe('C1: validatePointerAlignment', () => {
     });
 });
 
-describe('C1: list pointer alignment validation', () => {
+describeDebugOnly('C1: list pointer alignment validation', () => {
     test('list<u32> at misaligned pointer traps on load', () => {
         const rctx = createMinimalRctx();
         const listModel = {
@@ -316,7 +317,7 @@ describe('C1: list pointer alignment validation', () => {
     });
 });
 
-describe('C1: list out-of-bounds validation', () => {
+describeDebugOnly('C1: list out-of-bounds validation', () => {
     test('list<u32> beyond memory traps', () => {
         const rctx = createMinimalRctx();
         const listModel = {
@@ -332,7 +333,7 @@ describe('C1: list out-of-bounds validation', () => {
     });
 });
 
-describe('C1: string out-of-bounds validation', () => {
+describeDebugOnly('C1: string out-of-bounds validation', () => {
     test('string beyond memory traps on load', () => {
         const rctx = createMinimalRctx();
         const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
@@ -344,7 +345,7 @@ describe('C1: string out-of-bounds validation', () => {
     });
 });
 
-describe('C1: list lifting with misaligned realloc traps', () => {
+describeDebugOnly('C1: list lifting with misaligned realloc traps', () => {
     test('list<u32> lifting traps when realloc returns misaligned ptr', () => {
         const rctx = createMinimalRctx();
         const listModel = {
@@ -364,7 +365,7 @@ describe('C1: list lifting with misaligned realloc traps', () => {
 // Phase C2: String Encoding Validation
 // =============================================================================
 
-describe('C2: validateUtf8', () => {
+describeDebugOnly('C2: validateUtf8', () => {
     test('accepts valid ASCII', () => {
         expect(() => validateUtf8(new Uint8Array([0x48, 0x65, 0x6C, 0x6C, 0x6F]))).not.toThrow();
     });
@@ -496,7 +497,7 @@ describe('C2: validateUtf8', () => {
     });
 });
 
-describe('C2: string lowering validates UTF-8 from memory', () => {
+describeDebugOnly('C2: string lowering validates UTF-8 from memory', () => {
     test('valid UTF-8 string loads correctly', () => {
         const rctx = createMinimalRctx();
         const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
@@ -585,7 +586,7 @@ describe('C2: string lowering validates UTF-8 from memory', () => {
 // Phase C3: Complex Spilling & Nested Memory Layout
 // =============================================================================
 
-describe('C3: nested compound types through memory', () => {
+describeDebugOnly('C3: nested compound types through memory', () => {
     test('option<list<u8>> round-trips through memory', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
@@ -833,7 +834,7 @@ describe('C3: nested compound types through memory', () => {
 // Phase C4: Runtime Behavioral Guarantees
 // =============================================================================
 
-describe('C4: checkNotPoisoned', () => {
+describeDebugOnly('C4: checkNotPoisoned', () => {
     test('does not throw on healthy context', () => {
         const { ctx } = createMockMemoryContext();
         expect(() => checkNotPoisoned(ctx)).not.toThrow();
@@ -853,7 +854,7 @@ describe('C4: checkNotPoisoned', () => {
     });
 });
 
-describe('C4: checkNotReentrant', () => {
+describeDebugOnly('C4: checkNotReentrant', () => {
     test('does not throw when not in export', () => {
         const { ctx } = createMockMemoryContext();
         expect(() => checkNotReentrant(ctx)).not.toThrow();
@@ -873,7 +874,7 @@ describe('C4: checkNotReentrant', () => {
     });
 });
 
-describe('C4: instance poisoning through liftingTrampoline', () => {
+describeDebugOnly('C4: instance poisoning through liftingTrampoline', () => {
     test('export call sets inExport and clears on return', () => {
         const rctx = createMinimalRctx();
         const funcModel = {
@@ -940,7 +941,7 @@ describe('C4: instance poisoning through liftingTrampoline', () => {
     });
 });
 
-describe('C4: reentrance guard through liftingTrampoline', () => {
+describeDebugOnly('C4: reentrance guard through liftingTrampoline', () => {
     test('reentrant export call is rejected', () => {
         const rctx = createMinimalRctx();
         const funcModel = {
@@ -980,7 +981,7 @@ describe('C4: reentrance guard through liftingTrampoline', () => {
     });
 });
 
-describe('C4: post-return cleanup', () => {
+describeDebugOnly('C4: post-return cleanup', () => {
     test('post-return function is called after successful export', () => {
         const rctx = createMinimalRctx();
         const funcModel = {
@@ -1032,7 +1033,7 @@ describe('C4: post-return cleanup', () => {
 // Combined C1-C4: integration scenarios
 // =============================================================================
 
-describe('C-integration: full round-trip with validation', () => {
+describeDebugOnly('C-integration: full round-trip with validation', () => {
     test('string lift + lower round-trip with valid UTF-8', () => {
         const liftRctx = createMinimalRctx();
         const lowerRctx = createMinimalRctx();
@@ -1103,7 +1104,7 @@ describe('C-integration: full round-trip with validation', () => {
 // UTF-16 String Encoding
 // =============================================================================
 
-describe('UTF-16 string encoding', () => {
+describeDebugOnly('UTF-16 string encoding', () => {
     function createUtf16Rctx(): ResolverContext {
         return {
             resolved: {
@@ -1247,7 +1248,7 @@ describe('UTF-16 string encoding', () => {
 // Security: spilled-path boundary validation (CVE-inspired)
 // =============================================================================
 
-describe('Security: spilled-path memory loader validation', () => {
+describeDebugOnly('Security: spilled-path memory loader validation', () => {
 
     describe('string loader bounds checking', () => {
         test('traps on out-of-bounds string pointer in memory (spilled path)', () => {

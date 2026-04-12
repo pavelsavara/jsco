@@ -1,5 +1,5 @@
-import { setConfiguration } from '../utils/assert';
-setConfiguration('Debug');
+import { initializeAsserts } from '../utils/assert';
+initializeAsserts();
 
 import { ModelTag } from '../model/tags';
 import { ComponentTypeIndex } from '../model/indices';
@@ -8,6 +8,7 @@ import { ResolverContext, StringEncoding } from './types';
 import { createLifting } from './binding/to-abi';
 import { deepResolveType, resolveValType } from './calling-convention';
 import type { ResolvedType } from './type-resolution';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 /**
  * Tests for instance-local type isolation.
@@ -55,7 +56,7 @@ function createRctxWithGlobalTypes(globalTypes: [number, ResolvedType][]): Resol
     } as any as ResolverContext;
 }
 
-describe('instance-local type isolation', () => {
+describeDebugOnly('instance-local type isolation', () => {
     test('outer alias lookup uses snapshot, not live map', () => {
         // Scenario: instance has local type 0 = new Enum, local type 1 = outer alias to global 0
         // Without fix: local type 1 would get the Enum (from local 0) instead of the global Record

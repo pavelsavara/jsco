@@ -1,6 +1,7 @@
+import isDebug from 'env:isDebug';
 import type { WITModel, ParserContext, ParserOptions, ComponentSection } from './types';
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
-import { defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn } from '../utils/assert';
 import { printWAT } from '../utils/wat-printer';
 import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';
@@ -9,6 +10,7 @@ import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async, readU32, readCoreType, readStartFunction } from './values';
 import { parseSectionAlias } from './alias';
+import { OTHER_SECTION_DATA, COMPILE_STREAMING, PROCESS_CUSTOM_SECTION, VERBOSE, LOGGER } from '../constants';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';
@@ -48,11 +50,12 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
         // eslint-disable-next-line no-console
         const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
         const ctx: ParserContext = {
-            otherSectionData: options?.otherSectionData ?? false,
-            compileStreaming: options?.compileStreaming ?? WebAssembly.compileStreaming,
-            processCustomSection: options?.processCustomSection ?? undefined,
-            verbose: { ...defaultVerbosity, ...options?.verbose },
-            logger: options?.logger ?? defaultLogger,
+            otherSectionData: options?.[OTHER_SECTION_DATA] ?? false,
+            compileStreaming: options?.[COMPILE_STREAMING] ?? WebAssembly.compileStreaming,
+            processCustomSection: options?.[PROCESS_CUSTOM_SECTION] ?? undefined,
+            verbose: { ...defaultVerbosity, ...(options as any)?.[VERBOSE] },
+            logger: (options as any)?.[LOGGER] ?? defaultLogger,
+            depth: 0,
         };
 
         const model: WITSection[] = [];
@@ -148,26 +151,36 @@ function parseSectionStart(src: SyncSource): WITSection[] {
     return [readStartFunction(src)];
 }
 
+const MAX_NESTING_DEPTH = 100;
+
 async function parseSectionComponent(
     ctx: ParserContext,
     src: Source,
     size: number
 ): Promise<ComponentSection[]> {
-    const end = src.pos + size;
-    await checkPreamble(src);
-    let model: WITSection[] = [];
-    for (; ;) {
-        if (src.pos == end) {
-            break;
-        }
-        const sections = await parseSection(ctx, src);
-        if (sections === null) {
-            break;
-        }
-        model = [...model, ...sections];
+    if (ctx.depth >= MAX_NESTING_DEPTH) {
+        throw new Error(`component nesting depth exceeds ${MAX_NESTING_DEPTH}`);
     }
-    return [{
-        tag: ModelTag.ComponentSection,
-        sections: model,
-    }];
+    ctx.depth++;
+    try {
+        const end = src.pos + size;
+        await checkPreamble(src);
+        let model: WITSection[] = [];
+        for (; ;) {
+            if (src.pos == end) {
+                break;
+            }
+            const sections = await parseSection(ctx, src);
+            if (sections === null) {
+                break;
+            }
+            model = [...model, ...sections];
+        }
+        return [{
+            tag: ModelTag.ComponentSection,
+            sections: model,
+        }];
+    } finally {
+        ctx.depth--;
+    }
 }

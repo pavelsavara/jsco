@@ -1,4 +1,4 @@
-import { CustomSection, SkippedSection, ComponentSection, CoreModule } from '../parser/types';
+import { SkippedSection, ComponentSection, CoreModule, CustomSection } from '../parser/types';
 import { ComponentAlias } from './aliases';
 import { CanonicalFunction } from './canonicals';
 import { ComponentExport } from './exports';
@@ -12,7 +12,7 @@ export const enum ModelTag {
     ModelElement,
 
     /// sections
-    CustomSection,
+    CustomSection = 2,
     CoreModule,
     SkippedSection,
     ComponentSection,
