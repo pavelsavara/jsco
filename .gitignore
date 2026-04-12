@@ -134,5 +134,4 @@ dist
 # rust
 target/
 
-# wac compositions (build artifacts)
-integration-tests/compositions/*.wasm
+*.wasm

@@ -22,11 +22,9 @@ jobs:
       run: npm install -ci
 
     - name: Rollup project
-      working-directory: ./hello
       run: npm run build:npm
 
-    - name: Run hello sample as sanity check
-      working-directory: ./hello
+    - name: Run usage samples as sanity check
       run: npm run test:usage
 
     - name: Rollup artifact

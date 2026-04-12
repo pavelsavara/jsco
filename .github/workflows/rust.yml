@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    paths: [ "hello/**", "zoo/**", "city/**", "integration-tests/**", "wit/**", ".github/workflows/rust.yml" ]
+    paths: [ "integration-tests/**", "wit/**", ".github/workflows/rust.yml" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,9 +27,6 @@ jobs:
         cache-all-crates: true
         cache-targets: true
         workspaces: |
-          hello
-          zoo
-          city
           integration-tests
         cache-on-failure: true
 
@@ -54,57 +51,6 @@ jobs:
     - name: Install JCO
       run: npm install
 
-    - name: Build rust demo
-      run: npm run build:hello
-
-    - name: Export demo as .wat
-      run: npm run build:hello-wat
-
-    - name: Export demo as .wat JCO javaScript
-      run: npm run build:hello-js
-
-    - name: Build rust demo
-      run: npm run build:zoo
-
-    - name: Export demo as .wat
-      run: npm run build:zoo-wat
-
-    - name: Export demo as .wat JCO javaScript
-      run: npm run build:zoo-js
-
-    - name: Build city component
-      run: npm run build:city
-
-    - name: Export city as .wat
-      run: npm run build:city-wat
-
-    - name: Compose city+zoo
-      run: npm run build:city-zoo
-
-    - name: Export city-zoo as .wat
-      run: npm run build:city-zoo-wat
-
-    - name: Sanity test that JCO can run hello component
-      run: npm run test:jco
-
-    - name: WASM hello component artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: hello.${{github.sha}}
-        path: hello/target/wasm32-unknown-unknown/release/hello.wa*
-
-    - name: WASM zoo component artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: zoo.${{github.sha}}
-        path: zoo/target/wasm32-unknown-unknown/release/zoo.wa*
-
-    - name: WASM city component artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: city.${{github.sha}}
-        path: city/target/wasm32-unknown-unknown/release/city.wa*
-
     - name: Build integration test components
       run: npm run build:integration
 
@@ -119,15 +65,3 @@ jobs:
           integration-tests/target/wasm32-wasip1/release/*.wasm
           integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
           integration-tests/compositions/*.wasm
-
-    - name: WASM city-zoo composed artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: city-zoo.${{github.sha}}
-        path: city/wasm/city-zoo.wasm
-
-    - name: JCO component artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: hello-jco.${{github.sha}}
-        path: hello/target/js-jco/**/*.*

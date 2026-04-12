@@ -8,6 +8,7 @@ on:
       - "integration-tests/**"
       - "wit/**"
       - "src/host/wasip2/integration.test.ts"
+      - "src/host/wasip2/integration-helpers.ts"
       - ".github/workflows/integration-tests.yml"
 
 env:
@@ -46,6 +47,12 @@ jobs:
         crate: wac-cli
         locked: true
 
+    - name: Install wasm-tools
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: wasm-tools
+        locked: true
+
     - uses: actions/setup-node@v5
       with:
         node-version: 24
@@ -59,6 +66,9 @@ jobs:
     - name: Build wac compositions
       run: npm run build:compositions
 
+    - name: Build echo WAT component
+      run: npm run build:echo-wat
+
     - name: Run integration tests
       run: npm run test:integration
 
@@ -71,3 +81,4 @@ jobs:
           integration-tests/target/wasm32-wasip1/release/*.wasm
           integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
           integration-tests/compositions/*.wasm
+          integration-tests/echo-reactor-wat/echo.wasm

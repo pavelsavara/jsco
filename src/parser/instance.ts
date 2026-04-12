@@ -26,7 +26,7 @@ export function parseSectionInstance(
                 case 0x01: {
                     return {
                         tag: ModelTag.ComponentInstanceFromExports,
-                        exports: parseSectionExport(ctx, src)
+                        exports: parseSectionExport(ctx, src, true)
                     };
                 }
                 default: throw new Error(`Unrecognized type in parseSectionInstance: ${type}`);

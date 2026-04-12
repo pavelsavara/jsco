@@ -12,6 +12,7 @@
  * Scenario I: consumer ← (forwarder ← implementer) (wac-composed, implementer inside)
  * Scenario J: consumer ← (forwarder ← forwarder ← implementer) (wac-composed, implementer inside)
  * Scenario K: consumer ← (forwarder ← (forwarder ← implementer)) (nested wac, implementer inside)
+ * Scenario L: consumer ← echo-reactor-wat + JS host (hand-written WAT with shifted indices)
  */
 
 import { createWasiHost } from './index';
@@ -22,6 +23,7 @@ import {
     forwarderWasm, implementerWasm,
     wrappedForwarderWasm, doubleForwarderWasm, nestedDoubleForwarderWasm,
     forwarderImplementerWasm, doubleForwarderImplementerWasm, nestedForwarderImplementerWasm,
+    echoReactorWatWasm,
     runConsumerScenario, instantiateComponent, wireExportsToImports,
 } from './integration-helpers';
 import type { ImportsMap } from './integration-helpers';
@@ -251,4 +253,22 @@ describe('Integration tests (WAC compositions)', () => {
         expect(nestedStats!.componentInstanceCacheHits).toBe(153);
         expect(nestedStats!.coreInstanceCacheHits).toBe(382);
     }));
+
+    test('Scenario L: consumer ← echo-reactor-wat + JS host', async () => runWithVerbose(verbose, async () => {
+        const echoInterfaces = [
+            'jsco:test/echo-primitives', 'jsco:test/echo-compound', 'jsco:test/echo-algebraic',
+        ];
+        await runConsumerScenario(
+            verbose,
+            async ({ wasiImports, extraImports }) => {
+                const echoWat = await instantiateComponent(echoReactorWatWasm, {}, verbose);
+                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                wireExportsToImports(echoWat.exports, consumerImports, echoInterfaces);
+                return consumerImports;
+            },
+            false,
+            fullWasiConfig,
+        );
+    }));
+
 });
