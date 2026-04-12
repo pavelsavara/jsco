@@ -9,7 +9,7 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 - streaming parser of binary WIT
 - streaming compilation of WASM module during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
-- small download size, fast enough (current prototype is 35 KB)
+- small download size, fast enough (current release bundle is ~86 KB)
 
 ## How
 - parser: read binary WIT to produce model of the component, it's sub components, modules and types
@@ -28,7 +28,8 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 | Resolver | 75% | Type resolution, instances, imports/exports, binding plan IR; missing: nested components, fused adapters |
 | Lifting/Lowering | 95% | All CM types (primitives, records, tuples, lists, options, results, variants, enums, flags, own/borrow); flat + spilled calling conventions; canonical ABI compliance |
 | WASI Host | 85% | All preview 2 interfaces: random, clocks, I/O, CLI, filesystem, HTTP, sockets (stubs); JSPI integration |
-| Testing | 80% | 775 tests across 25 suites (81% statement coverage); Playwright browser test |
+| Testing | ✅ | 1456 tests across 39 suites; CI-gated at 95% coverage |
+
 
 See [./TODO.md](./TODO.md), contributors are welcome!
 
