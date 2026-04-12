@@ -5,6 +5,10 @@ on:
     branches: [ "main" ]
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
@@ -25,7 +29,24 @@ jobs:
       run: npm ci
 
     - name: Run Jest unit tests (${{ matrix.configuration }})
-      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test
+      run: |
+        COVERAGE_FLAG=${{ matrix.configuration == 'Debug' && '--coverage' || '--no-coverage' }}
+        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test
+
+    - name: Upload coverage (Debug only)
+      if: matrix.configuration == 'Debug'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+
+    - name: Coverage summary (Debug only)
+      if: matrix.configuration == 'Debug' && github.event_name == 'pull_request'
+      uses: davelosert/vitest-coverage-report-action@v2
+      with:
+        json-summary-path: coverage/coverage-summary.json
+        json-final-path: coverage/coverage-final.json
+        file-coverage-mode: all
 
   release-bundle-size:
     runs-on: ubuntu-latest
