@@ -7,7 +7,7 @@
  */
 
 import { createComponent } from '../../resolver';
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 import { WasiExit } from './types';
 import type { VerboseCapture } from '../../test-utils/verbose-logger';
 import { verboseOptions } from '../../test-utils/verbose-logger';
@@ -173,7 +173,7 @@ export function wireExportsToImports(
 export async function runConsumerScenario(
     verbose: VerboseCapture,
     buildChain: (ctx: {
-        wasiImports: ImportsMap;
+        wasiExports: ImportsMap;
         extraImports: ImportsMap;
     }) => Promise<ImportsMap>,
     expectForwarderLogs: boolean | number = false,
@@ -183,7 +183,7 @@ export async function runConsumerScenario(
     const stderrChunks: string[] = [];
     const logMessages: string[] = [];
 
-    const wasiImports = createWasiHost({
+    const wasiExports = createWasiP2Host({
         args: wasiConfig?.args,
         env: wasiConfig?.env,
         stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
@@ -191,7 +191,7 @@ export async function runConsumerScenario(
     });
     const extraImports = createTestImports(logMessages, stderrChunks);
 
-    const consumerImports = await buildChain({ wasiImports, extraImports });
+    const consumerImports = await buildChain({ wasiExports: wasiExports, extraImports });
 
     await yieldToGC();
     const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));

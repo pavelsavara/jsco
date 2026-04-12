@@ -4,7 +4,6 @@ import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { CoreInstance, ComponentInstance } from '../model/instances';
 import { ComponentTypeResource, ComponentType } from '../model/types';
-import { WITModel } from '../parser';
 import { CoreModule, ComponentSection } from '../parser/types';
 import { TaggedElement } from '../model/tags';
 import { JsImports } from './api-types';
@@ -61,16 +60,13 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
 }
 
 export type ComponentFactoryOptions = {
-    useNumberForInt64?: boolean
-    validateTypes?: boolean
+    useNumberForInt64?: boolean | string[]
     noJspi?: boolean | string[]
+    validateTypes?: boolean
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
-    verbose?: Partial<Verbosity>
-    logger?: LogFn
 }
 
-export type ComponentFactoryInput = WITModel
-    | string
+export type ComponentFactoryInput = string
     | ArrayLike<number>
     | ReadableStream<Uint8Array>
     | Response
@@ -115,6 +111,12 @@ export type ResolvedContext = {
     /** Current string encoding for the canonical function being resolved. Set per lift/lower. */
     stringEncoding: StringEncoding
     usesNumberForInt64: boolean
+    /** When useNumberForInt64 is string[], stores the method name filter. */
+    useNumberForInt64Methods?: string[]
+    /** Separate cache for Number-mode lifters when per-method filtering is active. */
+    numberModeLiftingCache?: Map<unknown, unknown>
+    /** Separate cache for Number-mode lowerers when per-method filtering is active. */
+    numberModeLoweringCache?: Map<unknown, unknown>
     verbose?: Verbosity
     logger?: LogFn
 }

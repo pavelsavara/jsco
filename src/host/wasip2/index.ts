@@ -1,7 +1,7 @@
 /**
  * WASI Preview 2 Host — Browser-native implementation
  *
- * Entry point for the WASI host. Provides createWasiHost(config) factory
+ * Entry point for the WASI host. Provides createWasiP2Host(config) factory
  * that returns a flat JsImports object ready to pass to instantiate().
  *
  * Implemented interfaces:
@@ -54,7 +54,7 @@ export type { SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, Sock
 export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
 
 /** JsImports-compatible flat map: { 'wasi:cli/stdin': { 'get-stdin': fn }, ... } */
-export type WasiHostImports = Record<string, Record<string, Function>>;
+export type WasiP2HostExports = Record<string, Record<string, Function>>;
 
 /**
  * Create a flat JsImports object containing all WASI host implementations.
@@ -68,7 +68,7 @@ export type WasiHostImports = Record<string, Record<string, Function>>;
  * @param config Optional configuration for CLI, filesystem, HTTP, etc.
  * @returns A flat JsImports object ready to pass to instantiate() or merge with other imports.
  */
-export function createWasiHost(config?: WasiConfig): WasiHostImports {
+export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     const random = createWasiRandom();
     const insecure = createWasiRandomInsecure();
     const insecureSeed = createWasiRandomInsecureSeed();
@@ -78,7 +78,7 @@ export function createWasiHost(config?: WasiConfig): WasiHostImports {
     const filesystem = createWasiFilesystem(config?.fs);
     const outgoingHandler = createOutgoingHandler();
 
-    const result: WasiHostImports = {};
+    const result: WasiP2HostExports = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
     const wasiPrefix = 'wasi:';
     const methodPrefix = '[method]';

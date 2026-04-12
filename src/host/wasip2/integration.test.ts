@@ -15,7 +15,7 @@
  * Scenario L: consumer ← echo-reactor-wat + JS host (hand-written WAT with shifted indices)
  */
 
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, runWithVerbose } from '../../test-utils/verbose-logger';
 import {
@@ -39,7 +39,7 @@ describe('Integration tests (flat)', () => {
     test('Scenario A: consumer-direct', async () => runWithVerbose(verbose, async () => {
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => ({ ...wasiImports, ...extraImports }),
+            async ({ wasiExports, extraImports }) => ({ ...wasiExports, ...extraImports }),
             false,
             fullWasiConfig,
         );
@@ -48,9 +48,9 @@ describe('Integration tests (flat)', () => {
     test('Scenario B: consumer ← forwarder ← JS host', async () => runWithVerbose(verbose, async () => {
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const fwd = await instantiateComponent(forwarderWasm, { ...wasiImports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+            async ({ wasiExports, extraImports }) => {
+                const fwd = await instantiateComponent(forwarderWasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -62,14 +62,14 @@ describe('Integration tests (flat)', () => {
     test('Scenario C: consumer ← forwarder ← implementer', async () => runWithVerbose(verbose, async () => {
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const impl = await instantiateComponent(implementerWasm, createWasiHost({}), verbose);
+            async ({ wasiExports, extraImports }) => {
+                const impl = await instantiateComponent(implementerWasm, createWasiP2Host({}), verbose);
 
-                const fwdImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(impl.exports, fwdImports, implementerInterfaces);
                 const fwd = await instantiateComponent(forwarderWasm, fwdImports, verbose);
 
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -80,18 +80,18 @@ describe('Integration tests (flat)', () => {
     test('Scenario D: consumer ← fwd ← fwd ← implementer (flat)', async () => runWithVerbose(verbose, async () => {
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const impl = await instantiateComponent(implementerWasm, createWasiHost({}), verbose);
+            async ({ wasiExports, extraImports }) => {
+                const impl = await instantiateComponent(implementerWasm, createWasiP2Host({}), verbose);
 
-                const fwd2Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                const fwd2Imports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(impl.exports, fwd2Imports, implementerInterfaces);
                 const fwd2 = await instantiateComponent(forwarderWasm, fwd2Imports, verbose);
 
-                const fwd1Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd2.exports, fwd1Imports, forwardedInterfaces);
                 const fwd1 = await instantiateComponent(forwarderWasm, fwd1Imports, verbose);
 
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd1.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -102,14 +102,14 @@ describe('Integration tests (flat)', () => {
     test('Scenario E: consumer ← fwd ← fwd ← host (flat)', async () => runWithVerbose(verbose, async () => {
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const fwd2 = await instantiateComponent(forwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const fwd2 = await instantiateComponent(forwarderWasm, { ...wasiExports, ...extraImports }, verbose);
 
-                const fwd1Imports: ImportsMap = { ...wasiImports, ...extraImports };
+                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd2.exports, fwd1Imports, forwardedInterfaces);
                 const fwd1 = await instantiateComponent(forwarderWasm, fwd1Imports, verbose);
 
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd1.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -127,16 +127,16 @@ describe('Integration tests (WAC compositions)', () => {
         let fwdStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const wrapped = await instantiateComponent(wrappedForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const wrapped = await instantiateComponent(wrappedForwarderWasm, { ...wasiExports, ...extraImports }, verbose);
                 wrappedStats = wrapped.stats;
 
-                const fwdImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(wrapped.exports, fwdImports, forwardedInterfaces);
                 const fwd = await instantiateComponent(forwarderWasm, fwdImports, verbose);
                 fwdStats = fwd.stats;
 
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(fwd.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -159,10 +159,10 @@ describe('Integration tests (WAC compositions)', () => {
         let dblStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const dbl = await instantiateComponent(doubleForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const dbl = await instantiateComponent(doubleForwarderWasm, { ...wasiExports, ...extraImports }, verbose);
                 dblStats = dbl.stats;
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(dbl.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -182,10 +182,10 @@ describe('Integration tests (WAC compositions)', () => {
         let nestedStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const nested = await instantiateComponent(nestedDoubleForwarderWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const nested = await instantiateComponent(nestedDoubleForwarderWasm, { ...wasiExports, ...extraImports }, verbose);
                 nestedStats = nested.stats;
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(nested.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -205,10 +205,10 @@ describe('Integration tests (WAC compositions)', () => {
         let composedStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const composed = await instantiateComponent(forwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const composed = await instantiateComponent(forwarderImplementerWasm, { ...wasiExports, ...extraImports }, verbose);
                 composedStats = composed.stats;
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(composed.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -227,10 +227,10 @@ describe('Integration tests (WAC compositions)', () => {
         let composedStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const composed = await instantiateComponent(doubleForwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const composed = await instantiateComponent(doubleForwarderImplementerWasm, { ...wasiExports, ...extraImports }, verbose);
                 composedStats = composed.stats;
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(composed.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -249,10 +249,10 @@ describe('Integration tests (WAC compositions)', () => {
         let nestedStats;
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
-                const nested = await instantiateComponent(nestedForwarderImplementerWasm, { ...wasiImports, ...extraImports }, verbose);
+            async ({ wasiExports, extraImports }) => {
+                const nested = await instantiateComponent(nestedForwarderImplementerWasm, { ...wasiExports, ...extraImports }, verbose);
                 nestedStats = nested.stats;
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(nested.exports, consumerImports, forwardedInterfaces);
                 return consumerImports;
             },
@@ -273,9 +273,9 @@ describe('Integration tests (WAC compositions)', () => {
         ];
         await runConsumerScenario(
             verbose,
-            async ({ wasiImports, extraImports }) => {
+            async ({ wasiExports, extraImports }) => {
                 const echoWat = await instantiateComponent(echoReactorWatWasm, {}, verbose);
-                const consumerImports: ImportsMap = { ...wasiImports, ...extraImports };
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
                 wireExportsToImports(echoWat.exports, consumerImports, echoInterfaces);
                 return consumerImports;
             },

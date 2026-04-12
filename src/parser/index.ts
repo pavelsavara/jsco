@@ -53,8 +53,8 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
             otherSectionData: options?.[OTHER_SECTION_DATA] ?? false,
             compileStreaming: options?.[COMPILE_STREAMING] ?? WebAssembly.compileStreaming,
             processCustomSection: options?.[PROCESS_CUSTOM_SECTION] ?? undefined,
-            verbose: { ...defaultVerbosity, ...options?.[VERBOSE] },
-            logger: options?.[LOGGER] ?? defaultLogger,
+            verbose: { ...defaultVerbosity, ...(options as any)?.[VERBOSE] },
+            logger: (options as any)?.[LOGGER] ?? defaultLogger,
             depth: 0,
         };
 

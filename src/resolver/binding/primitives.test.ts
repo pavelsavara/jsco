@@ -154,6 +154,30 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
         });
     });
 
+    describe('s64 (Number mode)', () => {
+        test('0n lifts to [0]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lifter(bctx, 0n);
+            expect(result).toEqual([0]);
+            expect(typeof result[0]).toBe('number');
+        });
+        test('-1n lifts to [-1]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lifter(bctx, -1n);
+            expect(result).toEqual([-1]);
+            expect(typeof result[0]).toBe('number');
+        });
+        test('42n lifts to [42]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lifter(bctx, 42n);
+            expect(result).toEqual([42]);
+            expect(typeof result[0]).toBe('number');
+        });
+    });
+
     describe('u64 (BigInt mode)', () => {
         test('0n lifts to [0n]', () => {
             const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
@@ -163,6 +187,23 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
             const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
             const maxU64 = BigInt(2) ** BigInt(64) - 1n;
             expect(lifter(bctx, maxU64)).toEqual([18446744073709551615n]);
+        });
+    });
+
+    describe('u64 (Number mode)', () => {
+        test('0n lifts to [0]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.U64));
+            const result = lifter(bctx, 0n);
+            expect(result).toEqual([0]);
+            expect(typeof result[0]).toBe('number');
+        });
+        test('100n lifts to [100]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.U64));
+            const result = lifter(bctx, 100n);
+            expect(result).toEqual([100]);
+            expect(typeof result[0]).toBe('number');
         });
     });
 
@@ -293,10 +334,51 @@ describeDebugOnly('primitive lowering (WASM → JS)', () => {
         });
     });
 
+    describe('s64 (Number mode)', () => {
+        test('0n lowers to 0', () => {
+            const nrctx = createMinimalRctx(true);
+            const lowerer = createLowering(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lowerer(bctx, 0n);
+            expect(result).toBe(0);
+            expect(typeof result).toBe('number');
+        });
+        test('-1n lowers to -1', () => {
+            const nrctx = createMinimalRctx(true);
+            const lowerer = createLowering(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lowerer(bctx, -1n);
+            expect(result).toBe(-1);
+            expect(typeof result).toBe('number');
+        });
+        test('42n lowers to 42', () => {
+            const nrctx = createMinimalRctx(true);
+            const lowerer = createLowering(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lowerer(bctx, 42n);
+            expect(result).toBe(42);
+            expect(typeof result).toBe('number');
+        });
+    });
+
     describe('u64 (BigInt mode)', () => {
         test('0n lowers to 0n', () => {
             const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.U64));
             expect(lowerer(bctx, 0n)).toBe(0n);
+        });
+    });
+
+    describe('u64 (Number mode)', () => {
+        test('0n lowers to 0', () => {
+            const nrctx = createMinimalRctx(true);
+            const lowerer = createLowering(nrctx.resolved, prim(PrimitiveValType.U64));
+            const result = lowerer(bctx, 0n);
+            expect(result).toBe(0);
+            expect(typeof result).toBe('number');
+        });
+        test('100n lowers to 100', () => {
+            const nrctx = createMinimalRctx(true);
+            const lowerer = createLowering(nrctx.resolved, prim(PrimitiveValType.U64));
+            const result = lowerer(bctx, 100n);
+            expect(result).toBe(100);
+            expect(typeof result).toBe('number');
         });
     });
 
@@ -361,5 +443,76 @@ describeDebugOnly('lowerer spill counts', () => {
     test('string has spill=2', () => {
         const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.String));
         expect((lowerer as any).spill).toBe(2);
+    });
+});
+
+describeDebugOnly('useNumberForInt64 option handling', () => {
+    test('default (undefined) → usesNumberForInt64 = false', () => {
+        const rctx = createMinimalRctx();
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+    });
+
+    test('false → usesNumberForInt64 = false', () => {
+        const rctx = createMinimalRctx(false);
+        expect(rctx.resolved.usesNumberForInt64).toBe(false);
+    });
+
+    test('true → usesNumberForInt64 = true, lifters produce Number', () => {
+        const rctx = createMinimalRctx(true);
+        const bctx = createMinimalBctx();
+        expect(rctx.resolved.usesNumberForInt64).toBe(true);
+
+        const s64Lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
+        const s64Result = s64Lifter(bctx, 42n);
+        expect(typeof s64Result[0]).toBe('number');
+        expect(s64Result[0]).toBe(42);
+
+        const u64Lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
+        const u64Result = u64Lifter(bctx, 100n);
+        expect(typeof u64Result[0]).toBe('number');
+        expect(u64Result[0]).toBe(100);
+    });
+
+    test('true → lowerers produce Number', () => {
+        const rctx = createMinimalRctx(true);
+        const bctx = createMinimalBctx();
+
+        const s64Lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S64));
+        const s64Result = s64Lowerer(bctx, 42n);
+        expect(typeof s64Result).toBe('number');
+        expect(s64Result).toBe(42);
+
+        const u64Lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.U64));
+        const u64Result = u64Lowerer(bctx, 100n);
+        expect(typeof u64Result).toBe('number');
+        expect(u64Result).toBe(100);
+    });
+
+    test('false → lifters and lowerers produce BigInt', () => {
+        const rctx = createMinimalRctx(false);
+        const bctx = createMinimalBctx();
+
+        const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
+        const liftResult = lifter(bctx, 42n);
+        expect(typeof liftResult[0]).toBe('bigint');
+
+        const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S64));
+        const lowerResult = lowerer(bctx, 42n);
+        expect(typeof lowerResult).toBe('bigint');
+    });
+
+    test('BigInt and Number caches are independent', () => {
+        const bigintRctx = createMinimalRctx(false);
+        const numberRctx = createMinimalRctx(true);
+        const bctx = createMinimalBctx();
+
+        // Same primitive type, but different resolvedContexts
+        const bigintLifter = createLifting(bigintRctx.resolved, prim(PrimitiveValType.S64));
+        const numberLifter = createLifting(numberRctx.resolved, prim(PrimitiveValType.S64));
+
+        // Different caches, different lifters
+        expect(bigintLifter).not.toBe(numberLifter);
+        expect(typeof bigintLifter(bctx, 1n)[0]).toBe('bigint');
+        expect(typeof numberLifter(bctx, 1n)[0]).toBe('number');
     });
 });

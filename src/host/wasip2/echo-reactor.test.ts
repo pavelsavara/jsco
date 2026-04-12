@@ -9,7 +9,7 @@
 import { createComponent } from '../../resolver';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 
 initializeAsserts();
 
@@ -30,11 +30,11 @@ interface RecordReport {
 function createEchoImports() {
     const primitiveReports: SinkReport[] = [];
     const recordReports: RecordReport[] = [];
-    const wasiImports = createWasiHost();
+    const wasiExports = createWasiP2Host();
 
     return {
         imports: {
-            ...wasiImports,
+            ...wasiExports,
             'jsco:test/echo-sink@0.1.0': {
                 'report-primitive': (label: string, value: string) => {
                     primitiveReports.push({ label, value });

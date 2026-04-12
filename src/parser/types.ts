@@ -8,7 +8,7 @@ export type CoreModule = IndexedElement & {
 }
 
 export type CustomSection = {
-    tag: ModelTag.CustomSection
+    tag: 2
     name: string
     data?: Uint8Array
 }
@@ -39,6 +39,4 @@ export type ParserOptions = {
     otherSectionData?: boolean
     compileStreaming?: typeof WebAssembly.compileStreaming
     processCustomSection?: (section: CustomSection) => CustomSection
-    verbose?: Partial<Verbosity>
-    logger?: LogFn
 }

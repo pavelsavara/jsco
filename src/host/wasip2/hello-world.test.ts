@@ -11,7 +11,7 @@
 
 import { parse } from '../../parser';
 import { createComponent } from '../../resolver';
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 import { WasiExit } from './types';
 import { instantiateWasiComponent } from './instantiate';
 import { initializeAsserts } from '../../utils/assert';
@@ -48,7 +48,7 @@ describe('hello-world component', () => {
     describe('instantiation', () => {
         test('stdout captures println output', () => runWithVerbose(verbose, async () => {
             const chunks: Uint8Array[] = [];
-            const wasiImports = createWasiHost({
+            const wasiExports = createWasiP2Host({
                 stdout: (bytes) => { chunks.push(new Uint8Array(bytes)); },
             });
 
@@ -56,7 +56,7 @@ describe('hello-world component', () => {
 
             let exitCode: number | undefined;
             try {
-                const instance = await component.instantiate(wasiImports);
+                const instance = await component.instantiate(wasiExports);
                 const runNs = (instance.exports['wasi:cli/run@0.2.11']
                     ?? instance.exports['wasi:cli/run']) as any;
                 expect(runNs).toBeDefined();
@@ -64,7 +64,7 @@ describe('hello-world component', () => {
                 exitCode = (result?.tag === 'ok') ? 0 : 1;
             } catch (e) {
                 if (e instanceof WasiExit) {
-                    exitCode = e.code;
+                    exitCode = e.status;
                 } else {
                     throw e;
                 }

@@ -16,7 +16,7 @@ export class WasiExit extends Error {
     }
 }
 
-/** Configuration for createWasiHost() */
+/** Configuration for createWasiP2Host() */
 export interface WasiConfig {
     /** Environment variables as [key, value] pairs */
     env?: [string, string][];

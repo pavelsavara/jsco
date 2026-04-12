@@ -1,7 +1,7 @@
 import isDebug from 'env:isDebug';
 import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
 import { CanonicalFunctionLift } from '../model/canonicals';
-import { ComponentExternalKind } from '../model/exports';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
@@ -62,8 +62,34 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         postReturnResolution = resolveCoreFunction(rctx, { element: postReturnFunc, callerElement: canonicalFunctionLift });
     }
 
+    // When useNumberForInt64 is string[], check if this function's export name
+    // matches and temporarily switch to Number-mode with separate caches.
+    const numberForMethods = rctx.resolved.useNumberForInt64Methods;
+    let savedUsesNumber: boolean | undefined;
+    let savedLiftingCache: Map<unknown, unknown> | undefined;
+    let savedLoweringCache: Map<unknown, unknown> | undefined;
+    if (numberForMethods) {
+        const callerExport = rargs.callerElement;
+        const exportName = callerExport && callerExport.tag === ModelTag.ComponentExport
+            ? (callerExport as ComponentExport).name.name : undefined;
+        const useNumber = exportName !== undefined && numberForMethods.includes(exportName);
+        if (useNumber) {
+            savedUsesNumber = rctx.resolved.usesNumberForInt64;
+            savedLiftingCache = rctx.resolved.liftingCache;
+            savedLoweringCache = rctx.resolved.loweringCache;
+            rctx.resolved.usesNumberForInt64 = true;
+            rctx.resolved.liftingCache = rctx.resolved.numberModeLiftingCache!;
+            rctx.resolved.loweringCache = rctx.resolved.numberModeLoweringCache!;
+        }
+    }
+
     const liftingBinder = createFunctionLifting(rctx.resolved, sectionFunType);
 
+    if (savedUsesNumber !== undefined) {
+        rctx.resolved.usesNumberForInt64 = savedUsesNumber;
+        rctx.resolved.liftingCache = savedLiftingCache!;
+        rctx.resolved.loweringCache = savedLoweringCache!;
+    }
     rctx.resolved.stringEncoding = savedEncoding;
 
     const noJspi = rctx.resolved.noJspi;

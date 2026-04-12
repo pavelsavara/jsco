@@ -53,7 +53,7 @@ export function verboseOptions(capture: VerboseCapture, levels?: Partial<Verbosi
             executor: levels?.executor ?? LogLevel.Off,
         } as Verbosity,
         logger: capture.logger,
-    };
+    } as any;
 }
 
 /**

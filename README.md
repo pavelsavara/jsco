@@ -65,7 +65,7 @@ Prints `Welcome to Kladno!` to the console.
 | Option | Default | Description |
 |--------|---------|-------------|
 | `validateTypes` | `false` | Validate export/import type annotations against the component's type index. Catches kind mismatches and structural function type differences. |
-| `useNumberForInt64` | `false` | Use `number` instead of `bigint` for 64-bit integers |
+| `useNumberForInt64` | `false` | Convert 64-bit integers to `number` instead of `bigint`. `false` (default) — all exports use `bigint`. `true` — all exports use `number`. `string[]` — only the listed export names use `number`; all others use `bigint`. |
 | `noJspi` | `false` | Disable JSPI wrapping of exports. `false` (default) — all exports are wrapped with `WebAssembly.promising()` and return `Promise`s. `true` — no exports are wrapped (synchronous, blocking WASI will not work). `string[]` — only the listed export names are synchronous; all others remain async. |
 | `wasmInstantiate` | `WebAssembly.instantiate` | Custom WASM instantiation function (used by JSPI wrapping) |
 

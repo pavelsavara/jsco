@@ -17,12 +17,15 @@ import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOS
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
     const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
-    const verbose = { ...defaultVerbosity, ...options[VERBOSE] };
-    const logger = options[LOGGER] ?? defaultLogger;
+    const verbose = { ...defaultVerbosity, ...(options as any)[VERBOSE] };
+    const logger = (options as any)[LOGGER] ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
             noJspi: options[NO_JSPI],
-            usesNumberForInt64: (options[USE_NUMBER_FOR_INT64] === true) ? true : false,
+            usesNumberForInt64: options[USE_NUMBER_FOR_INT64] === true,
+            useNumberForInt64Methods: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? options[USE_NUMBER_FOR_INT64] : undefined,
+            numberModeLiftingCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
+            numberModeLoweringCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),
             loweringCache: new Map(),

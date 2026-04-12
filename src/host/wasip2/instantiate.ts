@@ -1,7 +1,7 @@
 /**
  * instantiateWasiComponent — Dedicated WASI component instantiator
  *
- * Wraps createComponent + createWasiHost with JSPI integration.
+ * Wraps createComponent + createWasiP2Host with JSPI integration.
  * JSPI wraps blocking WASI imports with WebAssembly.Suspending
  * and component exports with WebAssembly.promising, so WASM can
  * call async host functions synchronously.
@@ -14,7 +14,7 @@ import { ComponentFactoryInput, ComponentFactoryOptions } from '../../resolver/t
 import { ParserOptions } from '../../parser/types';
 import { JsImports, WasmComponentInstance } from '../../resolver/api-types';
 import { WasiConfig } from './types';
-import { createWasiHost } from './index';
+import { createWasiP2Host } from './index';
 import { hasJspi } from './poll';
 import { NO_JSPI, INSTANTIATE } from '../../constants';
 
@@ -54,10 +54,10 @@ export async function instantiateWasiComponent<TJSExports>(
     }
 
     // Build WASI host
-    const wasiImports = createWasiHost(wasiConfig);
+    const wasiExports = createWasiP2Host(wasiConfig);
 
     // Merge: WASI first, then user extras override
-    const mergedImports: JsImports = { ...wasiImports };
+    const mergedImports: JsImports = { ...wasiExports };
     if (extraImports) {
         Object.assign(mergedImports, extraImports);
     }

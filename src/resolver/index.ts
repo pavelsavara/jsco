@@ -13,11 +13,11 @@ import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from 
 import { INSTANTIATE } from '../constants';
 
 export async function instantiateComponent<TJSExports>(
-    modelOrComponentOrUrl: ComponentFactoryInput,
+    componentBytesOrUrl: ComponentFactoryInput,
     imports?: JsImports,
     options?: ComponentFactoryOptions & ParserOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    let input = modelOrComponentOrUrl as any;
+    let input = componentBytesOrUrl as any;
     if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
         input = await parse(input, options ?? {});
     }
@@ -25,8 +25,8 @@ export async function instantiateComponent<TJSExports>(
     return component[INSTANTIATE](imports);
 }
 
-export async function createComponent<TJSExports>(modelOrComponentOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
-    let input = modelOrComponentOrUrl as any;
+export async function createComponent<TJSExports>(componentBytesOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
+    let input = componentBytesOrUrl as any;
     if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
         input = await parse(input, options ?? {});
     }
