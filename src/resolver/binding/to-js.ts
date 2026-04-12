@@ -21,7 +21,6 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
     return memoize(rctx.loweringCache, exportModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
-        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
         const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
         let resultType: ResolvedType | undefined;
         if (exportModel.results.tag === ModelTag.ComponentFuncResultUnnamed) {

@@ -44,7 +44,6 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         }
 
         // Pre-resolve param types for spilled path — deep-resolve ensures
-        // storeToMemory/loadFromMemory can work without rctx.resolvedTypes lookups
         const paramResolvedTypes = importModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
 
         // Pre-capture rctx properties needed at call time — after this, rctx is not captured

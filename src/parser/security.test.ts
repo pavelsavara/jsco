@@ -187,10 +187,10 @@ describe('parser security', () => {
             // Import section (10): count=1, extern name type=0x00, name length = 0xFFFF (huge)
             // but section only has a few bytes
             const wasm = componentWithSection(10, [
-                0x01,       // count = 1
-                0x00,       // extern name type = kebab
+                0x01, // count = 1
+                0x00, // extern name type = kebab
                 0xFF, 0xFF, 0x03, // name length = 65535 (LEB128)
-                0x41        // only 1 byte of name data
+                0x41 // only 1 byte of name data
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -198,10 +198,10 @@ describe('parser security', () => {
         test('name with u32 max length', async () => {
             // Import section (10): count=1, extern name type=0x00, name length = 0xFFFFFFFF
             const wasm = componentWithSection(10, [
-                0x01,       // count = 1
-                0x00,       // extern name type = kebab
+                0x01, // count = 1
+                0x00, // extern name type = kebab
                 0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // name length = 4294967295 (u32 max in LEB128)
-                0x41        // only 1 byte
+                0x41 // only 1 byte
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -209,10 +209,10 @@ describe('parser security', () => {
         test('zero-length name is accepted', async () => {
             // Type section (7): count=1, type 0x6d (enum), members count=1, name length=0
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1 type
-                0x6d,       // enum
-                0x01,       // 1 member
-                0x00,       // member name length = 0
+                0x01, // count = 1 type
+                0x6d, // enum
+                0x01, // 1 member
+                0x00, // member name length = 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -222,9 +222,9 @@ describe('parser security', () => {
             // Type section (7): count=1, type 0x6d (enum), members count=1, name = "café" (5 UTF-8 bytes)
             const nameBytes = [...new TextEncoder().encode('café')];
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1 type
-                0x6d,       // enum
-                0x01,       // 1 member
+                0x01, // count = 1 type
+                0x6d, // enum
+                0x01, // 1 member
                 ...leb128U32(nameBytes.length),
                 ...nameBytes,
             ]);
@@ -235,8 +235,8 @@ describe('parser security', () => {
         test('unknown extern name type', async () => {
             // Import section (10): count=1, extern name type=0x05 (invalid)
             const wasm = componentWithSection(10, [
-                0x01,       // count = 1
-                0x05,       // invalid extern name type
+                0x01, // count = 1
+                0x05, // invalid extern name type
                 ...encodeName('test'),
                 // type ref follows but won't be reached
             ]);
@@ -250,7 +250,7 @@ describe('parser security', () => {
         test('overlong LEB128 (6 continuation bytes)', async () => {
             // Type section (7): count encoded as 6-byte LEB128 with unnecessary continuation bits
             const wasm = componentWithSection(7, [
-                0x80, 0x80, 0x80, 0x80, 0x80, 0x00  // overlong encoding of 0
+                0x80, 0x80, 0x80, 0x80, 0x80, 0x00 // overlong encoding of 0
             ]);
             // readRawInteger only reads maxLen=5 bytes, so it won't see the terminator
             // The 5th byte (0x80) has continuation bit set, so the LEB128 has no terminator in 5 bytes
@@ -268,8 +268,8 @@ describe('parser security', () => {
         test('component valtype LEB128 overflow', async () => {
             // Type section (7): count=1, type 0x70 (list), then a valtype index with >5 LEB128 bytes
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1 type
-                0x70,       // list
+                0x01, // count = 1 type
+                0x70, // list
                 // valtype index: 6 continuation bytes (triggers our count > 5 check)
                 0x80, 0x80, 0x80, 0x80, 0x80, 0x00,
             ]);
@@ -283,11 +283,11 @@ describe('parser security', () => {
         test('unknown core val type', async () => {
             // Core type section (3): count=1, tag=0x60 (func), param count=1, invalid val type
             const wasm = componentWithSection(3, [
-                0x01,       // count = 1
-                0x60,       // core func type
-                0x01,       // 1 param
-                0x50,       // invalid core val type
-                0x00,       // 0 results
+                0x01, // count = 1
+                0x60, // core func type
+                0x01, // 1 param
+                0x50, // invalid core val type
+                0x00, // 0 results
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown core val type');
         });
@@ -295,8 +295,8 @@ describe('parser security', () => {
         test('unknown core type tag', async () => {
             // Core type section (3): count=1, tag=0xFF (unknown)
             const wasm = componentWithSection(3, [
-                0x01,       // count = 1
-                0xFF,       // invalid core type tag — but 0xFF has continuation bit, so it's LEB128
+                0x01, // count = 1
+                0xFF, // invalid core type tag — but 0xFF has continuation bit, so it's LEB128
             ]);
             // The tag 0xFF is read as a byte (src.read()), not LEB128
             // Actually readCoreType reads tag via src.read(), so 0xFF is unknown
@@ -306,8 +306,8 @@ describe('parser security', () => {
         test('unknown component type defined tag', async () => {
             // Type section (7): count=1, type byte 0x50 (not in 0x68-0x72 or 0x73-0x7F ranges)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x50,       // invalid component type defined tag
+                0x01, // count = 1
+                0x50, // invalid component type defined tag
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in readComponentTypeDefined');
         });
@@ -315,8 +315,8 @@ describe('parser security', () => {
         test('unknown canonical function type', async () => {
             // Canon section (8): count=1, type=0x0F (unknown)
             const wasm = componentWithSection(8, [
-                0x01,       // count = 1
-                0x0F,       // invalid canonical function type
+                0x01, // count = 1
+                0x0F, // invalid canonical function type
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in readCanonicalFunction');
         });
@@ -325,11 +325,11 @@ describe('parser security', () => {
             // Canon section (8): count=1, type=0x00 (lift), control=0x00, core_func_index=0,
             // options count=1, option type=0xFF (unknown)
             const wasm = componentWithSection(8, [
-                0x01,       // count = 1
-                0x00,       // lift
-                0x00,       // control byte
-                0x00,       // core_func_index = 0
-                0x01,       // 1 option
+                0x01, // count = 1
+                0x00, // lift
+                0x00, // control byte
+                0x00, // core_func_index = 0
+                0x01, // 1 option
                 0xFF, 0x01, // option type 0xFF — but read as src.read(), so just 0xFF
             ]);
             // readCanonicalOption reads type via src.read() which returns the raw byte
@@ -339,9 +339,9 @@ describe('parser security', () => {
         test('unknown component external kind', async () => {
             // Export section (11): count=1, extern name, kind=0x09 (unknown)
             const wasm = componentWithSection(11, [
-                0x01,       // count = 1
+                0x01, // count = 1
                 ...externNameKebab('test'),
-                0x09,       // invalid component external kind (readU32 returns 9)
+                0x09, // invalid component external kind (readU32 returns 9)
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown component external kind');
         });
@@ -351,12 +351,12 @@ describe('parser security', () => {
             // module type declarations: count=1, kind=0x03 (export),
             // name, then a TypeRef with invalid external kind byte
             const wasm = componentWithSection(3, [
-                0x01,       // count = 1
-                0x50,       // module type
-                0x01,       // 1 declaration
-                0x03,       // kind = export declaration
+                0x01, // count = 1
+                0x50, // module type
+                0x01, // 1 declaration
+                0x03, // kind = export declaration
                 ...encodeName('test'),
-                0x0F,       // invalid TypeRef kind byte (not 0x00-0x04)
+                0x0F, // invalid TypeRef kind byte (not 0x00-0x04)
             ]);
             // readCoreTypeRef switch expects 0x00-0x04, so 0x0F is unknown
             await expect(parse(wasm)).rejects.toThrow();
@@ -365,10 +365,10 @@ describe('parser security', () => {
         test('unknown instance declaration kind', async () => {
             // Type section (7): count=1, type=0x42 (instance type), count=1, kind=0x0F (unknown)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x42,       // instance type
-                0x01,       // 1 declaration
-                0x0F,       // invalid instance decl kind
+                0x01, // count = 1
+                0x42, // instance type
+                0x01, // 1 declaration
+                0x0F, // invalid instance decl kind
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown instance type declaration kind');
         });
@@ -376,10 +376,10 @@ describe('parser security', () => {
         test('unknown component func result type', async () => {
             // Type section (7): count=1, type=0x40 (func), 0 params, result type=0x05 (unknown)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x40,       // func type
-                0x00,       // 0 params
-                0x05,       // invalid func result type
+                0x01, // count = 1
+                0x40, // func type
+                0x00, // 0 params
+                0x05, // invalid func result type
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown ComponentFuncResult type');
         });
@@ -388,13 +388,13 @@ describe('parser security', () => {
             // Core instance section (2): count=1, type=0x00 (instantiate), module_index=0,
             // args count=1, name, kind=0x00 (invalid, should be 0x12)
             const wasm = componentWithSection(2, [
-                0x01,       // count = 1
-                0x00,       // instantiate
-                0x00,       // module_index = 0
-                0x01,       // 1 arg
+                0x01, // count = 1
+                0x00, // instantiate
+                0x00, // module_index = 0
+                0x01, // 1 arg
                 ...encodeName('arg'),
-                0x00,       // invalid kind (should be 0x12)
-                0x00,       // index = 0
+                0x00, // invalid kind (should be 0x12)
+                0x00, // index = 0
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized kind in readInstantiationArgKind');
         });
@@ -402,10 +402,10 @@ describe('parser security', () => {
         test('unknown type bounds discriminant', async () => {
             // Import section (10): count=1, extern name, type ref = 0x03 (type), bounds=0x05 (unknown)
             const wasm = componentWithSection(10, [
-                0x01,       // count = 1
+                0x01, // count = 1
                 ...externNameKebab('test'),
-                0x03,       // type ref = Type
-                0x05,       // invalid type bounds discriminant
+                0x03, // type ref = Type
+                0x05, // invalid type bounds discriminant
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown type bounds');
         });
@@ -413,8 +413,8 @@ describe('parser security', () => {
         test('unknown component instance type', async () => {
             // Instance section (5): count=1, type=0x05 (unknown)
             const wasm = componentWithSection(5, [
-                0x01,       // count = 1
-                0x05,       // invalid instance type
+                0x01, // count = 1
+                0x05, // invalid instance type
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in parseSectionInstance');
         });
@@ -422,8 +422,8 @@ describe('parser security', () => {
         test('unknown core instance type', async () => {
             // Core instance section (2): count=1, type=0x05 (unknown)
             const wasm = componentWithSection(2, [
-                0x01,       // count = 1
-                0x05,       // invalid core instance type
+                0x01, // count = 1
+                0x05, // invalid core instance type
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in readCoreInstance');
         });
@@ -431,9 +431,9 @@ describe('parser security', () => {
         test('unknown alias target', async () => {
             // Alias section (6): count=1, b1=0x01 (func), target=0x05 (unknown)
             const wasm = componentWithSection(6, [
-                0x01,       // count = 1
-                0x01,       // sort b1 = func
-                0x05,       // invalid target type
+                0x01, // count = 1
+                0x01, // sort b1 = func
+                0x05, // invalid target type
             ]);
             await expect(parse(wasm)).rejects.toThrow('unknown target type');
         });
@@ -442,9 +442,9 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x6a (result),
             // ok: flag = 0x05 (invalid, should be 0x00 or 0x01)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x6a,       // result type
-                0x05,       // invalid optional valtype flag
+                0x01, // count = 1
+                0x6a, // result type
+                0x05, // invalid optional valtype flag
             ]);
             await expect(parse(wasm)).rejects.toThrow('invalid optional valtype flag');
         });
@@ -453,12 +453,12 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x71 (variant), count=1,
             // name, optional valtype=0x00 (absent), refinement flag=0x05 (invalid)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x71,       // variant
-                0x01,       // 1 variant case
+                0x01, // count = 1
+                0x71, // variant
+                0x01, // 1 variant case
                 ...encodeName('case1'),
-                0x00,       // optional valtype absent
-                0x05,       // invalid refinement flag
+                0x00, // optional valtype absent
+                0x05, // invalid refinement flag
             ]);
             await expect(parse(wasm)).rejects.toThrow('invalid optional refinement flag');
         });
@@ -474,37 +474,28 @@ describe('parser security', () => {
             // All those are valid. We need a byte like 0x72 which is 'record', not a primitive,
             // or 0x67 which falls into default of readComponentTypeDefined.
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x67,       // invalid tag — not in 0x68-0x72 and not in 0x73-0x7F
+                0x01, // count = 1
+                0x67, // invalid tag — not in 0x68-0x72 and not in 0x73-0x7F
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in readComponentTypeDefined');
         });
 
         test('invalid resource destructor flag', async () => {
-            // Type section (7): count=1, type=0x3F (resource), rep=0x7F (i32), dtor flag=0x05 (invalid)
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x3F,       // resource
-                0x7F,       // rep = i32 core val type
+                0x01, // count = 1
+                0x3F, // resource
+                0x00, // rep = 0
+                0x05, // invalid destructor flag
             ]);
-            // readDestructor reads a byte — but 0x3F resource type reads rep via readU32
-            // Let me check: readComponentType case 0x3F: rep: readU32(src), dtor: readDestructor(src)
-            // So rep is a u32 (LEB128), then destructor is a byte
-            const wasm2 = componentWithSection(7, [
-                0x01,       // count = 1
-                0x3F,       // resource
-                0x00,       // rep = 0
-                0x05,       // invalid destructor flag
-            ]);
-            await expect(parse(wasm2)).rejects.toThrow('Invalid leading byte in resource destructor');
+            await expect(parse(wasm)).rejects.toThrow('Invalid leading byte in resource destructor');
         });
 
         test('invalid canon lift control byte', async () => {
             // Canon section (8): count=1, type=0x00 (lift), control byte=0x05 (should be 0x00)
             const wasm = componentWithSection(8, [
-                0x01,       // count = 1
-                0x00,       // lift
-                0x05,       // invalid control byte
+                0x01, // count = 1
+                0x00, // lift
+                0x05, // invalid control byte
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized byte for CanonicalFunctionLift');
         });
@@ -512,9 +503,9 @@ describe('parser security', () => {
         test('invalid canon lower control byte', async () => {
             // Canon section (8): count=1, type=0x01 (lower), control byte=0x05 (should be 0x00)
             const wasm = componentWithSection(8, [
-                0x01,       // count = 1
-                0x01,       // lower
-                0x05,       // invalid control byte
+                0x01, // count = 1
+                0x01, // lower
+                0x05, // invalid control byte
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized byte for CanonicalFunctionLower');
         });
@@ -526,21 +517,21 @@ describe('parser security', () => {
         test('huge item count in type section', async () => {
             // Type section (7): count = 0xFFFFFFFF (4294967295) but no data
             const wasm = componentWithSection(7, [
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // count = u32 max
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
 
         test('huge item count in import section', async () => {
             const wasm = componentWithSection(10, [
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // count = u32 max
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
 
         test('huge item count in export section', async () => {
             const wasm = componentWithSection(11, [
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // count = u32 max
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -549,8 +540,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x6e (flags), members count = u32 max
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6e,  // flags
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // members count = u32 max
+                0x6e, // flags
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // members count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -559,8 +550,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x71 (variant), case count = u32 max
             const wasm = componentWithSection(7, [
                 0x01,
-                0x71,  // variant
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // case count = u32 max
+                0x71, // variant
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // case count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -569,8 +560,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x72 (record), member count = u32 max
             const wasm = componentWithSection(7, [
                 0x01,
-                0x72,  // record
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // member count = u32 max
+                0x72, // record
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // member count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -579,8 +570,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x6f (tuple), member count = u32 max
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6f,  // tuple
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // member count = u32 max
+                0x6f, // tuple
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // member count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -589,8 +580,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x40 (func), param count = u32 max
             const wasm = componentWithSection(7, [
                 0x01,
-                0x40,  // func
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // param count = u32 max
+                0x40, // func
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // param count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -600,9 +591,9 @@ describe('parser security', () => {
             // options count = u32 max
             const wasm = componentWithSection(8, [
                 0x01,
-                0x00, 0x00,  // lift, control byte
-                0x00,        // core_func_index = 0
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // options count = u32 max
+                0x00, 0x00, // lift, control byte
+                0x00, // core_func_index = 0
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // options count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -610,9 +601,9 @@ describe('parser security', () => {
         test('huge export count', async () => {
             // Core instance from exports: count=1, type=0x01, exports count = huge
             const wasm = componentWithSection(2, [
-                0x01,       // count = 1
-                0x01,       // from-exports
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // exports count = u32 max
+                0x01, // count = 1
+                0x01, // from-exports
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // exports count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -620,10 +611,10 @@ describe('parser security', () => {
         test('huge instantiation args count', async () => {
             // Core instance instantiate: count=1, type=0x00, module=0, args count = huge
             const wasm = componentWithSection(2, [
-                0x01,       // count = 1
-                0x00,       // instantiate
-                0x00,       // module_index = 0
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // args count = u32 max
+                0x01, // count = 1
+                0x00, // instantiate
+                0x00, // module_index = 0
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // args count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -631,10 +622,10 @@ describe('parser security', () => {
         test('huge component instantiation args count', async () => {
             // Instance section (5): count=1, type=0x00 (instantiate), component=0, args count = huge
             const wasm = componentWithSection(5, [
-                0x01,       // count = 1
-                0x00,       // instantiate
-                0x00,       // component_index = 0
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // args count = u32 max
+                0x01, // count = 1
+                0x00, // instantiate
+                0x00, // component_index = 0
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // args count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -643,8 +634,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x42 (instance), declarations count = huge
             const wasm = componentWithSection(7, [
                 0x01,
-                0x42,  // instance type
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // declarations count = u32 max
+                0x42, // instance type
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // declarations count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -652,8 +643,8 @@ describe('parser security', () => {
         test('huge start function args count', async () => {
             // Start section (9): func_index=0, argCount = u32 max
             const wasm = componentWithSection(9, [
-                0x00,  // func_index = 0
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // arg count = u32 max
+                0x00, // func_index = 0
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // arg count = u32 max
             ]);
             await expect(parse(wasm)).rejects.toThrow('unexpected EOF');
         });
@@ -666,8 +657,8 @@ describe('parser security', () => {
             // Type section (7): count=1, type=0x70 (list), element = type index 0xFFFFFFFF
             const wasm = componentWithSection(7, [
                 0x01,
-                0x70,       // list
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F  // type index = u32 max
+                0x70, // list
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F // type index = u32 max
             ]);
             // Parser doesn't validate index ranges — this should parse without error
             const model = await parse(wasm);
@@ -678,10 +669,10 @@ describe('parser security', () => {
             // Canon section (8): count=1, lift with huge core func index
             const wasm = componentWithSection(8, [
                 0x01,
-                0x00, 0x00,  // lift, control byte
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // core_func_index = u32 max
-                0x00,        // 0 options
-                0x00,        // type_index = 0
+                0x00, 0x00, // lift, control byte
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // core_func_index = u32 max
+                0x00, // 0 options
+                0x00, // type_index = 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -691,9 +682,9 @@ describe('parser security', () => {
             // Canon section (8): count=1, lower with huge func index
             const wasm = componentWithSection(8, [
                 0x01,
-                0x01, 0x00,  // lower, control byte
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // func_index = u32 max
-                0x00,        // 0 options
+                0x01, 0x00, // lower, control byte
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // func_index = u32 max
+                0x00, // 0 options
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -703,9 +694,9 @@ describe('parser security', () => {
             // Core instance section (2): count=1, instantiate, module index = huge
             const wasm = componentWithSection(2, [
                 0x01,
-                0x00,       // instantiate
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // module_index = u32 max
-                0x00,       // 0 args
+                0x00, // instantiate
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // module_index = u32 max
+                0x00, // 0 args
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -715,9 +706,9 @@ describe('parser security', () => {
             // Instance section (5): count=1, instantiate, component index = huge
             const wasm = componentWithSection(5, [
                 0x01,
-                0x00,       // instantiate
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // component_index = u32 max
-                0x00,       // 0 args
+                0x00, // instantiate
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // component_index = u32 max
+                0x00, // 0 args
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -727,8 +718,8 @@ describe('parser security', () => {
             // Canon section (8): count=1, resource.new with huge resource index
             const wasm = componentWithSection(8, [
                 0x01,
-                0x02,       // resource.new
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // resource = u32 max
+                0x02, // resource.new
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // resource = u32 max
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -737,8 +728,8 @@ describe('parser security', () => {
         test('resource index at u32 max in resource.drop', async () => {
             const wasm = componentWithSection(8, [
                 0x01,
-                0x03,       // resource.drop
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // resource = u32 max
+                0x03, // resource.drop
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // resource = u32 max
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -747,8 +738,8 @@ describe('parser security', () => {
         test('resource index at u32 max in resource.rep', async () => {
             const wasm = componentWithSection(8, [
                 0x01,
-                0x04,       // resource.rep
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // resource = u32 max
+                0x04, // resource.rep
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // resource = u32 max
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -758,10 +749,10 @@ describe('parser security', () => {
             // Alias section (6): count=1, sort=0x01 (func), target=0x00 (instance export),
             // instance index = huge, name
             const wasm = componentWithSection(6, [
-                0x01,       // count = 1
-                0x01,       // sort b1 = func
-                0x00,       // target = instance export
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // instance_index = u32 max
+                0x01, // count = 1
+                0x01, // sort b1 = func
+                0x00, // target = instance export
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // instance_index = u32 max
                 ...encodeName('x'),
             ]);
             const model = await parse(wasm);
@@ -772,11 +763,11 @@ describe('parser security', () => {
             // Alias section (6): count=1, sort=0x00, sub=0x00 (func), target=0x01 (core instance export)
             // core instance index = huge, name
             const wasm = componentWithSection(6, [
-                0x01,       // count = 1
-                0x00,       // sort b1 = core
-                0x00,       // sort b2 = func (ExternalKind.Func)
-                0x01,       // target = core instance export
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // core_instance_index = u32 max
+                0x01, // count = 1
+                0x00, // sort b1 = core
+                0x00, // sort b2 = func (ExternalKind.Func)
+                0x01, // target = core instance export
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // core_instance_index = u32 max
                 ...encodeName('x'),
             ]);
             const model = await parse(wasm);
@@ -787,11 +778,11 @@ describe('parser security', () => {
             // Alias section (6): count=1, sort=0x03 (type), target=0x02 (outer),
             // count = huge, index = huge
             const wasm = componentWithSection(6, [
-                0x01,       // count = 1
-                0x03,       // sort b1 = Type outer alias kind
-                0x02,       // target = outer
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // count = u32 max
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // index = u32 max
+                0x01, // count = 1
+                0x03, // sort b1 = Type outer alias kind
+                0x02, // target = outer
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // count = u32 max
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // index = u32 max
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -800,11 +791,11 @@ describe('parser security', () => {
         test('export index at u32 max', async () => {
             // Export section (11): count=1, name, kind=func, index=huge, no type bound
             const wasm = componentWithSection(11, [
-                0x01,       // count = 1
+                0x01, // count = 1
                 ...externNameKebab('test'),
-                0x01,       // kind = func
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // index = u32 max
-                0x00,       // no type bound
+                0x01, // kind = func
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // index = u32 max
+                0x00, // no type bound
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -813,10 +804,10 @@ describe('parser security', () => {
         test('type ref index at u32 max in import', async () => {
             // Import section (10): count=1, name, type ref = func, index = huge
             const wasm = componentWithSection(10, [
-                0x01,       // count = 1
+                0x01, // count = 1
                 ...externNameKebab('test'),
-                0x01,       // type ref = Func
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // func type index = u32 max
+                0x01, // type ref = Func
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // func type index = u32 max
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -827,12 +818,12 @@ describe('parser security', () => {
             // 1 option: memory with huge index, type_index=0
             const wasm = componentWithSection(8, [
                 0x01,
-                0x00, 0x00,  // lift, control byte
-                0x00,        // core_func_index = 0
-                0x01,        // 1 option
-                0x03,        // memory option
-                0xFF, 0xFF, 0xFF, 0xFF, 0x0F,  // memory index = u32 max
-                0x00,        // type_index = 0
+                0x00, 0x00, // lift, control byte
+                0x00, // core_func_index = 0
+                0x01, // 1 option
+                0x03, // memory option
+                0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // memory index = u32 max
+                0x00, // type_index = 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -842,11 +833,11 @@ describe('parser security', () => {
             // Start section (9): func=huge, argCount=2, arg0=huge, arg1=huge, results=huge
             const huge = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
             const wasm = componentWithSection(9, [
-                ...huge,    // func_index
-                0x02,       // 2 args
-                ...huge,    // arg[0]
-                ...huge,    // arg[1]
-                ...huge,    // results
+                ...huge, // func_index
+                0x02, // 2 args
+                ...huge, // arg[0]
+                ...huge, // arg[1]
+                ...huge, // results
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -858,11 +849,11 @@ describe('parser security', () => {
             // [1]: own with huge index
             const huge = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
             const wasm = componentWithSection(7, [
-                0x02,       // count = 2
-                0x68,       // borrow
-                ...huge,    // type index
-                0x69,       // own
-                ...huge,    // type index
+                0x02, // count = 2
+                0x68, // borrow
+                ...huge, // type index
+                0x69, // own
+                ...huge, // type index
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(2);
@@ -874,10 +865,10 @@ describe('parser security', () => {
             // kind 0x00 = module, kind 0x01 = func, kind 0x04 = component, kind 0x05 = instance
             for (const kind of [0x00, 0x01, 0x04, 0x05]) {
                 const wasm = componentWithSection(10, [
-                    0x01,       // count = 1
+                    0x01, // count = 1
                     ...externNameKebab('test'),
-                    kind,       // type ref kind
-                    ...huge,    // type index = u32 max
+                    kind, // type ref kind
+                    ...huge, // type index = u32 max
                 ]);
                 const model = await parse(wasm);
                 expect(model.length).toBe(1);
@@ -891,10 +882,10 @@ describe('parser security', () => {
         test('readExact with n=0 returns empty array', async () => {
             // A zero-length name should work (length=0 means readExact(0))
             const wasm = componentWithSection(7, [
-                0x01,       // count = 1
-                0x6e,       // flags
-                0x01,       // 1 member
-                0x00,       // member name length = 0
+                0x01, // count = 1
+                0x6e, // flags
+                0x01, // 1 member
+                0x00, // member name length = 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -947,12 +938,12 @@ describe('parser security', () => {
             // The deepest fails when depth >= 100
 
             // Build from inside out
-            let inner = new Uint8Array(PREAMBLE);  // innermost empty component
+            let inner = new Uint8Array(PREAMBLE); // innermost empty component
             for (let i = 0; i < 101; i++) {
                 const sizeBytes = leb128U32(inner.length);
                 const outer = new Uint8Array([
                     ...PREAMBLE,
-                    4,  // component section
+                    4, // component section
                     ...sizeBytes,
                     ...inner
                 ]);
@@ -985,9 +976,9 @@ describe('parser security', () => {
             // Type section (7): count=1, result with ok=absent, err=absent
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6a,       // result
-                0x00,       // ok absent
-                0x00,       // err absent
+                0x6a, // result
+                0x00, // ok absent
+                0x00, // err absent
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -997,7 +988,7 @@ describe('parser security', () => {
             // Type section (7): count=1, result with ok=string, err=string
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6a,       // result
+                0x6a, // result
                 0x01, 0x73, // ok = present, string primitive
                 0x01, 0x73, // err = present, string primitive
             ]);
@@ -1008,8 +999,8 @@ describe('parser security', () => {
         test('option type with type index 0', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6b,       // option
-                0x00,       // type index 0
+                0x6b, // option
+                0x00, // type index 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1018,8 +1009,8 @@ describe('parser security', () => {
         test('empty enum (0 members)', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6d,       // enum
-                0x00,       // 0 members
+                0x6d, // enum
+                0x00, // 0 members
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1028,8 +1019,8 @@ describe('parser security', () => {
         test('empty flags (0 members)', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6e,       // flags
-                0x00,       // 0 members
+                0x6e, // flags
+                0x00, // 0 members
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1038,8 +1029,8 @@ describe('parser security', () => {
         test('empty tuple (0 members)', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x6f,       // tuple
-                0x00,       // 0 members
+                0x6f, // tuple
+                0x00, // 0 members
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1048,8 +1039,8 @@ describe('parser security', () => {
         test('empty variant (0 cases)', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x71,       // variant
-                0x00,       // 0 cases
+                0x71, // variant
+                0x00, // 0 cases
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1058,8 +1049,8 @@ describe('parser security', () => {
         test('empty record (0 members)', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x72,       // record
-                0x00,       // 0 members
+                0x72, // record
+                0x00, // 0 members
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1068,10 +1059,10 @@ describe('parser security', () => {
         test('func type with 0 params and unnamed result', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x40,       // func
-                0x00,       // 0 params
-                0x00,       // unnamed result
-                0x73,       // result type = string
+                0x40, // func
+                0x00, // 0 params
+                0x00, // unnamed result
+                0x73, // result type = string
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1080,12 +1071,12 @@ describe('parser security', () => {
         test('func type with named results', async () => {
             const wasm = componentWithSection(7, [
                 0x01,
-                0x40,       // func
-                0x00,       // 0 params
-                0x01,       // named results
-                0x01,       // 1 named value
+                0x40, // func
+                0x00, // 0 params
+                0x01, // named results
+                0x01, // 1 named value
                 ...encodeName('r'),
-                0x73,       // type = string
+                0x73, // type = string
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1095,7 +1086,7 @@ describe('parser security', () => {
             // 0x41 = component type (no declarations to read)
             const wasm = componentWithSection(7, [
                 0x01,
-                0x41,       // component type
+                0x41, // component type
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);
@@ -1106,15 +1097,15 @@ describe('parser security', () => {
             // 0x00 = core type, 0x01 = type, 0x03 = import, 0x04 = export
             const wasm = componentWithSection(7, [
                 0x01,
-                0x42,       // instance type
-                0x02,       // 2 declarations
+                0x42, // instance type
+                0x02, // 2 declarations
                 // decl 0: type (kind=0x01) -> primitive string
                 0x01, 0x73,
                 // decl 1: export (kind=0x04) -> name + type ref
                 0x04,
                 ...externNameKebab('x'),
-                0x01,       // type ref = func
-                0x00,       // func type index = 0
+                0x01, // type ref = func
+                0x00, // func type index = 0
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);

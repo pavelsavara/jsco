@@ -8,10 +8,6 @@
 - fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
 - validate string, list and buffer sizes to not cause OOM or out of range
 - validate HTTP API to not receive evil payload, like unlimited body or headers
-- limit runtime allocations: `for (const { name, lowerer } of fieldLowerers)`
-- use decoder/encoder `String.fromCharCode(...u16)`
-- unroll `loadFromMemory` during binding
-- free memory and resource handles
 - make i64 -> number vs bingint configurable again, add tests for it. usesNumberForInt64
 - multiple memories
 
