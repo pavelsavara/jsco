@@ -24,9 +24,6 @@ jobs:
     - name: Rollup project
       run: npm run build:npm
 
-    - name: Run usage samples as sanity check
-      run: npm run test:usage
-
     - name: Rollup artifact
       uses: actions/upload-artifact@v6
       with:

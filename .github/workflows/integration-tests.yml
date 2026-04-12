@@ -9,6 +9,8 @@ on:
       - "wit/**"
       - "src/host/wasip2/integration.test.ts"
       - "src/host/wasip2/integration-helpers.ts"
+      - "src/host/wasip2/echo-reactor.test.ts"
+      - "src/host/wasip2/hello-world.test.ts"
       - ".github/workflows/integration-tests.yml"
 
 env:
@@ -70,7 +72,7 @@ jobs:
       run: npm run build:echo-wat
 
     - name: Run integration tests
-      run: npm run test:integration
+      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-world\.test'
 
     - name: Upload wasm artifacts
       uses: actions/upload-artifact@v6
