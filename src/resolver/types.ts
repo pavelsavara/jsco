@@ -160,6 +160,9 @@ export type ResourceTable = {
     get(resourceTypeIdx: number, handle: number): unknown;
     remove(resourceTypeIdx: number, handle: number): unknown;
     has(resourceTypeIdx: number, handle: number): boolean;
+    lend(resourceTypeIdx: number, handle: number): void;
+    unlend(resourceTypeIdx: number, handle: number): void;
+    lendCount(resourceTypeIdx: number, handle: number): number;
 }
 
 export type BindingContext = {

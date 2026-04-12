@@ -2403,6 +2403,631 @@ pub mod exports {
                         + 2 * ::core::mem::size_of::<*const u8>()],
                 );
             }
+            /// Resources: own/borrow, lifecycle, stream-like patterns
+            #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+            pub mod echo_resources {
+                #[used]
+                #[doc(hidden)]
+                static __FORCE_SECTION_REF: fn() = super::super::super::super::__link_custom_section_describing_imports;
+                use super::super::super::super::_rt;
+                /// An accumulator resource — owns mutable state
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct Accumulator {
+                    handle: _rt::Resource<Accumulator>,
+                }
+                type _AccumulatorRep<T> = Option<T>;
+                impl Accumulator {
+                    /// Creates a new resource from the specified representation.
+                    ///
+                    /// This function will create a new resource handle by moving `val` onto
+                    /// the heap and then passing that heap pointer to the component model to
+                    /// create a handle. The owned handle is then returned as `Accumulator`.
+                    pub fn new<T: GuestAccumulator>(val: T) -> Self {
+                        Self::type_guard::<T>();
+                        let val: _AccumulatorRep<T> = Some(val);
+                        let ptr: *mut _AccumulatorRep<T> = _rt::Box::into_raw(
+                            _rt::Box::new(val),
+                        );
+                        unsafe { Self::from_handle(T::_resource_new(ptr.cast())) }
+                    }
+                    /// Gets access to the underlying `T` which represents this resource.
+                    pub fn get<T: GuestAccumulator>(&self) -> &T {
+                        let ptr = unsafe { &*self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    /// Gets mutable access to the underlying `T` which represents this
+                    /// resource.
+                    pub fn get_mut<T: GuestAccumulator>(&mut self) -> &mut T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_mut().unwrap()
+                    }
+                    /// Consumes this resource and returns the underlying `T`.
+                    pub fn into_inner<T: GuestAccumulator>(self) -> T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.take().unwrap()
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn from_handle(handle: u32) -> Self {
+                        Self {
+                            handle: unsafe { _rt::Resource::from_handle(handle) },
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub fn take_handle(&self) -> u32 {
+                        _rt::Resource::take_handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    pub fn handle(&self) -> u32 {
+                        _rt::Resource::handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    fn type_guard<T: 'static>() {
+                        use core::any::TypeId;
+                        static mut LAST_TYPE: Option<TypeId> = None;
+                        unsafe {
+                            assert!(! cfg!(target_feature = "atomics"));
+                            let id = TypeId::of::<T>();
+                            match LAST_TYPE {
+                                Some(ty) => {
+                                    assert!(
+                                        ty == id, "cannot use two types with this resource type"
+                                    )
+                                }
+                                None => LAST_TYPE = Some(id),
+                            }
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn dtor<T: 'static>(handle: *mut u8) {
+                        Self::type_guard::<T>();
+                        let _ = unsafe {
+                            _rt::Box::from_raw(handle as *mut _AccumulatorRep<T>)
+                        };
+                    }
+                    fn as_ptr<T: GuestAccumulator>(&self) -> *mut _AccumulatorRep<T> {
+                        Accumulator::type_guard::<T>();
+                        T::_resource_rep(self.handle()).cast()
+                    }
+                }
+                /// A borrowed version of [`Accumulator`] which represents a borrowed value
+                /// with the lifetime `'a`.
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct AccumulatorBorrow<'a> {
+                    rep: *mut u8,
+                    _marker: core::marker::PhantomData<&'a Accumulator>,
+                }
+                impl<'a> AccumulatorBorrow<'a> {
+                    #[doc(hidden)]
+                    pub unsafe fn lift(rep: usize) -> Self {
+                        Self {
+                            rep: rep as *mut u8,
+                            _marker: core::marker::PhantomData,
+                        }
+                    }
+                    /// Gets access to the underlying `T` in this resource.
+                    pub fn get<T: GuestAccumulator>(&self) -> &T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    fn as_ptr<T: 'static>(&self) -> *mut _AccumulatorRep<T> {
+                        Accumulator::type_guard::<T>();
+                        self.rep.cast()
+                    }
+                }
+                unsafe impl _rt::WasmResource for Accumulator {
+                    #[inline]
+                    unsafe fn drop(_handle: u32) {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        unreachable!();
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-drop]accumulator"]
+                                fn drop(_: u32);
+                            }
+                            unsafe { drop(_handle) };
+                        }
+                    }
+                }
+                /// A buffer resource — simulates a simple stream-like producer
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct ByteBuffer {
+                    handle: _rt::Resource<ByteBuffer>,
+                }
+                type _ByteBufferRep<T> = Option<T>;
+                impl ByteBuffer {
+                    /// Creates a new resource from the specified representation.
+                    ///
+                    /// This function will create a new resource handle by moving `val` onto
+                    /// the heap and then passing that heap pointer to the component model to
+                    /// create a handle. The owned handle is then returned as `ByteBuffer`.
+                    pub fn new<T: GuestByteBuffer>(val: T) -> Self {
+                        Self::type_guard::<T>();
+                        let val: _ByteBufferRep<T> = Some(val);
+                        let ptr: *mut _ByteBufferRep<T> = _rt::Box::into_raw(
+                            _rt::Box::new(val),
+                        );
+                        unsafe { Self::from_handle(T::_resource_new(ptr.cast())) }
+                    }
+                    /// Gets access to the underlying `T` which represents this resource.
+                    pub fn get<T: GuestByteBuffer>(&self) -> &T {
+                        let ptr = unsafe { &*self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    /// Gets mutable access to the underlying `T` which represents this
+                    /// resource.
+                    pub fn get_mut<T: GuestByteBuffer>(&mut self) -> &mut T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_mut().unwrap()
+                    }
+                    /// Consumes this resource and returns the underlying `T`.
+                    pub fn into_inner<T: GuestByteBuffer>(self) -> T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.take().unwrap()
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn from_handle(handle: u32) -> Self {
+                        Self {
+                            handle: unsafe { _rt::Resource::from_handle(handle) },
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub fn take_handle(&self) -> u32 {
+                        _rt::Resource::take_handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    pub fn handle(&self) -> u32 {
+                        _rt::Resource::handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    fn type_guard<T: 'static>() {
+                        use core::any::TypeId;
+                        static mut LAST_TYPE: Option<TypeId> = None;
+                        unsafe {
+                            assert!(! cfg!(target_feature = "atomics"));
+                            let id = TypeId::of::<T>();
+                            match LAST_TYPE {
+                                Some(ty) => {
+                                    assert!(
+                                        ty == id, "cannot use two types with this resource type"
+                                    )
+                                }
+                                None => LAST_TYPE = Some(id),
+                            }
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn dtor<T: 'static>(handle: *mut u8) {
+                        Self::type_guard::<T>();
+                        let _ = unsafe {
+                            _rt::Box::from_raw(handle as *mut _ByteBufferRep<T>)
+                        };
+                    }
+                    fn as_ptr<T: GuestByteBuffer>(&self) -> *mut _ByteBufferRep<T> {
+                        ByteBuffer::type_guard::<T>();
+                        T::_resource_rep(self.handle()).cast()
+                    }
+                }
+                /// A borrowed version of [`ByteBuffer`] which represents a borrowed value
+                /// with the lifetime `'a`.
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct ByteBufferBorrow<'a> {
+                    rep: *mut u8,
+                    _marker: core::marker::PhantomData<&'a ByteBuffer>,
+                }
+                impl<'a> ByteBufferBorrow<'a> {
+                    #[doc(hidden)]
+                    pub unsafe fn lift(rep: usize) -> Self {
+                        Self {
+                            rep: rep as *mut u8,
+                            _marker: core::marker::PhantomData,
+                        }
+                    }
+                    /// Gets access to the underlying `T` in this resource.
+                    pub fn get<T: GuestByteBuffer>(&self) -> &T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    fn as_ptr<T: 'static>(&self) -> *mut _ByteBufferRep<T> {
+                        ByteBuffer::type_guard::<T>();
+                        self.rep.cast()
+                    }
+                }
+                unsafe impl _rt::WasmResource for ByteBuffer {
+                    #[inline]
+                    unsafe fn drop(_handle: u32) {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        unreachable!();
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-drop]byte-buffer"]
+                                fn drop(_: u32);
+                            }
+                            unsafe { drop(_handle) };
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_constructor_accumulator_cabi<T: GuestAccumulator>(
+                    arg0: i64,
+                ) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = Accumulator::new(T::new(arg0));
+                    (result0).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_accumulator_add_cabi<T: GuestAccumulator>(
+                    arg0: *mut u8,
+                    arg1: i64,
+                ) {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    T::add(
+                        unsafe { AccumulatorBorrow::lift(arg0 as u32 as usize) }.get(),
+                        arg1,
+                    );
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_accumulator_get_total_cabi<
+                    T: GuestAccumulator,
+                >(arg0: *mut u8) -> i64 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::get_total(
+                        unsafe { AccumulatorBorrow::lift(arg0 as u32 as usize) }.get(),
+                    );
+                    _rt::as_i64(result0)
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_accumulator_snapshot_cabi<
+                    T: GuestAccumulator,
+                >(arg0: *mut u8) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::snapshot(
+                        unsafe { AccumulatorBorrow::lift(arg0 as u32 as usize) }.get(),
+                    );
+                    (result0).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_constructor_byte_buffer_cabi<T: GuestByteBuffer>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let len0 = arg1;
+                    let result1 = ByteBuffer::new(
+                        T::new(_rt::Vec::from_raw_parts(arg0.cast(), len0, len0)),
+                    );
+                    (result1).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_byte_buffer_read_cabi<T: GuestByteBuffer>(
+                    arg0: *mut u8,
+                    arg1: i32,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::read(
+                        unsafe { ByteBufferBorrow::lift(arg0 as u32 as usize) }.get(),
+                        arg1 as u32,
+                    );
+                    let ptr1 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec2 = (result0).into_boxed_slice();
+                    let ptr2 = vec2.as_ptr().cast::<u8>();
+                    let len2 = vec2.len();
+                    ::core::mem::forget(vec2);
+                    *ptr1.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len2;
+                    *ptr1.add(0).cast::<*mut u8>() = ptr2.cast_mut();
+                    ptr1
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_method_byte_buffer_read<T: GuestByteBuffer>(
+                    arg0: *mut u8,
+                ) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base2 = l0;
+                    let len2 = l1;
+                    _rt::cabi_dealloc(base2, len2 * 1, 1);
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_byte_buffer_remaining_cabi<
+                    T: GuestByteBuffer,
+                >(arg0: *mut u8) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::remaining(
+                        unsafe { ByteBufferBorrow::lift(arg0 as u32 as usize) }.get(),
+                    );
+                    _rt::as_i32(result0)
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_byte_buffer_is_empty_cabi<
+                    T: GuestByteBuffer,
+                >(arg0: *mut u8) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::is_empty(
+                        unsafe { ByteBufferBorrow::lift(arg0 as u32 as usize) }.get(),
+                    );
+                    match result0 {
+                        true => 1,
+                        false => 0,
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_transform_owned_cabi<T: Guest>(arg0: i32) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::transform_owned(unsafe {
+                        Accumulator::from_handle(arg0 as u32)
+                    });
+                    (result0).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_inspect_borrowed_cabi<T: Guest>(arg0: i32) -> i64 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::inspect_borrowed(unsafe {
+                        AccumulatorBorrow::lift(arg0 as u32 as usize)
+                    });
+                    _rt::as_i64(result0)
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_merge_accumulators_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: i32,
+                ) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::merge_accumulators(
+                        unsafe { Accumulator::from_handle(arg0 as u32) },
+                        unsafe { Accumulator::from_handle(arg1 as u32) },
+                    );
+                    (result0).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_buffer_cabi<T: Guest>(arg0: i32) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::echo_buffer(unsafe {
+                        ByteBuffer::from_handle(arg0 as u32)
+                    });
+                    (result0).take_handle() as i32
+                }
+                pub trait Guest {
+                    type Accumulator: GuestAccumulator;
+                    type ByteBuffer: GuestByteBuffer;
+                    /// Take ownership of an accumulator, double its value, return a new one
+                    fn transform_owned(acc: Accumulator) -> Accumulator;
+                    /// Borrow an accumulator, return its current total without consuming it
+                    fn inspect_borrowed(acc: AccumulatorBorrow<'_>) -> i64;
+                    /// Create two accumulators, merge them into one (tests multi-own passing)
+                    fn merge_accumulators(a: Accumulator, b: Accumulator) -> Accumulator;
+                    /// Round-trip a buffer through the host (tests own passing of different resource type)
+                    fn echo_buffer(buf: ByteBuffer) -> ByteBuffer;
+                }
+                pub trait GuestAccumulator: 'static {
+                    #[doc(hidden)]
+                    unsafe fn _resource_new(val: *mut u8) -> u32
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = val;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-new]accumulator"]
+                                fn new(_: *mut u8) -> u32;
+                            }
+                            unsafe { new(val) }
+                        }
+                    }
+                    #[doc(hidden)]
+                    fn _resource_rep(handle: u32) -> *mut u8
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = handle;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-rep]accumulator"]
+                                fn rep(_: u32) -> *mut u8;
+                            }
+                            unsafe { rep(handle) }
+                        }
+                    }
+                    fn new(initial: i64) -> Self;
+                    /// Add a value (takes borrow<self>)
+                    fn add(&self, value: i64) -> ();
+                    /// Get current total (takes borrow<self>)
+                    fn get_total(&self) -> i64;
+                    /// Snapshot the current state into a new accumulator (returns own<accumulator>)
+                    fn snapshot(&self) -> Accumulator;
+                }
+                pub trait GuestByteBuffer: 'static {
+                    #[doc(hidden)]
+                    unsafe fn _resource_new(val: *mut u8) -> u32
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = val;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-new]byte-buffer"]
+                                fn new(_: *mut u8) -> u32;
+                            }
+                            unsafe { new(val) }
+                        }
+                    }
+                    #[doc(hidden)]
+                    fn _resource_rep(handle: u32) -> *mut u8
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = handle;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-resources@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-rep]byte-buffer"]
+                                fn rep(_: u32) -> *mut u8;
+                            }
+                            unsafe { rep(handle) }
+                        }
+                    }
+                    fn new(data: _rt::Vec<u8>) -> Self;
+                    /// Read up to n bytes (takes borrow<self>), returns bytes read
+                    fn read(&self, n: u32) -> _rt::Vec<u8>;
+                    /// How many bytes remain (takes borrow<self>)
+                    fn remaining(&self) -> u32;
+                    /// Check if exhausted (takes borrow<self>)
+                    fn is_empty(&self) -> bool;
+                }
+                #[doc(hidden)]
+                macro_rules! __export_jsco_test_echo_resources_0_1_0_cabi {
+                    ($ty:ident with_types_in $($path_to_types:tt)*) => {
+                        const _ : () = { #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#[constructor]accumulator")]
+                        unsafe extern "C" fn export_constructor_accumulator(arg0 : i64,)
+                        -> i32 { unsafe { $($path_to_types)*::
+                        _export_constructor_accumulator_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::Accumulator > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]accumulator.add")] unsafe
+                        extern "C" fn export_method_accumulator_add(arg0 : * mut u8, arg1
+                        : i64,) { unsafe { $($path_to_types)*::
+                        _export_method_accumulator_add_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::Accumulator > (arg0, arg1) } }
+                        #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]accumulator.get-total")]
+                        unsafe extern "C" fn export_method_accumulator_get_total(arg0 : *
+                        mut u8,) -> i64 { unsafe { $($path_to_types)*::
+                        _export_method_accumulator_get_total_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::Accumulator > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]accumulator.snapshot")]
+                        unsafe extern "C" fn export_method_accumulator_snapshot(arg0 : *
+                        mut u8,) -> i32 { unsafe { $($path_to_types)*::
+                        _export_method_accumulator_snapshot_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::Accumulator > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-resources@0.1.0#[constructor]byte-buffer")]
+                        unsafe extern "C" fn export_constructor_byte_buffer(arg0 : * mut
+                        u8, arg1 : usize,) -> i32 { unsafe { $($path_to_types)*::
+                        _export_constructor_byte_buffer_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (arg0, arg1) } }
+                        #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]byte-buffer.read")]
+                        unsafe extern "C" fn export_method_byte_buffer_read(arg0 : * mut
+                        u8, arg1 : i32,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_method_byte_buffer_read_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (arg0, arg1) } }
+                        #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-resources@0.1.0#[method]byte-buffer.read")]
+                        unsafe extern "C" fn _post_return_method_byte_buffer_read(arg0 :
+                        * mut u8,) { unsafe { $($path_to_types)*::
+                        __post_return_method_byte_buffer_read::<<$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]byte-buffer.remaining")]
+                        unsafe extern "C" fn export_method_byte_buffer_remaining(arg0 : *
+                        mut u8,) -> i32 { unsafe { $($path_to_types)*::
+                        _export_method_byte_buffer_remaining_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-resources@0.1.0#[method]byte-buffer.is-empty")]
+                        unsafe extern "C" fn export_method_byte_buffer_is_empty(arg0 : *
+                        mut u8,) -> i32 { unsafe { $($path_to_types)*::
+                        _export_method_byte_buffer_is_empty_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (arg0) } } #[unsafe
+                        (export_name = "jsco:test/echo-resources@0.1.0#transform-owned")]
+                        unsafe extern "C" fn export_transform_owned(arg0 : i32,) -> i32 {
+                        unsafe { $($path_to_types)*:: _export_transform_owned_cabi::<$ty
+                        > (arg0) } } #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#inspect-borrowed")] unsafe extern
+                        "C" fn export_inspect_borrowed(arg0 : i32,) -> i64 { unsafe {
+                        $($path_to_types)*:: _export_inspect_borrowed_cabi::<$ty > (arg0)
+                        } } #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#merge-accumulators")] unsafe
+                        extern "C" fn export_merge_accumulators(arg0 : i32, arg1 : i32,)
+                        -> i32 { unsafe { $($path_to_types)*::
+                        _export_merge_accumulators_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name = "jsco:test/echo-resources@0.1.0#echo-buffer")]
+                        unsafe extern "C" fn export_echo_buffer(arg0 : i32,) -> i32 {
+                        unsafe { $($path_to_types)*:: _export_echo_buffer_cabi::<$ty >
+                        (arg0) } } const _ : () = { #[doc(hidden)] #[unsafe (export_name
+                        = "jsco:test/echo-resources@0.1.0#[dtor]accumulator")]
+                        #[allow(non_snake_case)] unsafe extern "C" fn dtor(rep : * mut
+                        u8) { unsafe { $($path_to_types)*:: Accumulator::dtor::< <$ty as
+                        $($path_to_types)*:: Guest >::Accumulator > (rep) } } }; const _
+                        : () = { #[doc(hidden)] #[unsafe (export_name =
+                        "jsco:test/echo-resources@0.1.0#[dtor]byte-buffer")]
+                        #[allow(non_snake_case)] unsafe extern "C" fn dtor(rep : * mut
+                        u8) { unsafe { $($path_to_types)*:: ByteBuffer::dtor::< <$ty as
+                        $($path_to_types)*:: Guest >::ByteBuffer > (rep) } } }; };
+                    };
+                }
+                #[doc(hidden)]
+                pub(crate) use __export_jsco_test_echo_resources_0_1_0_cabi;
+                #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                struct _RetArea(
+                    [::core::mem::MaybeUninit<
+                        u8,
+                    >; 2 * ::core::mem::size_of::<*const u8>()],
+                );
+                static mut _RET_AREA: _RetArea = _RetArea(
+                    [::core::mem::MaybeUninit::uninit(); 2
+                        * ::core::mem::size_of::<*const u8>()],
+                );
+            }
         }
     }
 }
@@ -2683,6 +3308,9 @@ macro_rules! __export_echo_reactor_impl {
         $($path_to_types_root)*::
         exports::jsco::test::echo_edge_cases::__export_jsco_test_echo_edge_cases_0_1_0_cabi!($ty
         with_types_in $($path_to_types_root)*:: exports::jsco::test::echo_edge_cases);
+        $($path_to_types_root)*::
+        exports::jsco::test::echo_resources::__export_jsco_test_echo_resources_0_1_0_cabi!($ty
+        with_types_in $($path_to_types_root)*:: exports::jsco::test::echo_resources);
     };
 }
 #[doc(inline)]
@@ -2693,9 +3321,9 @@ pub(crate) use __export_echo_reactor_impl as export;
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1984] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xbd\x0e\x01A\x02\x01\
-A\x0a\x01B\x04\x01@\x02\x05labels\x05values\x01\0\x04\0\x10report-primitive\x01\0\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2540] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe9\x12\x01A\x02\x01\
+A\x0c\x01B\x04\x01@\x02\x05labels\x05values\x01\0\x04\0\x10report-primitive\x01\0\
 \x01@\x03\x05labels\x01xu\x01yu\x01\0\x04\0\x0dreport-record\x01\x01\x03\0\x19js\
 co:test/echo-sink@0.1.0\x05\0\x01B\x1a\x01@\x01\x01v\x7f\0\x7f\x04\0\x09echo-boo\
 l\x01\0\x01@\x01\x01v}\0}\x04\0\x07echo-u8\x01\x01\x01@\x01\x01v{\0{\x04\0\x08ec\
@@ -2738,9 +3366,21 @@ s\x01p\x15\x01@\x01\x01v\x16\0\x16\x04\0\x10echo-list-result\x01\x17\x01py\x01k\
 \0\x0eecho-big-flags\x01\x1e\x01@\x01\x01v\x18\0\x18\x04\0\x0fecho-empty-list\x01\
 \x1f\x01@\x01\x01vs\0s\x04\0\x11echo-empty-string\x01\x20\x01p}\x01o\x02s\x03\x01\
 j\x01!\x01\"\x01@\x01\x01v#\0#\x04\0\x13echo-result-complex\x01$\x04\0\x1fjsco:t\
-est/echo-edge-cases@0.1.0\x05\x04\x04\0\x1ejsco:echo-reactor/echo-reactor\x04\0\x0b\
-\x12\x01\0\x0cecho-reactor\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwi\
-t-component\x070.227.1\x10wit-bindgen-rust\x060.41.0";
+est/echo-edge-cases@0.1.0\x05\x04\x01B\x1f\x04\0\x0baccumulator\x03\x01\x04\0\x0b\
+byte-buffer\x03\x01\x01i\0\x01@\x01\x07initialx\0\x02\x04\0\x18[constructor]accu\
+mulator\x01\x03\x01h\0\x01@\x02\x04self\x04\x05valuex\x01\0\x04\0\x17[method]acc\
+umulator.add\x01\x05\x01@\x01\x04self\x04\0x\x04\0\x1d[method]accumulator.get-to\
+tal\x01\x06\x01@\x01\x04self\x04\0\x02\x04\0\x1c[method]accumulator.snapshot\x01\
+\x07\x01p}\x01i\x01\x01@\x01\x04data\x08\0\x09\x04\0\x18[constructor]byte-buffer\
+\x01\x0a\x01h\x01\x01@\x02\x04self\x0b\x01ny\0\x08\x04\0\x18[method]byte-buffer.\
+read\x01\x0c\x01@\x01\x04self\x0b\0y\x04\0\x1d[method]byte-buffer.remaining\x01\x0d\
+\x01@\x01\x04self\x0b\0\x7f\x04\0\x1c[method]byte-buffer.is-empty\x01\x0e\x01@\x01\
+\x03acc\x02\0\x02\x04\0\x0ftransform-owned\x01\x0f\x01@\x01\x03acc\x04\0x\x04\0\x10\
+inspect-borrowed\x01\x10\x01@\x02\x01a\x02\x01b\x02\0\x02\x04\0\x12merge-accumul\
+ators\x01\x11\x01@\x01\x03buf\x09\0\x09\x04\0\x0becho-buffer\x01\x12\x04\0\x1ejs\
+co:test/echo-resources@0.1.0\x05\x05\x04\0\x1ejsco:echo-reactor/echo-reactor\x04\
+\0\x0b\x12\x01\0\x0cecho-reactor\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\
+\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

@@ -641,4 +641,128 @@ describe('echo-reactor', () => {
             expect(prim['echo-string']('a\0b')).toBe('a\0b');
         }));
     });
+
+    describe('resources', () => {
+        test('accumulator: constructor and get-total', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const acc = ns['[constructor]accumulator'](100n);
+            const total = ns['[method]accumulator.get-total'](acc);
+            expect(total).toBe(100n);
+        }));
+
+        test('accumulator: snapshot creates independent copy', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const acc = ns['[constructor]accumulator'](42n);
+            const snap = ns['[method]accumulator.snapshot'](acc);
+            // Both should have value 42
+            expect(ns['[method]accumulator.get-total'](acc)).toBe(42n);
+            expect(ns['[method]accumulator.get-total'](snap)).toBe(42n);
+        }));
+
+        test('transform-owned: doubles value via own transfer', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const acc = ns['[constructor]accumulator'](50n);
+            const transformed = ns['transform-owned'](acc);
+            expect(ns['[method]accumulator.get-total'](transformed)).toBe(100n);
+        }));
+
+        test('inspect-borrowed: reads without consuming', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const acc = ns['[constructor]accumulator'](77n);
+            // Borrow: should read but not consume
+            const total = ns['inspect-borrowed'](acc);
+            expect(total).toBe(77n);
+            // Can still use the accumulator after borrow
+            const total2 = ns['[method]accumulator.get-total'](acc);
+            expect(total2).toBe(77n);
+        }));
+
+        test('merge-accumulators: combines two owned resources', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const a = ns['[constructor]accumulator'](30n);
+            const b = ns['[constructor]accumulator'](12n);
+            const merged = ns['merge-accumulators'](a, b);
+            expect(ns['[method]accumulator.get-total'](merged)).toBe(42n);
+        }));
+
+        test('byte-buffer: constructor, read, remaining, is-empty lifecycle', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const data = new Uint8Array([10, 20, 30, 40, 50]);
+            const buf = ns['[constructor]byte-buffer'](data);
+
+            // Full buffer
+            expect(ns['[method]byte-buffer.remaining'](buf)).toBe(5);
+            expect(ns['[method]byte-buffer.is-empty'](buf)).toBe(false);
+
+            // Read 3 bytes
+            const chunk1 = ns['[method]byte-buffer.read'](buf, 3);
+            expect(new Uint8Array(chunk1)).toEqual(new Uint8Array([10, 20, 30]));
+            expect(ns['[method]byte-buffer.remaining'](buf)).toBe(2);
+
+            // Read remaining
+            const chunk2 = ns['[method]byte-buffer.read'](buf, 10);
+            expect(new Uint8Array(chunk2)).toEqual(new Uint8Array([40, 50]));
+            expect(ns['[method]byte-buffer.is-empty'](buf)).toBe(true);
+            expect(ns['[method]byte-buffer.remaining'](buf)).toBe(0);
+        }));
+
+        test('echo-buffer: round-trips a buffer resource', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const data = new Uint8Array([1, 2, 3, 4]);
+            const buf = ns['[constructor]byte-buffer'](data);
+            const echoed = ns['echo-buffer'](buf);
+            // Echoed buffer should have the same data
+            expect(ns['[method]byte-buffer.remaining'](echoed)).toBe(4);
+            const readAll = ns['[method]byte-buffer.read'](echoed, 100);
+            expect(new Uint8Array(readAll)).toEqual(new Uint8Array([1, 2, 3, 4]));
+        }));
+
+        test('multiple resource types: accumulator and byte-buffer coexist', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            // Create both resource types
+            const acc = ns['[constructor]accumulator'](99n);
+            const buf = ns['[constructor]byte-buffer'](new Uint8Array([7, 8, 9]));
+
+            // Both work independently
+            expect(ns['[method]accumulator.get-total'](acc)).toBe(99n);
+            expect(ns['[method]byte-buffer.remaining'](buf)).toBe(3);
+
+            // Operations on one don't affect the other
+            ns['[method]byte-buffer.read'](buf, 1);
+            expect(ns['[method]accumulator.get-total'](acc)).toBe(99n);
+            expect(ns['[method]byte-buffer.remaining'](buf)).toBe(2);
+        }));
+    });
 });
