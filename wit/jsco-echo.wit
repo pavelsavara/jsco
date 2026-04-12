@@ -191,3 +191,55 @@ interface echo-sink {
     report-primitive: func(label: string, value: string);
     report-record: func(label: string, x: f64, y: f64);
 }
+
+/// Edge cases: type shapes not covered by other interfaces
+interface echo-edge-cases {
+    /// result with ok payload only (no error payload)
+    echo-result-ok-only: func(v: result<string>) -> result<string>;
+    /// result with error payload only (no ok payload)
+    echo-result-err-only: func(v: result<_, string>) -> result<_, string>;
+    /// result with no payloads at all (just ok/err)
+    echo-result-empty: func(v: result) -> result;
+
+    /// Nested option
+    echo-nested-option: func(v: option<option<u32>>) -> option<option<u32>>;
+
+    /// 5-element tuple (tests wider-than-3 tuples)
+    echo-tuple5: func(v: tuple<u8, u16, u32, u64, string>) -> tuple<u8, u16, u32, u64, string>;
+
+    /// List of options
+    echo-list-option: func(v: list<option<string>>) -> list<option<string>>;
+
+    /// List of results
+    echo-list-result: func(v: list<result<u32, string>>) -> list<result<u32, string>>;
+
+    /// Option containing a list
+    echo-option-list: func(v: option<list<u32>>) -> option<list<u32>>;
+
+    /// List of tuples
+    echo-list-tuple: func(v: list<tuple<string, u32>>) -> list<tuple<string, u32>>;
+
+    /// Flags with 32 members (maximum single-word flags)
+    flags big-flags {
+        b0,  b1,  b2,  b3,  b4,  b5,  b6,  b7,
+        b8,  b9,  b10, b11, b12, b13, b14, b15,
+        b16, b17, b18, b19, b20, b21, b22, b23,
+        b24, b25, b26, b27, b28, b29, b30, b31,
+    }
+    echo-big-flags: func(v: big-flags) -> big-flags;
+
+    /// Zero-length list
+    echo-empty-list: func(v: list<u32>) -> list<u32>;
+
+    /// Empty string
+    echo-empty-string: func(v: string) -> string;
+
+    /// A simple resource carrying a message
+    resource err-ctx {
+        constructor(message: string);
+        get-message: func() -> string;
+    }
+
+    /// Result with resource in error tuple
+    echo-result-complex: func(v: result<list<u8>, tuple<string, err-ctx>>) -> result<list<u8>, tuple<string, err-ctx>>;
+}

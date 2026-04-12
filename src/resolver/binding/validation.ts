@@ -32,52 +32,25 @@ export function validatePointerAlignment(ptr: number, align: number, context: st
 }
 
 /**
- * Validate UTF-8 encoding of a byte sequence from linear memory.
- * Returns true if valid, throws if invalid.
+ * Validate UTF-16 encoding of a Uint16Array from linear memory.
+ * CM spec requires well-formed UTF-16: no unpaired surrogates.
  */
-export function validateUtf8(bytes: Uint8Array): void {
-    let i = 0;
-    while (i < bytes.length) {
-        const b0 = bytes[i];
-        if (b0 < 0x80) {
-            // ASCII
-            i++;
-        } else if ((b0 & 0xE0) === 0xC0) {
-            // 2-byte
-            if (b0 < 0xC2) throw new Error(`invalid UTF-8: overlong 2-byte sequence at offset ${i}`);
-            if (i + 1 >= bytes.length) throw new Error(`invalid UTF-8: truncated 2-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
-            if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            i += 2;
-        } else if ((b0 & 0xF0) === 0xE0) {
-            // 3-byte
-            if (i + 2 >= bytes.length) throw new Error(`invalid UTF-8: truncated 3-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
-            const b2 = bytes[i + 2];
-            if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((b2 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
-            // Check for overlong
-            if (b0 === 0xE0 && b1 < 0xA0) throw new Error(`invalid UTF-8: overlong 3-byte sequence at offset ${i}`);
-            // Check for surrogates (U+D800..U+DFFF)
-            if (b0 === 0xED && b1 >= 0xA0) throw new Error(`invalid UTF-8: surrogate codepoint at offset ${i}`);
-            i += 3;
-        } else if ((b0 & 0xF8) === 0xF0) {
-            // 4-byte
-            if (b0 > 0xF4) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
-            if (i + 3 >= bytes.length) throw new Error(`invalid UTF-8: truncated 4-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
-            const b2 = bytes[i + 2];
-            const b3 = bytes[i + 3];
-            if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((b2 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
-            if ((b3 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
-            // Check for overlong
-            if (b0 === 0xF0 && b1 < 0x90) throw new Error(`invalid UTF-8: overlong 4-byte sequence at offset ${i}`);
-            // Check for > U+10FFFF
-            if (b0 === 0xF4 && b1 > 0x8F) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
-            i += 4;
-        } else {
-            throw new Error(`invalid UTF-8: unexpected byte 0x${b0.toString(16)} at offset ${i}`);
+export function validateUtf16(codeUnits: Uint16Array): void {
+    for (let i = 0; i < codeUnits.length; i++) {
+        const cu = codeUnits[i];
+        if (cu >= 0xD800 && cu <= 0xDBFF) {
+            // High surrogate — must be followed by low surrogate
+            if (i + 1 >= codeUnits.length) {
+                throw new Error(`invalid UTF-16: unpaired high surrogate 0x${cu.toString(16)} at index ${i}`);
+            }
+            const next = codeUnits[i + 1];
+            if (next < 0xDC00 || next > 0xDFFF) {
+                throw new Error(`invalid UTF-16: high surrogate 0x${cu.toString(16)} at index ${i} not followed by low surrogate`);
+            }
+            i++; // skip the low surrogate
+        } else if (cu >= 0xDC00 && cu <= 0xDFFF) {
+            // Lone low surrogate
+            throw new Error(`invalid UTF-16: unpaired low surrogate 0x${cu.toString(16)} at index ${i}`);
         }
     }
 }

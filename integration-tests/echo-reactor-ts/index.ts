@@ -73,6 +73,22 @@ export function createEchoImports(): ImportsMap {
         'echo-variant': (v: unknown) => jsonEcho(v),
     };
 
+    const echoEdgeCasesImport = {
+        'echo-result-ok-only': (v: unknown) => jsonEcho(v),
+        'echo-result-err-only': (v: unknown) => jsonEcho(v),
+        'echo-result-empty': (v: unknown) => jsonEcho(v),
+        'echo-nested-option': (v: unknown) => jsonEcho(v),
+        'echo-tuple5': (v: unknown) => jsonEcho(v),
+        'echo-list-option': (v: unknown) => jsonEcho(v),
+        'echo-list-result': (v: unknown) => jsonEcho(v),
+        'echo-option-list': (v: unknown) => jsonEcho(v),
+        'echo-list-tuple': (v: unknown) => jsonEcho(v),
+        'echo-big-flags': (v: unknown) => jsonEcho(v),
+        'echo-empty-list': (v: unknown) => jsonEcho(v),
+        'echo-empty-string': (v: unknown) => jsonEcho(v),
+        'echo-result-complex': (v: unknown) => jsonEcho(v),
+    };
+
     const echoComplexImport = {
         'echo-deeply-nested': (v: unknown) => jsonEcho(v),
         'echo-list-of-records': (v: unknown) => jsonEcho(v),
@@ -179,6 +195,7 @@ export function createEchoImports(): ImportsMap {
         'jsco:test/echo-primitives@0.1.0': echoPrimitivesImport,
         'jsco:test/echo-compound@0.1.0': echoCompoundImport,
         'jsco:test/echo-algebraic@0.1.0': echoAlgebraicImport,
+        'jsco:test/echo-edge-cases@0.1.0': echoEdgeCasesImport,
         'jsco:test/echo-complex@0.1.0': echoComplexImport,
         'jsco:test/echo-resources@0.1.0': echoResourcesImport,
     };

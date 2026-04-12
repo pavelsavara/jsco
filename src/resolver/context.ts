@@ -26,6 +26,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             componentSectionCache: new Map(),
             stats: isDebug ? { resolveComponentSection: 0, resolveComponentInstanceInstantiate: 0, createScopedResolverContext: 0, componentSectionCacheHits: 0, componentInstanceCacheHits: 0, coreInstanceCacheHits: 0, coreFunctionCacheHits: 0, componentFunctionCacheHits: 0 } : undefined,
             verbose,
@@ -153,6 +154,7 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
             liftingCache: new Map(),
             loweringCache: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             verbose: parentRctx.resolved.verbose,
             logger: parentRctx.resolved.logger,
         },
@@ -276,6 +278,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
 
     // Phase 1: Assign canonical IDs to resource source types.
     // For ComponentTypeResource: the type index IS the canonical ID.
+    //   These are own-instance resources (defined by this component).
     // For ComponentAliasInstanceExport (Type kind): group by (instance_index, name).
     //   First occurrence defines the canonical ID; subsequent aliases get the same ID.
 
@@ -283,6 +286,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
         const t = types[i];
         if (t.tag === ModelTag.ComponentTypeResource) {
             map.set(i, i);
+            rctx.resolved.ownInstanceResources.add(i);
         } else if (t.tag === ModelTag.ComponentAliasInstanceExport) {
             const alias = t as ComponentAliasInstanceExport;
             if (alias.kind === ComponentExternalKind.Type) {
@@ -374,30 +378,34 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
     // index of the ComponentTypeResource definition). own<T>/borrow<T> both
     // use the same canonical index (their .value field), so per-type isolation
     // is enforced: get/remove/has validate that the requested type matches.
-    const handles = new Map<number, { typeIdx: number; obj: unknown }>();
+    const handles = new Map<number, { typeIdx: number; obj: unknown; numLends: number }>();
+
+    function getEntry(resourceTypeIdx: number, handle: number) {
+        const entry = handles.get(handle);
+        if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
+        if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
+        return entry;
+    }
 
     return {
         add(resourceTypeIdx: number, obj: unknown): number {
             const handle = nextHandle++;
-            handles.set(handle, { typeIdx: resourceTypeIdx, obj });
+            handles.set(handle, { typeIdx: resourceTypeIdx, obj, numLends: 0 });
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
                 logger!('executor', LogLevel.Detailed, `resource.add(typeIdx=${resourceTypeIdx}, handle=${handle})`);
             }
             return handle;
         },
         get(resourceTypeIdx: number, handle: number): unknown {
-            const entry = handles.get(handle);
-            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
-            if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
+            const entry = getEntry(resourceTypeIdx, handle);
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
                 logger!('executor', LogLevel.Detailed, `resource.get(typeIdx=${resourceTypeIdx}, handle=${handle})`);
             }
             return entry.obj;
         },
         remove(resourceTypeIdx: number, handle: number): unknown {
-            const entry = handles.get(handle);
-            if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
-            if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
+            const entry = getEntry(resourceTypeIdx, handle);
+            if (entry.numLends !== 0) throw new Error(`Cannot drop resource handle ${handle}: ${entry.numLends} outstanding borrow(s)`);
             handles.delete(handle);
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
                 logger!('executor', LogLevel.Detailed, `resource.remove(typeIdx=${resourceTypeIdx}, handle=${handle})`);
@@ -407,6 +415,25 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
         has(resourceTypeIdx: number, handle: number): boolean {
             const entry = handles.get(handle);
             return entry !== undefined && entry.typeIdx === resourceTypeIdx;
+        },
+        lend(resourceTypeIdx: number, handle: number): void {
+            const entry = getEntry(resourceTypeIdx, handle);
+            entry.numLends++;
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `resource.lend(typeIdx=${resourceTypeIdx}, handle=${handle}, numLends=${entry.numLends})`);
+            }
+        },
+        unlend(resourceTypeIdx: number, handle: number): void {
+            const entry = getEntry(resourceTypeIdx, handle);
+            if (entry.numLends <= 0) throw new Error(`Cannot unlend resource handle ${handle}: no outstanding borrows`);
+            entry.numLends--;
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `resource.unlend(typeIdx=${resourceTypeIdx}, handle=${handle}, numLends=${entry.numLends})`);
+            }
+        },
+        lendCount(resourceTypeIdx: number, handle: number): number {
+            const entry = getEntry(resourceTypeIdx, handle);
+            return entry.numLends;
         }
     };
 }
@@ -423,7 +450,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         memory,
         allocator,
         resources,
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
         logger: resolved.logger,

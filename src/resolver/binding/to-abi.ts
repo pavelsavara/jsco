@@ -63,8 +63,8 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         const canonicalResourceIds = rctx.canonicalResourceIds;
 
         // Pre-create memory storers/loader for spilled calling convention
-        const paramStorers = paramResolvedTypes.map(pt => createMemoryStorer(pt, stringEncoding, canonicalResourceIds));
-        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds) : undefined;
+        const paramStorers = paramResolvedTypes.map(pt => createMemoryStorer(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
+        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources) : undefined;
 
         // Pre-compute spilled parameter offsets, total size, and max alignment
         const spilledParamOffsets: number[] = [];
@@ -497,7 +497,7 @@ function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding)
     }
 }
 
-export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): MemoryStorer {
+export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, ownInstanceResources?: Set<number>): MemoryStorer {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -509,7 +509,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 const fieldType = resolveValTypePure(member.type);
                 const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
-                const storer = createMemoryStorer(fieldType, stringEncoding, canonicalResourceIds);
+                const storer = createMemoryStorer(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources);
                 fieldStorers.push({ name: camelCase(member.name), offset, storer });
                 offset += sizeOf(fieldType);
             }
@@ -523,7 +523,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const elemType = resolveValTypePure(type.value);
             const elemSize = sizeOf(elemType);
             const elemAlign = alignOf(elemType);
-            const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds);
+            const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr, jsValue) => {
                 const arr = jsValue as any[];
                 const len = arr.length;
@@ -545,7 +545,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const payloadType = resolveValTypePure(type.value);
             const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
-            const payloadStorer = createMemoryStorer(payloadType, stringEncoding, canonicalResourceIds);
+            const payloadStorer = createMemoryStorer(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 if (jsValue === null || jsValue === undefined) {
@@ -561,8 +561,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
             if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
-            const okStorer = type.ok !== undefined ? createMemoryStorer(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds) : undefined;
-            const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds) : undefined;
+            const okStorer = type.ok !== undefined ? createMemoryStorer(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
+            const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const { tag, val } = jsValue as { tag: string, val?: any };
@@ -590,7 +590,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const caseStorers = type.variants.map(c =>
-                c.ty !== undefined ? createMemoryStorer(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds) : undefined
+                c.ty !== undefined ? createMemoryStorer(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
@@ -640,7 +640,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 const memberType = resolveValTypePure(member);
                 const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                memberStorers.push({ offset, storer: createMemoryStorer(memberType, stringEncoding, canonicalResourceIds) });
+                memberStorers.push({ offset, storer: createMemoryStorer(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources) });
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr, jsValue) => {
@@ -650,9 +650,21 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 }
             };
         }
-        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedOwn: {
+            const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
+            return (ctx, ptr, jsValue) => {
+                const handle = ctx.resources.add(resourceTypeIdx, jsValue);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
+            };
+        }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
+            // Canonical ABI: lower_borrow — if own-instance resource, write rep directly
+            if (ownInstanceResources?.has(resourceTypeIdx)) {
+                return (_ctx, ptr, jsValue) => {
+                    _ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, jsValue as number, true);
+                };
+            }
             return (ctx, ptr, jsValue) => {
                 const handle = ctx.resources.add(resourceTypeIdx, jsValue);
                 ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
@@ -669,7 +681,7 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
     const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
-    const elemStorer = createMemoryStorer(elementType, rctx.stringEncoding, rctx.canonicalResourceIds);
+    const elemStorer = createMemoryStorer(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
 
     return (ctx, srcJsValue, out, offset) => {
         const arr = srcJsValue as any[];
@@ -900,6 +912,14 @@ function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDe
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
+    // Canonical ABI: lower_borrow — if cx.inst is t.rt.impl (own-instance resource),
+    // pass the rep directly without creating a handle.
+    if (rctx.ownInstanceResources.has(resourceTypeIdx)) {
+        return (_ctx, srcJsValue, out, offset) => {
+            out[offset] = srcJsValue;
+            return 1;
+        };
+    }
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return 1;

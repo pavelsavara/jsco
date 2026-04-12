@@ -10,7 +10,7 @@ import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf,
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
-import { validatePointerAlignment, validateUtf8 } from './validation';
+import { validatePointerAlignment, validateUtf16 } from './validation';
 import camelCase from 'just-camel-case';
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
@@ -65,7 +65,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         const canonicalResourceIds = rctx.canonicalResourceIds;
 
         // Pre-create memory loaders/storer for spilled calling convention
-        const paramLoaders = paramResolvedTypes.map(pt => createMemoryLoader(pt, stringEncoding, canonicalResourceIds));
+        const paramLoaders = paramResolvedTypes.map(pt => createMemoryLoader(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
         const resultStorer = resultType !== undefined ? createMemoryStorer(resultType, stringEncoding, canonicalResourceIds) : undefined;
 
         // Pre-compute spilled parameter offsets
@@ -376,19 +376,16 @@ function createStringLowering(encoding: StringEncoding): LoweringToJs {
 
 function createStringLoweringUtf8(): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const pointer = args[0] as WasmPointer;
-        const len = args[1] as WasmSize;
+        const pointer = (args[0] as number) >>> 0 as WasmPointer;
+        const len = (args[1] as number) >>> 0 as WasmSize;
         if (len as number > 0) {
-            // Validate pointer alignment (UTF-8 = 1-byte, so always aligned)
             // Validate bounds
             const memorySize = ctx.memory.getMemory().buffer.byteLength;
             if ((pointer as number) + (len as number) > memorySize) {
                 throw new Error(`string pointer out of bounds: ptr=${pointer} len=${len} memory_size=${memorySize}`);
             }
-            // Validate UTF-8 encoding
-            const bytes = ctx.memory.getViewU8(pointer, len);
-            validateUtf8(bytes);
         }
+        // TextDecoder with fatal:true validates UTF-8 and decodes in a single native pass
         const view = ctx.memory.getView(pointer, len);
         const res = ctx.utf8Decoder.decode(view);
         return res;
@@ -399,8 +396,8 @@ function createStringLoweringUtf8(): LoweringToJs {
 
 function createStringLoweringUtf16(): LoweringToJs {
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const pointer = args[0] as WasmPointer;
-        const codeUnits = args[1] as WasmSize;
+        const pointer = (args[0] as number) >>> 0 as WasmPointer;
+        const codeUnits = (args[1] as number) >>> 0 as WasmSize;
         if (codeUnits as number > 0) {
             const byteLen = (codeUnits as number) * 2;
             // Validate pointer alignment (UTF-16 = 2-byte alignment)
@@ -416,6 +413,7 @@ function createStringLoweringUtf16(): LoweringToJs {
         const byteLen = (codeUnits as number) * 2;
         const view = ctx.memory.getView(pointer, byteLen as WasmSize);
         const u16 = new Uint16Array(view.buffer, view.byteOffset, codeUnits as number);
+        validateUtf16(u16);
         return String.fromCharCode(...u16);
     };
     fn.spill = 2;
@@ -455,23 +453,46 @@ function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding)
         case PrimitiveValType.Float64:
             return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getFloat64(0, true);
         case PrimitiveValType.Char:
-            return (ctx, ptr) => String.fromCodePoint(ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true));
+            return (ctx, ptr) => {
+                const i = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
+                if (i >= 0x110000) throw new Error(`Invalid char codepoint: ${i} >= 0x110000`);
+                if (i >= 0xD800 && i <= 0xDFFF) throw new Error(`Invalid char codepoint: surrogate ${i}`);
+                return String.fromCodePoint(i);
+            };
         case PrimitiveValType.String: {
             if (encoding === StringEncoding.Utf16) {
                 return (ctx, ptr) => {
                     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
-                    const strPtr = dv.getInt32(0, true);
-                    const strLen = dv.getInt32(4, true);
-                    const byteLen = strLen * 2;
-                    const strView = ctx.memory.getView(strPtr as WasmPointer, byteLen as WasmSize);
-                    const u16 = new Uint16Array(strView.buffer, strView.byteOffset, strLen);
-                    return String.fromCharCode(...u16);
+                    const strPtr = dv.getUint32(0, true);
+                    const strLen = dv.getUint32(4, true);
+                    if (strLen > 0) {
+                        const byteLen = strLen * 2;
+                        if (strPtr & 1) {
+                            throw new Error(`UTF-16 string pointer not aligned: ptr=${strPtr}`);
+                        }
+                        const memorySize = ctx.memory.getMemory().buffer.byteLength;
+                        if (strPtr + byteLen > memorySize) {
+                            throw new Error(`string pointer out of bounds: ptr=${strPtr} byte_len=${byteLen} memory_size=${memorySize}`);
+                        }
+                        const strView = ctx.memory.getView(strPtr as WasmPointer, byteLen as WasmSize);
+                        const u16 = new Uint16Array(strView.buffer, strView.byteOffset, strLen);
+                        validateUtf16(u16);
+                        return String.fromCharCode(...u16);
+                    }
+                    return '';
                 };
             }
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
-                const strPtr = dv.getInt32(0, true);
-                const strLen = dv.getInt32(4, true);
+                const strPtr = dv.getUint32(0, true);
+                const strLen = dv.getUint32(4, true);
+                if (strLen > 0) {
+                    const memorySize = ctx.memory.getMemory().buffer.byteLength;
+                    if (strPtr + strLen > memorySize) {
+                        throw new Error(`string pointer out of bounds: ptr=${strPtr} len=${strLen} memory_size=${memorySize}`);
+                    }
+                }
+                // TextDecoder with fatal:true validates UTF-8 and decodes in a single native pass
                 const strView = ctx.memory.getView(strPtr as WasmPointer, strLen as WasmSize);
                 return ctx.utf8Decoder.decode(strView);
             };
@@ -481,7 +502,7 @@ function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding)
     }
 }
 
-export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): MemoryLoader {
+export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, ownInstanceResources?: Set<number>): MemoryLoader {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -496,7 +517,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 fieldLoaders.push({
                     name: camelCase(member.name),
                     offset,
-                    loader: createMemoryLoader(fieldType, stringEncoding, canonicalResourceIds)
+                    loader: createMemoryLoader(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources)
                 });
                 offset += sizeOf(fieldType);
             }
@@ -511,11 +532,19 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
         case ModelTag.ComponentTypeDefinedList: {
             const elemType = resolveValTypePure(type.value);
             const elemSize = sizeOf(elemType);
-            const elemLoader = createMemoryLoader(elemType, stringEncoding, canonicalResourceIds);
+            const elemAlign = alignOf(elemType);
+            const elemLoader = createMemoryLoader(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
-                const listPtr = dv.getInt32(0, true);
-                const len = dv.getInt32(4, true);
+                const listPtr = dv.getUint32(0, true);
+                const len = dv.getUint32(4, true);
+                if (len > 0) {
+                    validatePointerAlignment(listPtr, elemAlign, 'list');
+                    const memorySize = ctx.memory.getMemory().buffer.byteLength;
+                    if (listPtr + len * elemSize > memorySize) {
+                        throw new Error(`list pointer out of bounds: ptr=${listPtr} len=${len} elem_size=${elemSize} memory_size=${memorySize}`);
+                    }
+                }
                 const result = new Array(len);
                 for (let i = 0; i < len; i++) {
                     result[i] = elemLoader(ctx, listPtr + i * elemSize);
@@ -527,10 +556,11 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             const payloadType = resolveValTypePure(type.value);
             const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
-            const payloadLoader = createMemoryLoader(payloadType, stringEncoding, canonicalResourceIds);
+            const payloadLoader = createMemoryLoader(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const disc = dv.getUint8(0);
+                if (disc > 1) throw new Error(`Invalid option discriminant: ${disc}`);
                 if (disc === 0) return null;
                 return payloadLoader(ctx, ptr + payloadOffset);
             };
@@ -540,11 +570,12 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
             if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
-            const okLoader = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds) : undefined;
-            const errLoader = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds) : undefined;
+            const okLoader = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
+            const errLoader = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const disc = dv.getUint8(0);
+                if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
                 if (disc === 0) {
                     const val = okLoader ? okLoader(ctx, ptr + payloadOffset) : undefined;
                     return { tag: 'ok', val };
@@ -562,15 +593,17 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const caseLoaders = type.variants.map(c =>
-                c.ty !== undefined ? createMemoryLoader(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds) : undefined
+                c.ty !== undefined ? createMemoryLoader(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined
             );
             const caseNames = type.variants.map(c => c.name);
+            const numCases = type.variants.length;
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 let disc: number;
                 if (discSize === 1) disc = dv.getUint8(0);
                 else if (discSize === 2) disc = dv.getUint16(0, true);
                 else disc = dv.getUint32(0, true);
+                if (disc >= numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${numCases}`);
                 const loader = caseLoaders[disc];
                 if (loader) {
                     return { tag: caseNames[disc], val: loader(ctx, ptr + payloadOffset) };
@@ -581,12 +614,14 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
         case ModelTag.ComponentTypeDefinedEnum: {
             const discSize = discriminantSize(type.members.length);
             const memberNames = type.members;
+            const numMembers = type.members.length;
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 let disc: number;
                 if (discSize === 1) disc = dv.getUint8(0);
                 else if (discSize === 2) disc = dv.getUint16(0, true);
                 else disc = dv.getUint32(0, true);
+                if (disc >= numMembers) throw new Error(`Invalid enum discriminant: ${disc} >= ${numMembers}`);
                 return memberNames[disc];
             };
         }
@@ -612,7 +647,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 const memberType = resolveValTypePure(member);
                 const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                memberLoaders.push({ offset, loader: createMemoryLoader(memberType, stringEncoding, canonicalResourceIds) });
+                memberLoaders.push({ offset, loader: createMemoryLoader(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources) });
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr) => {
@@ -632,6 +667,12 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
+            // Canonical ABI: lift_borrow — if own-instance resource, value is rep directly
+            if (ownInstanceResources?.has(resourceTypeIdx)) {
+                return (ctx, ptr) => {
+                    return ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
+                };
+            }
             return (ctx, ptr) => {
                 const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
                 return ctx.resources.get(resourceTypeIdx, handle);
@@ -648,11 +689,11 @@ function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefin
     const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
-    const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds);
+    const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const ptr = args[0] as number;
-        const len = args[1] as number;
+        const ptr = (args[0] as number) >>> 0;
+        const len = (args[1] as number) >>> 0;
         if (len > 0) {
             // Validate list pointer alignment
             validatePointerAlignment(ptr, elemAlign, 'list');
@@ -877,6 +918,15 @@ function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeD
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
+    // Canonical ABI: lift_borrow — if cx.inst is t.rt.impl (own-instance resource),
+    // the value is already the rep, not a handle.
+    if (rctx.ownInstanceResources.has(resourceTypeIdx)) {
+        const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
+            return args[0];
+        };
+        fn.spill = 1;
+        return fn;
+    }
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.get(resourceTypeIdx, handle);

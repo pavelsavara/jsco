@@ -27,6 +27,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
             liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             componentSectionCache: new Map(),
             usesNumberForInt64,
             stringEncoding: StringEncoding.Utf8,
@@ -80,7 +81,7 @@ function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buff
         memory,
         allocator,
         utf8Encoder: new TextEncoder(),
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
     } as any as BindingContext;
 
@@ -2199,7 +2200,7 @@ describe('function trampoline edge cases', () => {
             memory,
             allocator,
             utf8Encoder: new TextEncoder(),
-            utf8Decoder: new TextDecoder(),
+            utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
             instances: { coreInstances: [], componentInstances: [] },
             componentImports: {},
             abort: () => { },

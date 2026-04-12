@@ -74,7 +74,7 @@ function createMockMemoryContext(): { ctx: BindingContext, buffer: ArrayBuffer }
         memory,
         allocator,
         utf8Encoder: new TextEncoder(),
-        utf8Decoder: new TextDecoder(),
+        utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
     } as any as BindingContext;
 
     return { ctx, buffer };
