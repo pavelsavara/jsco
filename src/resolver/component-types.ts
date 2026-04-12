@@ -1,8 +1,9 @@
+import isDebug from 'env:isDebug';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
 import { ComponentSection } from '../parser/types';
-import { debugStack, withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
 import { resolveComponentImport } from './component-imports';

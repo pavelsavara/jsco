@@ -21,6 +21,7 @@ let gitHash = (() => {
 
 const constants = {
     'env:configuration': `export default "${configuration}"`,
+    'env:isDebug': `export default ${isDebug}`,
     'env:gitHash': `export default "${gitHash}"`,
 };
 const plugins = isDebug ? [] : [terser({

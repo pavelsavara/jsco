@@ -1,9 +1,10 @@
+import isDebug from 'env:isDebug';
 import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
 import { CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
+import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLifting } from './binding';
 import { WasmFunction } from './binding/types';
 import { resolveComponentInstance } from './component-instances';

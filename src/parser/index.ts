@@ -1,6 +1,7 @@
+import isDebug from 'env:isDebug';
 import type { WITModel, ParserContext, ParserOptions, ComponentSection } from './types';
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
-import { defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn } from '../utils/assert';
 import { printWAT } from '../utils/wat-printer';
 import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';

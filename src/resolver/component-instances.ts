@@ -1,3 +1,4 @@
+import isDebug from 'env:isDebug';
 import camelCase from 'just-camel-case';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
@@ -5,7 +6,7 @@ import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInsta
 import { ComponentAliasInstanceExport } from '../model/aliases';
 import { ModelTag, TaggedElement } from '../model/tags';
 import { ComponentTypeInstance } from '../model/types';
-import { debugStack, withDebugTrace, jsco_assert, isDebug } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { JsImports } from './api-types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';

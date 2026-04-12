@@ -16,7 +16,7 @@
  */
 
 import { createWasiHost } from './index';
-import { setConfiguration } from '../../utils/assert';
+import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, runWithVerbose } from '../../test-utils/verbose-logger';
 import {
     yieldToGC, fullWasiConfig, forwardedInterfaces, implementerInterfaces,
@@ -28,7 +28,7 @@ import {
 } from './integration-helpers';
 import type { ImportsMap } from './integration-helpers';
 
-setConfiguration('Debug');
+initializeAsserts();
 
 describe('Integration tests (flat)', () => {
     const verbose = useVerboseOnFailure();

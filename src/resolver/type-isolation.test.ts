@@ -1,5 +1,5 @@
-import { setConfiguration } from '../utils/assert';
-setConfiguration('Debug');
+import { initializeAsserts } from '../utils/assert';
+initializeAsserts();
 
 import { ModelTag } from '../model/tags';
 import { ComponentTypeIndex } from '../model/indices';

@@ -1,5 +1,5 @@
-import { setConfiguration } from '../utils/assert';
-setConfiguration('Debug');
+import { initializeAsserts } from '../utils/assert';
+initializeAsserts();
 
 import { ModelTag, WITSection } from '../model/tags';
 import { PrimitiveValType, ComponentTypeInstance, ComponentTypeFunc } from '../model/types';

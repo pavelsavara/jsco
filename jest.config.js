@@ -10,6 +10,11 @@ export default {
         '^.+\\.(ts|tsx|js|jsx)$': ['@swc/jest'],
         //"^.+\\.(ts|tsx)$": "ts-jest"
     },
+    moduleNameMapper: {
+        '^env:isDebug$': '<rootDir>/src/__mocks__/env-isDebug.ts',
+        '^env:configuration$': '<rootDir>/src/__mocks__/env-configuration.ts',
+        '^env:gitHash$': '<rootDir>/src/__mocks__/env-gitHash.ts',
+    },
     transformIgnorePatterns: [
         '/node_modules/@bytecodealliance/'
     ],

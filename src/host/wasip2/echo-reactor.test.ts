@@ -7,11 +7,11 @@
  */
 
 import { createComponent } from '../../resolver';
-import { setConfiguration } from '../../utils/assert';
+import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 import { createWasiHost } from './index';
 
-setConfiguration('Debug');
+initializeAsserts();
 
 const echoWasm = './integration-tests/target/wasm32-wasip1/release/echo_reactor.wasm';
 

@@ -3,7 +3,7 @@
 
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
-import { setConfiguration } from './utils/assert';
+import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
 
 export type { WITModel } from './parser';
@@ -26,4 +26,4 @@ export function getBuildInfo() {
     };
 }
 
-setConfiguration(configuration);
+initializeAsserts();

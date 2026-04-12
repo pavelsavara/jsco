@@ -1,4 +1,5 @@
-import { isDebug, LogLevel } from '../utils/assert';
+import isDebug from 'env:isDebug';
+import { LogLevel } from '../utils/assert';
 import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from './context';

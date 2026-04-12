@@ -1,9 +1,10 @@
+import isDebug from 'env:isDebug';
 import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { configuration, defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
@@ -461,7 +462,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
             ctx.poisoned = true;
         },
     };
-    if (configuration === 'Debug') {
+    if (isDebug) {
         ctx.debugStack = [];
     }
     return ctx;

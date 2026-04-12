@@ -1,6 +1,7 @@
+import isDebug from 'env:isDebug';
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
-import { isDebug, LogLevel } from '../utils/assert';
+import { LogLevel } from '../utils/assert';
 import { planOpKindName, modelTagName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance, WasmComponent } from './api-types';
 import { PlanOp, PlanOpKind, executePlan } from './binding-plan';
