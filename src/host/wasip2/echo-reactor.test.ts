@@ -12,7 +12,7 @@ import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-
 
 setConfiguration('Debug');
 
-const echoWasm = './integration-tests/target/wasm32-unknown-unknown/release/echo_reactor.wasm';
+const echoWasm = './integration-tests/target/wasm32-wasip1/release/echo_reactor.wasm';
 
 interface SinkReport {
     label: string;

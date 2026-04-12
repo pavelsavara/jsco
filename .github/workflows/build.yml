@@ -18,8 +18,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+
     - name: Install npm dependencies
-      run: npm install -ci
+      run: npm ci
 
     - name: Rollup project
       run: npm run build:npm

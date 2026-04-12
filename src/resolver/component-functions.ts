@@ -64,6 +64,8 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
     rctx.resolved.stringEncoding = savedEncoding;
 
+    const useJspi = rctx.resolved.jspi;
+
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLift,
@@ -86,7 +88,15 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             };
             const functionResult = await coreFunctionResolution.binder(bctx, args);
 
-            const jsFunction = liftingBinder(bctx, functionResult.result as WasmFunction);
+            // JSPI: wrap the core function with promising() so that the WASM stack
+            // can suspend when an async (Suspending-wrapped) import is called.
+            // Only the component export entry point needs this — NOT all core exports.
+            let coreFn = functionResult.result as WasmFunction;
+            if (useJspi) {
+                coreFn = (WebAssembly as any).promising(coreFn);
+            }
+
+            const jsFunction = liftingBinder(bctx, coreFn);
 
             const binderResult = {
                 result: jsFunction

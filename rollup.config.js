@@ -61,7 +61,8 @@ const jsco = {
             extensions: ['.ts'],
         }),
         typescript({
-            exclude: ['**/*.test.ts', '**/*.spec.ts', 'tests/**'],
+            exclude: ['**/*.test.ts', '**/*.spec.ts', 'tests/**', '**/integration-helpers.ts'],
+            compilerOptions: { rootDir: './src' },
         })
     ]
 };

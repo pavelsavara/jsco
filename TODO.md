@@ -94,18 +94,6 @@
 
 # Skipped Tests
 
-## JSPI — end-to-end with stdout capture (hello-world.test.ts)
-`WebAssembly.promising()` wrapping causes the WASM adapter to receive a Promise where
-it expects a sync i32 value, coercing handle to 0. The `descriptor.get-type` call then
-fails with `Invalid resource handle: 0` because handle 0 was never created (handles
-start at 1). Additionally, the JSPI test poisons Node.js state, causing subsequent
-tests in the same file to fail. Root cause is in how JSPI suspension/resumption
-interacts with the component model's synchronous resource handle creation chain
-(fd_write → get-directories → descriptor.get-type).
-**Blocked on**: understanding how `WebAssembly.promising()` interacts with adapter-
-generated trampolines. May require WASIp3 async model (native WASM stack switching)
-to solve properly.
-
 ## Non-JSPI error message — block() throws JSPI error (poll.test.ts)
 Intentionally skipped when running with `--experimental-wasm-jspi`. The test verifies
 the error message shown to users who don't have JSPI enabled. It only runs when JSPI

@@ -77,11 +77,7 @@ describe('hello-world component', () => {
     });
 
     describe('instantiateWasiComponent', () => {
-        // JSPI test disabled — WebAssembly.promising() leaves Node.js state
-        // that causes subsequent tests to fail with "Invalid resource handle: 0".
-        // The WASM adapter receives a Promise where it expects a sync value,
-        // causing handle coercion to 0. Investigate JSPI suspension/resumption.
-        test.skip('end-to-end with stdout capture', () => runWithVerbose(verbose, async () => {
+        test('end-to-end with stdout capture', () => runWithVerbose(verbose, async () => {
             const chunks: Uint8Array[] = [];
 
             let exitCode: number | undefined;
