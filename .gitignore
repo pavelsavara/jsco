@@ -135,3 +135,5 @@ dist
 target/
 
 *.wasm
+# Hand-written WAT test component (checked in, 5KB)
+!integration-tests/echo-reactor-wat/echo.wasm
