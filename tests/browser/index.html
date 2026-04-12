@@ -15,8 +15,8 @@
             const instance = await component.instantiate({});
             const ns = instance.exports['jsco:test/echo-primitives@0.1.0'];
 
-            const boolResult = ns['echo-bool'](true);
-            const u8Result = ns['echo-u8'](42);
+            const boolResult = ns.echoBool(true);
+            const u8Result = ns.echoU8(42);
 
             window.__testResults = {
                 success: true,
