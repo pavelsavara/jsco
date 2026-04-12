@@ -32,6 +32,7 @@ export type ParserContext = {
     processCustomSection?: (section: CustomSection) => CustomSection
     verbose?: Verbosity
     logger?: LogFn
+    depth: number
 }
 
 export type ParserOptions = {

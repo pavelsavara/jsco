@@ -7,6 +7,7 @@ import { ResolverContext, BindingContext } from '../types';
 import { createLifting as _createLifting } from './to-abi';
 import { createLowering } from './to-js';
 import type { WasmValue } from './types';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -36,7 +37,7 @@ function prim(value: PrimitiveValType): ComponentValType {
     return { tag: ModelTag.ComponentValTypePrimitive, value };
 }
 
-describe('primitive lifting (JS → WASM)', () => {
+describeDebugOnly('primitive lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -203,7 +204,7 @@ describe('primitive lifting (JS → WASM)', () => {
     });
 });
 
-describe('primitive lowering (WASM → JS)', () => {
+describeDebugOnly('primitive lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -329,7 +330,7 @@ describe('primitive lowering (WASM → JS)', () => {
     });
 });
 
-describe('lowerer spill counts', () => {
+describeDebugOnly('lowerer spill counts', () => {
     let rctx: ResolverContext;
 
     beforeEach(() => {

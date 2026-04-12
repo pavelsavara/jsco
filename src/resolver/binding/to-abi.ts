@@ -7,27 +7,14 @@ import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
+import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK } from '../../constants';
-
-// Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
-const _f32 = new Float32Array(1);
-const _i32 = new Int32Array(_f32.buffer);
-_i32[0] = 0x7fc00000;
-const canonicalNaN32: number = _f32[0];
-const _f64 = new Float64Array(1);
-const _i64 = new BigInt64Array(_f64.buffer);
-_i64[0] = 0x7ff8000000000000n;
-const canonicalNaN64: number = _f64[0];
-
-function bigIntReplacer(_key: string, value: unknown): unknown {
-    return typeof value === 'bigint' ? value.toString() + 'n' : value;
-}
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
@@ -451,10 +438,6 @@ function createStringLiftingUtf16(): LiftingFromJs {
 }
 
 // --- Memory store helpers (for list element storage) ---
-
-function alignUp(offset: number, align: number): number {
-    return (offset + align - 1) & ~(align - 1);
-}
 
 export type MemoryStorer = (ctx: BindingContext, ptr: number, jsValue: JsValue) => void;
 

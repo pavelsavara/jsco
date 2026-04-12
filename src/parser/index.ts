@@ -55,6 +55,7 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
             processCustomSection: options?.[PROCESS_CUSTOM_SECTION] ?? undefined,
             verbose: { ...defaultVerbosity, ...options?.[VERBOSE] },
             logger: options?.[LOGGER] ?? defaultLogger,
+            depth: 0,
         };
 
         const model: WITSection[] = [];
@@ -150,26 +151,36 @@ function parseSectionStart(src: SyncSource): WITSection[] {
     return [readStartFunction(src)];
 }
 
+const MAX_NESTING_DEPTH = 100;
+
 async function parseSectionComponent(
     ctx: ParserContext,
     src: Source,
     size: number
 ): Promise<ComponentSection[]> {
-    const end = src.pos + size;
-    await checkPreamble(src);
-    let model: WITSection[] = [];
-    for (; ;) {
-        if (src.pos == end) {
-            break;
-        }
-        const sections = await parseSection(ctx, src);
-        if (sections === null) {
-            break;
-        }
-        model = [...model, ...sections];
+    if (ctx.depth >= MAX_NESTING_DEPTH) {
+        throw new Error(`component nesting depth exceeds ${MAX_NESTING_DEPTH}`);
     }
-    return [{
-        tag: ModelTag.ComponentSection,
-        sections: model,
-    }];
+    ctx.depth++;
+    try {
+        const end = src.pos + size;
+        await checkPreamble(src);
+        let model: WITSection[] = [];
+        for (; ;) {
+            if (src.pos == end) {
+                break;
+            }
+            const sections = await parseSection(ctx, src);
+            if (sections === null) {
+                break;
+            }
+            model = [...model, ...sections];
+        }
+        return [{
+            tag: ModelTag.ComponentSection,
+            sections: model,
+        }];
+    } finally {
+        ctx.depth--;
+    }
 }

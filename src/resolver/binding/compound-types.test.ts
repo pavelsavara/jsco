@@ -7,6 +7,7 @@ import { ResolverContext, BindingContext } from '../types';
 import { createLifting as _createLifting } from './to-abi';
 import { createLowering } from './to-js';
 import { WasmPointer, WasmSize, WasmValue } from './types';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -93,7 +94,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 // ─── Option lifting (JS → WASM) ───────────────────────────────────────────
 
-describe('option lifting (JS → WASM)', () => {
+describeDebugOnly('option lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -135,7 +136,7 @@ describe('option lifting (JS → WASM)', () => {
 
 // ─── Option lowering (WASM → JS) ──────────────────────────────────────────
 
-describe('option lowering (WASM → JS)', () => {
+describeDebugOnly('option lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -167,7 +168,7 @@ describe('option lowering (WASM → JS)', () => {
 
 // ─── Nested option (option<option<u32>>) ───────────────────────────────────
 
-describe('nested option<option<u32>>', () => {
+describeDebugOnly('nested option<option<u32>>', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -238,7 +239,7 @@ describe('nested option<option<u32>>', () => {
 
 // ─── Result lifting (JS → WASM) ───────────────────────────────────────────
 
-describe('result lifting (JS → WASM)', () => {
+describeDebugOnly('result lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -271,7 +272,7 @@ describe('result lifting (JS → WASM)', () => {
 
 // ─── Result lowering (WASM → JS) ──────────────────────────────────────────
 
-describe('result lowering (WASM → JS)', () => {
+describeDebugOnly('result lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -309,7 +310,7 @@ describe('result lowering (WASM → JS)', () => {
 
 // ─── Result with no error type ─────────────────────────────────────────────
 
-describe('result with no error type', () => {
+describeDebugOnly('result with no error type', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -351,7 +352,7 @@ describe('result with no error type', () => {
 
 // ─── Result with no ok type ────────────────────────────────────────────────
 
-describe('result with no ok type (error-only)', () => {
+describeDebugOnly('result with no ok type (error-only)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -388,7 +389,7 @@ describe('result with no ok type (error-only)', () => {
 
 // ─── List lifting (JS → WASM) ─────────────────────────────────────────────
 
-describe('list lifting (JS → WASM)', () => {
+describeDebugOnly('list lifting (JS → WASM)', () => {
     const listU32Model = {
         tag: ModelTag.ComponentTypeDefinedList as const,
         value: prim(PrimitiveValType.U32),
@@ -457,7 +458,7 @@ describe('list lifting (JS → WASM)', () => {
 
 // ─── List lowering (WASM → JS) ────────────────────────────────────────────
 
-describe('list lowering (WASM → JS)', () => {
+describeDebugOnly('list lowering (WASM → JS)', () => {
     const listU32Model = {
         tag: ModelTag.ComponentTypeDefinedList as const,
         value: prim(PrimitiveValType.U32),
@@ -512,7 +513,7 @@ describe('list lowering (WASM → JS)', () => {
 
 // ─── Compound type spill counts ────────────────────────────────────────────
 
-describe('compound type spill counts', () => {
+describeDebugOnly('compound type spill counts', () => {
     let rctx: ResolverContext;
 
     beforeEach(() => {
@@ -574,7 +575,7 @@ describe('compound type spill counts', () => {
 
 // ─── List round-trip (lift then lower) ─────────────────────────────────────
 
-describe('list round-trip', () => {
+describeDebugOnly('list round-trip', () => {
     test('list<u32> lifts then lowers back to original', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -597,7 +598,7 @@ describe('list round-trip', () => {
 
 // ─── Variant lifting (JS → WASM) ──────────────────────────────────────────
 
-describe('variant lifting', () => {
+describeDebugOnly('variant lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -638,7 +639,7 @@ describe('variant lifting', () => {
 
 // ─── Variant lowering (WASM → JS) ─────────────────────────────────────────
 
-describe('variant lowering', () => {
+describeDebugOnly('variant lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -679,7 +680,7 @@ describe('variant lowering', () => {
 
 // ─── Enum lifting (JS → WASM) ─────────────────────────────────────────────
 
-describe('enum lifting', () => {
+describeDebugOnly('enum lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -716,7 +717,7 @@ describe('enum lifting', () => {
 
 // ─── Enum lowering (WASM → JS) ────────────────────────────────────────────
 
-describe('enum lowering', () => {
+describeDebugOnly('enum lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -753,7 +754,7 @@ describe('enum lowering', () => {
 
 // ─── Flags lifting (JS → WASM) ────────────────────────────────────────────
 
-describe('flags lifting', () => {
+describeDebugOnly('flags lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -804,7 +805,7 @@ describe('flags lifting', () => {
 
 // ─── Flags lowering (WASM → JS) ───────────────────────────────────────────
 
-describe('flags lowering', () => {
+describeDebugOnly('flags lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -855,7 +856,7 @@ describe('flags lowering', () => {
 
 // ─── Tuple lifting (JS → WASM) ────────────────────────────────────────────
 
-describe('tuple lifting', () => {
+describeDebugOnly('tuple lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -885,7 +886,7 @@ describe('tuple lifting', () => {
 
 // ─── Tuple lowering (WASM → JS) ───────────────────────────────────────────
 
-describe('tuple lowering', () => {
+describeDebugOnly('tuple lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 

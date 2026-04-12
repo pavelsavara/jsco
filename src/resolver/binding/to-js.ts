@@ -7,27 +7,14 @@ import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
+import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../constants';
-
-// Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
-const _f32 = new Float32Array(1);
-const _i32 = new Int32Array(_f32.buffer);
-_i32[0] = 0x7fc00000;
-const canonicalNaN32: number = _f32[0];
-const _f64 = new Float64Array(1);
-const _i64 = new BigInt64Array(_f64.buffer);
-_i64[0] = 0x7ff8000000000000n;
-const canonicalNaN64: number = _f64[0];
-
-function bigIntReplacer(_key: string, value: unknown): unknown {
-    return typeof value === 'bigint' ? value.toString() + 'n' : value;
-}
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
@@ -423,10 +410,6 @@ function createStringLoweringUtf16(): LoweringToJs {
 }
 
 // --- Memory load helpers (for list element loading) ---
-
-function alignUp(offset: number, align: number): number {
-    return (offset + align - 1) & ~(align - 1);
-}
 
 export type MemoryLoader = (ctx: BindingContext, ptr: number) => any;
 

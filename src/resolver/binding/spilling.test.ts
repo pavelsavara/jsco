@@ -7,6 +7,7 @@ import { ResolverContext, BindingContext } from '../types';
 import { createFunctionLifting } from './to-abi';
 import { createFunctionLowering } from './to-js';
 import { WasmPointer, WasmSize } from './types';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // ─── Mock helpers ──────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ function makeFunc(paramCount: number, resultType?: ComponentValType): ComponentT
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
-describe('function trampolines', () => {
+describeDebugOnly('function trampolines', () => {
 
     // ── Flat params (within MAX_FLAT_PARAMS) ────────────────────────────
 

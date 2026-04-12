@@ -51,13 +51,6 @@
 - re-entry on async - queue
 - zero copy bring-your-own-buffer
 
-# Minification
-- `jsco_assert` should be eliminated in Release builds via Rollup plugin (inline macro)
-- Jest can't resolve Rollup virtual modules for build-time constant injection
-- `isDebug` doesn't trim, use proper virtual/const import
-- internal fields
-- refactor string constants
-
 # Demo
 - create demo web site
 - command line in the browser for WASI cli programs

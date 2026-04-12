@@ -326,7 +326,7 @@ class SyncArraySource implements SyncSource {
     read(eof?: true): number | null {
         if (this.items.length - this._pos < 1) {
             if (eof) {
-                null;
+                return null;
             } else {
                 throw new Error('unexpected EOF.');
             }

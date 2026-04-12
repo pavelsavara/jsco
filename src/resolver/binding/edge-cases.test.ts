@@ -10,6 +10,7 @@ import { createLowering, createFunctionLowering } from './to-js';
 import { storeToMemory, loadFromMemory } from './test-helpers';
 import { WasmPointer, WasmSize, WasmValue } from './types';
 import { deepResolveType } from '../calling-convention';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -94,7 +95,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 // ─── Primitive edge cases ──────────────────────────────────────────────────
 
-describe('primitive lifting edge cases', () => {
+describeDebugOnly('primitive lifting edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -312,7 +313,7 @@ describe('primitive lifting edge cases', () => {
     });
 });
 
-describe('primitive lowering edge cases', () => {
+describeDebugOnly('primitive lowering edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -450,7 +451,7 @@ describe('primitive lowering edge cases', () => {
 
 // ─── String edge cases ─────────────────────────────────────────────────────
 
-describe('string edge cases', () => {
+describeDebugOnly('string edge cases', () => {
     test('empty string lifts to [0, 0]', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -514,7 +515,7 @@ describe('string edge cases', () => {
 
 // ─── Compound type edge cases ──────────────────────────────────────────────
 
-describe('option edge cases', () => {
+describeDebugOnly('option edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -566,7 +567,7 @@ describe('option edge cases', () => {
     });
 });
 
-describe('result edge cases', () => {
+describeDebugOnly('result edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -605,7 +606,7 @@ describe('result edge cases', () => {
     });
 });
 
-describe('variant edge cases', () => {
+describeDebugOnly('variant edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -660,7 +661,7 @@ describe('variant edge cases', () => {
     });
 });
 
-describe('enum edge cases', () => {
+describeDebugOnly('enum edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -707,7 +708,7 @@ describe('enum edge cases', () => {
     });
 });
 
-describe('flags edge cases', () => {
+describeDebugOnly('flags edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -789,7 +790,7 @@ describe('flags edge cases', () => {
     });
 });
 
-describe('tuple edge cases', () => {
+describeDebugOnly('tuple edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -850,7 +851,7 @@ describe('tuple edge cases', () => {
 
 // ─── Record edge cases ─────────────────────────────────────────────────────
 
-describe('record edge cases', () => {
+describeDebugOnly('record edge cases', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -922,7 +923,7 @@ describe('record edge cases', () => {
 
 // ─── List edge cases ───────────────────────────────────────────────────────
 
-describe('list edge cases', () => {
+describeDebugOnly('list edge cases', () => {
     test('list with single element', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
@@ -992,7 +993,7 @@ describe('list edge cases', () => {
 
 // ─── Resource edge cases ───────────────────────────────────────────────────
 
-describe('resource edge cases', () => {
+describeDebugOnly('resource edge cases', () => {
     test('own: lifting null/undefined still stores it', () => {
         const rctx = createMinimalRctx();
         const bctx = { resources: createResourceTable() } as any as BindingContext;
@@ -1043,7 +1044,7 @@ describe('resource edge cases', () => {
 
 // ─── Memory round-trip edge cases ──────────────────────────────────────────
 
-describe('storeToMemory/loadFromMemory round-trips', () => {
+describeDebugOnly('storeToMemory/loadFromMemory round-trips', () => {
     test('record with alignment padding round-trips', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -1120,7 +1121,7 @@ describe('storeToMemory/loadFromMemory round-trips', () => {
 
 // ─── ComponentValTypeType (type reference) edge cases ──────────────────────
 
-describe('type reference (ComponentValTypeType) edge cases', () => {
+describeDebugOnly('type reference (ComponentValTypeType) edge cases', () => {
     test('resolves through type reference for primitives', () => {
         const rctx = createMinimalRctx();
         const bctx = createMinimalBctx();
@@ -1154,7 +1155,7 @@ describe('type reference (ComponentValTypeType) edge cases', () => {
 
 // ─── Discriminant size boundary tests ──────────────────────────────────────
 
-describe('discriminant size boundaries', () => {
+describeDebugOnly('discriminant size boundaries', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -1254,7 +1255,7 @@ describe('discriminant size boundaries', () => {
 
 // ─── Nested compound type tests ────────────────────────────────────────────
 
-describe('nested compound types', () => {
+describeDebugOnly('nested compound types', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -1520,7 +1521,7 @@ describe('nested compound types', () => {
 
 // ─── Char boundary value tests ─────────────────────────────────────────────
 
-describe('char boundary values (spec-exact)', () => {
+describeDebugOnly('char boundary values (spec-exact)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -1619,7 +1620,7 @@ describe('char boundary values (spec-exact)', () => {
 
 // ─── Multi-word flags tests ────────────────────────────────────────────────
 
-describe('multi-word flags (>32 members)', () => {
+describeDebugOnly('multi-word flags (>32 members)', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -1718,7 +1719,7 @@ describe('multi-word flags (>32 members)', () => {
 
 // ─── Bool from memory tests ────────────────────────────────────────────────
 
-describe('bool from memory (non-0/1 values)', () => {
+describeDebugOnly('bool from memory (non-0/1 values)', () => {
     test('loadFromMemory: value 2 reads as true', () => {
         const rctx = createMinimalRctx();
         const { ctx, buffer } = createMockMemoryContext();
@@ -1773,7 +1774,7 @@ describe('bool from memory (non-0/1 values)', () => {
 
 // ─── Discriminant memory round-trip tests ──────────────────────────────────
 
-describe('discriminant in memory round-trips', () => {
+describeDebugOnly('discriminant in memory round-trips', () => {
     test('variant 256 cases via storeToMemory/loadFromMemory', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -1984,7 +1985,7 @@ describe('discriminant in memory round-trips', () => {
 
 // ─── Resource handle edge cases (additional) ───────────────────────────────
 
-describe('resource handle additional edge cases', () => {
+describeDebugOnly('resource handle additional edge cases', () => {
     test('own via memory round-trip', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -2070,7 +2071,7 @@ describe('resource handle additional edge cases', () => {
 
 // ─── Nested memory round-trips (complex) ──────────────────────────────────
 
-describe('nested types via memory round-trips', () => {
+describeDebugOnly('nested types via memory round-trips', () => {
     test('list<record{a: u8, b: u32}> via memory', () => {
         const rctx = createMinimalRctx();
         const { ctx } = createMockMemoryContext();
@@ -2140,7 +2141,7 @@ describe('nested types via memory round-trips', () => {
 
 // ─── Function trampoline edge cases ────────────────────────────────────────
 
-describe('function trampoline edge cases', () => {
+describeDebugOnly('function trampoline edge cases', () => {
     function createFuncRctx(): ResolverContext {
         return {
             resolved: {
@@ -2312,7 +2313,7 @@ describe('function trampoline edge cases', () => {
 
 // ─── Variant lowering edge cases ───────────────────────────────────────────
 
-describe('variant lowering validation', () => {
+describeDebugOnly('variant lowering validation', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -2365,7 +2366,7 @@ describe('variant lowering validation', () => {
 
 // ─── CompactUTF-16 encoding error ──────────────────────────────────────────
 
-describe('CompactUTF-16 encoding', () => {
+describeDebugOnly('CompactUTF-16 encoding', () => {
     test('lifting with CompactUTF-16 throws not-supported', () => {
         const rctx = {
             resolved: {
@@ -2395,7 +2396,7 @@ describe('CompactUTF-16 encoding', () => {
 
 // ─── UTF-16 string out-of-bounds ───────────────────────────────────────────
 
-describe('UTF-16 string bounds checking', () => {
+describeDebugOnly('UTF-16 string bounds checking', () => {
     test('UTF-16 lowering out-of-bounds traps', () => {
         const rctx = {
             resolved: {

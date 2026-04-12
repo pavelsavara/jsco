@@ -8,6 +8,7 @@ import { resolveCanonicalResourceType } from '../type-resolution';
 import { createLifting as _createLifting } from './to-abi';
 import { createLowering } from './to-js';
 import type { WasmValue } from './types';
+import { describeDebugOnly } from '../../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -38,7 +39,7 @@ function createMockCtxWithResources(): BindingContext {
     } as any as BindingContext;
 }
 
-describe('ResourceTable', () => {
+describeDebugOnly('ResourceTable', () => {
     test('add returns handle >= 1', () => {
         const resources = createResourceTable();
         const h = resources.add(0, { name: 'a' });
@@ -106,7 +107,7 @@ describe('ResourceTable', () => {
     });
 });
 
-describe('canonical resource identity resolution', () => {
+describeDebugOnly('canonical resource identity resolution', () => {
     test('resolves own<T> to ComponentTypeResource via unified type index', () => {
         const rctx = {
             indexes: {
@@ -179,7 +180,7 @@ describe('canonical resource identity resolution', () => {
     });
 });
 
-describe('own<T> lifting', () => {
+describeDebugOnly('own<T> lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -214,7 +215,7 @@ describe('own<T> lifting', () => {
     });
 });
 
-describe('own<T> lowering', () => {
+describeDebugOnly('own<T> lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -256,7 +257,7 @@ describe('own<T> lowering', () => {
     });
 });
 
-describe('borrow<T> lifting', () => {
+describeDebugOnly('borrow<T> lifting', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -283,7 +284,7 @@ describe('borrow<T> lifting', () => {
     });
 });
 
-describe('borrow<T> lowering', () => {
+describeDebugOnly('borrow<T> lowering', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -327,7 +328,7 @@ describe('borrow<T> lowering', () => {
     });
 });
 
-describe('own vs borrow semantics', () => {
+describeDebugOnly('own vs borrow semantics', () => {
     let rctx: ResolverContext;
     let bctx: BindingContext;
 
@@ -376,7 +377,7 @@ describe('own vs borrow semantics', () => {
     });
 });
 
-describe('borrow accounting (lend/unlend)', () => {
+describeDebugOnly('borrow accounting (lend/unlend)', () => {
     test('new handle starts with zero lends', () => {
         const resources = createResourceTable();
         const h = resources.add(0, 'obj');
@@ -471,7 +472,7 @@ describe('borrow accounting (lend/unlend)', () => {
     });
 });
 
-describe('resource handle isolation', () => {
+describeDebugOnly('resource handle isolation', () => {
     test('handles across types are globally unique', () => {
         const resources = createResourceTable();
         const h1 = resources.add(0, 'type0-a');
@@ -524,7 +525,7 @@ describe('resource handle isolation', () => {
     });
 });
 
-describe('resource handle cleanup and ref counting', () => {
+describeDebugOnly('resource handle cleanup and ref counting', () => {
     test('remove all handles leaves table empty', () => {
         const resources = createResourceTable();
         const handles = [
