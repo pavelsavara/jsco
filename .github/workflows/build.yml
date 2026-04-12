@@ -18,16 +18,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+
     - name: Install npm dependencies
-      run: npm install -ci
+      run: npm ci
 
     - name: Rollup project
-      working-directory: ./hello
       run: npm run build:npm
-
-    - name: Run hello sample as sanity check
-      working-directory: ./hello
-      run: npm run test:usage
 
     - name: Rollup artifact
       uses: actions/upload-artifact@v6

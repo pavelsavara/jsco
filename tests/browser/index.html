@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>jsco browser test</title>
+</head>
+
+<body>
+    <script type="module">
+        import { createComponent } from '/dist/index.js';
+
+        window.__testResults = {};
+        try {
+            const component = await createComponent('/integration-tests/echo-reactor-wat/echo.wasm');
+            const instance = await component.instantiate({});
+            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'];
+
+            const boolResult = ns.echoBool(true);
+            const u8Result = ns.echoU8(42);
+
+            window.__testResults = {
+                success: true,
+                boolResult,
+                u8Result,
+                exportKeys: Object.keys(instance.exports),
+            };
+        } catch (e) {
+            window.__testResults = {
+                success: false,
+                error: e.message,
+                stack: e.stack,
+            };
+        }
+    </script>
+</body>
+
+</html>

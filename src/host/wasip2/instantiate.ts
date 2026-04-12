@@ -68,19 +68,12 @@ export async function instantiateWasiComponent<TJSExports>(
     };
 
     if (useJspi) {
-        // Wrap wasmInstantiate to apply WebAssembly.promising to WASM exports.
-        // This makes WASM functions that call blocking host imports (via JspiBlockSignal)
-        // return Promises and enable JSPI stack suspension/resumption.
-        componentOptions.wasmInstantiate = async (module, importObject) => {
-            const instance = await WebAssembly.instantiate(module, importObject);
-            // WASM exports are frozen, so we create a proxy with promising-wrapped functions
-            const promising = (WebAssembly as any).promising;
-            const wrappedExports: Record<string, WebAssembly.ExportValue> = {};
-            for (const [name, exp] of Object.entries(instance.exports)) {
-                wrappedExports[name] = typeof exp === 'function' ? promising(exp) : exp;
-            }
-            return { exports: wrappedExports } as unknown as WebAssembly.Instance;
-        };
+        // Tell the resolver to wrap component export entry points with
+        // WebAssembly.promising(). This is applied only to the specific core
+        // function referenced by canon.lift — NOT to all core module exports.
+        // Wrapping all exports breaks core-to-core module linking because
+        // promising()-wrapped functions return Promises, which WASM coerces to 0.
+        componentOptions.jspi = true;
     }
 
     const component = await createComponent<TJSExports>(source, componentOptions);

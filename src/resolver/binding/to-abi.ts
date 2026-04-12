@@ -88,6 +88,26 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         }
 
         return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
+            function processWasmResult(rawWasm: any): any {
+                let result: any;
+                if (callingConvention.results === CallingConvention.Spilled) {
+                    result = resultLoader!(ctx, rawWasm as number);
+                } else if (resultLowerers.length === 1) {
+                    result = resultLowerers[0](ctx, rawWasm);
+                }
+
+                // Post-return cleanup
+                if (ctx.postReturnFn) {
+                    ctx.postReturnFn();
+                    ctx.postReturnFn = undefined;
+                }
+
+                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                    ctx.logger!('executor', LogLevel.Summary, `← lifting result=${JSON.stringify(result, bigIntReplacer)}`);
+                }
+                return result;
+            }
+
             function liftingTrampoline(...args: any[]): any {
                 // C4: Runtime behavioral guarantees
                 checkNotPoisoned(ctx);
@@ -116,28 +136,31 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         }
                     }
 
-                    let result: any;
-                    if (callingConvention.results === CallingConvention.Spilled) {
-                        // canon_lift: WASM returns a pointer to results in memory
-                        const resPtr = wasmFunction(...wasmArgs) as number;
-                        result = resultLoader!(ctx, resPtr);
-                    } else {
-                        const resWasm = wasmFunction(...wasmArgs);
-                        if (resultLowerers.length === 1) {
-                            result = resultLowerers[0](ctx, resWasm);
-                        }
+                    const rawResult = wasmFunction(...wasmArgs);
+
+                    // JSPI: promising()-wrapped functions return a Promise even for
+                    // synchronous completions. Defer result processing to its resolution.
+                    if (rawResult instanceof Promise) {
+                        return rawResult.then(
+                            (wasmResult) => {
+                                try {
+                                    return processWasmResult(wasmResult);
+                                } catch (e) {
+                                    ctx.poisoned = true;
+                                    throw e;
+                                } finally {
+                                    ctx.inExport = false;
+                                }
+                            },
+                            (e: unknown) => {
+                                ctx.poisoned = true;
+                                ctx.inExport = false;
+                                throw e;
+                            },
+                        );
                     }
 
-                    // Post-return cleanup
-                    if (ctx.postReturnFn) {
-                        ctx.postReturnFn();
-                        ctx.postReturnFn = undefined;
-                    }
-
-                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                        ctx.logger!('executor', LogLevel.Summary, `← lifting result=${JSON.stringify(result, bigIntReplacer)}`);
-                    }
-                    return result;
+                    return processWasmResult(rawResult);
                 } catch (e) {
                     // Poison the instance on trap
                     ctx.poisoned = true;

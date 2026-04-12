@@ -9,6 +9,8 @@ import { ModelTag } from '../model/tags';
 export function parseSectionExport(
     ctx: ParserContext,
     src: SyncSource,
+    // inline exports (instance from-exports) use `inlineexport` format without the optional type bound
+    inline?: boolean,
 ): ComponentExport[] {
     const sections: ComponentExport[] = [];
     const count = readU32(src);
@@ -18,7 +20,7 @@ export function parseSectionExport(
             name: readComponentExternName(src),
             kind: readComponentExternalKind(src),
             index: readU32(src),
-            ty: readU32(src) === 0 ? undefined : readComponentTypeRef(src)
+            ty: inline ? undefined : (readU32(src) === 0 ? undefined : readComponentTypeRef(src))
         };
         sections.push(section);
     }

@@ -63,6 +63,7 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
 export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean
     validateTypes?: boolean
+    jspi?: boolean
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
     verbose?: Partial<Verbosity>
     logger?: LogFn
@@ -96,6 +97,7 @@ export type IndexedModel = {
 /** Subset of ResolverContext retained for binding/call time. Separate object so
  *  binder closures don't keep the heavy IndexedModel alive. */
 export type ResolvedContext = {
+    jspi?: boolean
     liftingCache: Map<unknown, unknown>
     loweringCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>

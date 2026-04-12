@@ -19,6 +19,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
     const logger = options.logger ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
+            jspi: options.jspi === true,
             usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),

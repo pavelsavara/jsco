@@ -9,10 +9,11 @@
 import { createComponent } from '../../resolver';
 import { setConfiguration } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
+import { createWasiHost } from './index';
 
 setConfiguration('Debug');
 
-const echoWasm = './integration-tests/target/wasm32-unknown-unknown/release/echo_reactor.wasm';
+const echoWasm = './integration-tests/target/wasm32-wasip1/release/echo_reactor.wasm';
 
 interface SinkReport {
     label: string;
@@ -28,9 +29,11 @@ interface RecordReport {
 function createEchoImports() {
     const primitiveReports: SinkReport[] = [];
     const recordReports: RecordReport[] = [];
+    const wasiImports = createWasiHost();
 
     return {
         imports: {
+            ...wasiImports,
             'jsco:test/echo-sink@0.1.0': {
                 'report-primitive': (label: string, value: string) => {
                     primitiveReports.push({ label, value });
