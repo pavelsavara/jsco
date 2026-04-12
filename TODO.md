@@ -1,5 +1,4 @@
 # Resolver todo
-- nested modules / nested components
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
 
@@ -20,34 +19,18 @@
 - add options to skip parsing/storing custom sections
 
 # Testing
-- update `zoo` sample with new methods that have all possible types of parameters and return types. Use them in tests.
-- create `city` component which be program with main, not a lib
-- use `zoo` as nested component in `city`
-
 - create sample app in go
-- create sample app in JS
-- use JSCO to bind multiple components at runtime
-- improve zoo test coverage (currently test.failing — debug remaining resolver gaps)
+- compose 2 different JSCO instantiated components JSCO(WASM) -> JSCO(WASM)
 - add more WIT text based test scenarios into parser tests (parser coverage 67% — needs improvement)
 - improve utils/ coverage (47% — lowest in project)
-- Nested compound types | `option<option<u8>>`, `result<list<u8>, string>` | High |
 - Resource borrow accounting | `trap_if(h.num_lends != 0)` for own lift/drop | High |
 - Discriminant size boundaries | Variant/enum 255 vs 256 cases | Medium |
-- Multi-word flags | >32 flag members | Medium |
 - Empty containers | Empty record, empty tuple | Low |
 - add Firefox browser test (Chrome done via Playwright)
-- scenarios testing own/borrow
+- scenarios testing own/borrow, resource dependencies
 - scenarios testing resource handles isolation
 - scenarios testing resource handles ref counting and cleanup
 - scenarios testing memory leaks
-
-
-# Integration Test Plan
-- Implementation, consumer, forwarder components
-- For each WASI API
-- All parameter types (core + component), as param and return value
-- Sync and async, in Rust and JS
-- Cross-component callbacks (A→B→A) and multi-component instantiation
 
 # Build
 - add coverage to CI, fail if lower than some %
@@ -75,8 +58,9 @@
 # Minification
 - `jsco_assert` should be eliminated in Release builds via Rollup plugin (inline macro)
 - Jest can't resolve Rollup virtual modules for build-time constant injection
-- internal fields
 - `isDebug` doesn't trim, use proper virtual/const import
+- internal fields
+- refactor string constants
 
 # Demo
 - create demo web site
@@ -91,10 +75,3 @@
 - write article on how it works
 - multi-memory https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/core.rs
 - implement WASIp3 (async model with native WASM stack switching, replaces JSPI workaround)
-
-# Skipped Tests
-
-## Non-JSPI error message — block() throws JSPI error (poll.test.ts)
-Intentionally skipped when running with `--experimental-wasm-jspi`. The test verifies
-the error message shown to users who don't have JSPI enabled. It only runs when JSPI
-is absent. Not a bug — test infrastructure design.

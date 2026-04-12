@@ -103,6 +103,9 @@ export type ResolvedContext = {
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
     /** Maps type index → canonical resource ID. Multiple type aliases to the same resource share one ID. */
     canonicalResourceIds: Map<number, number>
+    /** Canonical resource IDs for resources defined by this component instance (not imported).
+     *  Used by canon.lift to pass rep directly for borrow<T> (spec: cx.inst is t.rt.impl). */
+    ownInstanceResources: Set<number>
     /** Caches resolution results for ComponentSection objects. Same ComponentSection
      *  (by identity) produces the same resolution — avoids exponential re-resolution
      *  in WAC compositions where the same component type is instantiated multiple times. */

@@ -24,6 +24,8 @@ function createMinimalRctx(): ResolverContext {
         resolved: {
             liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
+            canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             usesNumberForInt64: false,
         },
     } as any as ResolverContext;

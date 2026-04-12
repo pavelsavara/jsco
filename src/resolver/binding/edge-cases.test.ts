@@ -27,6 +27,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
             liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             componentSectionCache: new Map(),
             usesNumberForInt64,
             stringEncoding: StringEncoding.Utf8,

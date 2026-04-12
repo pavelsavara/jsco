@@ -26,6 +26,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             componentSectionCache: new Map(),
             stats: isDebug ? { resolveComponentSection: 0, resolveComponentInstanceInstantiate: 0, createScopedResolverContext: 0, componentSectionCacheHits: 0, componentInstanceCacheHits: 0, coreInstanceCacheHits: 0, coreFunctionCacheHits: 0, componentFunctionCacheHits: 0 } : undefined,
             verbose,
@@ -153,6 +154,7 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
             liftingCache: new Map(),
             loweringCache: new Map(),
             canonicalResourceIds: new Map(),
+            ownInstanceResources: new Set(),
             verbose: parentRctx.resolved.verbose,
             logger: parentRctx.resolved.logger,
         },
@@ -276,6 +278,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
 
     // Phase 1: Assign canonical IDs to resource source types.
     // For ComponentTypeResource: the type index IS the canonical ID.
+    //   These are own-instance resources (defined by this component).
     // For ComponentAliasInstanceExport (Type kind): group by (instance_index, name).
     //   First occurrence defines the canonical ID; subsequent aliases get the same ID.
 
@@ -283,6 +286,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
         const t = types[i];
         if (t.tag === ModelTag.ComponentTypeResource) {
             map.set(i, i);
+            rctx.resolved.ownInstanceResources.add(i);
         } else if (t.tag === ModelTag.ComponentAliasInstanceExport) {
             const alias = t as ComponentAliasInstanceExport;
             if (alias.kind === ComponentExternalKind.Type) {

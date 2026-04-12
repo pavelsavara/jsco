@@ -6,9 +6,26 @@ use bindings::exports::jsco::test::echo_compound::Guest as Compound;
 use bindings::exports::jsco::test::echo_compound::{LabeledPoint, Point};
 use bindings::exports::jsco::test::echo_algebraic::Guest as Algebraic;
 use bindings::exports::jsco::test::echo_algebraic::{Color, Permissions, Shape};
+use bindings::exports::jsco::test::echo_edge_cases::Guest as EdgeCases;
+use bindings::exports::jsco::test::echo_edge_cases::GuestErrCtx;
+use bindings::exports::jsco::test::echo_edge_cases::ErrCtx;
+use bindings::exports::jsco::test::echo_edge_cases::BigFlags;
 use bindings::jsco::test::echo_sink;
 
 struct Component;
+
+pub struct ErrCtxImpl {
+    message: String,
+}
+
+impl GuestErrCtx for ErrCtxImpl {
+    fn new(message: String) -> Self {
+        ErrCtxImpl { message }
+    }
+    fn get_message(&self) -> String {
+        self.message.clone()
+    }
+}
 
 impl Primitives for Component {
     fn echo_bool(v: bool) -> bool {
@@ -135,6 +152,66 @@ impl Algebraic for Component {
             Shape::Dot => "dot".to_string(),
         };
         echo_sink::report_primitive("variant", &desc);
+        v
+    }
+}
+
+impl EdgeCases for Component {
+    type ErrCtx = ErrCtxImpl;
+
+    fn echo_result_ok_only(v: Result<String, ()>) -> Result<String, ()> {
+        echo_sink::report_primitive("result-ok-only", &format!("{:?}", v));
+        v
+    }
+    fn echo_result_err_only(v: Result<(), String>) -> Result<(), String> {
+        echo_sink::report_primitive("result-err-only", &format!("{:?}", v));
+        v
+    }
+    fn echo_result_empty(v: Result<(), ()>) -> Result<(), ()> {
+        echo_sink::report_primitive("result-empty", &format!("{:?}", v));
+        v
+    }
+    fn echo_nested_option(v: Option<Option<u32>>) -> Option<Option<u32>> {
+        echo_sink::report_primitive("nested-option", &format!("{:?}", v));
+        v
+    }
+    fn echo_tuple5(v: (u8, u16, u32, u64, String)) -> (u8, u16, u32, u64, String) {
+        echo_sink::report_primitive("tuple5", &format!("({}, {}, {}, {}, {})", v.0, v.1, v.2, v.3, v.4));
+        v
+    }
+    fn echo_list_option(v: Vec<Option<String>>) -> Vec<Option<String>> {
+        echo_sink::report_primitive("list-option", &format!("{} items", v.len()));
+        v
+    }
+    fn echo_list_result(v: Vec<Result<u32, String>>) -> Vec<Result<u32, String>> {
+        echo_sink::report_primitive("list-result", &format!("{} items", v.len()));
+        v
+    }
+    fn echo_option_list(v: Option<Vec<u32>>) -> Option<Vec<u32>> {
+        echo_sink::report_primitive("option-list", &format!("{:?}", v.as_ref().map(|l| l.len())));
+        v
+    }
+    fn echo_list_tuple(v: Vec<(String, u32)>) -> Vec<(String, u32)> {
+        echo_sink::report_primitive("list-tuple", &format!("{} items", v.len()));
+        v
+    }
+    fn echo_big_flags(v: BigFlags) -> BigFlags {
+        echo_sink::report_primitive("big-flags", &format!("{:?}", v));
+        v
+    }
+    fn echo_empty_list(v: Vec<u32>) -> Vec<u32> {
+        echo_sink::report_primitive("empty-list", &format!("{} items", v.len()));
+        v
+    }
+    fn echo_empty_string(v: String) -> String {
+        echo_sink::report_primitive("empty-string", &format!("len={}", v.len()));
+        v
+    }
+    fn echo_result_complex(v: Result<Vec<u8>, (String, ErrCtx)>) -> Result<Vec<u8>, (String, ErrCtx)> {
+        echo_sink::report_primitive("result-complex", &format!("{}", match &v {
+            Ok(bytes) => format!("ok({} bytes)", bytes.len()),
+            Err((msg, _)) => format!("err({}, <resource>)", msg),
+        }));
         v
     }
 }

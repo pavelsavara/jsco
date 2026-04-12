@@ -1133,6 +1133,1276 @@ pub mod exports {
                     [::core::mem::MaybeUninit::uninit(); 24],
                 );
             }
+            /// Edge cases: type shapes not covered by other interfaces
+            #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+            pub mod echo_edge_cases {
+                #[used]
+                #[doc(hidden)]
+                static __FORCE_SECTION_REF: fn() = super::super::super::super::__link_custom_section_describing_imports;
+                use super::super::super::super::_rt;
+                wit_bindgen_rt::bitflags::bitflags! {
+                    #[doc = " Flags with 32 members (maximum single-word flags)"]
+                    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+                    pub struct BigFlags : u32 { const B0 = 1 << 0; const B1 = 1 << 1;
+                    const B2 = 1 << 2; const B3 = 1 << 3; const B4 = 1 << 4; const B5 = 1
+                    << 5; const B6 = 1 << 6; const B7 = 1 << 7; const B8 = 1 << 8; const
+                    B9 = 1 << 9; const B10 = 1 << 10; const B11 = 1 << 11; const B12 = 1
+                    << 12; const B13 = 1 << 13; const B14 = 1 << 14; const B15 = 1 << 15;
+                    const B16 = 1 << 16; const B17 = 1 << 17; const B18 = 1 << 18; const
+                    B19 = 1 << 19; const B20 = 1 << 20; const B21 = 1 << 21; const B22 =
+                    1 << 22; const B23 = 1 << 23; const B24 = 1 << 24; const B25 = 1 <<
+                    25; const B26 = 1 << 26; const B27 = 1 << 27; const B28 = 1 << 28;
+                    const B29 = 1 << 29; const B30 = 1 << 30; const B31 = 1 << 31; }
+                }
+                /// A simple resource carrying a message
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct ErrCtx {
+                    handle: _rt::Resource<ErrCtx>,
+                }
+                type _ErrCtxRep<T> = Option<T>;
+                impl ErrCtx {
+                    /// Creates a new resource from the specified representation.
+                    ///
+                    /// This function will create a new resource handle by moving `val` onto
+                    /// the heap and then passing that heap pointer to the component model to
+                    /// create a handle. The owned handle is then returned as `ErrCtx`.
+                    pub fn new<T: GuestErrCtx>(val: T) -> Self {
+                        Self::type_guard::<T>();
+                        let val: _ErrCtxRep<T> = Some(val);
+                        let ptr: *mut _ErrCtxRep<T> = _rt::Box::into_raw(
+                            _rt::Box::new(val),
+                        );
+                        unsafe { Self::from_handle(T::_resource_new(ptr.cast())) }
+                    }
+                    /// Gets access to the underlying `T` which represents this resource.
+                    pub fn get<T: GuestErrCtx>(&self) -> &T {
+                        let ptr = unsafe { &*self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    /// Gets mutable access to the underlying `T` which represents this
+                    /// resource.
+                    pub fn get_mut<T: GuestErrCtx>(&mut self) -> &mut T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_mut().unwrap()
+                    }
+                    /// Consumes this resource and returns the underlying `T`.
+                    pub fn into_inner<T: GuestErrCtx>(self) -> T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.take().unwrap()
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn from_handle(handle: u32) -> Self {
+                        Self {
+                            handle: unsafe { _rt::Resource::from_handle(handle) },
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub fn take_handle(&self) -> u32 {
+                        _rt::Resource::take_handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    pub fn handle(&self) -> u32 {
+                        _rt::Resource::handle(&self.handle)
+                    }
+                    #[doc(hidden)]
+                    fn type_guard<T: 'static>() {
+                        use core::any::TypeId;
+                        static mut LAST_TYPE: Option<TypeId> = None;
+                        unsafe {
+                            assert!(! cfg!(target_feature = "atomics"));
+                            let id = TypeId::of::<T>();
+                            match LAST_TYPE {
+                                Some(ty) => {
+                                    assert!(
+                                        ty == id, "cannot use two types with this resource type"
+                                    )
+                                }
+                                None => LAST_TYPE = Some(id),
+                            }
+                        }
+                    }
+                    #[doc(hidden)]
+                    pub unsafe fn dtor<T: 'static>(handle: *mut u8) {
+                        Self::type_guard::<T>();
+                        let _ = unsafe {
+                            _rt::Box::from_raw(handle as *mut _ErrCtxRep<T>)
+                        };
+                    }
+                    fn as_ptr<T: GuestErrCtx>(&self) -> *mut _ErrCtxRep<T> {
+                        ErrCtx::type_guard::<T>();
+                        T::_resource_rep(self.handle()).cast()
+                    }
+                }
+                /// A borrowed version of [`ErrCtx`] which represents a borrowed value
+                /// with the lifetime `'a`.
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct ErrCtxBorrow<'a> {
+                    rep: *mut u8,
+                    _marker: core::marker::PhantomData<&'a ErrCtx>,
+                }
+                impl<'a> ErrCtxBorrow<'a> {
+                    #[doc(hidden)]
+                    pub unsafe fn lift(rep: usize) -> Self {
+                        Self {
+                            rep: rep as *mut u8,
+                            _marker: core::marker::PhantomData,
+                        }
+                    }
+                    /// Gets access to the underlying `T` in this resource.
+                    pub fn get<T: GuestErrCtx>(&self) -> &T {
+                        let ptr = unsafe { &mut *self.as_ptr::<T>() };
+                        ptr.as_ref().unwrap()
+                    }
+                    fn as_ptr<T: 'static>(&self) -> *mut _ErrCtxRep<T> {
+                        ErrCtx::type_guard::<T>();
+                        self.rep.cast()
+                    }
+                }
+                unsafe impl _rt::WasmResource for ErrCtx {
+                    #[inline]
+                    unsafe fn drop(_handle: u32) {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        unreachable!();
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-edge-cases@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-drop]err-ctx"]
+                                fn drop(_: u32);
+                            }
+                            unsafe { drop(_handle) };
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_result_ok_only_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: *mut u8,
+                    arg2: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result1 = T::echo_result_ok_only(
+                        match arg0 {
+                            0 => {
+                                let e = {
+                                    let len0 = arg2;
+                                    let bytes0 = _rt::Vec::from_raw_parts(
+                                        arg1.cast(),
+                                        len0,
+                                        len0,
+                                    );
+                                    _rt::string_lift(bytes0)
+                                };
+                                Ok(e)
+                            }
+                            1 => {
+                                let e = ();
+                                Err(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    match result1 {
+                        Ok(e) => {
+                            *ptr2.add(0).cast::<u8>() = (0i32) as u8;
+                            let vec3 = (e.into_bytes()).into_boxed_slice();
+                            let ptr3 = vec3.as_ptr().cast::<u8>();
+                            let len3 = vec3.len();
+                            ::core::mem::forget(vec3);
+                            *ptr2
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len3;
+                            *ptr2
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>() = ptr3.cast_mut();
+                        }
+                        Err(_) => {
+                            *ptr2.add(0).cast::<u8>() = (1i32) as u8;
+                        }
+                    };
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_result_ok_only<T: Guest>(
+                    arg0: *mut u8,
+                ) {
+                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
+                    match l0 {
+                        0 => {
+                            let l1 = *arg0
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>();
+                            let l2 = *arg0
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            _rt::cabi_dealloc(l1, l2, 1);
+                        }
+                        _ => {}
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_result_err_only_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: *mut u8,
+                    arg2: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result1 = T::echo_result_err_only(
+                        match arg0 {
+                            0 => {
+                                let e = ();
+                                Ok(e)
+                            }
+                            1 => {
+                                let e = {
+                                    let len0 = arg2;
+                                    let bytes0 = _rt::Vec::from_raw_parts(
+                                        arg1.cast(),
+                                        len0,
+                                        len0,
+                                    );
+                                    _rt::string_lift(bytes0)
+                                };
+                                Err(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    match result1 {
+                        Ok(_) => {
+                            *ptr2.add(0).cast::<u8>() = (0i32) as u8;
+                        }
+                        Err(e) => {
+                            *ptr2.add(0).cast::<u8>() = (1i32) as u8;
+                            let vec3 = (e.into_bytes()).into_boxed_slice();
+                            let ptr3 = vec3.as_ptr().cast::<u8>();
+                            let len3 = vec3.len();
+                            ::core::mem::forget(vec3);
+                            *ptr2
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len3;
+                            *ptr2
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>() = ptr3.cast_mut();
+                        }
+                    };
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_result_err_only<T: Guest>(
+                    arg0: *mut u8,
+                ) {
+                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
+                    match l0 {
+                        0 => {}
+                        _ => {
+                            let l1 = *arg0
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>();
+                            let l2 = *arg0
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            _rt::cabi_dealloc(l1, l2, 1);
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_result_empty_cabi<T: Guest>(
+                    arg0: i32,
+                ) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::echo_result_empty(
+                        match arg0 {
+                            0 => {
+                                let e = ();
+                                Ok(e)
+                            }
+                            1 => {
+                                let e = ();
+                                Err(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let result1 = match result0 {
+                        Ok(_) => 0i32,
+                        Err(_) => 1i32,
+                    };
+                    result1
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_nested_option_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: i32,
+                    arg2: i32,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::echo_nested_option(
+                        match arg0 {
+                            0 => None,
+                            1 => {
+                                let e = match arg1 {
+                                    0 => None,
+                                    1 => {
+                                        let e = arg2 as u32;
+                                        Some(e)
+                                    }
+                                    _ => _rt::invalid_enum_discriminant(),
+                                };
+                                Some(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let ptr1 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    match result0 {
+                        Some(e) => {
+                            *ptr1.add(0).cast::<u8>() = (1i32) as u8;
+                            match e {
+                                Some(e) => {
+                                    *ptr1.add(4).cast::<u8>() = (1i32) as u8;
+                                    *ptr1.add(8).cast::<i32>() = _rt::as_i32(e);
+                                }
+                                None => {
+                                    *ptr1.add(4).cast::<u8>() = (0i32) as u8;
+                                }
+                            };
+                        }
+                        None => {
+                            *ptr1.add(0).cast::<u8>() = (0i32) as u8;
+                        }
+                    };
+                    ptr1
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_tuple5_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: i32,
+                    arg2: i32,
+                    arg3: i64,
+                    arg4: *mut u8,
+                    arg5: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let len0 = arg5;
+                    let bytes0 = _rt::Vec::from_raw_parts(arg4.cast(), len0, len0);
+                    let result1 = T::echo_tuple5((
+                        arg0 as u8,
+                        arg1 as u16,
+                        arg2 as u32,
+                        arg3 as u64,
+                        _rt::string_lift(bytes0),
+                    ));
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let (t3_0, t3_1, t3_2, t3_3, t3_4) = result1;
+                    *ptr2.add(0).cast::<u8>() = (_rt::as_i32(t3_0)) as u8;
+                    *ptr2.add(2).cast::<u16>() = (_rt::as_i32(t3_1)) as u16;
+                    *ptr2.add(4).cast::<i32>() = _rt::as_i32(t3_2);
+                    *ptr2.add(8).cast::<i64>() = _rt::as_i64(t3_3);
+                    let vec4 = (t3_4.into_bytes()).into_boxed_slice();
+                    let ptr4 = vec4.as_ptr().cast::<u8>();
+                    let len4 = vec4.len();
+                    ::core::mem::forget(vec4);
+                    *ptr2
+                        .add(16 + 1 * ::core::mem::size_of::<*const u8>())
+                        .cast::<usize>() = len4;
+                    *ptr2.add(16).cast::<*mut u8>() = ptr4.cast_mut();
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_tuple5<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(16).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(16 + 1 * ::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    _rt::cabi_dealloc(l0, l1, 1);
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_list_option_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let base4 = arg0;
+                    let len4 = arg1;
+                    let mut result4 = _rt::Vec::with_capacity(len4);
+                    for i in 0..len4 {
+                        let base = base4
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        let e4 = {
+                            let l0 = i32::from(*base.add(0).cast::<u8>());
+                            match l0 {
+                                0 => None,
+                                1 => {
+                                    let e = {
+                                        let l1 = *base
+                                            .add(::core::mem::size_of::<*const u8>())
+                                            .cast::<*mut u8>();
+                                        let l2 = *base
+                                            .add(2 * ::core::mem::size_of::<*const u8>())
+                                            .cast::<usize>();
+                                        let len3 = l2;
+                                        let bytes3 = _rt::Vec::from_raw_parts(
+                                            l1.cast(),
+                                            len3,
+                                            len3,
+                                        );
+                                        _rt::string_lift(bytes3)
+                                    };
+                                    Some(e)
+                                }
+                                _ => _rt::invalid_enum_discriminant(),
+                            }
+                        };
+                        result4.push(e4);
+                    }
+                    _rt::cabi_dealloc(
+                        base4,
+                        len4 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result5 = T::echo_list_option(result4);
+                    let ptr6 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec8 = result5;
+                    let len8 = vec8.len();
+                    let layout8 = _rt::alloc::Layout::from_size_align_unchecked(
+                        vec8.len() * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result8 = if layout8.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout8).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout8);
+                        }
+                        ptr
+                    } else {
+                        ::core::ptr::null_mut()
+                    };
+                    for (i, e) in vec8.into_iter().enumerate() {
+                        let base = result8
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            match e {
+                                Some(e) => {
+                                    *base.add(0).cast::<u8>() = (1i32) as u8;
+                                    let vec7 = (e.into_bytes()).into_boxed_slice();
+                                    let ptr7 = vec7.as_ptr().cast::<u8>();
+                                    let len7 = vec7.len();
+                                    ::core::mem::forget(vec7);
+                                    *base
+                                        .add(2 * ::core::mem::size_of::<*const u8>())
+                                        .cast::<usize>() = len7;
+                                    *base
+                                        .add(::core::mem::size_of::<*const u8>())
+                                        .cast::<*mut u8>() = ptr7.cast_mut();
+                                }
+                                None => {
+                                    *base.add(0).cast::<u8>() = (0i32) as u8;
+                                }
+                            };
+                        }
+                    }
+                    *ptr6.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len8;
+                    *ptr6.add(0).cast::<*mut u8>() = result8;
+                    ptr6
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_list_option<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base5 = l0;
+                    let len5 = l1;
+                    for i in 0..len5 {
+                        let base = base5
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let l2 = i32::from(*base.add(0).cast::<u8>());
+                            match l2 {
+                                0 => {}
+                                _ => {
+                                    let l3 = *base
+                                        .add(::core::mem::size_of::<*const u8>())
+                                        .cast::<*mut u8>();
+                                    let l4 = *base
+                                        .add(2 * ::core::mem::size_of::<*const u8>())
+                                        .cast::<usize>();
+                                    _rt::cabi_dealloc(l3, l4, 1);
+                                }
+                            }
+                        }
+                    }
+                    _rt::cabi_dealloc(
+                        base5,
+                        len5 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_list_result_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let base5 = arg0;
+                    let len5 = arg1;
+                    let mut result5 = _rt::Vec::with_capacity(len5);
+                    for i in 0..len5 {
+                        let base = base5
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        let e5 = {
+                            let l0 = i32::from(*base.add(0).cast::<u8>());
+                            match l0 {
+                                0 => {
+                                    let e = {
+                                        let l1 = *base
+                                            .add(::core::mem::size_of::<*const u8>())
+                                            .cast::<i32>();
+                                        l1 as u32
+                                    };
+                                    Ok(e)
+                                }
+                                1 => {
+                                    let e = {
+                                        let l2 = *base
+                                            .add(::core::mem::size_of::<*const u8>())
+                                            .cast::<*mut u8>();
+                                        let l3 = *base
+                                            .add(2 * ::core::mem::size_of::<*const u8>())
+                                            .cast::<usize>();
+                                        let len4 = l3;
+                                        let bytes4 = _rt::Vec::from_raw_parts(
+                                            l2.cast(),
+                                            len4,
+                                            len4,
+                                        );
+                                        _rt::string_lift(bytes4)
+                                    };
+                                    Err(e)
+                                }
+                                _ => _rt::invalid_enum_discriminant(),
+                            }
+                        };
+                        result5.push(e5);
+                    }
+                    _rt::cabi_dealloc(
+                        base5,
+                        len5 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result6 = T::echo_list_result(result5);
+                    let ptr7 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec9 = result6;
+                    let len9 = vec9.len();
+                    let layout9 = _rt::alloc::Layout::from_size_align_unchecked(
+                        vec9.len() * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result9 = if layout9.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout9).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout9);
+                        }
+                        ptr
+                    } else {
+                        ::core::ptr::null_mut()
+                    };
+                    for (i, e) in vec9.into_iter().enumerate() {
+                        let base = result9
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            match e {
+                                Ok(e) => {
+                                    *base.add(0).cast::<u8>() = (0i32) as u8;
+                                    *base
+                                        .add(::core::mem::size_of::<*const u8>())
+                                        .cast::<i32>() = _rt::as_i32(e);
+                                }
+                                Err(e) => {
+                                    *base.add(0).cast::<u8>() = (1i32) as u8;
+                                    let vec8 = (e.into_bytes()).into_boxed_slice();
+                                    let ptr8 = vec8.as_ptr().cast::<u8>();
+                                    let len8 = vec8.len();
+                                    ::core::mem::forget(vec8);
+                                    *base
+                                        .add(2 * ::core::mem::size_of::<*const u8>())
+                                        .cast::<usize>() = len8;
+                                    *base
+                                        .add(::core::mem::size_of::<*const u8>())
+                                        .cast::<*mut u8>() = ptr8.cast_mut();
+                                }
+                            };
+                        }
+                    }
+                    *ptr7.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len9;
+                    *ptr7.add(0).cast::<*mut u8>() = result9;
+                    ptr7
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_list_result<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base5 = l0;
+                    let len5 = l1;
+                    for i in 0..len5 {
+                        let base = base5
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let l2 = i32::from(*base.add(0).cast::<u8>());
+                            match l2 {
+                                0 => {}
+                                _ => {
+                                    let l3 = *base
+                                        .add(::core::mem::size_of::<*const u8>())
+                                        .cast::<*mut u8>();
+                                    let l4 = *base
+                                        .add(2 * ::core::mem::size_of::<*const u8>())
+                                        .cast::<usize>();
+                                    _rt::cabi_dealloc(l3, l4, 1);
+                                }
+                            }
+                        }
+                    }
+                    _rt::cabi_dealloc(
+                        base5,
+                        len5 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_option_list_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: *mut u8,
+                    arg2: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result1 = T::echo_option_list(
+                        match arg0 {
+                            0 => None,
+                            1 => {
+                                let e = {
+                                    let len0 = arg2;
+                                    _rt::Vec::from_raw_parts(arg1.cast(), len0, len0)
+                                };
+                                Some(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    match result1 {
+                        Some(e) => {
+                            *ptr2.add(0).cast::<u8>() = (1i32) as u8;
+                            let vec3 = (e).into_boxed_slice();
+                            let ptr3 = vec3.as_ptr().cast::<u8>();
+                            let len3 = vec3.len();
+                            ::core::mem::forget(vec3);
+                            *ptr2
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len3;
+                            *ptr2
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>() = ptr3.cast_mut();
+                        }
+                        None => {
+                            *ptr2.add(0).cast::<u8>() = (0i32) as u8;
+                        }
+                    };
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_option_list<T: Guest>(arg0: *mut u8) {
+                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
+                    match l0 {
+                        0 => {}
+                        _ => {
+                            let l1 = *arg0
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>();
+                            let l2 = *arg0
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            let base3 = l1;
+                            let len3 = l2;
+                            _rt::cabi_dealloc(base3, len3 * 4, 4);
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_list_tuple_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let base4 = arg0;
+                    let len4 = arg1;
+                    let mut result4 = _rt::Vec::with_capacity(len4);
+                    for i in 0..len4 {
+                        let base = base4
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        let e4 = {
+                            let l0 = *base.add(0).cast::<*mut u8>();
+                            let l1 = *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            let len2 = l1;
+                            let bytes2 = _rt::Vec::from_raw_parts(l0.cast(), len2, len2);
+                            let l3 = *base
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i32>();
+                            (_rt::string_lift(bytes2), l3 as u32)
+                        };
+                        result4.push(e4);
+                    }
+                    _rt::cabi_dealloc(
+                        base4,
+                        len4 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result5 = T::echo_list_tuple(result4);
+                    let ptr6 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec9 = result5;
+                    let len9 = vec9.len();
+                    let layout9 = _rt::alloc::Layout::from_size_align_unchecked(
+                        vec9.len() * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                    let result9 = if layout9.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout9).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout9);
+                        }
+                        ptr
+                    } else {
+                        ::core::ptr::null_mut()
+                    };
+                    for (i, e) in vec9.into_iter().enumerate() {
+                        let base = result9
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let (t7_0, t7_1) = e;
+                            let vec8 = (t7_0.into_bytes()).into_boxed_slice();
+                            let ptr8 = vec8.as_ptr().cast::<u8>();
+                            let len8 = vec8.len();
+                            ::core::mem::forget(vec8);
+                            *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len8;
+                            *base.add(0).cast::<*mut u8>() = ptr8.cast_mut();
+                            *base
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i32>() = _rt::as_i32(t7_1);
+                        }
+                    }
+                    *ptr6.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len9;
+                    *ptr6.add(0).cast::<*mut u8>() = result9;
+                    ptr6
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_list_tuple<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base4 = l0;
+                    let len4 = l1;
+                    for i in 0..len4 {
+                        let base = base4
+                            .add(i * (3 * ::core::mem::size_of::<*const u8>()));
+                        {
+                            let l2 = *base.add(0).cast::<*mut u8>();
+                            let l3 = *base
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            _rt::cabi_dealloc(l2, l3, 1);
+                        }
+                    }
+                    _rt::cabi_dealloc(
+                        base4,
+                        len4 * (3 * ::core::mem::size_of::<*const u8>()),
+                        ::core::mem::size_of::<*const u8>(),
+                    );
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_big_flags_cabi<T: Guest>(arg0: i32) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::echo_big_flags(
+                        BigFlags::empty()
+                            | BigFlags::from_bits_retain(((arg0 as u32) << 0) as _),
+                    );
+                    let flags1 = result0;
+                    (flags1.bits() >> 0) as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_empty_list_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let len0 = arg1;
+                    let result1 = T::echo_empty_list(
+                        _rt::Vec::from_raw_parts(arg0.cast(), len0, len0),
+                    );
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec3 = (result1).into_boxed_slice();
+                    let ptr3 = vec3.as_ptr().cast::<u8>();
+                    let len3 = vec3.len();
+                    ::core::mem::forget(vec3);
+                    *ptr2.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len3;
+                    *ptr2.add(0).cast::<*mut u8>() = ptr3.cast_mut();
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_empty_list<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    let base2 = l0;
+                    let len2 = l1;
+                    _rt::cabi_dealloc(base2, len2 * 4, 4);
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_empty_string_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let len0 = arg1;
+                    let bytes0 = _rt::Vec::from_raw_parts(arg0.cast(), len0, len0);
+                    let result1 = T::echo_empty_string(_rt::string_lift(bytes0));
+                    let ptr2 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec3 = (result1.into_bytes()).into_boxed_slice();
+                    let ptr3 = vec3.as_ptr().cast::<u8>();
+                    let len3 = vec3.len();
+                    ::core::mem::forget(vec3);
+                    *ptr2.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len3;
+                    *ptr2.add(0).cast::<*mut u8>() = ptr3.cast_mut();
+                    ptr2
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_empty_string<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    _rt::cabi_dealloc(l0, l1, 1);
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_constructor_err_ctx_cabi<T: GuestErrCtx>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                ) -> i32 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let len0 = arg1;
+                    let bytes0 = _rt::Vec::from_raw_parts(arg0.cast(), len0, len0);
+                    let result1 = ErrCtx::new(T::new(_rt::string_lift(bytes0)));
+                    (result1).take_handle() as i32
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_method_err_ctx_get_message_cabi<T: GuestErrCtx>(
+                    arg0: *mut u8,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result0 = T::get_message(
+                        unsafe { ErrCtxBorrow::lift(arg0 as u32 as usize) }.get(),
+                    );
+                    let ptr1 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec2 = (result0.into_bytes()).into_boxed_slice();
+                    let ptr2 = vec2.as_ptr().cast::<u8>();
+                    let len2 = vec2.len();
+                    ::core::mem::forget(vec2);
+                    *ptr1.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len2;
+                    *ptr1.add(0).cast::<*mut u8>() = ptr2.cast_mut();
+                    ptr1
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_method_err_ctx_get_message<T: GuestErrCtx>(
+                    arg0: *mut u8,
+                ) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    _rt::cabi_dealloc(l0, l1, 1);
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_echo_result_complex_cabi<T: Guest>(
+                    arg0: i32,
+                    arg1: *mut u8,
+                    arg2: usize,
+                    arg3: i32,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")] _rt::run_ctors_once();
+                    let result2 = T::echo_result_complex(
+                        match arg0 {
+                            0 => {
+                                let e = {
+                                    let len0 = arg2;
+                                    _rt::Vec::from_raw_parts(arg1.cast(), len0, len0)
+                                };
+                                Ok(e)
+                            }
+                            1 => {
+                                let e = {
+                                    let len1 = arg2;
+                                    let bytes1 = _rt::Vec::from_raw_parts(
+                                        arg1.cast(),
+                                        len1,
+                                        len1,
+                                    );
+                                    (
+                                        _rt::string_lift(bytes1),
+                                        unsafe { ErrCtx::from_handle(arg3 as u32) },
+                                    )
+                                };
+                                Err(e)
+                            }
+                            _ => _rt::invalid_enum_discriminant(),
+                        },
+                    );
+                    let ptr3 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    match result2 {
+                        Ok(e) => {
+                            *ptr3.add(0).cast::<u8>() = (0i32) as u8;
+                            let vec4 = (e).into_boxed_slice();
+                            let ptr4 = vec4.as_ptr().cast::<u8>();
+                            let len4 = vec4.len();
+                            ::core::mem::forget(vec4);
+                            *ptr3
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len4;
+                            *ptr3
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>() = ptr4.cast_mut();
+                        }
+                        Err(e) => {
+                            *ptr3.add(0).cast::<u8>() = (1i32) as u8;
+                            let (t5_0, t5_1) = e;
+                            let vec6 = (t5_0.into_bytes()).into_boxed_slice();
+                            let ptr6 = vec6.as_ptr().cast::<u8>();
+                            let len6 = vec6.len();
+                            ::core::mem::forget(vec6);
+                            *ptr3
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>() = len6;
+                            *ptr3
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>() = ptr6.cast_mut();
+                            *ptr3
+                                .add(3 * ::core::mem::size_of::<*const u8>())
+                                .cast::<i32>() = (t5_1).take_handle() as i32;
+                        }
+                    };
+                    ptr3
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_echo_result_complex<T: Guest>(
+                    arg0: *mut u8,
+                ) {
+                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
+                    match l0 {
+                        0 => {
+                            let l1 = *arg0
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>();
+                            let l2 = *arg0
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            let base3 = l1;
+                            let len3 = l2;
+                            _rt::cabi_dealloc(base3, len3 * 1, 1);
+                        }
+                        _ => {
+                            let l4 = *arg0
+                                .add(::core::mem::size_of::<*const u8>())
+                                .cast::<*mut u8>();
+                            let l5 = *arg0
+                                .add(2 * ::core::mem::size_of::<*const u8>())
+                                .cast::<usize>();
+                            _rt::cabi_dealloc(l4, l5, 1);
+                        }
+                    }
+                }
+                pub trait Guest {
+                    type ErrCtx: GuestErrCtx;
+                    /// result with ok payload only (no error payload)
+                    fn echo_result_ok_only(
+                        v: Result<_rt::String, ()>,
+                    ) -> Result<_rt::String, ()>;
+                    /// result with error payload only (no ok payload)
+                    fn echo_result_err_only(
+                        v: Result<(), _rt::String>,
+                    ) -> Result<(), _rt::String>;
+                    /// result with no payloads at all (just ok/err)
+                    fn echo_result_empty(v: Result<(), ()>) -> Result<(), ()>;
+                    /// Nested option
+                    fn echo_nested_option(v: Option<Option<u32>>) -> Option<Option<u32>>;
+                    /// 5-element tuple (tests wider-than-3 tuples)
+                    fn echo_tuple5(
+                        v: (u8, u16, u32, u64, _rt::String),
+                    ) -> (u8, u16, u32, u64, _rt::String);
+                    /// List of options
+                    fn echo_list_option(
+                        v: _rt::Vec<Option<_rt::String>>,
+                    ) -> _rt::Vec<Option<_rt::String>>;
+                    /// List of results
+                    fn echo_list_result(
+                        v: _rt::Vec<Result<u32, _rt::String>>,
+                    ) -> _rt::Vec<Result<u32, _rt::String>>;
+                    /// Option containing a list
+                    fn echo_option_list(
+                        v: Option<_rt::Vec<u32>>,
+                    ) -> Option<_rt::Vec<u32>>;
+                    /// List of tuples
+                    fn echo_list_tuple(
+                        v: _rt::Vec<(_rt::String, u32)>,
+                    ) -> _rt::Vec<(_rt::String, u32)>;
+                    fn echo_big_flags(v: BigFlags) -> BigFlags;
+                    /// Zero-length list
+                    fn echo_empty_list(v: _rt::Vec<u32>) -> _rt::Vec<u32>;
+                    /// Empty string
+                    fn echo_empty_string(v: _rt::String) -> _rt::String;
+                    /// Result with resource in error tuple
+                    fn echo_result_complex(
+                        v: Result<_rt::Vec<u8>, (_rt::String, ErrCtx)>,
+                    ) -> Result<_rt::Vec<u8>, (_rt::String, ErrCtx)>;
+                }
+                pub trait GuestErrCtx: 'static {
+                    #[doc(hidden)]
+                    unsafe fn _resource_new(val: *mut u8) -> u32
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = val;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-edge-cases@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-new]err-ctx"]
+                                fn new(_: *mut u8) -> u32;
+                            }
+                            unsafe { new(val) }
+                        }
+                    }
+                    #[doc(hidden)]
+                    fn _resource_rep(handle: u32) -> *mut u8
+                    where
+                        Self: Sized,
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = handle;
+                            unreachable!();
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            #[link(
+                                wasm_import_module = "[export]jsco:test/echo-edge-cases@0.1.0"
+                            )]
+                            unsafe extern "C" {
+                                #[link_name = "[resource-rep]err-ctx"]
+                                fn rep(_: u32) -> *mut u8;
+                            }
+                            unsafe { rep(handle) }
+                        }
+                    }
+                    fn new(message: _rt::String) -> Self;
+                    fn get_message(&self) -> _rt::String;
+                }
+                #[doc(hidden)]
+                macro_rules! __export_jsco_test_echo_edge_cases_0_1_0_cabi {
+                    ($ty:ident with_types_in $($path_to_types:tt)*) => {
+                        const _ : () = { #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-result-ok-only")] unsafe
+                        extern "C" fn export_echo_result_ok_only(arg0 : i32, arg1 : * mut
+                        u8, arg2 : usize,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_result_ok_only_cabi::<$ty > (arg0, arg1, arg2) } }
+                        #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-result-ok-only")]
+                        unsafe extern "C" fn _post_return_echo_result_ok_only(arg0 : *
+                        mut u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_result_ok_only::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-result-err-only")] unsafe
+                        extern "C" fn export_echo_result_err_only(arg0 : i32, arg1 : *
+                        mut u8, arg2 : usize,) -> * mut u8 { unsafe {
+                        $($path_to_types)*:: _export_echo_result_err_only_cabi::<$ty >
+                        (arg0, arg1, arg2) } } #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-result-err-only")]
+                        unsafe extern "C" fn _post_return_echo_result_err_only(arg0 : *
+                        mut u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_result_err_only::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-result-empty")] unsafe
+                        extern "C" fn export_echo_result_empty(arg0 : i32,) -> i32 {
+                        unsafe { $($path_to_types)*::
+                        _export_echo_result_empty_cabi::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-nested-option")] unsafe
+                        extern "C" fn export_echo_nested_option(arg0 : i32, arg1 : i32,
+                        arg2 : i32,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_nested_option_cabi::<$ty > (arg0, arg1, arg2) } }
+                        #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-tuple5")] unsafe extern "C"
+                        fn export_echo_tuple5(arg0 : i32, arg1 : i32, arg2 : i32, arg3 :
+                        i64, arg4 : * mut u8, arg5 : usize,) -> * mut u8 { unsafe {
+                        $($path_to_types)*:: _export_echo_tuple5_cabi::<$ty > (arg0,
+                        arg1, arg2, arg3, arg4, arg5) } } #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-tuple5")] unsafe
+                        extern "C" fn _post_return_echo_tuple5(arg0 : * mut u8,) { unsafe
+                        { $($path_to_types)*:: __post_return_echo_tuple5::<$ty > (arg0) }
+                        } #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-list-option")] unsafe
+                        extern "C" fn export_echo_list_option(arg0 : * mut u8, arg1 :
+                        usize,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_list_option_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-list-option")]
+                        unsafe extern "C" fn _post_return_echo_list_option(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_list_option::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-list-result")] unsafe
+                        extern "C" fn export_echo_list_result(arg0 : * mut u8, arg1 :
+                        usize,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_list_result_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-list-result")]
+                        unsafe extern "C" fn _post_return_echo_list_result(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_list_result::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-option-list")] unsafe
+                        extern "C" fn export_echo_option_list(arg0 : i32, arg1 : * mut
+                        u8, arg2 : usize,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_option_list_cabi::<$ty > (arg0, arg1, arg2) } }
+                        #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-option-list")]
+                        unsafe extern "C" fn _post_return_echo_option_list(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_option_list::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-list-tuple")] unsafe extern
+                        "C" fn export_echo_list_tuple(arg0 : * mut u8, arg1 : usize,) ->
+                        * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_list_tuple_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-list-tuple")]
+                        unsafe extern "C" fn _post_return_echo_list_tuple(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_list_tuple::<$ty > (arg0) } } #[unsafe
+                        (export_name = "jsco:test/echo-edge-cases@0.1.0#echo-big-flags")]
+                        unsafe extern "C" fn export_echo_big_flags(arg0 : i32,) -> i32 {
+                        unsafe { $($path_to_types)*:: _export_echo_big_flags_cabi::<$ty >
+                        (arg0) } } #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-empty-list")] unsafe extern
+                        "C" fn export_echo_empty_list(arg0 : * mut u8, arg1 : usize,) ->
+                        * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_empty_list_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-empty-list")]
+                        unsafe extern "C" fn _post_return_echo_empty_list(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_empty_list::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-empty-string")] unsafe
+                        extern "C" fn export_echo_empty_string(arg0 : * mut u8, arg1 :
+                        usize,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_echo_empty_string_cabi::<$ty > (arg0, arg1) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-empty-string")]
+                        unsafe extern "C" fn _post_return_echo_empty_string(arg0 : * mut
+                        u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_empty_string::<$ty > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#[constructor]err-ctx")] unsafe
+                        extern "C" fn export_constructor_err_ctx(arg0 : * mut u8, arg1 :
+                        usize,) -> i32 { unsafe { $($path_to_types)*::
+                        _export_constructor_err_ctx_cabi::<<$ty as $($path_to_types)*::
+                        Guest >::ErrCtx > (arg0, arg1) } } #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#[method]err-ctx.get-message")]
+                        unsafe extern "C" fn export_method_err_ctx_get_message(arg0 : *
+                        mut u8,) -> * mut u8 { unsafe { $($path_to_types)*::
+                        _export_method_err_ctx_get_message_cabi::<<$ty as
+                        $($path_to_types)*:: Guest >::ErrCtx > (arg0) } } #[unsafe
+                        (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#[method]err-ctx.get-message")]
+                        unsafe extern "C" fn _post_return_method_err_ctx_get_message(arg0
+                        : * mut u8,) { unsafe { $($path_to_types)*::
+                        __post_return_method_err_ctx_get_message::<<$ty as
+                        $($path_to_types)*:: Guest >::ErrCtx > (arg0) } } #[unsafe
+                        (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#echo-result-complex")] unsafe
+                        extern "C" fn export_echo_result_complex(arg0 : i32, arg1 : * mut
+                        u8, arg2 : usize, arg3 : i32,) -> * mut u8 { unsafe {
+                        $($path_to_types)*:: _export_echo_result_complex_cabi::<$ty >
+                        (arg0, arg1, arg2, arg3) } } #[unsafe (export_name =
+                        "cabi_post_jsco:test/echo-edge-cases@0.1.0#echo-result-complex")]
+                        unsafe extern "C" fn _post_return_echo_result_complex(arg0 : *
+                        mut u8,) { unsafe { $($path_to_types)*::
+                        __post_return_echo_result_complex::<$ty > (arg0) } } const _ : ()
+                        = { #[doc(hidden)] #[unsafe (export_name =
+                        "jsco:test/echo-edge-cases@0.1.0#[dtor]err-ctx")]
+                        #[allow(non_snake_case)] unsafe extern "C" fn dtor(rep : * mut
+                        u8) { unsafe { $($path_to_types)*:: ErrCtx::dtor::< <$ty as
+                        $($path_to_types)*:: Guest >::ErrCtx > (rep) } } }; };
+                    };
+                }
+                #[doc(hidden)]
+                pub(crate) use __export_jsco_test_echo_edge_cases_0_1_0_cabi;
+                #[repr(align(8))]
+                struct _RetArea(
+                    [::core::mem::MaybeUninit<
+                        u8,
+                    >; 16 + 2 * ::core::mem::size_of::<*const u8>()],
+                );
+                static mut _RET_AREA: _RetArea = _RetArea(
+                    [::core::mem::MaybeUninit::uninit(); 16
+                        + 2 * ::core::mem::size_of::<*const u8>()],
+                );
+            }
         }
     }
 }
@@ -1301,6 +2571,81 @@ mod _rt {
         }
     }
     pub use alloc_crate::alloc;
+    use core::fmt;
+    use core::marker;
+    use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
+    /// A type which represents a component model resource, either imported or
+    /// exported into this component.
+    ///
+    /// This is a low-level wrapper which handles the lifetime of the resource
+    /// (namely this has a destructor). The `T` provided defines the component model
+    /// intrinsics that this wrapper uses.
+    ///
+    /// One of the chief purposes of this type is to provide `Deref` implementations
+    /// to access the underlying data when it is owned.
+    ///
+    /// This type is primarily used in generated code for exported and imported
+    /// resources.
+    #[repr(transparent)]
+    pub struct Resource<T: WasmResource> {
+        handle: AtomicU32,
+        _marker: marker::PhantomData<T>,
+    }
+    /// A trait which all wasm resources implement, namely providing the ability to
+    /// drop a resource.
+    ///
+    /// This generally is implemented by generated code, not user-facing code.
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe trait WasmResource {
+        /// Invokes the `[resource-drop]...` intrinsic.
+        unsafe fn drop(handle: u32);
+    }
+    impl<T: WasmResource> Resource<T> {
+        #[doc(hidden)]
+        pub unsafe fn from_handle(handle: u32) -> Self {
+            debug_assert!(handle != u32::MAX);
+            Self {
+                handle: AtomicU32::new(handle),
+                _marker: marker::PhantomData,
+            }
+        }
+        /// Takes ownership of the handle owned by `resource`.
+        ///
+        /// Note that this ideally would be `into_handle` taking `Resource<T>` by
+        /// ownership. The code generator does not enable that in all situations,
+        /// unfortunately, so this is provided instead.
+        ///
+        /// Also note that `take_handle` is in theory only ever called on values
+        /// owned by a generated function. For example a generated function might
+        /// take `Resource<T>` as an argument but then call `take_handle` on a
+        /// reference to that argument. In that sense the dynamic nature of
+        /// `take_handle` should only be exposed internally to generated code, not
+        /// to user code.
+        #[doc(hidden)]
+        pub fn take_handle(resource: &Resource<T>) -> u32 {
+            resource.handle.swap(u32::MAX, Relaxed)
+        }
+        #[doc(hidden)]
+        pub fn handle(resource: &Resource<T>) -> u32 {
+            resource.handle.load(Relaxed)
+        }
+    }
+    impl<T: WasmResource> fmt::Debug for Resource<T> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Resource").field("handle", &self.handle).finish()
+        }
+    }
+    impl<T: WasmResource> Drop for Resource<T> {
+        fn drop(&mut self) {
+            unsafe {
+                match self.handle.load(Relaxed) {
+                    u32::MAX => {}
+                    other => T::drop(other),
+                }
+            }
+        }
+    }
+    pub use alloc_crate::boxed::Box;
     extern crate alloc as alloc_crate;
 }
 /// Generates `#[unsafe(no_mangle)]` functions to export the specified type as
@@ -1335,6 +2680,9 @@ macro_rules! __export_echo_reactor_impl {
         $($path_to_types_root)*::
         exports::jsco::test::echo_algebraic::__export_jsco_test_echo_algebraic_0_1_0_cabi!($ty
         with_types_in $($path_to_types_root)*:: exports::jsco::test::echo_algebraic);
+        $($path_to_types_root)*::
+        exports::jsco::test::echo_edge_cases::__export_jsco_test_echo_edge_cases_0_1_0_cabi!($ty
+        with_types_in $($path_to_types_root)*:: exports::jsco::test::echo_edge_cases);
     };
 }
 #[doc(inline)]
@@ -1345,9 +2693,9 @@ pub(crate) use __export_echo_reactor_impl as export;
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1256] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe5\x08\x01A\x02\x01\
-A\x08\x01B\x04\x01@\x02\x05labels\x05values\x01\0\x04\0\x10report-primitive\x01\0\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1984] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xbd\x0e\x01A\x02\x01\
+A\x0a\x01B\x04\x01@\x02\x05labels\x05values\x01\0\x04\0\x10report-primitive\x01\0\
 \x01@\x03\x05labels\x01xu\x01yu\x01\0\x04\0\x0dreport-record\x01\x01\x03\0\x19js\
 co:test/echo-sink@0.1.0\x05\0\x01B\x1a\x01@\x01\x01v\x7f\0\x7f\x04\0\x09echo-boo\
 l\x01\0\x01@\x01\x01v}\0}\x04\0\x07echo-u8\x01\x01\x01@\x01\x01v{\0{\x04\0\x08ec\
@@ -1373,9 +2721,26 @@ s\x03\0\x02\x01o\x02uu\x01q\x04\x06circle\x01u\0\x09rectangle\x01\x04\0\x0dnamed
 -polygon\x01s\0\x03dot\0\0\x04\0\x05shape\x03\0\x05\x01@\x01\x01v\x01\0\x01\x04\0\
 \x09echo-enum\x01\x07\x01@\x01\x01v\x03\0\x03\x04\0\x0aecho-flags\x01\x08\x01@\x01\
 \x01v\x06\0\x06\x04\0\x0cecho-variant\x01\x09\x04\0\x1ejsco:test/echo-algebraic@\
-0.1.0\x05\x03\x04\0\x1ejsco:echo-reactor/echo-reactor\x04\0\x0b\x12\x01\0\x0cech\
-o-reactor\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.\
-227.1\x10wit-bindgen-rust\x060.41.0";
+0.1.0\x05\x03\x01B4\x01n\x20\x02b0\x02b1\x02b2\x02b3\x02b4\x02b5\x02b6\x02b7\x02\
+b8\x02b9\x03b10\x03b11\x03b12\x03b13\x03b14\x03b15\x03b16\x03b17\x03b18\x03b19\x03\
+b20\x03b21\x03b22\x03b23\x03b24\x03b25\x03b26\x03b27\x03b28\x03b29\x03b30\x03b31\
+\x04\0\x09big-flags\x03\0\0\x04\0\x07err-ctx\x03\x01\x01i\x02\x01@\x01\x07messag\
+es\0\x03\x04\0\x14[constructor]err-ctx\x01\x04\x01h\x02\x01@\x01\x04self\x05\0s\x04\
+\0\x1b[method]err-ctx.get-message\x01\x06\x01j\x01s\0\x01@\x01\x01v\x07\0\x07\x04\
+\0\x13echo-result-ok-only\x01\x08\x01j\0\x01s\x01@\x01\x01v\x09\0\x09\x04\0\x14e\
+cho-result-err-only\x01\x0a\x01j\0\0\x01@\x01\x01v\x0b\0\x0b\x04\0\x11echo-resul\
+t-empty\x01\x0c\x01ky\x01k\x0d\x01@\x01\x01v\x0e\0\x0e\x04\0\x12echo-nested-opti\
+on\x01\x0f\x01o\x05}{yws\x01@\x01\x01v\x10\0\x10\x04\0\x0becho-tuple5\x01\x11\x01\
+ks\x01p\x12\x01@\x01\x01v\x13\0\x13\x04\0\x10echo-list-option\x01\x14\x01j\x01y\x01\
+s\x01p\x15\x01@\x01\x01v\x16\0\x16\x04\0\x10echo-list-result\x01\x17\x01py\x01k\x18\
+\x01@\x01\x01v\x19\0\x19\x04\0\x10echo-option-list\x01\x1a\x01o\x02sy\x01p\x1b\x01\
+@\x01\x01v\x1c\0\x1c\x04\0\x0fecho-list-tuple\x01\x1d\x01@\x01\x01v\x01\0\x01\x04\
+\0\x0eecho-big-flags\x01\x1e\x01@\x01\x01v\x18\0\x18\x04\0\x0fecho-empty-list\x01\
+\x1f\x01@\x01\x01vs\0s\x04\0\x11echo-empty-string\x01\x20\x01p}\x01o\x02s\x03\x01\
+j\x01!\x01\"\x01@\x01\x01v#\0#\x04\0\x13echo-result-complex\x01$\x04\0\x1fjsco:t\
+est/echo-edge-cases@0.1.0\x05\x04\x04\0\x1ejsco:echo-reactor/echo-reactor\x04\0\x0b\
+\x12\x01\0\x0cecho-reactor\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwi\
+t-component\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {
