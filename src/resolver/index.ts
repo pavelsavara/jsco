@@ -1,5 +1,7 @@
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
+import { isDebug, LogLevel } from '../utils/assert';
+import { planOpKindName, modelTagName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance, WasmComponent } from './api-types';
 import { PlanOp, PlanOpKind, executePlan } from './binding-plan';
 import { resolveComponentExport } from './component-exports';
@@ -28,6 +30,26 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     }
 
     const rctx: ResolverContext = createResolverContext(input, options ?? {});
+
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Summary) {
+        const ix = rctx.indexes;
+        const lines = [
+            'Index spaces populated:',
+            `  coreModules:      ${ix.coreModules.length}`,
+            `  coreInstances:    ${ix.coreInstances.length}  [${ix.coreInstances.map(i => modelTagName(i.tag)).join(', ')}]`,
+            `  coreFunctions:    ${ix.coreFunctions.length}`,
+            `  coreMemories:     ${ix.coreMemories.length}`,
+            `  componentImports: ${ix.componentImports.length}  [${ix.componentImports.map(i => `"${i.name.name}"`).join(', ')}]`,
+            `  componentExports: ${ix.componentExports.length}  [${ix.componentExports.map(e => `"${e.name.name}"`).join(', ')}]`,
+            `  componentTypes:   ${ix.componentTypes.length}`,
+            `  componentFunctions: ${ix.componentFunctions.length}`,
+            `  componentInstances: ${ix.componentInstances.length}`,
+            `  componentSections:  ${ix.componentSections.length}`,
+            `  resolvedTypes:    ${rctx.resolved.resolvedTypes.size} entries`,
+            `  canonicalResourceIds: ${rctx.resolved.canonicalResourceIds.size} entries`,
+        ];
+        rctx.resolved.logger!('resolver', LogLevel.Summary, lines.join('\n'));
+    }
 
     // Module compilation (via compileStreaming) was kicked off during parsing.
     // No need to await here — the compiled module is only needed at instantiation
@@ -73,6 +95,17 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     // are not exported but still needed)
     const sortedPlan = sortPlanForExecution(plan);
 
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Summary) {
+        const lines = [`Plan (${sortedPlan.length} ops):`];
+        for (let i = 0; i < sortedPlan.length; i++) {
+            const op = sortedPlan[i];
+            lines.push(`  ${i + 1}. ${planOpKindName(op.kind).padEnd(16)} ${op.label}`);
+        }
+        lines.push('');
+        lines.push(`Resolution stats: resolveComponentSection=${rctx.resolved.stats!.resolveComponentSection} resolveComponentInstanceInstantiate=${rctx.resolved.stats!.resolveComponentInstanceInstantiate} createScopedResolverContext=${rctx.resolved.stats!.createScopedResolverContext} cacheHits=${rctx.resolved.stats!.componentSectionCacheHits} instanceCacheHits=${rctx.resolved.stats!.componentInstanceCacheHits} coreInstanceCacheHits=${rctx.resolved.stats!.coreInstanceCacheHits} coreFuncCacheHits=${rctx.resolved.stats!.coreFunctionCacheHits} compFuncCacheHits=${rctx.resolved.stats!.componentFunctionCacheHits}`);
+        rctx.resolved.logger!('resolver', LogLevel.Summary, lines.join('\n'));
+    }
+
     // Free the large indexes structure — no longer needed after resolution.
     // Binder closures capture rctx.resolved (ResolvedContext) — a separate object
     // from rctx, so rctx itself (with indexes, importToInstanceIndex, etc.) is GC-eligible.
@@ -84,7 +117,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
     let firstInstantiation = true;
     const component: WasmComponent<TJSExports> = {
         instantiate: async (imports) => {
-            const result = await executePlan<TJSExports>(sortedPlan, imports);
+            const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
                 firstInstantiation = false;
                 // After first instantiation all memoize factories have run.
@@ -95,6 +128,7 @@ export async function createComponent<TJSExports>(modelOrComponentOrUrl: Compone
             return result;
         },
         plan: sortedPlan,
+        stats: isDebug ? { ...rctx.resolved.stats! } : undefined,
     };
     return component;
 }

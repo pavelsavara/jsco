@@ -2,7 +2,7 @@ import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';
 import { ComponentType } from '../model/types';
 import { ComponentSection } from '../parser/types';
-import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
 import { resolveComponentImport } from './component-imports';
@@ -25,6 +25,25 @@ export const resolveComponentType: Resolver<ComponentType> = (rctx, rargs) => {
 export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs) => {
     const componentSection = rargs.element;
     jsco_assert(componentSection && componentSection.tag == ModelTag.ComponentSection, () => `Wrong element type '${componentSection?.tag}'`);
+
+    if (isDebug && rctx.resolved.stats) rctx.resolved.stats.resolveComponentSection++;
+
+    // Check the cache first — the same ComponentSection (by object identity) always
+    // produces the same resolution result. This avoids exponential re-resolution in
+    // WAC compositions where the same component type is instantiated multiple times.
+    const cached = rctx.resolved.componentSectionCache.get(componentSection);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.componentSectionCacheHits++;
+        if (isDebug) {
+            rctx.resolved.logger!('resolver', LogLevel.Summary, `resolveComponentSection #${rctx.resolved.stats?.resolveComponentSection} sections=${componentSection.sections.length} CACHE HIT`);
+        }
+        return cached;
+    }
+
+    if (isDebug) {
+        const callerTag = rargs.callerElement ? `${rargs.callerElement.tag}:${(rargs.callerElement as any).selfSortIndex}` : 'top';
+        rctx.resolved.logger!('resolver', LogLevel.Summary, `resolveComponentSection #${rctx.resolved.stats?.resolveComponentSection} sections=${componentSection.sections.length} caller=${callerTag}`);
+    }
 
     // Create a scoped resolver context for this nested ComponentSection.
     // Sort indices within the section are local — they reference elements
@@ -75,6 +94,9 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentInstanceInstantiate:
             case ModelTag.CanonicalFunctionLift:
             case ModelTag.CanonicalFunctionLower:
+            case ModelTag.CanonicalFunctionResourceDrop:
+            case ModelTag.CanonicalFunctionResourceNew:
+            case ModelTag.CanonicalFunctionResourceRep:
             case ModelTag.CustomSection:
             case ModelTag.SkippedSection:
             case ModelTag.ComponentTypeDefinedRecord:
@@ -88,6 +110,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentTypeDefinedOwn:
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedPrimitive:
+            case ModelTag.ComponentTypeResource:
                 // Type declarations within a component section define the
                 // component's type graph (records, enums, functions, etc.).
                 // These are structural — consumed by the type resolution pass
@@ -98,7 +121,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
         }
     }
 
-    return {
+    const result: ResolverRes = {
         callerElement: rargs.callerElement,
         element: componentSection,
         binder: withDebugTrace(async (bctx, bargs) => {
@@ -106,7 +129,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             // Nested sections have their own local index spaces (core instances,
             // functions, etc.) that would collide with the parent's if they shared
             // the same binding context.
-            const scopedBctx = createBindingContext(bargs.imports ?? {});
+            const scopedBctx = createBindingContext(bargs.imports ?? {}, scopedRctx.resolved);
 
             // Phase 1: Bind imports — wire up component args from the parent's instantiation.
             for (const importResolution of importResolutions) {
@@ -150,6 +173,9 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             return binderResult;
         }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
+
+    rctx.resolved.componentSectionCache.set(componentSection, result);
+    return result;
 };
 
 

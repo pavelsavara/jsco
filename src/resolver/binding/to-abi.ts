@@ -2,10 +2,11 @@ import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert } from '../../utils/assert';
+import { jsco_assert, isDebug, LogLevel } from '../../utils/assert';
+import { callingConventionName } from '../../utils/debug-names';
 import type { ResolvedType } from '../type-resolution';
 import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize } from '../calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
@@ -22,6 +23,10 @@ const _i64 = new BigInt64Array(_f64.buffer);
 _i64[0] = 0x7ff8000000000000n;
 const canonicalNaN64: number = _f64[0];
 
+function bigIntReplacer(_key: string, value: unknown): unknown {
+    return typeof value === 'bigint' ? value.toString() + 'n' : value;
+}
+
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(rctx.liftingCache, importModel, () => {
@@ -29,6 +34,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         const paramLifters: Function[] = [];
         for (const param of importModel.params) {
             const lifter = createLifting(rctx, param.type);
+
             paramLifters.push(lifter);
         }
         const resultLowerers: Function[] = [];
@@ -73,12 +79,23 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         }
         const totalFlatParams = paramResolvedTypes.reduce((sum, pt) => sum + flatCount(pt), 0);
 
+        if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
+            const paramNames = importModel.params.map(p => p.name).join(', ');
+            rctx.logger!('binder', LogLevel.Summary,
+                `createFunctionLifting: params=[${paramNames}] count=${importModel.params.length} results=${resultLowerers.length}` +
+                ` convention: params=${callingConventionName(callingConvention.params)} results=${callingConventionName(callingConvention.results)}` +
+                ` flatParams=${totalFlatParams} spilledSize=${spilledParamsTotalSize}`);
+        }
+
         return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
             function liftingTrampoline(...args: any[]): any {
                 // C4: Runtime behavioral guarantees
                 checkNotPoisoned(ctx);
                 checkNotReentrant(ctx);
                 ctx.inExport = true;
+                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                    ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
+                }
                 try {
                     let wasmArgs: any[];
                     if (callingConvention.params === CallingConvention.Spilled) {
@@ -117,6 +134,9 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         ctx.postReturnFn = undefined;
                     }
 
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← lifting result=${JSON.stringify(result, bigIntReplacer)}`);
+                    }
                     return result;
                 } catch (e) {
                     // Poison the instance on trap
@@ -285,7 +305,7 @@ function createS64LiftingNumber(): LiftingFromJs {
 function createS64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
         const num = srcJsValue as bigint;
-        out[offset] = BigInt.asIntN(52, num);
+        out[offset] = BigInt.asIntN(64, num);
         return 1;
     };
 }
@@ -523,6 +543,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const { tag, val } = jsValue as { tag: string, val?: any };
+                if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 if (tag === 'ok') {
                     dv.setUint8(0, 0);
                     if (okStorer && val !== undefined) {
@@ -551,6 +572,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
                 const { tag, val } = jsValue as { tag: string, val?: any };
+                if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 const caseIndex = nameToIndex.get(tag)!;
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 if (discSize === 1) dv.setUint8(0, caseIndex);
@@ -674,19 +696,42 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const okLifter = resultModel.ok ? createLifting(rctx, resultModel.ok) : undefined;
     const errLifter = resultModel.err ? createLifting(rctx, resultModel.err) : undefined;
 
-    const okFlatN = resultModel.ok ? flatCount(deepResolveType(rctx, resolveValType(rctx, resultModel.ok))) : 0;
-    const errFlatN = resultModel.err ? flatCount(deepResolveType(rctx, resolveValType(rctx, resultModel.err))) : 0;
-    const maxPayloadFlat = Math.max(okFlatN, errFlatN);
-    const totalSize = 1 + maxPayloadFlat;
+    // Compute joined flat types for the result (despecialized as variant)
+    // Use deep-resolved model so flattenValType doesn't encounter unresolved type refs
+    const resolved = deepResolveType(rctx, resultModel) as ComponentTypeDefinedResult;
+    const joinedFlatTypes = flattenType(resolved);
+    const payloadJoined = joinedFlatTypes.slice(1);
+    const totalSize = joinedFlatTypes.length;
+    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
+
+    const okFlatTypes = resolved.ok ? flattenValType(resolved.ok) : [];
+    const errFlatTypes = resolved.err ? flattenValType(resolved.err) : [];
+    const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
+    const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     return (ctx, srcJsValue, out, offset) => {
         const { tag, val } = srcJsValue as { tag: string, val?: any };
-        for (let i = 0; i < totalSize; i++) out[offset + i] = 0;
+        if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
+        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
         if (tag === 'ok') {
             if (okLifter) okLifter(ctx, val, out, offset + 1);
+            if (okNeedsCoercion) {
+                for (let i = 0; i < okFlatTypes.length; i++) {
+                    if (okFlatTypes[i] !== payloadJoined[i]) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFlatTypes[i], payloadJoined[i]);
+                    }
+                }
+            }
         } else {
             out[offset] = 1;
             if (errLifter) errLifter(ctx, val, out, offset + 1);
+            if (errNeedsCoercion) {
+                for (let i = 0; i < errFlatTypes.length; i++) {
+                    if (errFlatTypes[i] !== payloadJoined[i]) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFlatTypes[i], payloadJoined[i]);
+                    }
+                }
+            }
         }
         return totalSize;
     };
@@ -695,27 +740,79 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
 // --- Variant lifting ---
 
 function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LiftingFromJs {
-    const cases = variantModel.variants.map((c, i) => ({
-        name: c.name,
-        index: i,
-        lifter: c.ty ? createLifting(rctx, c.ty) : undefined,
-        flatCount: c.ty ? flatCount(deepResolveType(rctx, resolveValType(rctx, c.ty))) : 0,
-    }));
-    const maxPayloadFlat = Math.max(0, ...cases.map(c => c.flatCount));
-    const totalSize = 1 + maxPayloadFlat;
+    // Compute the joined flat types per the spec's flatten_variant
+    const joinedFlatTypes = flattenVariant(deepResolveType(rctx, variantModel) as ComponentTypeDefinedVariant);
+    // joinedFlatTypes[0] is the discriminant (i32), rest are payload
+    const payloadJoined = joinedFlatTypes.slice(1);
+    const totalSize = joinedFlatTypes.length;
+    // Pre-compute zero values for each slot: 0n for i64, 0 for everything else
+    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
+
+    const cases = variantModel.variants.map((c, i) => {
+        const resolved = c.ty ? deepResolveType(rctx, resolveValType(rctx, c.ty)) : undefined;
+        const caseFlatTypes = resolved ? flattenType(resolved) : [];
+        // Check if any slot needs coercion
+        const needsCoercion = caseFlatTypes.some((ct, si) => ct !== payloadJoined[si]);
+        return {
+            name: c.name,
+            index: i,
+            lifter: c.ty ? createLifting(rctx, c.ty) : undefined,
+            caseFlatTypes,
+            needsCoercion,
+        };
+    });
     const nameToCase = new Map(cases.map(c => [c.name, c]));
 
     return (ctx, srcJsValue, out, offset) => {
         const { tag, val } = srcJsValue as { tag: string, val?: any };
+        if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);
-        for (let i = 0; i < totalSize; i++) out[offset + i] = 0;
+        // Zero-fill with type-appropriate zeros
+        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
         out[offset] = c.index;
         if (c.lifter && val !== undefined) {
             c.lifter(ctx, val, out, offset + 1);
         }
+        // Coerce from case's natural flat types to the joined flat types
+        if (c.needsCoercion) {
+            for (let i = 0; i < c.caseFlatTypes.length; i++) {
+                const have = c.caseFlatTypes[i];
+                const want = payloadJoined[i];
+                if (have !== want) {
+                    out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, have, want);
+                }
+            }
+        }
         return totalSize;
     };
+}
+
+/**
+ * Coerce a value from one flat type to another during lifting (JS→WASM).
+ * Follows the spec's lower_flat_variant coercion table.
+ */
+function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValue {
+    // (f32, i32): reinterpret f32 as i32
+    if (have === FlatType.F32 && want === FlatType.I32) {
+        _f32[0] = value;
+        return _i32[0];
+    }
+    // (i32, i64): widen i32 to i64
+    if (have === FlatType.I32 && want === FlatType.I64) {
+        return BigInt(value >>> 0);
+    }
+    // (f32, i64): reinterpret f32 as i32, then widen to i64
+    if (have === FlatType.F32 && want === FlatType.I64) {
+        _f32[0] = value;
+        return BigInt(_i32[0] >>> 0);
+    }
+    // (f64, i64): reinterpret f64 as i64
+    if (have === FlatType.F64 && want === FlatType.I64) {
+        _f64[0] = value;
+        return _i64[0];
+    }
+    return value;
 }
 
 // --- Enum lifting ---
@@ -768,6 +865,8 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
 
 function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return 1;
@@ -776,6 +875,8 @@ function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedO
 
 function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
+    jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
+        () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
         return 1;

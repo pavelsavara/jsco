@@ -1,5 +1,8 @@
 import type { WITModel, ParserContext, ParserOptions, ComponentSection } from './types';
 import { fetchLike, getBodyIfResponse } from '../utils/fetch-like';
+import { defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import type { LogFn } from '../utils/assert';
+import { printWAT } from '../utils/wat-printer';
 import { SyncSource, bufferToHex, Closeable, Source, newSource } from '../utils/streaming';
 import { parseSectionCustom } from './otherSection';
 import { parseSectionExport } from './export';
@@ -42,10 +45,14 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
     try {
         await checkPreamble(src);
 
+        // eslint-disable-next-line no-console
+        const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
         const ctx: ParserContext = {
             otherSectionData: options?.otherSectionData ?? false,
             compileStreaming: options?.compileStreaming ?? WebAssembly.compileStreaming,
             processCustomSection: options?.processCustomSection ?? undefined,
+            verbose: { ...defaultVerbosity, ...options?.verbose },
+            logger: options?.logger ?? defaultLogger,
         };
 
         const model: WITSection[] = [];
@@ -57,6 +64,10 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
             for (const s of sections) {
                 model.push(s);
             }
+        }
+
+        if (isDebug && (ctx.verbose?.parser ?? 0) >= LogLevel.Summary) {
+            ctx.logger!('parser', LogLevel.Summary, `Parsed ${model.length} sections\n` + printWAT(model));
         }
 
         return model;

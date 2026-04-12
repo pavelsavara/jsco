@@ -1,0 +1,9 @@
+package jsco:echo-reactor;
+
+world echo-reactor {
+    import jsco:test/echo-sink@0.1.0;
+
+    export jsco:test/echo-primitives@0.1.0;
+    export jsco:test/echo-compound@0.1.0;
+    export jsco:test/echo-algebraic@0.1.0;
+}

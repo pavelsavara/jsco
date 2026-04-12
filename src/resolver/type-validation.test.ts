@@ -13,6 +13,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
         resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
         canonicalResourceIds: new Map(),
+        componentSectionCache: new Map(),
         resourceAliasGroups: new Map(),
         indexes: {
             componentExports: [],

@@ -1,0 +1,73 @@
+name: integration-tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    paths:
+      - "integration-tests/**"
+      - "wit/**"
+      - "src/host/wasip2/integration.test.ts"
+      - ".github/workflows/integration-tests.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --experimental-vm-modules
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install latest stable Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-wasip1,wasm32-unknown-unknown
+
+    - uses: Swatinem/rust-cache@v2.9.1
+      with:
+        cache-all-crates: true
+        cache-targets: true
+        workspaces: integration-tests
+        cache-on-failure: true
+
+    - name: Install cargo-component
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-component
+        locked: true
+
+    - name: Install wac-cli
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: wac-cli
+        locked: true
+
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Build integration test components
+      run: npm run build:integration
+
+    - name: Build wac compositions
+      run: npm run build:compositions
+
+    - name: Run integration tests
+      run: npm run test:integration
+
+    - name: Upload wasm artifacts
+      uses: actions/upload-artifact@v6
+      if: always()
+      with:
+        name: integration-wasm.${{github.sha}}
+        path: |
+          integration-tests/target/wasm32-wasip1/release/*.wasm
+          integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
+          integration-tests/compositions/*.wasm

@@ -1,0 +1,6 @@
+// Wraps a single forwarder in a composed component (adds nesting level)
+// Used by Scenario F and as building block for Scenario H
+package jsco:wrapped-forwarder;
+
+let fwd = new jsco:forwarder { ... };
+export fwd...;

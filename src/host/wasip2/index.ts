@@ -22,7 +22,7 @@ import { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSee
 import { createWasiWallClock } from './wall-clock';
 import { createWasiMonotonicClock } from './monotonic-clock';
 import { createWasiCli } from './cli';
-import { createWasiFilesystem } from './filesystem';
+import { createWasiFilesystem, WasiDescriptor, WasiDirectoryEntryStream } from './filesystem';
 import { poll } from './poll';
 import { createOutgoingHandler } from './http';
 import { createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
@@ -164,9 +164,38 @@ export function createWasiHost(config?: WasiConfig): WasiHostImports {
 
         // wasi:filesystem/*
         'wasi:filesystem/types': {
-            // Filesystem operations are resource-method-based.
-            // The component calls [method]descriptor.* on descriptor handles.
-            // For now, expose the preopens-related functions.
+            'filesystem-error-code': (_err: WasiError) => {
+                // In our VFS, stream errors don't carry filesystem error codes.
+                // Return none (undefined) per the WIT spec.
+                return undefined;
+            },
+            '[resource-drop]descriptor': (_self: WasiDescriptor) => { /* GC handles cleanup */ },
+            '[method]descriptor.read-via-stream': (self: WasiDescriptor, offset: bigint) => self.readViaStream(offset),
+            '[method]descriptor.write-via-stream': (self: WasiDescriptor, offset: bigint) => self.writeViaStream(offset),
+            '[method]descriptor.append-via-stream': (self: WasiDescriptor) => self.appendViaStream(),
+            '[method]descriptor.get-type': (self: WasiDescriptor) => self.getType(),
+            '[method]descriptor.stat': (self: WasiDescriptor) => self.stat(),
+            '[method]descriptor.stat-at': (self: WasiDescriptor, pathFlags: any, path: string) => self.statAt(pathFlags, path),
+            '[method]descriptor.open-at': (self: WasiDescriptor, pathFlags: any, path: string, openFlags: any, descFlags: any) => self.openAt(pathFlags, path, openFlags, descFlags),
+            '[method]descriptor.read-directory': (self: WasiDescriptor) => self.readDirectory(),
+            '[method]descriptor.create-directory-at': (self: WasiDescriptor, path: string) => self.createDirectoryAt(path),
+            '[method]descriptor.remove-directory-at': (self: WasiDescriptor, path: string) => self.removeDirectoryAt(path),
+            '[method]descriptor.unlink-file-at': (self: WasiDescriptor, path: string) => self.unlinkFileAt(path),
+            '[method]descriptor.read': (self: WasiDescriptor, length: bigint, offset: bigint) => self.read(length, offset),
+            '[method]descriptor.write': (self: WasiDescriptor, buffer: Uint8Array, offset: bigint) => self.write(buffer, offset),
+            '[method]descriptor.get-flags': (self: WasiDescriptor) => self.getFlags(),
+            '[method]descriptor.set-size': (self: WasiDescriptor, size: bigint) => self.setSize(size),
+            '[method]descriptor.sync': (self: WasiDescriptor) => self.sync(),
+            '[method]descriptor.sync-data': (self: WasiDescriptor) => self.syncData(),
+            '[method]descriptor.metadata-hash': (self: WasiDescriptor) => self.metadataHash(),
+            '[method]descriptor.metadata-hash-at': (self: WasiDescriptor, pathFlags: any, path: string) => self.metadataHashAt(pathFlags, path),
+            '[method]descriptor.rename-at': (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
+            '[method]descriptor.set-times': (self: WasiDescriptor, atime: any, mtime: any) => self.setTimes(atime, mtime),
+            '[method]descriptor.set-times-at': (self: WasiDescriptor, pathFlags: any, path: string, atime: any, mtime: any) => self.setTimesAt(pathFlags, path, atime, mtime),
+            '[method]descriptor.is-same-object': (self: WasiDescriptor, other: WasiDescriptor) => self.isSameObject(other),
+            '[method]descriptor.advise': (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
+            '[resource-drop]directory-entry-stream': (_self: WasiDirectoryEntryStream) => { /* GC handles cleanup */ },
+            '[method]directory-entry-stream.read-directory-entry': (self: WasiDirectoryEntryStream) => self.readDirectoryEntry(),
         },
         'wasi:filesystem/preopens': {
             'get-directories': filesystem.preopens.getDirectories,

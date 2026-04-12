@@ -1,0 +1,7 @@
+// Two forwarders composed flat — inner satisfies outer's WASI imports
+// Used by Scenario G
+package jsco:double-forwarder;
+
+let inner = new jsco:forwarder { ... };
+let outer = new jsco:forwarder { ...inner, ... };
+export outer...;

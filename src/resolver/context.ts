@@ -2,8 +2,9 @@ import { WITModel } from '../parser';
 import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
 import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
 import { ExternalKind } from '../model/core';
-import { ComponentExternalKind } from '../model/exports';
-import { configuration } from '../utils/assert';
+import { ComponentExport, ComponentExternalKind } from '../model/exports';
+import { configuration, defaultVerbosity, isDebug, LogLevel } from '../utils/assert';
+import type { LogFn, Verbosity } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
@@ -12,6 +13,10 @@ import type { ComponentImport } from '../model/imports';
 import type { ComponentTypeInstance } from '../model/types';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
+    // eslint-disable-next-line no-console
+    const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
+    const verbose = { ...defaultVerbosity, ...options.verbose };
+    const logger = options.logger ?? defaultLogger;
     const rctx: ResolverContext = {
         resolved: {
             usesNumberForInt64: (options.useNumberForInt64 === true) ? true : false,
@@ -20,11 +25,19 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             loweringCache: new Map(),
             resolvedTypes: new Map(),
             canonicalResourceIds: new Map(),
+            componentSectionCache: new Map(),
+            stats: isDebug ? { resolveComponentSection: 0, resolveComponentInstanceInstantiate: 0, createScopedResolverContext: 0, componentSectionCacheHits: 0, componentInstanceCacheHits: 0, coreInstanceCacheHits: 0, coreFunctionCacheHits: 0, componentFunctionCacheHits: 0 } : undefined,
+            verbose,
+            logger,
         },
         validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
+        componentInstanceCache: new Map(),
+        coreInstanceCache: new Map(),
+        coreFunctionCache: new Map(),
+        componentFunctionCache: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -94,9 +107,27 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
                 indexes.componentFunctions.push(imp);
             }
         }
-    }
 
-    // componentSections (section id 4) are in the COMPONENT sort — separate from TYPE sort.
+        // Component model spec: export definitions extend the index space of their kind.
+        // An (export "name" (instance N)) creates a new entry in the instance index space, etc.
+        if (section.tag === ModelTag.ComponentExport) {
+            const exp = section as ComponentExport;
+            switch (exp.kind) {
+                case ComponentExternalKind.Instance:
+                    indexes.componentInstances.push(exp as any);
+                    break;
+                case ComponentExternalKind.Func:
+                    indexes.componentFunctions.push(exp as any);
+                    break;
+                case ComponentExternalKind.Type:
+                    indexes.componentTypes.push(exp as any);
+                    break;
+                case ComponentExternalKind.Component:
+                    indexes.componentSections.push(exp as any);
+                    break;
+            }
+        }
+    }
     // Previously merged into componentTypes, but this is incorrect: the TYPE sort should
     // only contain entries from section id 7 (type definitions) and type aliases.
     // ComponentInstanceInstantiate.component_index references componentSections (COMPONENT sort),
@@ -113,6 +144,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
 /// This function builds local indexes from the section's declarations so that
 /// lookups (e.g., component_index in ComponentInstanceInstantiate) resolve correctly.
 export function createScopedResolverContext(parentRctx: ResolverContext, sections: TaggedElement[]): ResolverContext {
+    if (isDebug && parentRctx.resolved.stats) parentRctx.resolved.stats.createScopedResolverContext++;
     const scopedRctx: ResolverContext = {
         resolved: {
             ...parentRctx.resolved,
@@ -120,11 +152,17 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
             liftingCache: new Map(),
             loweringCache: new Map(),
             canonicalResourceIds: new Map(),
+            verbose: parentRctx.resolved.verbose,
+            logger: parentRctx.resolved.logger,
         },
         validateTypes: parentRctx.validateTypes,
         wasmInstantiate: parentRctx.wasmInstantiate,
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
+        componentInstanceCache: new Map(),
+        coreInstanceCache: new Map(),
+        coreFunctionCache: new Map(),
+        componentFunctionCache: new Map(),
         indexes: {
             componentExports: [],
             componentImports: [],
@@ -179,9 +217,29 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
                 indexes.componentFunctions.push(imp);
             }
         }
+
+        // Component model spec: export definitions extend the index space of their kind.
+        if (section.tag === ModelTag.ComponentExport) {
+            const exp = section as ComponentExport;
+            switch (exp.kind) {
+                case ComponentExternalKind.Instance:
+                    indexes.componentInstances.push(exp as any);
+                    break;
+                case ComponentExternalKind.Func:
+                    indexes.componentFunctions.push(exp as any);
+                    break;
+                case ComponentExternalKind.Type:
+                    indexes.componentTypes.push(exp as any);
+                    break;
+                case ComponentExternalKind.Component:
+                    indexes.componentSections.push(exp as any);
+                    break;
+            }
+        }
     }
 
     setSelfIndex(scopedRctx);
+    buildCanonicalResourceIds(scopedRctx);
     scopedRctx.resolved.resolvedTypes = buildResolvedTypeMap(scopedRctx);
     return scopedRctx;
 }
@@ -238,6 +296,21 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
             }
         }
     }
+
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Summary) {
+        const entries: string[] = [];
+        for (const [typeIdx, canonicalId] of map) {
+            const t = types[typeIdx];
+            const label = t.tag === ModelTag.ComponentTypeResource
+                ? 'resource'
+                : t.tag === ModelTag.ComponentAliasInstanceExport
+                    ? `alias(instance=${(t as ComponentAliasInstanceExport).instance_index}, name="${(t as ComponentAliasInstanceExport).name}")`
+                    : `tag=${t.tag}`;
+            entries.push(`  type[${typeIdx}] → canonical ${canonicalId} (${label})`);
+        }
+        rctx.resolved.logger!('resolver', LogLevel.Summary,
+            `canonicalResourceIds (${map.size} entries): ${entries.join(' | ')}`);
+    }
 }
 
 /// Resolves a type index to its canonical resource ID.
@@ -292,7 +365,7 @@ export function createInstanceTable(): InstanceTable {
     };
 }
 
-export function createResourceTable(): ResourceTable {
+export function createResourceTable(verbose?: Verbosity, logger?: LogFn): ResourceTable {
     let nextHandle = 1;
 
     // Resource handle table — handles are globally unique (monotonic counter).
@@ -306,12 +379,18 @@ export function createResourceTable(): ResourceTable {
         add(resourceTypeIdx: number, obj: unknown): number {
             const handle = nextHandle++;
             handles.set(handle, { typeIdx: resourceTypeIdx, obj });
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `resource.add(typeIdx=${resourceTypeIdx}, handle=${handle})`);
+            }
             return handle;
         },
         get(resourceTypeIdx: number, handle: number): unknown {
             const entry = handles.get(handle);
             if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
             if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `resource.get(typeIdx=${resourceTypeIdx}, handle=${handle})`);
+            }
             return entry.obj;
         },
         remove(resourceTypeIdx: number, handle: number): unknown {
@@ -319,6 +398,9 @@ export function createResourceTable(): ResourceTable {
             if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
             if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);
             handles.delete(handle);
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `resource.remove(typeIdx=${resourceTypeIdx}, handle=${handle})`);
+            }
             return entry.obj;
         },
         has(resourceTypeIdx: number, handle: number): boolean {
@@ -328,11 +410,11 @@ export function createResourceTable(): ResourceTable {
     };
 }
 
-export function createBindingContext(componentImports: JsImports): BindingContext {
+export function createBindingContext(componentImports: JsImports, resolved: ResolvedContext): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
-    const resources = createResourceTable();
+    const resources = createResourceTable(resolved.verbose, resolved.logger);
 
     const ctx: BindingContext = {
         componentImports,
@@ -342,6 +424,8 @@ export function createBindingContext(componentImports: JsImports): BindingContex
         resources,
         utf8Decoder: new TextDecoder(),
         utf8Encoder: new TextEncoder(),
+        verbose: resolved.verbose,
+        logger: resolved.logger,
         abort: () => {
             // Per Component Model spec: poisoning the instance prevents all future
             // export calls from executing. checkNotPoisoned() in the lifting

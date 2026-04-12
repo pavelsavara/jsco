@@ -21,6 +21,7 @@ function createMinimalResolved(opts?: Partial<ResolvedContext>): ResolvedContext
         loweringCache: new Map(),
         resolvedTypes: new Map(),
         canonicalResourceIds: new Map(),
+        componentSectionCache: new Map(),
         usesNumberForInt64: false,
         stringEncoding: StringEncoding.Utf8,
         ...opts,

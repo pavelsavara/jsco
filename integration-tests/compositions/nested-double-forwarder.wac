@@ -1,0 +1,8 @@
+// Nested composition: forwarder composed with wrapped-forwarder
+// Tests deeply nested component instantiation
+// Used by Scenario H
+package jsco:nested-double-forwarder;
+
+let inner = new jsco:wrapped-forwarder { ... };
+let outer = new jsco:forwarder { ...inner, ... };
+export outer...;

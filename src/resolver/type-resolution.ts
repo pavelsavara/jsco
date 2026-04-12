@@ -11,6 +11,10 @@ import { ComponentExternalKind } from '../model/exports';
 import type { ResolverContext, ResolvedContext } from './types';
 import { StringEncoding } from './types';
 import { deepResolveType } from './calling-convention';
+import { defaultVerbosity } from '../utils/assert';
+import type { LogFn } from '../utils/assert';
+
+const _noopLogger: LogFn = () => { /* noop */ };
 
 // A resolved type is a concrete type with no further indirection
 export type ResolvedType =
@@ -131,14 +135,37 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
                         liftingCache: new Map(),
                         loweringCache: new Map(),
                         canonicalResourceIds: new Map(),
+                        componentSectionCache: new Map(),
                         stringEncoding: StringEncoding.Utf8,
                         usesNumberForInt64: false,
+                        verbose: defaultVerbosity,
+                        logger: _noopLogger,
                     };
                     map.set(i as ComponentTypeIndex, deepResolveType(rctxLocal, resolved));
                 }
             }
         }
     }
+
+    // Phase 3: global deep-resolve — replace any remaining ComponentValTypeType
+    // references in all resolved types. This covers function types and defined types
+    // at the top level that reference other type indices (e.g., a record field whose
+    // type is a primitive at another index).
+    const globalRctx: ResolvedContext = {
+        resolvedTypes: map,
+        liftingCache: new Map(),
+        loweringCache: new Map(),
+        canonicalResourceIds: new Map(),
+        componentSectionCache: new Map(),
+        stringEncoding: StringEncoding.Utf8,
+        usesNumberForInt64: false,
+        verbose: defaultVerbosity,
+        logger: _noopLogger,
+    };
+    for (const [idx, resolved] of map) {
+        map.set(idx, deepResolveType(globalRctx, resolved));
+    }
+
     return map;
 }
 

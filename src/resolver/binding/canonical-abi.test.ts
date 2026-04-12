@@ -32,6 +32,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
             usesNumberForInt64,
             stringEncoding: StringEncoding.Utf8,
             canonicalResourceIds: new Map(),
+            componentSectionCache: new Map(),
         },
     } as any as ResolverContext;
 }

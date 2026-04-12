@@ -5,7 +5,7 @@ import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInsta
 import { ComponentAliasInstanceExport } from '../model/aliases';
 import { ModelTag, TaggedElement } from '../model/tags';
 import { ComponentTypeInstance } from '../model/types';
-import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
+import { debugStack, withDebugTrace, jsco_assert, isDebug } from '../utils/assert';
 import { JsImports } from './api-types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
@@ -22,19 +22,28 @@ export type ComponentInstanceData = {
 type ComponentInstanceBinderRes = BinderRes & { result: ComponentInstanceData };
 
 export const resolveComponentInstance: Resolver<ComponentInstance> = (rctx, rargs) => {
+    const cached = rctx.componentInstanceCache.get(rargs.element);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.componentInstanceCacheHits++;
+        return { ...cached, callerElement: rargs.callerElement };
+    }
     const coreInstance = rargs.element;
+    let result: ResolverRes;
     switch (coreInstance.tag) {
-        case ModelTag.ComponentInstanceInstantiate: return resolveComponentInstanceInstantiate(rctx, rargs as any);
-        case ModelTag.ComponentInstanceFromExports: return resolveComponentInstanceFromExports(rctx, rargs as any);
-        case ModelTag.ComponentTypeInstance: return resolveComponentTypeInstance(rctx, rargs as any);
-        case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
+        case ModelTag.ComponentInstanceInstantiate: result = resolveComponentInstanceInstantiate(rctx, rargs as any); break;
+        case ModelTag.ComponentInstanceFromExports: result = resolveComponentInstanceFromExports(rctx, rargs as any); break;
+        case ModelTag.ComponentTypeInstance: result = resolveComponentTypeInstance(rctx, rargs as any); break;
+        case ModelTag.ComponentAliasInstanceExport: result = resolveComponentAliasInstanceExport(rctx, rargs as any); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
+    rctx.componentInstanceCache.set(rargs.element, result);
+    return result;
 };
 
 export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInstantiate> = (rctx, rargs) => {
     const componentInstanceInstantiate = rargs.element;
     jsco_assert(componentInstanceInstantiate && componentInstanceInstantiate.tag == ModelTag.ComponentInstanceInstantiate, () => `Wrong element type '${componentInstanceInstantiate?.tag}'`);
+    if (isDebug && rctx.resolved.stats) rctx.resolved.stats.resolveComponentInstanceInstantiate++;
     // component_index references the COMPONENT sort (componentSections), NOT the TYPE sort
     const componentSection = rctx.indexes.componentSections[componentInstanceInstantiate.component_index];
     jsco_assert(componentSection && componentSection.tag === ModelTag.ComponentSection,

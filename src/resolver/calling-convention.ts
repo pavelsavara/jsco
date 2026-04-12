@@ -1,6 +1,6 @@
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
+import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType } from '../model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
 
@@ -15,6 +15,19 @@ export const enum CallingConvention {
     Flat,
     /** Spilled to linear memory, represented by a pointer */
     Spilled,
+}
+
+export const CallingConvention_Count = CallingConvention.Spilled + 1;
+
+/**
+ * Core wasm value types for flat representation.
+ * Follows the component model spec's flatten_type/join functions.
+ */
+export const enum FlatType {
+    I32,
+    I64,
+    F32,
+    F64,
 }
 
 export type FunctionCallingConvention = {
@@ -332,29 +345,41 @@ export function resolveValTypePure(valType: ComponentValType): ResolvedType {
  * looking up rctx.resolvedTypes at call time.
  */
 export function deepResolveType(rctx: ResolvedContext, type: ResolvedType): ResolvedType {
-    return _deepResolve(rctx, type, new Set());
+    return _deepResolve(rctx, type, new Map());
 }
 
-function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, visited: Set<unknown>): ComponentValType {
+function _deepResolveValType(rctx: ResolvedContext, valType: ComponentValType, cache: Map<unknown, ResolvedType>): ComponentValType {
     if (valType.tag === ModelTag.ComponentValTypePrimitive) {
         return valType; // primitives are self-contained
     }
     if (valType.tag === ModelTag.ComponentValTypeResolved) {
-        return valType; // already resolved
+        // Still need to deep-resolve the inner type — it may contain
+        // unresolved ComponentValTypeType references from partial resolution
+        const deepInner = _deepResolve(rctx, valType.resolved as ResolvedType, cache);
+        if (deepInner === valType.resolved) return valType;
+        return { tag: ModelTag.ComponentValTypeResolved, resolved: deepInner };
     }
     // ComponentValTypeType — resolve and wrap inline
     const resolved = rctx.resolvedTypes.get(valType.value as ComponentTypeIndex);
     if (resolved === undefined) {
-        throw new Error(`Unresolved type at index ${valType.value}`);
+        // Type index not found in current scope — may reference a type in a nested
+        // or parent scope. Leave it as-is; it will be resolved when the correct scope runs.
+        return valType;
     }
-    const deepResolved = _deepResolve(rctx, resolved, visited);
+    const deepResolved = _deepResolve(rctx, resolved, cache);
     return { tag: ModelTag.ComponentValTypeResolved, resolved: deepResolved };
 }
 
-function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<unknown>): ResolvedType {
-    // Guard against infinite recursion from circular type references
-    if (visited.has(type)) return type;
-    visited.add(type);
+function _deepResolve(rctx: ResolvedContext, type: ResolvedType, cache: Map<unknown, ResolvedType>): ResolvedType {
+    // Guard against infinite recursion from circular type references.
+    // Use a cache Map instead of a Set so that shared type references
+    // return the already-deep-resolved copy, not the original.
+    const cached = cache.get(type);
+    if (cached !== undefined) return cached;
+    // Insert a placeholder to break cycles — will be overwritten with the real result
+    cache.set(type, type);
+
+    let result: ResolvedType;
 
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
@@ -364,72 +389,84 @@ function _deepResolve(rctx: ResolvedContext, type: ResolvedType, visited: Set<un
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
             // No nested ComponentValType references needing resolution
-            return type;
+            result = type;
+            break;
 
         case ModelTag.ComponentTypeDefinedRecord:
-            return {
+            result = {
                 ...type,
                 members: type.members.map(m => ({
                     name: m.name,
-                    type: _deepResolveValType(rctx, m.type, visited),
+                    type: _deepResolveValType(rctx, m.type, cache),
                 })),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedTuple:
-            return {
+            result = {
                 ...type,
-                members: type.members.map(m => _deepResolveValType(rctx, m, visited)),
+                members: type.members.map(m => _deepResolveValType(rctx, m, cache)),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedList:
-            return {
+            result = {
                 ...type,
-                value: _deepResolveValType(rctx, type.value, visited),
+                value: _deepResolveValType(rctx, type.value, cache),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedOption:
-            return {
+            result = {
                 ...type,
-                value: _deepResolveValType(rctx, type.value, visited),
+                value: _deepResolveValType(rctx, type.value, cache),
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedResult:
-            return {
+            result = {
                 ...type,
-                ok: type.ok !== undefined ? _deepResolveValType(rctx, type.ok, visited) : undefined,
-                err: type.err !== undefined ? _deepResolveValType(rctx, type.err, visited) : undefined,
+                ok: type.ok !== undefined ? _deepResolveValType(rctx, type.ok, cache) : undefined,
+                err: type.err !== undefined ? _deepResolveValType(rctx, type.err, cache) : undefined,
             };
+            break;
 
         case ModelTag.ComponentTypeDefinedVariant:
-            return {
+            result = {
                 ...type,
                 variants: type.variants.map(c => ({
                     ...c,
-                    ty: c.ty !== undefined ? _deepResolveValType(rctx, c.ty, visited) : undefined,
+                    ty: c.ty !== undefined ? _deepResolveValType(rctx, c.ty, cache) : undefined,
                 })),
             };
+            break;
 
         case ModelTag.ComponentTypeFunc:
-            return {
+            result = {
                 ...type,
                 params: type.params.map(p => ({
                     name: p.name,
-                    type: _deepResolveValType(rctx, p.type, visited),
+                    type: _deepResolveValType(rctx, p.type, cache),
                 })),
                 results: type.results.tag === ModelTag.ComponentFuncResultUnnamed
-                    ? { tag: ModelTag.ComponentFuncResultUnnamed, type: _deepResolveValType(rctx, type.results.type, visited) }
+                    ? { tag: ModelTag.ComponentFuncResultUnnamed, type: _deepResolveValType(rctx, type.results.type, cache) }
                     : {
                         tag: ModelTag.ComponentFuncResultNamed,
                         values: type.results.values.map(v => ({
                             name: v.name,
-                            type: _deepResolveValType(rctx, v.type, visited),
+                            type: _deepResolveValType(rctx, v.type, cache),
                         })),
                     },
             };
+            break;
 
         default:
-            return type;
+            result = type;
+            break;
     }
+
+    cache.set(type, result);
+    return result;
 }
 
 export function sizeOfValType(valType: ComponentValType): number {
@@ -452,6 +489,137 @@ export function discriminantSize(caseCount: number): number {
     if (caseCount <= 0xFF) return 1;
     if (caseCount <= 0xFFFF) return 2;
     return 4;
+}
+
+// --- Flat type representation per canonical ABI ---
+
+function primitiveFlatType(prim: PrimitiveValType): FlatType[] {
+    switch (prim) {
+        case PrimitiveValType.Bool:
+        case PrimitiveValType.S8:
+        case PrimitiveValType.U8:
+        case PrimitiveValType.S16:
+        case PrimitiveValType.U16:
+        case PrimitiveValType.S32:
+        case PrimitiveValType.U32:
+        case PrimitiveValType.Char:
+            return [FlatType.I32];
+        case PrimitiveValType.S64:
+        case PrimitiveValType.U64:
+            return [FlatType.I64];
+        case PrimitiveValType.Float32:
+            return [FlatType.F32];
+        case PrimitiveValType.Float64:
+            return [FlatType.F64];
+        case PrimitiveValType.String:
+            return [FlatType.I32, FlatType.I32]; // pointer + length
+    }
+}
+
+/** Spec: join(a, b) — find the common flat type for two slots */
+export function joinFlatType(a: FlatType, b: FlatType): FlatType {
+    if (a === b) return a;
+    if ((a === FlatType.I32 && b === FlatType.F32) || (a === FlatType.F32 && b === FlatType.I32)) return FlatType.I32;
+    return FlatType.I64;
+}
+
+/** Spec: flatten_type(t) — return the flat representation of a resolved type */
+export function flattenType(type: ResolvedType): FlatType[] {
+    switch (type.tag) {
+        case ModelTag.ComponentValTypePrimitive:
+        case ModelTag.ComponentTypeDefinedPrimitive:
+            return primitiveFlatType(type.value);
+
+        case ModelTag.ComponentTypeDefinedRecord: {
+            const flat: FlatType[] = [];
+            for (const member of type.members) {
+                flat.push(...flattenValType(member.type));
+            }
+            return flat;
+        }
+
+        case ModelTag.ComponentTypeDefinedTuple: {
+            const flat: FlatType[] = [];
+            for (const member of type.members) {
+                flat.push(...flattenValType(member));
+            }
+            return flat;
+        }
+
+        case ModelTag.ComponentTypeDefinedList:
+            return [FlatType.I32, FlatType.I32]; // pointer + length
+
+        case ModelTag.ComponentTypeDefinedOption:
+            return [FlatType.I32, ...flattenValType(type.value)]; // discriminant + payload
+
+        case ModelTag.ComponentTypeDefinedResult:
+            return flattenResult(type);
+
+        case ModelTag.ComponentTypeDefinedVariant:
+            return flattenVariant(type);
+
+        case ModelTag.ComponentTypeDefinedEnum:
+            return [FlatType.I32]; // single i32 discriminant
+
+        case ModelTag.ComponentTypeDefinedFlags:
+            return new Array(Math.ceil(type.members.length / 32) || 1).fill(FlatType.I32);
+
+        case ModelTag.ComponentTypeDefinedOwn:
+        case ModelTag.ComponentTypeDefinedBorrow:
+            return [FlatType.I32]; // i32 handle
+
+        case ModelTag.ComponentTypeFunc:
+            return [];
+    }
+}
+
+/** Spec: flatten_variant(cases) with type joining */
+export function flattenVariant(type: ComponentTypeDefinedVariant): FlatType[] {
+    const flat: FlatType[] = [];
+    for (const c of type.variants) {
+        if (c.ty !== undefined) {
+            const caseFlatTypes = flattenValType(c.ty);
+            for (let i = 0; i < caseFlatTypes.length; i++) {
+                if (i < flat.length) {
+                    flat[i] = joinFlatType(flat[i], caseFlatTypes[i]);
+                } else {
+                    flat.push(caseFlatTypes[i]);
+                }
+            }
+        }
+    }
+    // discriminant (i32) + joined payload
+    return [FlatType.I32, ...flat];
+}
+
+/** Flatten a result type (despecialized as variant with ok/error cases) */
+function flattenResult(type: ComponentTypeDefinedResult): FlatType[] {
+    const flat: FlatType[] = [];
+    if (type.ok !== undefined) {
+        const okFlat = flattenValType(type.ok);
+        for (let i = 0; i < okFlat.length; i++) {
+            if (i < flat.length) {
+                flat[i] = joinFlatType(flat[i], okFlat[i]);
+            } else {
+                flat.push(okFlat[i]);
+            }
+        }
+    }
+    if (type.err !== undefined) {
+        const errFlat = flattenValType(type.err);
+        for (let i = 0; i < errFlat.length; i++) {
+            if (i < flat.length) {
+                flat[i] = joinFlatType(flat[i], errFlat[i]);
+            } else {
+                flat.push(errFlat[i]);
+            }
+        }
+    }
+    return [FlatType.I32, ...flat];
+}
+
+export function flattenValType(valType: ComponentValType): FlatType[] {
+    return flattenType(resolveValTypePure(valType));
 }
 
 // --- Function-level calling convention decision ---

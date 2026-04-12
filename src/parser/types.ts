@@ -1,4 +1,5 @@
 import { IndexedElement, ModelTag, WITSection } from '../model/tags';
+import type { LogFn, Verbosity } from '../utils/assert';
 
 export type CoreModule = IndexedElement & {
     tag: ModelTag.CoreModule
@@ -29,10 +30,14 @@ export type ParserContext = {
     otherSectionData: boolean
     compileStreaming: typeof WebAssembly.compileStreaming
     processCustomSection?: (section: CustomSection) => CustomSection
+    verbose?: Verbosity
+    logger?: LogFn
 }
 
 export type ParserOptions = {
     otherSectionData?: boolean
     compileStreaming?: typeof WebAssembly.compileStreaming
     processCustomSection?: (section: CustomSection) => CustomSection
+    verbose?: Partial<Verbosity>
+    logger?: LogFn
 }

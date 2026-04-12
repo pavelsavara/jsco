@@ -36,6 +36,11 @@
 - Multi-word flags | >32 flag members | Medium |
 - Empty containers | Empty record, empty tuple | Low |
 - add Firefox browser test (Chrome done via Playwright)
+- scenarios testing own/borrow
+- scenarios testing resource handles isolation
+- scenarios testing resource handles ref counting and cleanup
+- scenarios testing memory leaks
+
 
 # Integration Test Plan
 - Implementation, consumer, forwarder components
@@ -58,6 +63,9 @@
 # WASI Preview 2 Implementation Status
 - implement socket and http server on nodeJS
 - have look at https://github.com/pavelsavara/node-mono-server
+- at the moment we test with wasm32-wasip1, which also has preview1-to-preview2 adapter shim
+- forwarder, implementer and echo-reactor should ideally use wasm32-unknown-unknown
+- consumer could use either wasm32-wasip2
 
 # WASI Preview 3
 - interleaved suspension
@@ -68,10 +76,12 @@
 - `jsco_assert` should be eliminated in Release builds via Rollup plugin (inline macro)
 - Jest can't resolve Rollup virtual modules for build-time constant injection
 - internal fields
+- `isDebug` doesn't trim, use proper virtual/const import
 
 # Demo
 - create demo web site
 - command line in the browser for WASI cli programs
+- update `Demo scope` in readme
 
 # Other
 - convert this TODO into github issues (this is more convenient for now)
@@ -81,3 +91,22 @@
 - write article on how it works
 - multi-memory https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/core.rs
 - implement WASIp3 (async model with native WASM stack switching, replaces JSPI workaround)
+
+# Skipped Tests
+
+## JSPI — end-to-end with stdout capture (hello-world.test.ts)
+`WebAssembly.promising()` wrapping causes the WASM adapter to receive a Promise where
+it expects a sync i32 value, coercing handle to 0. The `descriptor.get-type` call then
+fails with `Invalid resource handle: 0` because handle 0 was never created (handles
+start at 1). Additionally, the JSPI test poisons Node.js state, causing subsequent
+tests in the same file to fail. Root cause is in how JSPI suspension/resumption
+interacts with the component model's synchronous resource handle creation chain
+(fd_write → get-directories → descriptor.get-type).
+**Blocked on**: understanding how `WebAssembly.promising()` interacts with adapter-
+generated trampolines. May require WASIp3 async model (native WASM stack switching)
+to solve properly.
+
+## Non-JSPI error message — block() throws JSPI error (poll.test.ts)
+Intentionally skipped when running with `--experimental-wasm-jspi`. The test verifies
+the error message shown to users who don't have JSPI enabled. It only runs when JSPI
+is absent. Not a bug — test infrastructure design.

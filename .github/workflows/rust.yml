@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    paths: [ "hello/**", "zoo/**", "city/**", ".github/workflows/rust.yml" ]
+    paths: [ "hello/**", "zoo/**", "city/**", "integration-tests/**", "wit/**", ".github/workflows/rust.yml" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,7 +20,7 @@ jobs:
     - name: Install latest stable
       uses: dtolnay/rust-toolchain@stable
       with:
-        targets: wasm32-unknown-unknown
+        targets: wasm32-unknown-unknown,wasm32-wasip1
 
     - uses: Swatinem/rust-cache@v2.9.1
       with:
@@ -30,6 +30,7 @@ jobs:
           hello
           zoo
           city
+          integration-tests
         cache-on-failure: true
 
     - name: Install cargo-component
@@ -42,6 +43,12 @@ jobs:
       uses: baptiste0928/cargo-install@v3
       with:
         crate: wasm-tools
+        locked: true
+
+    - name: Install wac-cli
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: wac-cli
         locked: true
 
     - name: Install JCO
@@ -97,6 +104,21 @@ jobs:
       with:
         name: city.${{github.sha}}
         path: city/target/wasm32-unknown-unknown/release/city.wa*
+
+    - name: Build integration test components
+      run: npm run build:integration
+
+    - name: Build wac compositions
+      run: npm run build:compositions
+
+    - name: Integration test component artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: integration.${{github.sha}}
+        path: |
+          integration-tests/target/wasm32-wasip1/release/*.wasm
+          integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
+          integration-tests/compositions/*.wasm
 
     - name: WASM city-zoo composed artifact
       uses: actions/upload-artifact@v6

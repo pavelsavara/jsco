@@ -31,6 +31,7 @@ function createRctxWithGlobalTypes(globalTypes: [number, ResolvedType][]): Resol
             liftingCache: new Map(), loweringCache: new Map(),
             resolvedTypes: new Map(globalTypes.map(([idx, t]) => [idx as ComponentTypeIndex, t])),
             canonicalResourceIds: new Map(),
+            componentSectionCache: new Map(),
             usesNumberForInt64: false,
             stringEncoding: StringEncoding.Utf8,
         },

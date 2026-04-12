@@ -14,9 +14,10 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 ## How
 - parser: read binary WIT to produce model of the component, it's sub components, modules and types
 - compile modules via Browser API [`WebAssembly.compileStreaming`](https://developer.mozilla.org/en-US/docs/WebAssembly/JavaScript_interface/compileStreaming)
-- resolver: resolve dependencies, create instances, bind it together.
+- resolver: [resolve dependencies, create instances, bind it together](./src/resolver/README.md).
 - JS binding: for component's imports and exports
-- just JS (no rust dependency), TypeScript, RollupJS
+- just JS at runtime (no rust dependency)
+- TypeScript, RollupJS, rust as dev time dependencies
 
 ## Status
 🚧 Work in progress — core engine is solid, integration still maturing 🚧

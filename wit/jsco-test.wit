@@ -1,0 +1,22 @@
+package jsco:test@0.1.0;
+
+interface logger {
+    enum level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    log: func(level: level, message: string);
+    structured-log: func(level: level, message: string, properties: list<tuple<string, string>>);
+}
+
+interface counter {
+    resource counter {
+        constructor(name: string);
+        increment: func();
+        get: func() -> u64;
+    }
+}

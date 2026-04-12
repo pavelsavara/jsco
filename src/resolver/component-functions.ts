@@ -3,7 +3,7 @@ import { CanonicalFunctionLift } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
-import { withDebugTrace, jsco_assert } from '../utils/assert';
+import { withDebugTrace, jsco_assert, isDebug, LogLevel } from '../utils/assert';
 import { createFunctionLifting } from './binding';
 import { WasmFunction } from './binding/types';
 import { resolveComponentInstance } from './component-instances';
@@ -14,13 +14,21 @@ import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
+    const cached = rctx.componentFunctionCache.get(rargs.element);
+    if (cached) {
+        if (isDebug && rctx.resolved.stats) rctx.resolved.stats.componentFunctionCacheHits++;
+        return { ...cached, callerElement: rargs.callerElement };
+    }
     const coreInstance = rargs.element;
+    let result: ResolverRes;
     switch (coreInstance.tag) {
-        case ModelTag.CanonicalFunctionLift: return resolveCanonicalFunctionLift(rctx, rargs as any);
-        case ModelTag.ComponentAliasInstanceExport: return resolveComponentAliasInstanceExport(rctx, rargs as any);
-        case ModelTag.ComponentImport: return resolveComponentImport(rctx, rargs as any);
+        case ModelTag.CanonicalFunctionLift: result = resolveCanonicalFunctionLift(rctx, rargs as any); break;
+        case ModelTag.ComponentAliasInstanceExport: result = resolveComponentAliasInstanceExport(rctx, rargs as any); break;
+        case ModelTag.ComponentImport: result = resolveComponentImport(rctx, rargs as any); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
+    rctx.componentFunctionCache.set(rargs.element, result);
+    return result;
 };
 
 export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rctx, rargs) => {
@@ -32,6 +40,12 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
     const sectionFunType = getComponentType(rctx, canonicalFunctionLift.type_index);
     jsco_assert(sectionFunType.tag === ModelTag.ComponentTypeFunc, () => `expected ComponentTypeFunc, got ${sectionFunType.tag}`);
+
+    if (isDebug && (rctx.resolved.verbose?.binder ?? 0) >= LogLevel.Summary) {
+        const chain = `canon.lift[${canonicalFunctionLift.selfSortIndex}] → core_func[${canonicalFunctionLift.core_func_index}]`;
+        rctx.resolved.logger!('binder', LogLevel.Summary,
+            `type chain: ${chain} → ComponentTypeFunc[${canonicalFunctionLift.type_index}]`);
+    }
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLift.options);
 

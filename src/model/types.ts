@@ -121,6 +121,8 @@ export const enum PrimitiveValType {
     String,
 }
 
+export const PrimitiveValType_Count = PrimitiveValType.String + 1;
+
 /// Represents a type in a WebAssembly component.
 export type ComponentType =
     | ComponentTypeDefined

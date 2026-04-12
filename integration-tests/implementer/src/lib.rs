@@ -1,0 +1,169 @@
+#[allow(warnings)]
+mod bindings;
+
+use bindings::exports::wasi::cli::environment::Guest as EnvironmentGuest;
+use bindings::exports::wasi::cli::exit::Guest as ExitGuest;
+use bindings::exports::wasi::cli::stdin::Guest as StdinGuest;
+use bindings::exports::wasi::cli::stdout::Guest as StdoutGuest;
+use bindings::exports::wasi::cli::stderr::Guest as StderrGuest;
+use bindings::exports::wasi::random::random::Guest as RandomGuest;
+use bindings::exports::wasi::clocks::monotonic_clock::Guest as MonotonicClockGuest;
+use bindings::exports::wasi::clocks::wall_clock::Guest as WallClockGuest;
+
+use bindings::exports::jsco::test::echo_primitives::Guest as EchoPrimitivesGuest;
+use bindings::exports::jsco::test::echo_compound::Guest as EchoCompoundGuest;
+use bindings::exports::jsco::test::echo_compound::{LabeledPoint, Point};
+use bindings::exports::jsco::test::echo_algebraic::Guest as EchoAlgebraicGuest;
+use bindings::exports::jsco::test::echo_algebraic::{Color, Permissions, Shape};
+use bindings::exports::jsco::test::echo_complex::Guest as EchoComplexGuest;
+use bindings::exports::jsco::test::echo_complex::{
+    Address, Geometry, KitchenSink, Message, Person, Team,
+};
+
+struct Component;
+
+bindings::export!(Component with_types_in bindings);
+
+// A simple deterministic counter for fake time
+static mut MONOTONIC_COUNTER: u64 = 1_000_000;
+
+impl EnvironmentGuest for Component {
+    fn get_environment() -> Vec<(String, String)> {
+        vec![
+            ("JSCO_TEST_MODE".to_string(), "fake".to_string()),
+            ("TEST_SPECIAL".to_string(), "hello=world 🌍".to_string()),
+            ("HOME".to_string(), "/fake/home".to_string()),
+        ]
+    }
+
+    fn get_arguments() -> Vec<String> {
+        vec!["fake-program".to_string(), "--fake-arg".to_string()]
+    }
+
+    fn initial_cwd() -> Option<String> {
+        Some("/fake/cwd".to_string())
+    }
+}
+
+impl ExitGuest for Component {
+    fn exit(_status: Result<(), ()>) {
+        // Fake: do nothing, don't actually exit
+    }
+}
+
+impl StdinGuest for Component {
+    fn get_stdin() -> bindings::exports::wasi::cli::stdin::InputStream {
+        // Return a stream — this needs the io/streams resource
+        // For simplicity, we'll need to handle this via the generated bindings
+        todo!("stdin not yet faked")
+    }
+}
+
+impl StdoutGuest for Component {
+    fn get_stdout() -> bindings::exports::wasi::cli::stdout::OutputStream {
+        todo!("stdout not yet faked")
+    }
+}
+
+impl StderrGuest for Component {
+    fn get_stderr() -> bindings::exports::wasi::cli::stderr::OutputStream {
+        todo!("stderr not yet faked")
+    }
+}
+
+impl RandomGuest for Component {
+    fn get_random_bytes(len: u64) -> Vec<u8> {
+        // Deterministic fake: fill with incrementing bytes
+        (0..len).map(|i| (i & 0xFF) as u8).collect()
+    }
+
+    fn get_random_u64() -> u64 {
+        0xDEAD_BEEF_CAFE_BABE
+    }
+}
+
+impl MonotonicClockGuest for Component {
+    fn now() -> u64 {
+        // Return incrementing values so non-decreasing invariant holds
+        unsafe {
+            MONOTONIC_COUNTER += 1000;
+            MONOTONIC_COUNTER
+        }
+    }
+
+    fn resolution() -> u64 {
+        1_000 // 1 microsecond
+    }
+
+    fn subscribe_instant(_when: u64) -> bindings::exports::wasi::clocks::monotonic_clock::Pollable {
+        todo!("subscribe-instant not yet faked")
+    }
+
+    fn subscribe_duration(_when: u64) -> bindings::exports::wasi::clocks::monotonic_clock::Pollable {
+        todo!("subscribe-duration not yet faked")
+    }
+}
+
+impl WallClockGuest for Component {
+    fn now() -> bindings::exports::wasi::clocks::wall_clock::Datetime {
+        bindings::exports::wasi::clocks::wall_clock::Datetime {
+            seconds: 1_700_000_000, // ~2023-11-14
+            nanoseconds: 123_456_789,
+        }
+    }
+
+    fn resolution() -> bindings::exports::wasi::clocks::wall_clock::Datetime {
+        bindings::exports::wasi::clocks::wall_clock::Datetime {
+            seconds: 0,
+            nanoseconds: 1_000_000, // 1ms
+        }
+    }
+}
+
+impl EchoPrimitivesGuest for Component {
+    fn echo_bool(v: bool) -> bool { v }
+    fn echo_u8(v: u8) -> u8 { v }
+    fn echo_u16(v: u16) -> u16 { v }
+    fn echo_u32(v: u32) -> u32 { v }
+    fn echo_u64(v: u64) -> u64 { v }
+    fn echo_s8(v: i8) -> i8 { v }
+    fn echo_s16(v: i16) -> i16 { v }
+    fn echo_s32(v: i32) -> i32 { v }
+    fn echo_s64(v: i64) -> i64 { v }
+    fn echo_f32(v: f32) -> f32 { v }
+    fn echo_f64(v: f64) -> f64 { v }
+    fn echo_char(v: char) -> char { v }
+    fn echo_string(v: String) -> String { v }
+}
+
+impl EchoCompoundGuest for Component {
+    fn echo_tuple2(v: (u32, String)) -> (u32, String) { v }
+    fn echo_tuple3(v: (f32, f32, f32)) -> (f32, f32, f32) { v }
+    fn echo_record(v: Point) -> Point { v }
+    fn echo_nested_record(v: LabeledPoint) -> LabeledPoint { v }
+    fn echo_list_u8(v: Vec<u8>) -> Vec<u8> { v }
+    fn echo_list_string(v: Vec<String>) -> Vec<String> { v }
+    fn echo_list_record(v: Vec<Point>) -> Vec<Point> { v }
+    fn echo_option_u32(v: Option<u32>) -> Option<u32> { v }
+    fn echo_option_string(v: Option<String>) -> Option<String> { v }
+    fn echo_result_ok(v: Result<String, String>) -> Result<String, String> { v }
+}
+
+impl EchoAlgebraicGuest for Component {
+    fn echo_enum(v: Color) -> Color { v }
+    fn echo_flags(v: Permissions) -> Permissions { v }
+    fn echo_variant(v: Shape) -> Shape { v }
+}
+
+impl EchoComplexGuest for Component {
+    fn echo_deeply_nested(v: Team) -> Team { v }
+    fn echo_list_of_records(v: Vec<Person>) -> Vec<Person> { v }
+    fn echo_tuple_of_records(v: (Person, Address)) -> (Person, Address) { v }
+    fn echo_complex_variant(v: Geometry) -> Geometry { v }
+    fn echo_message(v: Message) -> Message { v }
+    fn echo_kitchen_sink(v: KitchenSink) -> KitchenSink { v }
+    fn echo_nested_lists(v: Vec<Vec<u32>>) -> Vec<Vec<u32>> { v }
+    fn echo_option_record(v: Option<Person>) -> Option<Person> { v }
+    fn echo_result_record(v: Result<Person, String>) -> Result<Person, String> { v }
+    fn echo_list_of_variants(v: Vec<Geometry>) -> Vec<Geometry> { v }
+}
