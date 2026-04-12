@@ -8,4 +8,5 @@ world echo-reactor {
     export jsco:test/echo-algebraic@0.1.0;
     export jsco:test/echo-edge-cases@0.1.0;
     export jsco:test/echo-resources@0.1.0;
+    export jsco:test/echo-complex@0.1.0;
 }

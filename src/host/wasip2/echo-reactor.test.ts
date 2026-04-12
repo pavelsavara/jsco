@@ -764,5 +764,383 @@ describe('echo-reactor', () => {
             expect(ns['[method]accumulator.get-total'](acc)).toBe(99n);
             expect(ns['[method]byte-buffer.remaining'](buf)).toBe(2);
         }));
+
+        test('transform-owned chained: transform twice', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            // Create → transform (×2) → transform (×2) = ×4 the original value
+            const acc1 = ns['[constructor]accumulator'](25n);
+            const acc2 = ns['transform-owned'](acc1);
+            expect(ns['[method]accumulator.get-total'](acc2)).toBe(50n);
+            const acc3 = ns['transform-owned'](acc2);
+            expect(ns['[method]accumulator.get-total'](acc3)).toBe(100n);
+        }));
+
+        test('snapshot creates independent handle', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const acc = ns['[constructor]accumulator'](42n);
+            const snap = ns['[method]accumulator.snapshot'](acc);
+            // Snapshot is a separate resource — both should be independently readable
+            expect(ns['[method]accumulator.get-total'](acc)).toBe(42n);
+            expect(ns['[method]accumulator.get-total'](snap)).toBe(42n);
+            // They are different handles
+            expect(acc).not.toBe(snap);
+        }));
+
+        test('many resources: sequential create and use', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            // Create many resources to exercise the resource table
+            const handles: number[] = [];
+            for (let i = 0; i < 10; i++) {
+                handles.push(ns['[constructor]accumulator'](BigInt(i)));
+            }
+            // All should be independently accessible
+            for (let i = 0; i < 10; i++) {
+                expect(ns['[method]accumulator.get-total'](handles[i])).toBe(BigInt(i));
+            }
+        }));
+
+        test('inspect-borrowed after merge', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-resources@0.1.0']) as any;
+
+            const a = ns['[constructor]accumulator'](60n);
+            const b = ns['[constructor]accumulator'](40n);
+            const merged = ns['merge-accumulators'](a, b);
+            // inspect-borrowed on merged resource
+            expect(ns['inspect-borrowed'](merged)).toBe(100n);
+        }));
+    });
+
+    describe('complex types', () => {
+        test('echo-deeply-nested: team with nested person/address', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const team = {
+                name: 'Engineering',
+                lead: {
+                    name: 'Alice',
+                    age: 30,
+                    email: 'alice@example.com',
+                    address: { street: '123 Main St', city: 'Springfield', zip: '62701' },
+                    tags: ['lead', 'senior'],
+                },
+                members: [
+                    {
+                        name: 'Bob',
+                        age: 25,
+                        email: undefined,
+                        address: { street: '456 Oak Ave', city: 'Shelbyville', zip: '62702' },
+                        tags: ['junior'],
+                    },
+                ],
+                metadata: [['dept', 'eng'], ['floor', '3']],
+            };
+            const result = ns['echo-deeply-nested'](team);
+            expect(result.name).toBe('Engineering');
+            expect(result.lead.name).toBe('Alice');
+            expect(result.lead.email).toBe('alice@example.com');
+            expect(result.lead.address.city).toBe('Springfield');
+            expect(result.lead.tags).toEqual(['lead', 'senior']);
+            expect(result.members).toHaveLength(1);
+            expect(result.members[0].name).toBe('Bob');
+            expect(result.members[0].email).toBeNull();
+            expect(result.metadata).toEqual([['dept', 'eng'], ['floor', '3']]);
+        }));
+
+        test('echo-list-of-records: list<person>', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const people = [
+                { name: 'A', age: 20, email: 'a@x.com', address: { street: 's1', city: 'c1', zip: 'z1' }, tags: [] },
+                { name: 'B', age: 30, email: undefined, address: { street: 's2', city: 'c2', zip: 'z2' }, tags: ['x', 'y'] },
+            ];
+            const result = ns['echo-list-of-records'](people);
+            expect(result).toHaveLength(2);
+            expect(result[0].name).toBe('A');
+            expect(result[1].tags).toEqual(['x', 'y']);
+        }));
+
+        test('echo-tuple-of-records: tuple<person, address>', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const person = { name: 'Carol', age: 40, email: undefined, address: { street: 's', city: 'c', zip: 'z' }, tags: [] };
+            const addr = { street: '789 Pine', city: 'Portland', zip: '97201' };
+            const result = ns['echo-tuple-of-records']([person, addr]);
+            expect(result[0].name).toBe('Carol');
+            expect(result[1].city).toBe('Portland');
+        }));
+
+        test('echo-complex-variant: all geometry arms', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            // point2d
+            const p2d = ns['echo-complex-variant']({ tag: 'point2d', val: { x: 1.0, y: 2.0 } });
+            expect(p2d).toEqual({ tag: 'point2d', val: { x: 1.0, y: 2.0 } });
+
+            // point3d
+            const p3d = ns['echo-complex-variant']({ tag: 'point3d', val: { x: 1.0, y: 2.0, z: 3.0 } });
+            expect(p3d).toEqual({ tag: 'point3d', val: { x: 1.0, y: 2.0, z: 3.0 } });
+
+            // line (tuple of two vec2)
+            const line = ns['echo-complex-variant']({ tag: 'line', val: [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
+            expect(line.tag).toBe('line');
+            expect(line.val[0].x).toBe(0);
+            expect(line.val[1].y).toBe(1);
+
+            // polygon (list<vec2>)
+            const poly = ns['echo-complex-variant']({
+                tag: 'polygon',
+                val: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 1 }],
+            });
+            expect(poly.tag).toBe('polygon');
+            expect(poly.val).toHaveLength(3);
+
+            // labeled (tuple<string, list<vec2>>)
+            const labeled = ns['echo-complex-variant']({
+                tag: 'labeled',
+                val: ['triangle', [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 1 }]],
+            });
+            expect(labeled.tag).toBe('labeled');
+            expect(labeled.val[0]).toBe('triangle');
+            expect(labeled.val[1]).toHaveLength(3);
+
+            // empty (no payload — tests MaybeUninit/payload-less variant arm)
+            const empty = ns['echo-complex-variant']({ tag: 'empty' });
+            expect(empty).toEqual({ tag: 'empty' });
+        }));
+
+        test('echo-message: all message arms', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            // text
+            const text = ns['echo-message']({ tag: 'text', val: 'hello' });
+            expect(text).toEqual({ tag: 'text', val: 'hello' });
+
+            // binary
+            const bin = ns['echo-message']({ tag: 'binary', val: new Uint8Array([1, 2, 3]) });
+            expect(bin.tag).toBe('binary');
+            expect(new Uint8Array(bin.val)).toEqual(new Uint8Array([1, 2, 3]));
+
+            // structured (person inside variant)
+            const structured = ns['echo-message']({
+                tag: 'structured',
+                val: {
+                    name: 'Dave',
+                    age: 35,
+                    email: 'dave@x.com',
+                    address: { street: 's', city: 'c', zip: 'z' },
+                    tags: ['admin'],
+                },
+            });
+            expect(structured.tag).toBe('structured');
+            expect(structured.val.name).toBe('Dave');
+
+            // error-result (result inside variant)
+            const errResult = ns['echo-message']({ tag: 'error-result', val: { tag: 'ok', val: 'success' } });
+            expect(errResult).toEqual({ tag: 'error-result', val: { tag: 'ok', val: 'success' } });
+
+            const errResult2 = ns['echo-message']({ tag: 'error-result', val: { tag: 'err', val: 'fail' } });
+            expect(errResult2).toEqual({ tag: 'error-result', val: { tag: 'err', val: 'fail' } });
+
+            // tagged (tuple<string, option<list<u8>>>)
+            const tagged = ns['echo-message']({
+                tag: 'tagged',
+                val: ['mytag', new Uint8Array([10, 20])],
+            });
+            expect(tagged.tag).toBe('tagged');
+            expect(tagged.val[0]).toBe('mytag');
+            expect(new Uint8Array(tagged.val[1])).toEqual(new Uint8Array([10, 20]));
+
+            // tagged with none payload
+            const taggedNone = ns['echo-message']({
+                tag: 'tagged',
+                val: ['notag', undefined],
+            });
+            expect(taggedNone.tag).toBe('tagged');
+            expect(taggedNone.val[0]).toBe('notag');
+            expect(taggedNone.val[1]).toBeNull();
+
+            // empty (payload-less arm)
+            const empty = ns['echo-message']({ tag: 'empty' });
+            expect(empty).toEqual({ tag: 'empty' });
+        }));
+
+        test('echo-kitchen-sink: record with all compound fields', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const ks = {
+                name: 'sink',
+                values: [1, 2, 3],
+                nested: [['a', 'b'], ['c']],
+                pairs: [['key1', 10], ['key2', 20]],
+                maybe: new Uint8Array([42]),
+                resultField: { tag: 'ok', val: ['alpha', 'beta'] },
+            };
+            const result = ns['echo-kitchen-sink'](ks);
+            expect(result.name).toBe('sink');
+            expect(result.values).toEqual([1, 2, 3]);
+            expect(result.nested).toEqual([['a', 'b'], ['c']]);
+            expect(result.pairs).toEqual([['key1', 10], ['key2', 20]]);
+            expect(new Uint8Array(result.maybe)).toEqual(new Uint8Array([42]));
+            expect(result.resultField).toEqual({ tag: 'ok', val: ['alpha', 'beta'] });
+        }));
+
+        test('echo-kitchen-sink: none and err variants', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const ks = {
+                name: 'empty-sink',
+                values: [],
+                nested: [],
+                pairs: [],
+                maybe: undefined,
+                resultField: { tag: 'err', val: 'something failed' },
+            };
+            const result = ns['echo-kitchen-sink'](ks);
+            expect(result.name).toBe('empty-sink');
+            expect(result.values).toEqual([]);
+            expect(result.nested).toEqual([]);
+            expect(result.maybe).toBeNull();
+            expect(result.resultField).toEqual({ tag: 'err', val: 'something failed' });
+        }));
+
+        test('echo-nested-lists: list<list<u32>>', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const input = [[1, 2], [3], [4, 5, 6], []];
+            const result = ns['echo-nested-lists'](input);
+            expect(result).toEqual([[1, 2], [3], [4, 5, 6], []]);
+        }));
+
+        test('echo-option-record: some and none', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const person = { name: 'Eve', age: 28, email: undefined, address: { street: 's', city: 'c', zip: 'z' }, tags: [] };
+            const some = ns['echo-option-record'](person);
+            expect(some.name).toBe('Eve');
+            const none = ns['echo-option-record'](undefined);
+            expect(none).toBeNull();
+        }));
+
+        test('echo-result-record: ok and err', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const person = { name: 'Frank', age: 50, email: 'f@x.com', address: { street: 's', city: 'c', zip: 'z' }, tags: ['admin'] };
+            const ok = ns['echo-result-record']({ tag: 'ok', val: person });
+            expect(ok.tag).toBe('ok');
+            expect(ok.val.name).toBe('Frank');
+            expect(ok.val.tags).toEqual(['admin']);
+
+            const err = ns['echo-result-record']({ tag: 'err', val: 'not found' });
+            expect(err).toEqual({ tag: 'err', val: 'not found' });
+        }));
+
+        test('echo-list-of-variants: list<geometry>', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const ns = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            const variants = [
+                { tag: 'point2d', val: { x: 1, y: 2 } },
+                { tag: 'empty' },
+                { tag: 'polygon', val: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
+            ];
+            const result = ns['echo-list-of-variants'](variants);
+            expect(result).toHaveLength(3);
+            expect(result[0].tag).toBe('point2d');
+            expect(result[1]).toEqual({ tag: 'empty' });
+            expect(result[2].tag).toBe('polygon');
+            expect(result[2].val).toHaveLength(2);
+        }));
+    });
+
+    describe('post-return and memory lifecycle', () => {
+        test('repeated string-returning exports deallocate correctly', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const prim = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
+            const comp = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
+
+            // Call many string/list-returning exports in sequence
+            // If post-return deallocation fails, wasm memory would leak/corrupt
+            for (let i = 0; i < 20; i++) {
+                expect(prim['echo-string'](`iteration-${i}`)).toBe(`iteration-${i}`);
+                expect(comp['echo-list-string'](['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+            }
+        }));
+
+        test('mixed type exports in sequence', () => runWithVerbose(verbose, async () => {
+            const { imports } = createEchoImports();
+            const component = await createComponent(echoWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            const prim = (instance.exports['jsco:test/echo-primitives@0.1.0']) as any;
+            const comp = (instance.exports['jsco:test/echo-compound@0.1.0']) as any;
+            const edge = (instance.exports['jsco:test/echo-edge-cases@0.1.0']) as any;
+            const complex = (instance.exports['jsco:test/echo-complex@0.1.0']) as any;
+
+            // Exercise different return shapes in sequence (each has different post_return)
+            prim['echo-string']('hello');
+            comp['echo-list-u8'](new Uint8Array([1, 2, 3]));
+            comp['echo-list-string'](['a', 'b']);
+            comp['echo-list-record']([{ x: 1, y: 2 }]);
+            edge['echo-tuple5']([1, 2, 3, 4n, 'five']);
+            edge['echo-list-option'](['x', undefined, 'y']);
+            edge['echo-list-result']([{ tag: 'ok', val: 1 }]);
+            edge['echo-list-tuple']([['k', 1]]);
+            complex['echo-nested-lists']([[1, 2], [3]]);
+            complex['echo-kitchen-sink']({
+                name: 'x', values: [1], nested: [['a']], pairs: [['k', 1]],
+                maybe: new Uint8Array([1]), resultField: { tag: 'ok', val: ['v'] },
+            });
+
+            // If we get here without crash, all post_return deallocations worked
+            expect(prim['echo-u32'](42)).toBe(42);
+        }));
     });
 });

@@ -16,6 +16,10 @@ use bindings::exports::jsco::test::echo_resources::GuestByteBuffer;
 use bindings::exports::jsco::test::echo_resources::Accumulator;
 use bindings::exports::jsco::test::echo_resources::AccumulatorBorrow;
 use bindings::exports::jsco::test::echo_resources::ByteBuffer;
+use bindings::exports::jsco::test::echo_complex::Guest as Complex;
+use bindings::exports::jsco::test::echo_complex::{
+    Address, Person, Team, Geometry, Message, KitchenSink,
+};
 use bindings::jsco::test::echo_sink;
 
 struct Component;
@@ -286,6 +290,65 @@ impl Resources for Component {
     }
     fn echo_buffer(buf: ByteBuffer) -> ByteBuffer {
         buf
+    }
+}
+
+impl Complex for Component {
+    fn echo_deeply_nested(v: Team) -> Team {
+        echo_sink::report_primitive("team", &format!("lead={}, members={}", v.lead.name, v.members.len()));
+        v
+    }
+    fn echo_list_of_records(v: Vec<Person>) -> Vec<Person> {
+        echo_sink::report_primitive("list-person", &format!("{} items", v.len()));
+        v
+    }
+    fn echo_tuple_of_records(v: (Person, Address)) -> (Person, Address) {
+        echo_sink::report_primitive("tuple-person-address", &format!("{}, {}", v.0.name, v.1.city));
+        v
+    }
+    fn echo_complex_variant(v: Geometry) -> Geometry {
+        let desc = match &v {
+            Geometry::Point2d(p) => format!("point2d({},{})", p.x, p.y),
+            Geometry::Point3d(p) => format!("point3d({},{},{})", p.x, p.y, p.z),
+            Geometry::Line((a, b)) => format!("line({},{}->{},{})", a.x, a.y, b.x, b.y),
+            Geometry::Polygon(pts) => format!("polygon({} pts)", pts.len()),
+            Geometry::Labeled((name, pts)) => format!("labeled({}, {} pts)", name, pts.len()),
+            Geometry::Empty => "empty".to_string(),
+        };
+        echo_sink::report_primitive("geometry", &desc);
+        v
+    }
+    fn echo_message(v: Message) -> Message {
+        let desc = match &v {
+            Message::Text(s) => format!("text({})", s),
+            Message::Binary(b) => format!("binary({} bytes)", b.len()),
+            Message::Structured(p) => format!("structured({})", p.name),
+            Message::ErrorResult(r) => format!("error-result({:?})", r),
+            Message::Tagged((tag, data)) => format!("tagged({}, {:?})", tag, data.as_ref().map(|d| d.len())),
+            Message::Empty => "empty".to_string(),
+        };
+        echo_sink::report_primitive("message", &desc);
+        v
+    }
+    fn echo_kitchen_sink(v: KitchenSink) -> KitchenSink {
+        echo_sink::report_primitive("kitchen-sink", &format!("name={}, values={}", v.name, v.values.len()));
+        v
+    }
+    fn echo_nested_lists(v: Vec<Vec<u32>>) -> Vec<Vec<u32>> {
+        echo_sink::report_primitive("nested-lists", &format!("{} outer", v.len()));
+        v
+    }
+    fn echo_option_record(v: Option<Person>) -> Option<Person> {
+        echo_sink::report_primitive("option-record", &format!("{:?}", v.as_ref().map(|p| &p.name)));
+        v
+    }
+    fn echo_result_record(v: Result<Person, String>) -> Result<Person, String> {
+        echo_sink::report_primitive("result-record", &format!("{:?}", v.as_ref().map(|p| &p.name)));
+        v
+    }
+    fn echo_list_of_variants(v: Vec<Geometry>) -> Vec<Geometry> {
+        echo_sink::report_primitive("list-geometry", &format!("{} items", v.len()));
+        v
     }
 }
 

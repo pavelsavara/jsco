@@ -3,4 +3,4 @@ resolver = "2"
 members = ["consumer", "forwarder", "implementer", "hello-world", "echo-reactor"]
 
 [workspace.dependencies]
-wit-bindgen-rt = "0.41.0"
+wit-bindgen-rt = "0.44.0"
