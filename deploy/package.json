@@ -1,0 +1,29 @@
+{
+    "name": "@pavelsavara/jsco",
+    "version": "0.1.0",
+    "description": "browser polyfill for running WASM components",
+    "main": "index.js",
+    "type": "module",
+    "types": "index.d.ts",
+    "bin": {
+        "jsco": "index.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/pavelsavara/jsco.git"
+    },
+    "keywords": [
+        "WASM",
+        "WIT",
+        "WASI",
+        "Component",
+        "WebAssembly",
+        "polyfill"
+    ],
+    "author": "Pavel Savara <pavel.savara@gmail.com>",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/pavelsavara/jsco/issues"
+    },
+    "homepage": "https://github.com/pavelsavara/jsco#readme"
+}

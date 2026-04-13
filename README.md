@@ -47,6 +47,13 @@ await run();
 Prints `hello from jsco` to the console.
 See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
 
+# CLI
+```sh
+node ./dist/index.js ./integration-tests/hello-world-wat/hello.wasm
+# or
+npx @pavelsavara/jsco ./integration-tests/hello-world-wat/hello.wasm
+```
+
 ## Options
 
 | Option | Default | Description |
