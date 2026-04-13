@@ -178,10 +178,12 @@ function buildVfsTree(files: Map<string, Uint8Array>): VfsNode {
         // Ensure all parent directories exist
         for (let i = 0; i < parts.length - 1; i++) {
             const part = parts[i];
+            if (!part) throw new Error(`buildVfsTree: unexpected empty path segment at index ${i}`);
             if (!current.children!.has(part)) {
                 current.children!.set(part, createDirNode(part));
             }
-            const child = current.children!.get(part)!;
+            const child = current.children!.get(part);
+            if (!child) throw new Error(`Failed to create directory: ${part}`);
             if (child.type !== 'directory') {
                 throw new Error(`Path conflict: ${parts.slice(0, i + 1).join('/')} is a file, cannot create subdirectory`);
             }
@@ -190,6 +192,7 @@ function buildVfsTree(files: Map<string, Uint8Array>): VfsNode {
 
         // Create the file
         const fileName = parts[parts.length - 1];
+        if (!fileName) throw new Error(`buildVfsTree: unexpected empty filename in path "${path}"`);
         current.children!.set(fileName, createFileNode(fileName, new Uint8Array(data)));
     }
 
@@ -249,7 +252,8 @@ function resolveParent(base: VfsNode, path: string): { parent: VfsNode; name: st
     }
 
     if (resolved.length === 0) return null;
-    const name = resolved.pop()!;
+    const name = resolved.pop();
+    if (!name) return null;
 
     // Walk from base to parent
     let current = base;
@@ -301,7 +305,9 @@ function createDirectoryEntryStream(dir: VfsNode): WasiDirectoryEntryStream {
             if (index >= entries.length) {
                 return ok(undefined);
             }
-            const [name, node] = entries[index++];
+            const entry = entries[index++];
+            if (!entry) return ok(undefined);
+            const [name, node] = entry;
             return ok({
                 type: node.type === 'file' ? 'regular-file' as const : 'directory' as const,
                 name,

@@ -55,6 +55,9 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         // Pre-create memory storers/loader for spilled calling convention
         const paramStorers = paramResolvedTypes.map(pt => createMemoryStorer(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
         const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources) : undefined;
+        if (callingConvention.results === CallingConvention.Spilled && !resultLoader) {
+            throw new Error('Spilled calling convention for results requires a result type (named multi-value results not yet supported)');
+        }
 
         // Pre-compute spilled parameter offsets, total size, and max alignment
         const spilledParamOffsets: number[] = [];
@@ -83,7 +86,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                 if (callingConvention.results === CallingConvention.Spilled) {
                     result = resultLoader!(ctx, rawWasm as number);
                 } else if (resultLowerers.length === 1) {
-                    result = resultLowerers[0](ctx, rawWasm);
+                    result = resultLowerers[0]!(ctx, rawWasm);
                 }
 
                 // Post-return cleanup
@@ -107,14 +110,17 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                     ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
                 }
                 try {
+                    if (args.length !== paramStorers.length) {
+                        throw new Error(`Expected ${paramStorers.length} arguments, got ${args.length}`);
+                    }
                     let wasmArgs: any[];
                     if (callingConvention.params === CallingConvention.Spilled) {
                         // Spill: store all params to memory, pass single pointer
                         const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize,
                             spilledParamsMaxAlign as WasmSize, spilledParamsTotalSize as WasmSize);
                         validateAllocResult(ctx, ptr, spilledParamsMaxAlign, spilledParamsTotalSize);
-                        for (let i = 0; i < args.length; i++) {
-                            paramStorers[i](ctx, ptr + spilledParamOffsets[i], args[i]);
+                        for (let i = 0; i < paramStorers.length; i++) {
+                            paramStorers[i]!(ctx, ptr + spilledParamOffsets[i]!, args[i]);
                         }
                         wasmArgs = [ptr];
                     } else {
@@ -122,7 +128,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         wasmArgs = new Array(totalFlatParams);
                         let pos = 0;
                         for (let i = 0; i < paramLifters.length; i++) {
-                            pos += paramLifters[i](ctx, args[i], wasmArgs, pos);
+                            pos += paramLifters[i]!(ctx, args[i], wasmArgs, pos);
                         }
                     }
 
@@ -246,7 +252,8 @@ function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDe
     return (ctx, srcJsRecord, out, offset) => {
         let pos = 0;
         for (let i = 0; i < lifters.length; i++) {
-            pos += lifters[i].lifter(ctx, srcJsRecord[lifters[i].name], out, offset + pos);
+            const l = lifters[i]!;
+            pos += l.lifter(ctx, srcJsRecord[l.name], out, offset + pos);
         }
         return pos;
     };
@@ -501,7 +508,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             }
             return (ctx, ptr, jsValue) => {
                 for (let i = 0; i < fieldStorers.length; i++) {
-                    fieldStorers[i].storer(ctx, ptr + fieldStorers[i].offset, jsValue[fieldStorers[i].name]);
+                    const f = fieldStorers[i]!;
+                    f.storer(ctx, ptr + f.offset, jsValue[f.name]);
                 }
             };
         }
@@ -582,7 +590,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             return (ctx, ptr, jsValue) => {
                 const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
-                const caseIndex = nameToIndex.get(tag)!;
+                const caseIndex = nameToIndex.get(tag);
+                if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 if (discSize === 1) dv.setUint8(0, caseIndex);
                 else if (discSize === 2) dv.setUint16(0, caseIndex, true);
@@ -597,7 +606,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const discSize = discriminantSize(type.members.length);
             const nameToIndex = new Map(type.members.map((name, i) => [name, i]));
             return (ctx, ptr, jsValue) => {
-                const idx = nameToIndex.get(jsValue as string)!;
+                const idx = nameToIndex.get(jsValue as string);
+                if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 if (discSize === 1) dv.setUint8(0, idx);
                 else if (discSize === 2) dv.setUint16(0, idx, true);
@@ -612,7 +622,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 for (let w = 0; w < wordCount; w++) {
                     let word = 0;
                     for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                        if (flags[memberNames[w * 32 + b]]) word |= (1 << b);
+                        if (flags[memberNames[w * 32 + b]!]) word |= (1 << b);
                     }
                     const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                     dv.setInt32(0, word, true);
@@ -631,8 +641,12 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             }
             return (ctx, ptr, jsValue) => {
                 const arr = jsValue as any[];
+                if (arr.length !== memberStorers.length) {
+                    throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${arr.length}`);
+                }
                 for (let i = 0; i < memberStorers.length; i++) {
-                    memberStorers[i].storer(ctx, ptr + memberStorers[i].offset, arr[i]);
+                    const m = memberStorers[i]!;
+                    m.storer(ctx, ptr + m.offset, arr[i]);
                 }
             };
         }
@@ -701,7 +715,7 @@ function createOptionLifting(rctx: ResolvedContext, optionModel: ComponentTypeDe
     const totalSize = 1 + innerFlatN;
 
     return (ctx, srcJsValue, out, offset) => {
-        for (let i = 0; i < totalSize; i++) out[offset + i] = 0;
+        out.fill(0, offset, offset + totalSize);
         if (srcJsValue === null || srcJsValue === undefined) {
             return totalSize;
         }
@@ -723,7 +737,8 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const joinedFlatTypes = flattenType(resolved);
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
-    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
+    const hasI64 = joinedFlatTypes.some(ft => ft === FlatType.I64);
+    const zeroValues: WasmValue[] | undefined = hasI64 ? joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0) : undefined;
 
     const okFlatTypes = resolved.ok ? flattenValType(resolved.ok) : [];
     const errFlatTypes = resolved.err ? flattenValType(resolved.err) : [];
@@ -733,13 +748,19 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     return (ctx, srcJsValue, out, offset) => {
         const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
-        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
+        if (hasI64) {
+            for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues![i]!;
+        } else {
+            out.fill(0, offset, offset + totalSize);
+        }
         if (tag === OK) {
             if (okLifter) okLifter(ctx, val, out, offset + 1);
             if (okNeedsCoercion) {
                 for (let i = 0; i < okFlatTypes.length; i++) {
-                    if (okFlatTypes[i] !== payloadJoined[i]) {
-                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFlatTypes[i], payloadJoined[i]);
+                    const okFT = okFlatTypes[i];
+                    const joinedFT = payloadJoined[i];
+                    if (okFT !== undefined && joinedFT !== undefined && okFT !== joinedFT) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFT, joinedFT);
                     }
                 }
             }
@@ -748,8 +769,10 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
             if (errLifter) errLifter(ctx, val, out, offset + 1);
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
-                    if (errFlatTypes[i] !== payloadJoined[i]) {
-                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFlatTypes[i], payloadJoined[i]);
+                    const errFT = errFlatTypes[i];
+                    const joinedFT = payloadJoined[i];
+                    if (errFT !== undefined && joinedFT !== undefined && errFT !== joinedFT) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFT, joinedFT);
                     }
                 }
             }
@@ -767,7 +790,8 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
     // Pre-compute zero values for each slot: 0n for i64, 0 for everything else
-    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
+    const hasI64 = joinedFlatTypes.some(ft => ft === FlatType.I64);
+    const zeroValues: WasmValue[] | undefined = hasI64 ? joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0) : undefined;
 
     const cases = variantModel.variants.map((c, i) => {
         const resolved = c.ty ? deepResolveType(rctx, resolveValType(rctx, c.ty)) : undefined;
@@ -790,7 +814,11 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);
         // Zero-fill with type-appropriate zeros
-        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
+        if (hasI64) {
+            for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues![i]!;
+        } else {
+            out.fill(0, offset, offset + totalSize);
+        }
         out[offset] = c.index;
         if (c.lifter && val !== undefined) {
             c.lifter(ctx, val, out, offset + 1);
@@ -800,7 +828,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
             for (let i = 0; i < c.caseFlatTypes.length; i++) {
                 const have = c.caseFlatTypes[i];
                 const want = payloadJoined[i];
-                if (have !== want) {
+                if (have !== undefined && want !== undefined && have !== want) {
                     out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, have, want);
                 }
             }
@@ -817,7 +845,7 @@ function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValu
     // (f32, i32): reinterpret f32 as i32
     if (have === FlatType.F32 && want === FlatType.I32) {
         _f32[0] = value;
-        return _i32[0];
+        return _i32[0] as number;
     }
     // (i32, i64): widen i32 to i64
     if (have === FlatType.I32 && want === FlatType.I64) {
@@ -826,12 +854,12 @@ function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValu
     // (f32, i64): reinterpret f32 as i32, then widen to i64
     if (have === FlatType.F32 && want === FlatType.I64) {
         _f32[0] = value;
-        return BigInt(_i32[0] >>> 0);
+        return BigInt((_i32[0] as number) >>> 0);
     }
     // (f64, i64): reinterpret f64 as i64
     if (have === FlatType.F64 && want === FlatType.I64) {
         _f64[0] = value;
-        return _i64[0];
+        return _i64[0] as bigint;
     }
     return value;
 }
@@ -859,7 +887,7 @@ function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDef
         for (let w = 0; w < wordCount; w++) {
             let word = 0;
             for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                if (flags[memberNames[w * 32 + b]]) word |= (1 << (b & 31));
+                if (flags[memberNames[w * 32 + b]!]) word |= (1 << (b & 31));
             }
             out[offset + w] = word;
         }
@@ -874,9 +902,13 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
 
     return (ctx, srcJsValue, out, offset) => {
         const arr = srcJsValue as any[];
+        if (arr.length !== elementLifters.length) {
+            throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${arr.length}`);
+        }
         let pos = 0;
         for (let i = 0; i < elementLifters.length; i++) {
-            pos += elementLifters[i](ctx, arr[i], out, offset + pos);
+            const lifter = elementLifters[i]!;
+            pos += lifter(ctx, arr[i], out, offset + pos);
         }
         return pos;
     };

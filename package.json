@@ -26,7 +26,6 @@
         "setup:rust:ci": "npm run setup:rust:cargo",
         "setup:rust:rustup": "rustup toolchain install stable --profile default --no-self-update && rustup target add wasm32-unknown-unknown",
         "setup:rust:cargo": "cargo install cargo-component --locked",
-        "test:usage": "node ./usage.mjs && node ./usage2.mjs",
         "test:ci": "node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest",
         "test:unix": "node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --watch",
         "test:win": "node --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --watch",

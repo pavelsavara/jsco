@@ -78,7 +78,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     const monotonicClock = createWasiMonotonicClock();
     const cli = createWasiCli(config);
     const filesystem = createWasiFilesystem(config?.fs);
-    const outgoingHandler = createOutgoingHandler();
+    const outgoingHandler = createOutgoingHandler(undefined, config?.maxResponseBodyBytes);
 
     const result: WasiP2HostExports = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
@@ -87,8 +87,10 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     const resourceDropPrefix = '[resource-drop]';
     const method = (cls: string, name: string) => methodPrefix + cls + '.' + name;
     const drop = (cls: string) => resourceDropPrefix + cls;
+    const disabled = config?.disabledInterfaces;
     function register(ns: string, methods: Record<string, Function>) {
         const key = wasiPrefix + ns;
+        if (disabled && disabled.some(prefix => key.startsWith(prefix))) return;
         result[key] = methods;
         for (const v of versions) result[key + '@' + v] = methods;
     }

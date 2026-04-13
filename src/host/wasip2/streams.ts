@@ -165,9 +165,7 @@ export function createOutputStream(
             if (buffer.length + contents.length > bufferCapacity) {
                 return streamFailed('write would exceed buffer capacity');
             }
-            for (let i = 0; i < contents.length; i++) {
-                buffer.push(contents[i]);
-            }
+            buffer = buffer.concat(Array.from(contents));
             return streamOk(undefined);
         },
 
@@ -192,9 +190,7 @@ export function createOutputStream(
             if (buffer.length + count > bufferCapacity) {
                 return streamFailed('write would exceed buffer capacity');
             }
-            for (let i = 0; i < count; i++) {
-                buffer.push(0);
-            }
+            buffer = buffer.concat(new Array<number>(count).fill(0));
             return streamOk(undefined);
         },
 

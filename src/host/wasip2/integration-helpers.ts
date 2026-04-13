@@ -112,12 +112,14 @@ function parseTestResults(stdout: string): { name: string; passed: boolean; reas
     for (const line of stdout.split('\n')) {
         const passMatch = line.match(/^\[PASS\] (.+)$/);
         if (passMatch) {
-            results.push({ name: passMatch[1], passed: true });
+            const name = passMatch[1];
+            if (name) results.push({ name, passed: true });
             continue;
         }
         const failMatch = line.match(/^\[FAIL\] ([^:]+): (.+)$/);
         if (failMatch) {
-            results.push({ name: failMatch[1], passed: false, reason: failMatch[2] });
+            const name = failMatch[1];
+            if (name) results.push({ name, passed: false, reason: failMatch[2] });
         }
     }
     return results;

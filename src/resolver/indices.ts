@@ -14,41 +14,53 @@ export function getCoreFunction(rctx: ResolverContext, index: CoreFuncIndex): Co
     jsco_assert(index >= 0 && index < rctx.indexes.coreFunctions.length,
         () => `CoreFuncIndex ${index} out of bounds [0..${rctx.indexes.coreFunctions.length}).` +
             (isDebug ? ` Available: [${rctx.indexes.coreFunctions.map((f, i) => `${i}:${modelTagName(f.tag)}`).join(', ')}]` : ''));
-    return rctx.indexes.coreFunctions[index];
+    const result = rctx.indexes.coreFunctions[index];
+    if (!result) throw new Error(`CoreFuncIndex ${index} out of bounds`);
+    return result;
 }
 
 export function getCoreInstance(rctx: ResolverContext, index: CoreInstanceIndex): CoreInstance {
     jsco_assert(index >= 0 && index < rctx.indexes.coreInstances.length,
         () => `CoreInstanceIndex ${index} out of bounds [0..${rctx.indexes.coreInstances.length}).` +
             (isDebug ? ` Available: [${rctx.indexes.coreInstances.map((i2, idx) => `${idx}:${modelTagName(i2.tag)}`).join(', ')}]` : ''));
-    return rctx.indexes.coreInstances[index];
+    const result = rctx.indexes.coreInstances[index];
+    if (!result) throw new Error(`CoreInstanceIndex ${index} out of bounds`);
+    return result;
 }
 
 export function getCoreModule(rctx: ResolverContext, index: CoreModuleIndex): CoreModule {
     jsco_assert(index >= 0 && index < rctx.indexes.coreModules.length,
         () => `CoreModuleIndex ${index} out of bounds [0..${rctx.indexes.coreModules.length})`);
-    return rctx.indexes.coreModules[index];
+    const result = rctx.indexes.coreModules[index];
+    if (!result) throw new Error(`CoreModuleIndex ${index} out of bounds`);
+    return result;
 }
 
 export function getComponentFunction(rctx: ResolverContext, index: ComponentFuncIndex): ComponentFunction {
     jsco_assert(index >= 0 && index < rctx.indexes.componentFunctions.length,
         () => `ComponentFuncIndex ${index} out of bounds [0..${rctx.indexes.componentFunctions.length}).` +
             (isDebug ? ` Available: [${rctx.indexes.componentFunctions.map((f, i) => `${i}:${modelTagName(f.tag)}`).join(', ')}]` : ''));
-    return rctx.indexes.componentFunctions[index];
+    const result = rctx.indexes.componentFunctions[index];
+    if (!result) throw new Error(`ComponentFuncIndex ${index} out of bounds`);
+    return result;
 }
 
 export function getComponentInstance(rctx: ResolverContext, index: ComponentInstanceIndex): ComponentInstance {
     jsco_assert(index >= 0 && index < rctx.indexes.componentInstances.length,
         () => `ComponentInstanceIndex ${index} out of bounds [0..${rctx.indexes.componentInstances.length}).` +
             (isDebug ? ` Available: [${rctx.indexes.componentInstances.map((i2, idx) => `${idx}:${modelTagName(i2.tag)}`).join(', ')}]` : ''));
-    return rctx.indexes.componentInstances[index];
+    const result = rctx.indexes.componentInstances[index];
+    if (!result) throw new Error(`ComponentInstanceIndex ${index} out of bounds`);
+    return result;
 }
 
 export function getComponentType(rctx: ResolverContext, index: ComponentTypeIndex): ComponentType {
     jsco_assert(index >= 0 && index < rctx.indexes.componentTypes.length,
         () => `ComponentTypeIndex ${index} out of bounds [0..${rctx.indexes.componentTypes.length}).` +
             (isDebug ? ` Available: [${rctx.indexes.componentTypes.map((t, i) => `${i}:${modelTagName(t.tag)}`).join(', ')}]` : ''));
-    return rctx.indexes.componentTypes[index];
+    const result = rctx.indexes.componentTypes[index];
+    if (!result) throw new Error(`ComponentTypeIndex ${index} out of bounds`);
+    return result;
 }
 
 export type { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../model/indices';

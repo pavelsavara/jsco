@@ -18,29 +18,29 @@ import { describeDebugOnly } from '../../test-utils/debug-only';
 function validateUtf8(bytes: Uint8Array): void {
     let i = 0;
     while (i < bytes.length) {
-        const b0 = bytes[i];
+        const b0 = bytes[i]!;
         if (b0 < 0x80) {
             i++;
         } else if ((b0 & 0xE0) === 0xC0) {
             if (b0 < 0xC2) throw new Error(`invalid UTF-8: overlong 2-byte sequence at offset ${i}`);
             if (i + 1 >= bytes.length) throw new Error(`invalid UTF-8: truncated 2-byte sequence at offset ${i}`);
-            if ((bytes[i + 1] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
+            if ((bytes[i + 1]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
             i += 2;
         } else if ((b0 & 0xF0) === 0xE0) {
             if (i + 2 >= bytes.length) throw new Error(`invalid UTF-8: truncated 3-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
+            const b1 = bytes[i + 1]!;
             if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if ((bytes[i + 2]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
             if (b0 === 0xE0 && b1 < 0xA0) throw new Error(`invalid UTF-8: overlong 3-byte sequence at offset ${i}`);
             if (b0 === 0xED && b1 >= 0xA0) throw new Error(`invalid UTF-8: surrogate codepoint at offset ${i}`);
             i += 3;
         } else if ((b0 & 0xF8) === 0xF0) {
             if (b0 > 0xF4) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
             if (i + 3 >= bytes.length) throw new Error(`invalid UTF-8: truncated 4-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
+            const b1 = bytes[i + 1]!;
             if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
-            if ((bytes[i + 3] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
+            if ((bytes[i + 2]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if ((bytes[i + 3]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
             if (b0 === 0xF0 && b1 < 0x90) throw new Error(`invalid UTF-8: overlong 4-byte sequence at offset ${i}`);
             if (b0 === 0xF4 && b1 > 0x8F) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
             i += 4;

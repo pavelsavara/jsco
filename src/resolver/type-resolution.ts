@@ -102,6 +102,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
     const map = new Map<ComponentTypeIndex, ResolvedType>();
     for (let i = 0; i < rctx.indexes.componentTypes.length; i++) {
         const type = rctx.indexes.componentTypes[i];
+        if (!type) throw new Error(`buildResolvedTypeMap: missing component type at index ${i}`);
         const resolved = resolveType(rctx, type, new Set());
         if (resolved) {
             map.set(i as ComponentTypeIndex, resolved);
@@ -116,6 +117,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
     const instanceLocalMaps = new Map<number, Map<ComponentTypeIndex, ResolvedType>>();
     for (let i = 0; i < rctx.indexes.componentTypes.length; i++) {
         const type = rctx.indexes.componentTypes[i];
+        if (!type) throw new Error(`buildResolvedTypeMap: missing component type at index ${i}`);
         if (type.tag === ModelTag.ComponentAliasInstanceExport &&
             type.kind === ComponentExternalKind.Type) {
             const instanceIdx = type.instance_index;

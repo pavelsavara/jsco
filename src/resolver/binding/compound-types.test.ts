@@ -593,7 +593,7 @@ describeDebugOnly('list round-trip', () => {
 
         const original = [10, 20, 30, 40, 50];
         const [ptr, len] = lifter(ctx, original);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toEqual(original);
     });
 });

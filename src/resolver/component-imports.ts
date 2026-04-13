@@ -4,6 +4,7 @@ import { ComponentImport } from '../model/imports';
 import { ModelTag } from '../model/tags';
 import { jsco_assert } from '../utils/assert';
 import { lookupComponentInstance } from './component-instances';
+import { stripImportPrefix } from './import-names';
 import { JsImports } from './api-types';
 import { validateImportType } from './type-validation';
 import { Resolver, BinderRes } from './types';
@@ -75,17 +76,7 @@ export const resolveComponentImport: Resolver<ComponentImport> = (rctx, rargs) =
                     // to disambiguate import kinds. The instantiation site strips
                     // these prefixes when building the args map, so the import
                     // lookup must strip them too to find the matching key.
-                    if (importName.startsWith('import-func-')) {
-                        importName = importName.substring('import-func-'.length);
-                    } else if (importName.startsWith('import-method-')) {
-                        importName = importName.substring('import-method-'.length);
-                    } else if (importName.startsWith('import-constructor-')) {
-                        importName = importName.substring('import-constructor-'.length);
-                    } else if (importName.startsWith('import-static-')) {
-                        importName = importName.substring('import-static-'.length);
-                    } else if (importName.startsWith('import-type-')) {
-                        importName = importName.substring('import-type-'.length);
-                    }
+                    importName = stripImportPrefix(importName);
                     const imprt = resolveImportByName(bargs.imports, importName);
 
                     const binderResult: BinderRes = {

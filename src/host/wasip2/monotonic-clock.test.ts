@@ -29,7 +29,7 @@ describe('wasi:clocks/monotonic-clock', () => {
                 values.push(clock.now());
             }
             for (let i = 1; i < values.length; i++) {
-                expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);
+                expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]!);
             }
         });
 
@@ -88,8 +88,8 @@ describe('wasi:clocks/monotonic-clock', () => {
                 // Use 0 duration so no timers are left open
                 pollables.push(clock.subscribeDuration(0n));
             }
-            expect(pollables[0].ready()).toBe(true);
-            expect(pollables[999].ready()).toBe(true);
+            expect(pollables[0]!.ready()).toBe(true);
+            expect(pollables[999]!.ready()).toBe(true);
             expect(pollables.length).toBe(1000);
         });
     });

@@ -58,6 +58,34 @@ function primIdx(v: number): number {
     return v;
 }
 
+function primSize(v: number): number {
+    const idx = primIdx(v);
+    const result = _primSize[idx];
+    if (result === undefined) throw new Error(`primSize: missing size for PrimitiveValType ${v}`);
+    return result;
+}
+
+function primAlign(v: number): number {
+    const idx = primIdx(v);
+    const result = _primAlign[idx];
+    if (result === undefined) throw new Error(`primAlign: missing alignment for PrimitiveValType ${v}`);
+    return result;
+}
+
+function primFlatCount(v: number): number {
+    const idx = primIdx(v);
+    const result = _primFC[idx];
+    if (result === undefined) throw new Error(`primFlatCount: missing flat count for PrimitiveValType ${v}`);
+    return result;
+}
+
+function primFlatTypes(v: number): FlatType[] {
+    const idx = primIdx(v);
+    const result = _primFT[idx];
+    if (result === undefined) throw new Error(`primFlatTypes: missing flat types for PrimitiveValType ${v}`);
+    return result;
+}
+
 // --- Composite type calculations ---
 
 export function alignUp(offset: number, align: number): number {
@@ -68,7 +96,7 @@ export function sizeOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return _primSize[primIdx(type.value)];
+            return primSize(type.value);
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let size = 0;
@@ -153,7 +181,7 @@ export function alignOf(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return _primAlign[primIdx(type.value)];
+            return primAlign(type.value);
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let maxAlign = 1;
@@ -214,7 +242,7 @@ export function flatCount(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return _primFC[primIdx(type.value)];
+            return primFlatCount(type.value);
 
         case ModelTag.ComponentTypeDefinedRecord: {
             let count = 0;
@@ -464,12 +492,27 @@ export function joinFlatType(a: FlatType, b: FlatType): FlatType {
     return FlatType.I64;
 }
 
+/** Join two flat arrays in-place: for each slot, join the types; extend if source is longer */
+function joinFlatArrays(target: FlatType[], source: FlatType[]): void {
+    for (let i = 0; i < source.length; i++) {
+        const s = source[i];
+        if (s === undefined) throw new Error(`joinFlatArrays: source[${i}] is undefined`);
+        if (i < target.length) {
+            const t = target[i];
+            if (t === undefined) throw new Error(`joinFlatArrays: target[${i}] is undefined`);
+            target[i] = joinFlatType(t, s);
+        } else {
+            target.push(s);
+        }
+    }
+}
+
 /** Spec: flatten_type(t) — return the flat representation of a resolved type */
 export function flattenType(type: ResolvedType): FlatType[] {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return _primFT[primIdx(type.value)];
+            return primFlatTypes(type.value);
 
         case ModelTag.ComponentTypeDefinedRecord: {
             const flat: FlatType[] = [];
@@ -520,13 +563,7 @@ export function flattenVariant(type: ComponentTypeDefinedVariant): FlatType[] {
     for (const c of type.variants) {
         if (c.ty !== undefined) {
             const caseFlatTypes = flattenValType(c.ty);
-            for (let i = 0; i < caseFlatTypes.length; i++) {
-                if (i < flat.length) {
-                    flat[i] = joinFlatType(flat[i], caseFlatTypes[i]);
-                } else {
-                    flat.push(caseFlatTypes[i]);
-                }
-            }
+            joinFlatArrays(flat, caseFlatTypes);
         }
     }
     // discriminant (i32) + joined payload
@@ -537,24 +574,10 @@ export function flattenVariant(type: ComponentTypeDefinedVariant): FlatType[] {
 function flattenResult(type: ComponentTypeDefinedResult): FlatType[] {
     const flat: FlatType[] = [];
     if (type.ok !== undefined) {
-        const okFlat = flattenValType(type.ok);
-        for (let i = 0; i < okFlat.length; i++) {
-            if (i < flat.length) {
-                flat[i] = joinFlatType(flat[i], okFlat[i]);
-            } else {
-                flat.push(okFlat[i]);
-            }
-        }
+        joinFlatArrays(flat, flattenValType(type.ok));
     }
     if (type.err !== undefined) {
-        const errFlat = flattenValType(type.err);
-        for (let i = 0; i < errFlat.length; i++) {
-            if (i < flat.length) {
-                flat[i] = joinFlatType(flat[i], errFlat[i]);
-            } else {
-                flat.push(errFlat[i]);
-            }
-        }
+        joinFlatArrays(flat, flattenValType(type.err));
     }
     return [FlatType.I32, ...flat];
 }

@@ -28,7 +28,7 @@ function createMinimalResolved(opts?: Partial<ResolvedContext>): ResolvedContext
         usesNumberForInt64: false,
         stringEncoding: StringEncoding.Utf8,
         ...opts,
-    };
+    } as ResolvedContext;
 }
 
 function prim(value: PrimitiveValType): ComponentValType {

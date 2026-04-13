@@ -460,8 +460,9 @@ function getTimeoutMs(options?: WasiRequestOptions): number | undefined {
  * Create a wasi:http/outgoing-handler implementation.
  *
  * @param fetchFn The fetch function to use. Defaults to globalThis.fetch.
+ * @param maxResponseBodyBytes Maximum response body size in bytes. Undefined = unlimited.
  */
-export function createOutgoingHandler(fetchFn?: FetchFn): WasiOutgoingHandler {
+export function createOutgoingHandler(fetchFn?: FetchFn, maxResponseBodyBytes?: number): WasiOutgoingHandler {
     const doFetch: FetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
 
     return {
@@ -480,6 +481,15 @@ export function createOutgoingHandler(fetchFn?: FetchFn): WasiOutgoingHandler {
 
             const fetchPromise = doFetch(url, init)
                 .then(async (response) => {
+                    // Enforce response body size limit
+                    if (maxResponseBodyBytes !== undefined) {
+                        const contentLength = response.headers.get('content-length');
+                        if (contentLength !== null && parseInt(contentLength, 10) > maxResponseBodyBytes) {
+                            result = httpErr({ tag: 'HTTP-response-body-size', val: BigInt(parseInt(contentLength, 10)) });
+                            return;
+                        }
+                    }
+
                     // Convert response headers to WasiFields
                     const headerEntries: [string, Uint8Array][] = [];
                     response.headers.forEach((value, name) => {
@@ -492,6 +502,12 @@ export function createOutgoingHandler(fetchFn?: FetchFn): WasiOutgoingHandler {
 
                     // Read body
                     const bodyBytes = new Uint8Array(await response.arrayBuffer());
+
+                    // Enforce limit for responses without Content-Length
+                    if (maxResponseBodyBytes !== undefined && bodyBytes.length > maxResponseBodyBytes) {
+                        result = httpErr({ tag: 'HTTP-response-body-size', val: BigInt(bodyBytes.length) });
+                        return;
+                    }
 
                     result = httpOk(createIncomingResponse(response.status, responseHeaders, bodyBytes));
                 })

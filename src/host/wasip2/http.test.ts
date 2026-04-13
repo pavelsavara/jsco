@@ -193,7 +193,7 @@ describe('wasi:http/types fields', () => {
     test('get returns defensive copies', () => {
         const f = createFields();
         f.set('x-val', [enc.encode('hello')]);
-        const retrieved = f.get('x-val')[0];
+        const retrieved = f.get('x-val')[0]!;
         retrieved[0] = 0xFF; // mutate the returned copy
         expect(dec.decode(f.get('x-val')[0])).toBe('hello'); // original unchanged
     });
@@ -551,7 +551,7 @@ describe('wasi:http/outgoing-handler', () => {
     test('future get returns undefined before resolution', () => {
         // Use a fetch that never resolves
         const handler = createOutgoingHandler(async () => {
-            return new Promise<Response>(() => {}); // never resolves
+            return new Promise<Response>(() => { }); // never resolves
         });
         const req = createOutgoingRequest(createFields());
         req.setScheme({ tag: 'HTTPS' });

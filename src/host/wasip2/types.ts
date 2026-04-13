@@ -34,6 +34,10 @@ export interface WasiConfig {
     stderr?: (bytes: Uint8Array) => void;
     /** Virtual filesystem — full unix paths to file contents */
     fs?: Map<string, Uint8Array>;
+    /** Maximum response body size in bytes. Undefined = unlimited. */
+    maxResponseBodyBytes?: number;
+    /** WASI interface prefixes to disable (e.g. ['wasi:http', 'wasi:sockets']) */
+    disabledInterfaces?: string[];
 }
 
 /** Opaque handle ID for WASI resources */

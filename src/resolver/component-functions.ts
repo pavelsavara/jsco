@@ -13,7 +13,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, ResolverRes, resolveCanonicalOptions } from './types';
+import { Resolver, ResolvedContext, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
 import { PROMISING } from '../constants';
 
@@ -53,9 +53,13 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
     const canonOpts = resolveCanonicalOptions(canonicalFunctionLift.options);
 
-    // Set string encoding for this canonical function — read by createLifting/createLowering
-    const savedEncoding = rctx.resolved.stringEncoding;
-    rctx.resolved.stringEncoding = canonOpts.stringEncoding;
+    // Create a shallow copy of resolved context with the canonical string encoding.
+    // If this function uses Number-mode for int64, also swap to separate caches
+    // so that Number-mode and BigInt-mode type compilations don't collide.
+    let localResolved: ResolvedContext = {
+        ...rctx.resolved,
+        stringEncoding: canonOpts.stringEncoding,
+    };
 
     // Resolve the post-return core function if specified in canonical options
     let postReturnResolution: ResolverRes | undefined;
@@ -67,32 +71,25 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     // When useNumberForInt64 is string[], check if this function's export name
     // matches and temporarily switch to Number-mode with separate caches.
     const numberForMethods = rctx.resolved.useNumberForInt64Methods;
-    let savedUsesNumber: boolean | undefined;
-    let savedLiftingCache: Map<unknown, unknown> | undefined;
-    let savedLoweringCache: Map<unknown, unknown> | undefined;
     if (numberForMethods) {
         const callerExport = rargs.callerElement;
         const exportName = callerExport && callerExport.tag === ModelTag.ComponentExport
             ? (callerExport as ComponentExport).name.name : undefined;
         const useNumber = exportName !== undefined && numberForMethods.includes(exportName);
         if (useNumber) {
-            savedUsesNumber = rctx.resolved.usesNumberForInt64;
-            savedLiftingCache = rctx.resolved.liftingCache;
-            savedLoweringCache = rctx.resolved.loweringCache;
-            rctx.resolved.usesNumberForInt64 = true;
-            rctx.resolved.liftingCache = rctx.resolved.numberModeLiftingCache!;
-            rctx.resolved.loweringCache = rctx.resolved.numberModeLoweringCache!;
+            const nmLiftingCache = rctx.resolved.numberModeLiftingCache;
+            const nmLoweringCache = rctx.resolved.numberModeLoweringCache;
+            if (!nmLiftingCache || !nmLoweringCache) throw new Error('numberMode caches not initialized');
+            localResolved = {
+                ...localResolved,
+                usesNumberForInt64: true,
+                liftingCache: nmLiftingCache,
+                loweringCache: nmLoweringCache,
+            };
         }
     }
 
-    const liftingBinder = createFunctionLifting(rctx.resolved, sectionFunType);
-
-    if (savedUsesNumber !== undefined) {
-        rctx.resolved.usesNumberForInt64 = savedUsesNumber;
-        rctx.resolved.liftingCache = savedLiftingCache!;
-        rctx.resolved.loweringCache = savedLoweringCache!;
-    }
-    rctx.resolved.stringEncoding = savedEncoding;
+    const liftingBinder = createFunctionLifting(localResolved, sectionFunType);
 
     const noJspi = rctx.resolved.noJspi;
 

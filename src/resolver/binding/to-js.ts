@@ -88,14 +88,15 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                     // Spill: WASM passes single pointer, read params from memory
                     const ptr = args[0] as number;
                     for (let i = 0; i < paramLoaders.length; i++) {
-                        convertedArgs[i] = paramLoaders[i](ctx, ptr + spilledParamOffsets[i]);
+                        convertedArgs[i] = paramLoaders[i]!(ctx, ptr + spilledParamOffsets[i]!);
                     }
                 } else {
                     // Flat/Scalar: read each param using lowerers
                     let flatOffset = 0;
                     for (let i = 0; i < paramLowerers.length; i++) {
-                        const spill = (paramLowerers[i] as any).spill;
-                        convertedArgs[i] = paramLowerers[i](ctx, ...args.slice(flatOffset, flatOffset + spill));
+                        const lowerer = paramLowerers[i]!;
+                        const spill = (lowerer as any).spill;
+                        convertedArgs[i] = lowerer(ctx, ...args.slice(flatOffset, flatOffset + spill));
                         flatOffset += spill;
                     }
                 }
@@ -121,7 +122,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                         ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
                     }
                     if (resultLifters.length === 1) {
-                        resultLifters[0](ctx, resJs, resultBuf, 0);
+                        resultLifters[0]!(ctx, resJs, resultBuf, 0);
                         return resultBuf[0];
                     }
                 }
@@ -344,8 +345,9 @@ function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeD
         const result: Record<string, unknown> = {};
         let offset = 0;
         for (let i = 0; i < fieldLowerers.length; i++) {
-            const spill = (fieldLowerers[i].lowerer as any).spill;
-            result[fieldLowerers[i].name] = fieldLowerers[i].lowerer(ctx, ...args.slice(offset, offset + spill));
+            const fl = fieldLowerers[i]!;
+            const spill = (fl.lowerer as any).spill;
+            result[fl.name] = fl.lowerer(ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;
@@ -510,7 +512,8 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             return (ctx, ptr) => {
                 const result: Record<string, unknown> = {};
                 for (let i = 0; i < fieldLoaders.length; i++) {
-                    result[fieldLoaders[i].name] = fieldLoaders[i].loader(ctx, ptr + fieldLoaders[i].offset);
+                    const fl = fieldLoaders[i]!;
+                    result[fl.name] = fl.loader(ctx, ptr + fl.offset);
                 }
                 return result;
             };
@@ -620,7 +623,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                     const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                     const word = dv.getInt32(0, true);
                     for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                        result[memberNames[w * 32 + b]] = !!(word & (1 << b));
+                        result[memberNames[w * 32 + b]!] = !!(word & (1 << b));
                     }
                 }
                 return result;
@@ -639,7 +642,8 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             return (ctx, ptr) => {
                 const result = new Array(memberLoaders.length);
                 for (let i = 0; i < memberLoaders.length; i++) {
-                    result[i] = memberLoaders[i].loader(ctx, ptr + memberLoaders[i].offset);
+                    const ml = memberLoaders[i]!;
+                    result[i] = ml.loader(ctx, ptr + ml.offset);
                 }
                 return result;
             };
@@ -740,8 +744,10 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
         if (discriminant === 0) {
             if (okNeedsCoercion) {
                 for (let i = 0; i < okFlatTypes.length; i++) {
-                    if (payloadJoined[i] !== okFlatTypes[i]) {
-                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], okFlatTypes[i]);
+                    const joinedFT = payloadJoined[i];
+                    const okFT = okFlatTypes[i];
+                    if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
                     }
                 }
             }
@@ -750,8 +756,10 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
         } else {
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
-                    if (payloadJoined[i] !== errFlatTypes[i]) {
-                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], errFlatTypes[i]);
+                    const joinedFT = payloadJoined[i];
+                    const errFT = errFlatTypes[i];
+                    if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
                     }
                 }
             }
@@ -794,8 +802,8 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
                 for (let i = 0; i < c.caseFlatTypes.length; i++) {
                     const have = payloadJoined[i];
                     const want = c.caseFlatTypes[i];
-                    if (have !== want) {
-                        payload[i] = coerceFlatLower(payload[i], have, want);
+                    if (have !== undefined && want !== undefined && have !== want) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, have, want);
                     }
                 }
             }
@@ -815,7 +823,7 @@ function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): Wasm
     // (i32, f32): decode_i32_as_float
     if (have === FlatType.I32 && want === FlatType.F32) {
         _i32[0] = value as number;
-        return _f32[0];
+        return _f32[0] as number;
     }
     // (i64, i32): wrap_i64_to_i32
     if (have === FlatType.I64 && want === FlatType.I32) {
@@ -824,12 +832,12 @@ function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): Wasm
     // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
     if (have === FlatType.I64 && want === FlatType.F32) {
         _i32[0] = Number(BigInt.asUintN(32, value as bigint));
-        return _f32[0];
+        return _f32[0] as number;
     }
     // (i64, f64): decode_i64_as_float
     if (have === FlatType.I64 && want === FlatType.F64) {
         _i64[0] = value as bigint;
-        return _f64[0];
+        return _f64[0] as number;
     }
     return value;
 }
@@ -856,7 +864,7 @@ function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDe
         const result: Record<string, boolean> = {};
         for (let i = 0; i < memberNames.length; i++) {
             const word = args[i >>> 5] as number;
-            result[memberNames[i]] = !!(word & (1 << (i & 31)));
+            result[memberNames[i]!] = !!(word & (1 << (i & 31)));
         }
         return result;
     };
@@ -876,8 +884,9 @@ function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDef
         const result = new Array(elementLowerers.length);
         let offset = 0;
         for (let i = 0; i < elementLowerers.length; i++) {
-            const spill = (elementLowerers[i] as any).spill;
-            result[i] = elementLowerers[i](ctx, ...args.slice(offset, offset + spill));
+            const lowerer = elementLowerers[i]!;
+            const spill = (lowerer as any).spill;
+            result[i] = lowerer(ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;

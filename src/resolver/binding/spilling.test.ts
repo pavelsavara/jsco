@@ -449,7 +449,7 @@ describeDebugOnly('function trampolines', () => {
             let argCount = 0;
             const mockWasm = (...args: number[]) => {
                 argCount = args.length;
-                return args[0] + args[15];
+                return args[0]! + args[15]!;
             };
             const jsFunc = lifter(ctx, mockWasm as any);
 
@@ -469,7 +469,7 @@ describeDebugOnly('function trampolines', () => {
             const mockWasm = (...args: number[]) => {
                 argCount = args.length;
                 // Should receive 1 arg (the pointer)
-                const ptr = args[0];
+                const ptr = args[0]!;
                 const dv = new DataView(buffer);
                 return dv.getUint32(ptr, true); // read first value
             };

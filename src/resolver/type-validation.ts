@@ -84,9 +84,12 @@ function compareFuncTypes(name: string, declared: ComponentFuncType, actual: Com
 
     // Compare parameter types
     for (let i = 0; i < declared.params.length; i++) {
-        if (!valTypesEqual(declared.params[i].type, actual.params[i].type)) {
+        const declParam = declared.params[i];
+        const actualParam = actual.params[i];
+        if (!declParam || !actualParam) throw new Error(`Export '${name}': param ${i} missing`);
+        if (!valTypesEqual(declParam.type, actualParam.type)) {
             throw new Error(
-                `Export '${name}': param ${i} ('${declared.params[i].name}') type mismatch`
+                `Export '${name}': param ${i} ('${declParam.name}') type mismatch`
             );
         }
     }
@@ -112,9 +115,12 @@ function compareFuncTypes(name: string, declared: ComponentFuncType, actual: Com
             );
         }
         for (let i = 0; i < declared.results.values.length; i++) {
-            if (!valTypesEqual(declared.results.values[i].type, actualResults.values[i].type)) {
+            const declResult = declared.results.values[i];
+            const actualResult = actualResults.values[i];
+            if (!declResult || !actualResult) throw new Error(`Export '${name}': result ${i} missing`);
+            if (!valTypesEqual(declResult.type, actualResult.type)) {
                 throw new Error(
-                    `Export '${name}': result ${i} ('${declared.results.values[i].name}') type mismatch`
+                    `Export '${name}': result ${i} ('${declResult.name}') type mismatch`
                 );
             }
         }

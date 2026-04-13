@@ -10,7 +10,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
     return {
         usesNumberForInt64: false,
         validateTypes: true,
-        wasmInstantiate: async (m, i) => WebAssembly.instantiate(m, i),
+        wasmInstantiate: async (m: WebAssembly.Module, i: WebAssembly.Imports | undefined) => WebAssembly.instantiate(m, i),
         liftingCache: new Map(), loweringCache: new Map(),
         resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
@@ -33,7 +33,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
             componentSections: [],
             ...overrides,
         },
-    };
+    } as unknown as ResolverContext;
 }
 
 describe('type-validation', () => {

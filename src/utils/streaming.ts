@@ -98,7 +98,9 @@ class StreamSource {
                 throw new Error('unexpected EOF.');
             }
         }
-        return maybebuf[0];
+        const result = maybebuf[0];
+        if (result === undefined) throw new Error('unexpected empty read result');
+        return result;
     }
 
     async readExact(n: number): Promise<Uint8Array> {
@@ -178,6 +180,7 @@ class ArraySource {
                 }
             }
             const r = this.items[this._pos];
+            if (r === undefined) throw new Error('unexpected empty read result');
             this._pos += 1;
             return Promise.resolve(r);
         } catch (e) {
@@ -334,6 +337,7 @@ class SyncArraySource implements SyncSource {
             }
         }
         const r = this.items[this._pos];
+        if (r === undefined) throw new Error('unexpected empty read result');
         this._pos += 1;
         return r;
     }

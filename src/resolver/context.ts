@@ -257,7 +257,9 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
 export function setSelfIndex(rctx: ResolverContext) {
     function setSelfIndex(sort: IndexedElement[]) {
         for (let i = 0; i < sort.length; i++) {
-            sort[i].selfSortIndex = i;
+            const elem = sort[i];
+            if (!elem) throw new Error(`setSelfIndex: missing element at index ${i}`);
+            elem.selfSortIndex = i;
         }
     }
     setSelfIndex(rctx.indexes.componentExports);
@@ -291,6 +293,7 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
 
     for (let i = 0; i < types.length; i++) {
         const t = types[i];
+        if (!t) throw new Error(`buildCanonicalResourceIds: missing type at index ${i}`);
         if (t.tag === ModelTag.ComponentTypeResource) {
             map.set(i, i);
             rctx.resolved.ownInstanceResources.add(i);
@@ -313,6 +316,10 @@ function buildCanonicalResourceIds(rctx: ResolverContext): void {
         const entries: string[] = [];
         for (const [typeIdx, canonicalId] of map) {
             const t = types[typeIdx];
+            if (!t) {
+                rctx.resolved.logger!('resolver', LogLevel.Summary, `WARNING: canonicalResourceIds references missing type at index ${typeIdx}`);
+                continue;
+            }
             const label = t.tag === ModelTag.ComponentTypeResource
                 ? 'resource'
                 : t.tag === ModelTag.ComponentAliasInstanceExport

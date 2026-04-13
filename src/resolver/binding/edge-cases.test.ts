@@ -500,7 +500,7 @@ describeDebugOnly('string edge cases', () => {
 
         const original = 'hello\0world';
         const [ptr, len] = lifter(ctx, original);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toBe(original);
     });
 
@@ -953,7 +953,7 @@ describeDebugOnly('list edge cases', () => {
         const rctx2 = createMinimalRctx();
         const lowerer = createLowering(rctx2.resolved, model);
         const [ptr, len] = lifter(ctx, [false, false, false]);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toEqual([false, false, false]);
     });
 
@@ -988,7 +988,7 @@ describeDebugOnly('list edge cases', () => {
         const original = [[1, 2], [3, 4, 5], []];
         const [ptr, len] = lifter(ctx, original);
         expect(len).toBe(3);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toEqual(original);
     });
 });
@@ -2054,18 +2054,18 @@ describeDebugOnly('resource handle additional edge cases', () => {
         expect(new Set(handles).size).toBe(1000);
         // All should be retrievable
         for (let i = 0; i < 1000; i++) {
-            expect(resources.get(0, handles[i])).toBe(`resource-${i}`);
+            expect(resources.get(0, handles[i]!)).toBe(`resource-${i}`);
         }
         // Remove every other one
         for (let i = 0; i < 1000; i += 2) {
-            resources.remove(0, handles[i]);
+            resources.remove(0, handles[i]!);
         }
         // Odd ones still accessible, even ones gone
         for (let i = 0; i < 1000; i++) {
             if (i % 2 === 0) {
-                expect(resources.has(0, handles[i])).toBe(false);
+                expect(resources.has(0, handles[i]!)).toBe(false);
             } else {
-                expect(resources.get(0, handles[i])).toBe(`resource-${i}`);
+                expect(resources.get(0, handles[i]!)).toBe(`resource-${i}`);
             }
         }
     });
@@ -2097,7 +2097,7 @@ describeDebugOnly('nested types via memory round-trips', () => {
         const original = [{ a: 1, b: 100 }, { a: 2, b: 200 }, { a: 3, b: 300 }];
         const [ptr, len] = lifter(ctx, original);
         expect(len).toBe(3);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toEqual(original);
     });
 
