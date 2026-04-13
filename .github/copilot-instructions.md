@@ -75,6 +75,20 @@ const component = await createComponent(wasmSource, {
 
 **Lift/lower cache issues (duplicate compilation)** → enable `binder: LogLevel.Detailed`. Logs cache HIT/MISS for each lifting/lowering function key. Useful when diagnosing unnecessary recompilation or verifying deduplication works correctly.
 
+## Boundary Checks, Casting & Type Coercion
+
+jsco has three tiers of validation depending on where the code runs:
+
+- **Bind-time code** (runs once during `createComponent`): use `if (!x) throw` guards for unimplemented paths and structural invariants that must hold.
+- **Execution-time hot paths** (inner closures called per WASM↔JS transition): use `!` for `noUncheckedIndexedAccess` narrowing on arrays bounded by their own `.length`. Do **not** add `if/throw` guards for indexes that are already bounded.
+- **System boundary** (values crossing JS↔WASM boundary in `to-abi.ts` lifting/storer functions): always validate or coerce user-provided values before casting. Specifically:
+  - **float/char primitives**: `typeof` check before use — floats silently produce NaN from non-numbers, char crashes on non-strings.
+  - **integer primitives**: bitwise ops (`| 0`, `>>> 0`, `<< >>`, `& mask`) already coerce correctly via JS `ToInt32`/`ToUint32` semantics — no extra guard needed.
+  - **compound types** (record, list, tuple, flags, result, variant): null/undefined guard before property/index access — prevents cryptic "Cannot read properties of null" errors.
+  - **BigInt types**: `BigInt()` constructor already throws `TypeError` with clear message — no extra guard needed.
+  - **string**: existing `typeof str !== 'string'` check in string lifting — no extra guard needed.
+  - Never use `as T` to silence the compiler on user input without a runtime check at the boundary.
+
 ## Verification
 
 - **After large code changes, always verify by running lint, build, and tests** in this order:

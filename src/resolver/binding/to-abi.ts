@@ -250,6 +250,7 @@ function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDe
         lifters.push({ name: camelCase(member.name), lifter });
     }
     return (ctx, srcJsRecord, out, offset) => {
+        if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
         let pos = 0;
         for (let i = 0; i < lifters.length; i++) {
             const l = lifters[i]!;
@@ -348,7 +349,8 @@ function createU64LiftingBigInt(): LiftingFromJs {
 
 function createF32Lifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = Math.fround(srcJsValue as number);
+        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f32, got ${typeof srcJsValue}`);
+        const num = Math.fround(srcJsValue);
         // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
         out[offset] = num !== num ? canonicalNaN32 : num;
         return 1;
@@ -357,7 +359,8 @@ function createF32Lifting(): LiftingFromJs {
 
 function createF64Lifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = +(srcJsValue as number);
+        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f64, got ${typeof srcJsValue}`);
+        const num = +srcJsValue;
         // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
         out[offset] = num !== num ? canonicalNaN64 : num;
         return 1;
@@ -366,8 +369,8 @@ function createF64Lifting(): LiftingFromJs {
 
 function createCharLifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const str = srcJsValue as string;
-        const cp = str.codePointAt(0)!;
+        if (typeof srcJsValue !== 'string') throw new TypeError(`expected a string for char, got ${typeof srcJsValue}`);
+        const cp = srcJsValue.codePointAt(0)!;
         // Spec: char_to_i32 — surrogates are not valid Unicode scalar values
         if (cp >= 0xD800 && cp <= 0xDFFF) throw new Error(`Invalid char: surrogate codepoint ${cp}`);
         out[offset] = cp;
@@ -470,11 +473,20 @@ function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding)
         case PrimitiveValType.U64:
             return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true); };
         case PrimitiveValType.Float32:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val as number, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'number') throw new TypeError(`expected a number for f32, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val, true);
+            };
         case PrimitiveValType.Float64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val as number, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'number') throw new TypeError(`expected a number for f64, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val, true);
+            };
         case PrimitiveValType.Char:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as string).codePointAt(0)!, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'string') throw new TypeError(`expected a string for char, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, val.codePointAt(0)!, true);
+            };
         case PrimitiveValType.String: {
             const lifter = createStringLifting(encoding);
             const tmp: WasmValue[] = [0, 0];
@@ -507,6 +519,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(fieldType);
             }
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for record, got ${jsValue === null ? 'null' : typeof jsValue}`);
                 for (let i = 0; i < fieldStorers.length; i++) {
                     const f = fieldStorers[i]!;
                     f.storer(ctx, ptr + f.offset, jsValue[f.name]);
@@ -519,6 +532,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const elemAlign = alignOf(elemType);
             const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
                 const len = jsValue.length;
                 let listPtr = 0;
                 if (len > 0) {
@@ -558,6 +572,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
+                if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
                 const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 if (tag === OK) {
@@ -587,6 +602,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
                 const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 const caseIndex = nameToIndex.get(tag);
@@ -617,6 +633,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
             const memberNames = type.members.map(m => camelCase(m));
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
                 const flags = jsValue as Record<string, boolean>;
                 for (let w = 0; w < wordCount; w++) {
                     let word = 0;
@@ -639,6 +656,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null) throw new TypeError(`expected an array for tuple, got ${jsValue === null ? 'null' : 'undefined'}`);
                 if (jsValue.length !== memberStorers.length) {
                     throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${jsValue.length}`);
                 }
@@ -682,6 +700,7 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
     const elemStorer = createMemoryStorer(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
 
     return (ctx, srcJsValue, out, offset) => {
+        if (srcJsValue == null) throw new TypeError(`expected an array for list, got ${srcJsValue === null ? 'null' : 'undefined'}`);
         const len = srcJsValue.length;
         if (len === 0) {
             out[offset] = 0;
@@ -743,6 +762,7 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     return (ctx, srcJsValue, out, offset) => {
+        if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
         const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         if (hasI64) {
@@ -806,6 +826,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     const nameToCase = new Map(cases.map(c => [c.name, c]));
 
     return (ctx, srcJsValue, out, offset) => {
+        if (srcJsValue == null) throw new TypeError(`expected a variant value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
         const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
@@ -880,6 +901,7 @@ function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDef
     const memberNames = flagsModel.members.map(m => camelCase(m));
 
     return (_, srcJsValue, out, offset) => {
+        if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
         const flags = srcJsValue as Record<string, boolean>;
         for (let w = 0; w < wordCount; w++) {
             let word = 0;
@@ -898,6 +920,7 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
     const elementLifters = tupleModel.members.map(m => createLifting(rctx, m));
 
     return (ctx, srcJsValue, out, offset) => {
+        if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
         if (srcJsValue.length !== elementLifters.length) {
             throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${srcJsValue.length}`);
         }
