@@ -2,20 +2,25 @@ import { createComponent } from './dist/index.js';
 
 // this is url of your component
 // `hello.wasm` sample was built using `npm run build:hello`
-// the implementation is in `./hello/src/lib.rs` 
-const componentUrl = './hello/wasm/hello.wasm';
+// the implementation is in `./integration-tests/hello-city-wat/hello-city.wat` 
+const componentUrl = './integration-tests/hello-city-wat/hello-city.wasm';
 
 // this is the component instance, see also `instantiateComponent`
-const component = await createComponent(componentUrl);
+const component = await createComponent(componentUrl, {
+    useNumberForInt64: false,
+    noJspi: false,
+    validateTypes: true
+});
 
 // these are the imports that the component expects
+// it has the following API `./integration-tests/hello-city-wat/hello-city.wit`
 const imports = {
-    'hello:city/city@0.1.0': {
-        sendMessage: console.log
+    'hello:city/logger@0.1.0': {
+        log: console.log
     }
 };
 
-// it has the following API `./hello/wit/hello.wit`
+// instantiate the component with the imports
 const instance = await component.instantiate(imports);
 
 // exported namespaces contain the functions
@@ -32,7 +37,7 @@ const cityInfo = {
 };
 
 // call the WASM component's function
-run(cityInfo);
+await run(cityInfo);
 
 // result type is void
 // And we should see 'Welcome to Prague, we invite you for a drink!' in the console

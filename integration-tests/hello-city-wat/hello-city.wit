@@ -1,0 +1,20 @@
+package hello:city@0.1.0;
+
+interface logger {
+    log: func(msg: string);
+}
+
+record city-info {
+    name: string,
+    head-count: u32,
+    budget: u64,
+}
+
+interface greeter {
+    run: func(info: city-info);
+}
+
+world hello-city {
+    import logger;
+    export greeter;
+}
