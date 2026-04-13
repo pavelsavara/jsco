@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry } from './filesystem';
 import type { WasiDatetime } from './types';
 

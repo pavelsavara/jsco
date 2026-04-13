@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./.types.d.ts" />
 

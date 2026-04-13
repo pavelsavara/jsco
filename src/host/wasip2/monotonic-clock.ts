@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * wasi:clocks/monotonic-clock — High-resolution monotonic timer
  *

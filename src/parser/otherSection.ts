@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ModelTag } from '../model/tags';
 import { SyncSource } from '../utils/streaming';
 import { ParserContext, CustomSection, SkippedSection } from './types';

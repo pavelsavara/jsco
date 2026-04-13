@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ModelTag } from '../model/tags';

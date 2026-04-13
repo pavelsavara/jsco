@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import {

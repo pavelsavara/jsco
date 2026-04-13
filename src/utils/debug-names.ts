@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ModelTag, ModelTag_Count } from '../model/tags';
 import { PrimitiveValType, PrimitiveValType_Count } from '../model/types';
 import { CallingConvention, CallingConvention_Count } from '../resolver/calling-convention';

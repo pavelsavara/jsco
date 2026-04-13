@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 // See also `demo-verbose.mjs` for a more verbose version of this demo with comments and extra options.
 
 import { instantiateWasiComponent } from './dist/index.js';

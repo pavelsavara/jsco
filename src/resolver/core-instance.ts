@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { Export, ExternalKind } from '../model/core';
 import { CoreInstanceIndex } from '../model/indices';

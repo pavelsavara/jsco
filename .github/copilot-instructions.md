@@ -2,6 +2,7 @@
 
 ## Coding Conventions
 
+- **Always add the MIT license banner** as the very first line of every new `.ts`, `.js`, or `.mjs` file: `// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.` followed by a blank line before any imports or code.
 - **Always use numeric `const enum`** — never string-valued enum members. Numeric enums inline to integer literals in the bundle, saving significant minified code size. String enums emit string comparisons and string literals that cannot be minified.
 - **Never use inline `import()` for types** — always use top-level `import` or `import type` statements. Inline `import('...').SomeType` in type annotations is prohibited; add the type to an existing top-level import (or create a new `import type` line) instead.
 

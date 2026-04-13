@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import type { ResolvedType } from '../type-resolution';
 import { BindingContext, StringEncoding } from '../types';
 import { createMemoryStorer } from './to-abi';

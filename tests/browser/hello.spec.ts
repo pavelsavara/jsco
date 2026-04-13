@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { test, expect } from '@playwright/test';
 
 test('echo component loads and runs in browser', async ({ page }) => {

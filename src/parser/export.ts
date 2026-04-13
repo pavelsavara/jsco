@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { SyncSource } from '../utils/streaming';
 import { ComponentExport } from '../model/exports';
 import { ParserContext } from './types';

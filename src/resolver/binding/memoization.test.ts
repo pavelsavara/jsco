@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ModelTag } from '../../model/tags';
 import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../../model/types';
 import { ResolvedContext, BindingContext, StringEncoding } from '../types';

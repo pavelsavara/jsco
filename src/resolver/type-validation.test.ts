@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { validateExportType, validateImportType } from './type-validation';
 import { ModelTag } from '../model/tags';
 import { ComponentExternalKind } from '../model/exports';

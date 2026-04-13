@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ComponentAliasCoreInstanceExport } from '../model/aliases';
 import { withDebugTrace } from '../utils/assert';
 import { resolveCoreInstance } from './core-instance';

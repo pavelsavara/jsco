@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import camelCase from 'just-camel-case';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';

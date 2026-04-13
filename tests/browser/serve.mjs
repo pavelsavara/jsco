@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';
 import { join, extname } from 'path';

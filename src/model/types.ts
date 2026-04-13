@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ComponentSection } from '../parser/types';
 import { ComponentAlias, ComponentAliasInstanceExport } from './aliases';
 import { FuncType, Import, SubType, TypeRef, ValType, u32 } from './core';

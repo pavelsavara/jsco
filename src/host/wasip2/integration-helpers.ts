@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Shared helpers for integration tests.
  * Extracted to a module so multiple test files can reuse them

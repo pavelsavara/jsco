@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ModelTag } from '../model/tags';

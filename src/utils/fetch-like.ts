@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 const isNode = typeof process == 'object' && typeof process['versions'] == 'object' && typeof process['versions']['node'] == 'string';
 
 export function fetchLike(url: string) {

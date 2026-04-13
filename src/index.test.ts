@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { getBuildInfo } from './index';
 import { GIT_HASH, CONFIGURATION } from './constants';
 

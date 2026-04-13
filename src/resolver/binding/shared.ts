@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 // Shared typed-array buffers for float↔int bit reinterpretation (used by coerceFlatLift/Lower and NaN canonicalization)
 export const _f32 = new Float32Array(1);
 export const _i32 = new Int32Array(_f32.buffer);

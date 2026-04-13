@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Tests for wasi:http/types + wasi:http/outgoing-handler
  */

@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * wasi:random/random — Cryptographically-secure random bytes
  * wasi:random/insecure — Non-cryptographic random bytes

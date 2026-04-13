@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createComponent } from './dist/index.js';
 
 // this is url of your component
