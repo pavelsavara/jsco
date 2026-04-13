@@ -216,7 +216,7 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
                 return createLifting(rctx, resolved!);
             }
             case ModelTag.ComponentValTypeResolved:
-                return createLifting(rctx, (typeModel as any).resolved);
+                return createLifting(rctx, typeModel.resolved as ResolvedType);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLifting(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
@@ -394,13 +394,13 @@ function createStringLiftingUtf8(): LiftingFromJs {
             out[offset + 1] = 0;
             return 2;
         }
-        let allocLen: WasmSize = 0 as any;
-        let ptr: WasmPointer = 0 as any;
+        let allocLen: WasmSize = 0;
+        let ptr: WasmPointer = 0;
         let writtenTotal = 0;
         while (str.length > 0) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1 as any, allocLen + str.length as any);
-            validateAllocResult(ctx, ptr, 1, (allocLen as number) + str.length);
-            allocLen += str.length as any;
+            ptr = ctx.allocator.realloc(ptr, allocLen, 1, allocLen + str.length);
+            validateAllocResult(ctx, ptr, 1, allocLen + str.length);
+            allocLen += str.length;
             const { read, written } = ctx.utf8Encoder.encodeInto(
                 str,
                 ctx.memory.getViewU8(ptr + writtenTotal, allocLen - writtenTotal)
@@ -409,7 +409,7 @@ function createStringLiftingUtf8(): LiftingFromJs {
             str = str.slice(read);
         }
         if (allocLen > writtenTotal) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1 as any, writtenTotal as any);
+            ptr = ctx.allocator.realloc(ptr, allocLen, 1, writtenTotal);
             validateAllocResult(ctx, ptr, 1, writtenTotal);
         }
         out[offset] = ptr;
@@ -430,7 +430,7 @@ function createStringLiftingUtf16(): LiftingFromJs {
         // UTF-16: each code unit is 2 bytes, alignment = 2
         const codeUnits = str.length;
         const byteLen = codeUnits * 2;
-        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2 as any, byteLen as any);
+        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2, byteLen);
         validateAllocResult(ctx, ptr, 2, byteLen);
         const view = ctx.memory.getViewU8(ptr, byteLen as WasmSize);
         for (let i = 0; i < codeUnits; i++) {
@@ -466,9 +466,9 @@ function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding)
         case PrimitiveValType.U32:
             return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as number) >>> 0, true); };
         case PrimitiveValType.S64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val as any), true); };
+            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val), true); };
         case PrimitiveValType.U64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val as any), true); };
+            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true); };
         case PrimitiveValType.Float32:
             return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val as number, true); };
         case PrimitiveValType.Float64:
@@ -519,15 +519,14 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const elemAlign = alignOf(elemType);
             const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr, jsValue) => {
-                const arr = jsValue as any[];
-                const len = arr.length;
+                const len = jsValue.length;
                 let listPtr = 0;
                 if (len > 0) {
                     const totalSize = len * elemSize;
                     listPtr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, elemAlign as WasmSize, totalSize as WasmSize);
                     validateAllocResult(ctx, listPtr as WasmPointer, elemAlign, totalSize);
                     for (let i = 0; i < len; i++) {
-                        elemStorer(ctx, listPtr + i * elemSize, arr[i]);
+                        elemStorer(ctx, listPtr + i * elemSize, jsValue[i]);
                     }
                 }
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
@@ -559,7 +558,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
-                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
+                const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 if (tag === OK) {
                     dv.setUint8(0, 0);
@@ -588,7 +587,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
-                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
+                const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 const caseIndex = nameToIndex.get(tag);
                 if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
@@ -640,13 +639,12 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr, jsValue) => {
-                const arr = jsValue as any[];
-                if (arr.length !== memberStorers.length) {
-                    throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${arr.length}`);
+                if (jsValue.length !== memberStorers.length) {
+                    throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${jsValue.length}`);
                 }
                 for (let i = 0; i < memberStorers.length; i++) {
                     const m = memberStorers[i]!;
-                    m.storer(ctx, ptr + m.offset, arr[i]);
+                    m.storer(ctx, ptr + m.offset, jsValue[i]);
                 }
             };
         }
@@ -684,8 +682,7 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
     const elemStorer = createMemoryStorer(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
 
     return (ctx, srcJsValue, out, offset) => {
-        const arr = srcJsValue as any[];
-        const len = arr.length;
+        const len = srcJsValue.length;
         if (len === 0) {
             out[offset] = 0;
             out[offset + 1] = 0;
@@ -697,7 +694,7 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
         validateAllocResult(ctx, ptr, elemAlign, totalSize);
 
         for (let i = 0; i < len; i++) {
-            elemStorer(ctx, ptr + i * elemSize, arr[i]);
+            elemStorer(ctx, ptr + i * elemSize, srcJsValue[i]);
         }
 
         out[offset] = ptr;
@@ -746,7 +743,7 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     return (ctx, srcJsValue, out, offset) => {
-        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
+        const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         if (hasI64) {
             for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues![i]!;
@@ -809,7 +806,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     const nameToCase = new Map(cases.map(c => [c.name, c]));
 
     return (ctx, srcJsValue, out, offset) => {
-        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
+        const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);
@@ -901,14 +898,13 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
     const elementLifters = tupleModel.members.map(m => createLifting(rctx, m));
 
     return (ctx, srcJsValue, out, offset) => {
-        const arr = srcJsValue as any[];
-        if (arr.length !== elementLifters.length) {
-            throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${arr.length}`);
+        if (srcJsValue.length !== elementLifters.length) {
+            throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${srcJsValue.length}`);
         }
         let pos = 0;
         for (let i = 0; i < elementLifters.length; i++) {
             const lifter = elementLifters[i]!;
-            pos += lifter(ctx, arr[i], out, offset + pos);
+            pos += lifter(ctx, srcJsValue[i], out, offset + pos);
         }
         return pos;
     };

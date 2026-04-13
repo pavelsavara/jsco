@@ -177,7 +177,7 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
                 return createLowering(rctx, resolved!);
             }
             case ModelTag.ComponentValTypeResolved:
-                return createLowering(rctx, (typeModel as any).resolved);
+                return createLowering(rctx, typeModel.resolved as ResolvedType);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLowering(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
