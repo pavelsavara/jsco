@@ -20,8 +20,7 @@ import {
     readComponentValType, readOptionalComponentValType, readOptionalRefinement,
     readNamedValues, readComponentFuncResult,
     parsePrimitiveValType, parseAsComponentOuterAliasKind,
-    readComponentInstantiationArgs,
-    readCoreInstance, readExports, readInstantiationArgs, readInstantiationArgKind,
+    readCoreInstance, readInstantiationArgKind,
     readInstanceTypeDeclarations,
 } from './values';
 import type { SyncSource } from '../utils/streaming';

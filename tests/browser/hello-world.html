@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>jsco hello-world WASI test</title>
+</head>
+
+<body>
+    <script type="module">
+        import { instantiateWasiComponent } from '/dist/index.js';
+
+        window.__testResults = {};
+        try {
+            const stdoutChunks = [];
+            const instance = await instantiateWasiComponent(
+                '/integration-tests/hello-world-wat/hello.wasm',
+                {
+                    stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
+                },
+            );
+
+            const runNs = instance.exports['wasi:cli/run@0.2.11'];
+            try {
+                await runNs.run();
+            } catch (e) {
+                // WasiExit with status 0 is expected
+                if (!e.message?.includes('exit') && e.status !== 0) throw e;
+            }
+
+            const allBytes = new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], []));
+            const stdout = new TextDecoder().decode(allBytes);
+
+            window.__testResults = {
+                success: true,
+                stdout,
+            };
+        } catch (e) {
+            window.__testResults = {
+                success: false,
+                error: e.message,
+                stack: e.stack,
+            };
+        }
+    </script>
+</body>
+
+</html>

@@ -10,6 +10,6 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
     createMemoryStorer(type, stringEncoding, canonicalResourceIds)(ctx, ptr, jsValue);
 }
 
-export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): any {
-    return createMemoryLoader(type, stringEncoding, canonicalResourceIds)(ctx, ptr);
+export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, usesNumberForInt64 = false): any {
+    return createMemoryLoader(type, stringEncoding, canonicalResourceIds, undefined, usesNumberForInt64)(ctx, ptr);
 }

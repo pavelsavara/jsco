@@ -54,7 +54,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
 
         // Pre-create memory storers/loader for spilled calling convention
         const paramStorers = paramResolvedTypes.map(pt => createMemoryStorer(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
-        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources) : undefined;
+        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64) : undefined;
         if (callingConvention.results === CallingConvention.Spilled && !resultLoader) {
             throw new Error('Spilled calling convention for results requires a result type (named multi-value results not yet supported)');
         }
@@ -71,6 +71,19 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
             spilledParamsMaxAlign = Math.max(spilledParamsMaxAlign, a);
         }
         const totalFlatParams = paramResolvedTypes.reduce((sum, pt) => sum + flatCount(pt), 0);
+
+        // Pre-compute which flat positions are i64 for BigInt conversion at WASM call site
+        const i64ParamPositions: number[] = [];
+        {
+            let pos = 0;
+            for (const pt of paramResolvedTypes) {
+                const ft = flattenType(pt);
+                for (let j = 0; j < ft.length; j++) {
+                    if (ft[j] === FlatType.I64) i64ParamPositions.push(pos);
+                    pos++;
+                }
+            }
+        }
 
         if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
             const paramNames = importModel.params.map(p => p.name).join(', ');
@@ -129,6 +142,13 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         let pos = 0;
                         for (let i = 0; i < paramLifters.length; i++) {
                             pos += paramLifters[i]!(ctx, args[i], wasmArgs, pos);
+                        }
+                        // Convert i64 flat slots to BigInt for WASM
+                        for (let k = 0; k < i64ParamPositions.length; k++) {
+                            const idx = i64ParamPositions[k]!;
+                            if (typeof wasmArgs[idx] !== 'bigint') {
+                                wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
+                            }
                         }
                     }
 
@@ -317,32 +337,28 @@ function createU32Lifting(): LiftingFromJs {
 
 function createS64LiftingNumber(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as bigint;
-        out[offset] = Number(BigInt.asIntN(52, num));
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createS64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as bigint;
-        out[offset] = BigInt.asIntN(64, num);
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createU64LiftingNumber(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = BigInt(srcJsValue as number | bigint);
-        out[offset] = Number(BigInt.asUintN(64, num));
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createU64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = BigInt(srcJsValue as number | bigint);
-        out[offset] = BigInt.asUintN(64, num);
+        out[offset] = srcJsValue;
         return 1;
     };
 }
@@ -753,8 +769,6 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const joinedFlatTypes = flattenType(resolved);
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
-    const hasI64 = joinedFlatTypes.some(ft => ft === FlatType.I64);
-    const zeroValues: WasmValue[] | undefined = hasI64 ? joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0) : undefined;
 
     const okFlatTypes = resolved.ok ? flattenValType(resolved.ok) : [];
     const errFlatTypes = resolved.err ? flattenValType(resolved.err) : [];
@@ -765,11 +779,7 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
         if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
         const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
-        if (hasI64) {
-            for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues![i]!;
-        } else {
-            out.fill(0, offset, offset + totalSize);
-        }
+        out.fill(0, offset, offset + totalSize);
         if (tag === OK) {
             if (okLifter) okLifter(ctx, val, out, offset + 1);
             if (okNeedsCoercion) {
@@ -806,9 +816,6 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     // joinedFlatTypes[0] is the discriminant (i32), rest are payload
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
-    // Pre-compute zero values for each slot: 0n for i64, 0 for everything else
-    const hasI64 = joinedFlatTypes.some(ft => ft === FlatType.I64);
-    const zeroValues: WasmValue[] | undefined = hasI64 ? joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0) : undefined;
 
     const cases = variantModel.variants.map((c, i) => {
         const resolved = c.ty ? deepResolveType(rctx, resolveValType(rctx, c.ty)) : undefined;
@@ -831,12 +838,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
         if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);
-        // Zero-fill with type-appropriate zeros
-        if (hasI64) {
-            for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues![i]!;
-        } else {
-            out.fill(0, offset, offset + totalSize);
-        }
+        out.fill(0, offset, offset + totalSize);
         out[offset] = c.index;
         if (c.lifter && val !== undefined) {
             c.lifter(ctx, val, out, offset + 1);
@@ -865,14 +867,14 @@ function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValu
         _f32[0] = value;
         return _i32[0] as number;
     }
-    // (i32, i64): widen i32 to i64
+    // (i32, i64): widen i32 to i64 — keep as Number, trampoline converts to BigInt
     if (have === FlatType.I32 && want === FlatType.I64) {
-        return BigInt(value >>> 0);
+        return value >>> 0;
     }
-    // (f32, i64): reinterpret f32 as i32, then widen to i64
+    // (f32, i64): reinterpret f32 as i32, then widen to i64 — keep as Number
     if (have === FlatType.F32 && want === FlatType.I64) {
         _f32[0] = value;
-        return BigInt((_i32[0] as number) >>> 0);
+        return (_i32[0] as number) >>> 0;
     }
     // (f64, i64): reinterpret f64 as i64
     if (have === FlatType.F64 && want === FlatType.I64) {

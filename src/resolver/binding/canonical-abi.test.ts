@@ -1534,3 +1534,154 @@ describeDebugOnly('Security: spilled-path memory loader validation', () => {
         });
     });
 });
+
+// =============================================================================
+// useNumberForInt64 memory-path (compound types with i64 fields)
+// =============================================================================
+
+describeDebugOnly('useNumberForInt64 memory-path', () => {
+    function createNumberRctx(): ResolverContext {
+        return {
+            resolved: {
+                liftingCache: new Map(), loweringCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: true,
+            },
+        } as any as ResolverContext;
+    }
+
+    describe('record with s64 field', () => {
+        const recordModel = {
+            tag: ModelTag.ComponentTypeDefinedRecord,
+            members: [
+                { name: 'id', type: prim(PrimitiveValType.U32) },
+                { name: 'value', type: prim(PrimitiveValType.S64) },
+            ],
+        } as any;
+
+        test('loadFromMemory returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 42, true); // id
+            dv.setBigInt64(8, 123n, true); // value (aligned to 8)
+            const result = loadFromMemory(ctx, 0, recordModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result.id).toBe(42);
+            expect(result.value).toBe(123);
+            expect(typeof result.value).toBe('number');
+        });
+
+        test('loadFromMemory returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 42, true);
+            dv.setBigInt64(8, 123n, true);
+            const result = loadFromMemory(ctx, 0, recordModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result.id).toBe(42);
+            expect(result.value).toBe(123n);
+            expect(typeof result.value).toBe('bigint');
+        });
+    });
+
+    describe('result<u64, string>', () => {
+        const resultModel = {
+            tag: ModelTag.ComponentTypeDefinedResult,
+            ok: prim(PrimitiveValType.U64),
+            err: prim(PrimitiveValType.String),
+        } as any;
+
+        test('ok payload returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 0); // disc=0 (ok)
+            dv.setBigUint64(8, 999n, true); // payload (aligned to 8)
+            const result = loadFromMemory(ctx, 0, resultModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result.tag).toBe('ok');
+            expect(result.val).toBe(999);
+            expect(typeof result.val).toBe('number');
+        });
+
+        test('ok payload returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 0);
+            dv.setBigUint64(8, 999n, true);
+            const result = loadFromMemory(ctx, 0, resultModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result.tag).toBe('ok');
+            expect(result.val).toBe(999n);
+            expect(typeof result.val).toBe('bigint');
+        });
+    });
+
+    describe('option<s64>', () => {
+        const optionModel = {
+            tag: ModelTag.ComponentTypeDefinedOption,
+            value: prim(PrimitiveValType.S64),
+        } as any;
+
+        test('Some returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 1); // disc=1 (Some)
+            dv.setBigInt64(8, -42n, true); // payload (aligned to 8)
+            const result = loadFromMemory(ctx, 0, optionModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result).toBe(-42);
+            expect(typeof result).toBe('number');
+        });
+
+        test('Some returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 1);
+            dv.setBigInt64(8, -42n, true);
+            const result = loadFromMemory(ctx, 0, optionModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result).toBe(-42n);
+            expect(typeof result).toBe('bigint');
+        });
+    });
+
+    describe('tuple<u32, s64>', () => {
+        const tupleModel = {
+            tag: ModelTag.ComponentTypeDefinedTuple,
+            members: [
+                prim(PrimitiveValType.U32),
+                prim(PrimitiveValType.S64),
+            ],
+        } as any;
+
+        test('returns [number, number] when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 7, true); // u32
+            dv.setBigInt64(8, 100n, true); // s64 (aligned to 8)
+            const result = loadFromMemory(ctx, 0, tupleModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result).toEqual([7, 100]);
+            expect(typeof result[1]).toBe('number');
+        });
+
+        test('returns [number, bigint] when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 7, true);
+            dv.setBigInt64(8, 100n, true);
+            const result = loadFromMemory(ctx, 0, tupleModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result).toEqual([7, 100n]);
+            expect(typeof result[1]).toBe('bigint');
+        });
+    });
+});

@@ -139,3 +139,4 @@ target/
 !integration-tests/echo-reactor-wat/echo.wasm
 !integration-tests/hello-world-wat/hello.wasm
 !integration-tests/hello-city-wat/hello-city.wasm
+test-results/.last-run.json

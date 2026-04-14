@@ -289,9 +289,9 @@ describeDebugOnly('primitive lifting edge cases', () => {
             expect(lifter(bctx, 42n)).toEqual([42n]);
         });
 
-        test('u64: negative bigint wraps via asUintN', () => {
+        test('u64: negative bigint passes through (WASM wraps)', () => {
             const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
-            expect(lifter(bctx, -1n)).toEqual([18446744073709551615n]);
+            expect(lifter(bctx, -1n)).toEqual([-1n]);
         });
 
         test('u64: 0n lifts to [0n]', () => {
@@ -301,16 +301,18 @@ describeDebugOnly('primitive lifting edge cases', () => {
     });
 
     describe('s64/u64 edge cases (Number mode)', () => {
-        test('s64: number lifts correctly', () => {
+        test('s64: number mode passes value through (trampoline converts to BigInt)', () => {
             const rctxNum = createMinimalRctx(true);
             const lifter = createLifting(rctxNum.resolved, prim(PrimitiveValType.S64));
-            expect(lifter(bctx, 42n)).toEqual([42]);
+            expect(lifter(bctx, 42n)).toEqual([42n]);
+            expect(lifter(bctx, 42)).toEqual([42]);
         });
 
-        test('u64: number lifts correctly', () => {
+        test('u64: number mode passes value through (trampoline converts to BigInt)', () => {
             const rctxNum = createMinimalRctx(true);
             const lifter = createLifting(rctxNum.resolved, prim(PrimitiveValType.U64));
-            expect(lifter(bctx, 42n)).toEqual([42]);
+            expect(lifter(bctx, 42n)).toEqual([42n]);
+            expect(lifter(bctx, 42)).toEqual([42]);
         });
     });
 });

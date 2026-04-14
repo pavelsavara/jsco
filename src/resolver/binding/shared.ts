@@ -5,6 +5,7 @@ export const _f32 = new Float32Array(1);
 export const _i32 = new Int32Array(_f32.buffer);
 export const _f64 = new Float64Array(1);
 export const _i64 = new BigInt64Array(_f64.buffer);
+export const _i32_64 = new Int32Array(_f64.buffer);
 
 // Canonical NaN values per spec (CANONICAL_FLOAT32_NAN = 0x7fc00000, CANONICAL_FLOAT64_NAN = 0x7ff8000000000000)
 _i32[0] = 0x7fc00000;

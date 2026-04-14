@@ -157,24 +157,31 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
     });
 
     describe('s64 (Number mode)', () => {
-        test('0n lifts to [0]', () => {
+        test('0n lifts to [0n]', () => {
             const nrctx = createMinimalRctx(true);
             const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
             const result = lifter(bctx, 0n);
-            expect(result).toEqual([0]);
-            expect(typeof result[0]).toBe('number');
+            expect(result).toEqual([0n]);
+            expect(typeof result[0]).toBe('bigint');
         });
-        test('-1n lifts to [-1]', () => {
+        test('-1n lifts to [-1n]', () => {
             const nrctx = createMinimalRctx(true);
             const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
             const result = lifter(bctx, -1n);
-            expect(result).toEqual([-1]);
-            expect(typeof result[0]).toBe('number');
+            expect(result).toEqual([-1n]);
+            expect(typeof result[0]).toBe('bigint');
         });
-        test('42n lifts to [42]', () => {
+        test('42n lifts to [42n]', () => {
             const nrctx = createMinimalRctx(true);
             const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
             const result = lifter(bctx, 42n);
+            expect(result).toEqual([42n]);
+            expect(typeof result[0]).toBe('bigint');
+        });
+        test('42 (Number input) lifts to [42]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.S64));
+            const result = lifter(bctx, 42);
             expect(result).toEqual([42]);
             expect(typeof result[0]).toBe('number');
         });
@@ -193,17 +200,24 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
     });
 
     describe('u64 (Number mode)', () => {
-        test('0n lifts to [0]', () => {
+        test('0n lifts to [0n]', () => {
             const nrctx = createMinimalRctx(true);
             const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.U64));
             const result = lifter(bctx, 0n);
-            expect(result).toEqual([0]);
-            expect(typeof result[0]).toBe('number');
+            expect(result).toEqual([0n]);
+            expect(typeof result[0]).toBe('bigint');
         });
-        test('100n lifts to [100]', () => {
+        test('100n lifts to [100n]', () => {
             const nrctx = createMinimalRctx(true);
             const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.U64));
             const result = lifter(bctx, 100n);
+            expect(result).toEqual([100n]);
+            expect(typeof result[0]).toBe('bigint');
+        });
+        test('100 (Number input) lifts to [100]', () => {
+            const nrctx = createMinimalRctx(true);
+            const lifter = createLifting(nrctx.resolved, prim(PrimitiveValType.U64));
+            const result = lifter(bctx, 100);
             expect(result).toEqual([100]);
             expect(typeof result[0]).toBe('number');
         });
@@ -459,20 +473,29 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
         expect(rctx.resolved.usesNumberForInt64).toBe(false);
     });
 
-    test('true → usesNumberForInt64 = true, lifters produce Number', () => {
+    test('true → usesNumberForInt64 = true, lifters pass through values (trampoline converts)', () => {
         const rctx = createMinimalRctx(true);
         const bctx = createMinimalBctx();
         expect(rctx.resolved.usesNumberForInt64).toBe(true);
 
         const s64Lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
+        // Accept BigInt input — passes through as BigInt
         const s64Result = s64Lifter(bctx, 42n);
-        expect(typeof s64Result[0]).toBe('number');
-        expect(s64Result[0]).toBe(42);
+        expect(typeof s64Result[0]).toBe('bigint');
+        expect(s64Result[0]).toBe(42n);
+        // Accept Number input — passes through as Number
+        const s64ResultFromNumber = s64Lifter(bctx, 42);
+        expect(typeof s64ResultFromNumber[0]).toBe('number');
+        expect(s64ResultFromNumber[0]).toBe(42);
 
         const u64Lifter = createLifting(rctx.resolved, prim(PrimitiveValType.U64));
         const u64Result = u64Lifter(bctx, 100n);
-        expect(typeof u64Result[0]).toBe('number');
-        expect(u64Result[0]).toBe(100);
+        expect(typeof u64Result[0]).toBe('bigint');
+        expect(u64Result[0]).toBe(100n);
+        // Accept Number input — passes through as Number
+        const u64ResultFromNumber = u64Lifter(bctx, 100);
+        expect(typeof u64ResultFromNumber[0]).toBe('number');
+        expect(u64ResultFromNumber[0]).toBe(100);
     });
 
     test('true → lowerers produce Number', () => {
@@ -515,6 +538,6 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
         // Different caches, different lifters
         expect(bigintLifter).not.toBe(numberLifter);
         expect(typeof bigintLifter(bctx, 1n)[0]).toBe('bigint');
-        expect(typeof numberLifter(bctx, 1n)[0]).toBe('number');
+        expect(typeof numberLifter(bctx, 1n)[0]).toBe('bigint');
     });
 });

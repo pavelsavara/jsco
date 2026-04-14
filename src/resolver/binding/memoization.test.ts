@@ -232,9 +232,15 @@ describeDebugOnly('memoization keys', () => {
             const bigintResult = bigintLifter(ctx, 42n);
             expect(typeof bigintResult[0]).toBe('bigint');
 
-            // Number lifter converts BigInt input to Number output
+            // Number lifter passes through values without conversion
+            // (trampoline converts to BigInt at WASM call site)
             const numberResult = numberLifter(ctx, 42n);
-            expect(typeof numberResult[0]).toBe('number');
+            expect(typeof numberResult[0]).toBe('bigint');
+
+            // Number lifter can accept Number input — stores as Number
+            const numberInputResult = numberLifter(ctx, 42);
+            expect(typeof numberInputResult[0]).toBe('number');
+            expect(numberInputResult[0]).toBe(42);
         });
     });
 
