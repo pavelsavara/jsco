@@ -2,6 +2,7 @@
 
 import { getBuildInfo, createComponent, instantiateWasiComponent, createWasiP2Host, LogLevel } from './index';
 import { GIT_HASH, CONFIGURATION } from './constants';
+import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
 import { WasiExit } from './host/wasip2/types';
@@ -107,8 +108,11 @@ describe('public API', () => {
                 logger: testLogger,
             } as any);
             expect(component).toBeDefined();
-            expect(received.length).toBeGreaterThan(0);
-            expect(received.some(r => r.phase === 'parser')).toBe(true);
+            // Verbose logging is guarded by isDebug — in Release builds the logger is tree-shaken
+            if (isDebug) {
+                expect(received.length).toBeGreaterThan(0);
+                expect(received.some(r => r.phase === 'parser')).toBe(true);
+            }
         }));
     });
 
