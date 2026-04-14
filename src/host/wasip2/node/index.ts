@@ -6,18 +6,12 @@
 
 import type { NetworkConfig } from '../types';
 import type { IncomingHandlerFn } from '../api';
-export type { IncomingHandlerFn, WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, WasiFutureTrailers } from '../api';
-export type { HttpServerConfig, WasiHttpServer } from '../types';
-export type { FsMount } from '../types';
+import type { ServeInstance } from './type';
 
 import { createHttpServer } from './http-server';
 export { createHttpServer } from './http-server';
 export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from './http-server';
 export { createNodeFilesystem } from './filesystem-node';
-
-export interface ServeInstance {
-    exports: Record<string, Record<string, Function> | undefined>;
-}
 
 /**
  * Run the HTTP serve command: start an HTTP server that routes requests

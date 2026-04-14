@@ -6,7 +6,7 @@
     "type": "module",
     "types": "index.d.ts",
     "bin": {
-        "jsco": "dist/debug/index.js"
+        "jsco": "dist/release/index.js"
     },
     "scripts": {
         "build": "rollup -c",

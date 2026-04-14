@@ -456,7 +456,7 @@ export async function cliMain(): Promise<void> {
 
         if (command === 'serve') {
             // Dynamic import of wasip2-node for serve command
-            const runServe = (await import('../host/wasip2/node/wasip2-node'))['runServe'];
+            const runServe = (await import('../host/wasip2/node/wasip2'))['runServe'];
             await runServe(instance, options.addr, options.network);
         } else {
             const run = instance.exports['wasi:cli/run@0.2.11']?.['run'];

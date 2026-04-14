@@ -18,7 +18,7 @@ import {
     resolveAddresses,
     createNetwork,
     instanceNetwork,
-} from '../sockets';
+} from './sockets';
 import * as net from 'node:net';
 
 /** Wait for a pollable to become ready (without JSPI block()) */

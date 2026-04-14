@@ -51,20 +51,28 @@ const outDir = isDebug ? 'dist/debug' : 'dist/release';
 /** Rollup plugin: externalize sibling module imports (wasip2, wasip2-node, index) */
 function externalizeSiblingModules() {
     const srcDir = path.resolve('./src');
+    const wasip2Entry = path.resolve('./src/host/wasip2/wasip2.ts');
+    const wasip2NodeEntry = path.resolve('./src/host/wasip2/node/wasip2.ts');
     return {
         name: 'externalize-sibling-modules',
         resolveId(source, importer) {
-            // Only externalize when the importer is a top-level entry module (src/*.ts)
-            if (!importer || path.dirname(path.resolve(importer)) !== srcDir) {
+            if (!importer || !path.resolve(importer).startsWith(srcDir)) {
                 return null;
             }
-            if (source === './wasip2' || source === './wasip2.js') {
+            // Resolve the import to an absolute path and check if it matches a sibling entry
+            const importerDir = path.dirname(path.resolve(importer));
+            const resolved = path.resolve(importerDir, source);
+            // Match with or without .ts extension
+            const resolvedTs = resolved.endsWith('.ts') ? resolved : resolved + '.ts';
+
+            if (resolvedTs === wasip2Entry) {
                 return { id: './wasip2.js', external: true };
             }
-            if (source === './wasip2-node' || source === './wasip2-node.js') {
+            if (resolvedTs === wasip2NodeEntry) {
                 return { id: './wasip2-node.js', external: true };
             }
-            if (source === './index' || source === './index.js') {
+            // Only externalize ./index from top-level src/ files
+            if ((source === './index' || source === './index.js') && importerDir === srcDir) {
                 return { id: './index.js', external: true };
             }
             return null;
@@ -119,7 +127,7 @@ const jscoTypes = {
 // WASI Preview 2 — browser-compatible host module
 const wasip2 = {
     treeshake: !isDebug,
-    input: './src/wasip2.ts',
+    input: './src/host/wasip2/wasip2.ts',
     output: [
         {
             format: 'es',
@@ -142,7 +150,7 @@ const wasip2 = {
 // WASI Preview 2 — Node.js-specific extensions
 const wasip2Node = {
     treeshake: !isDebug,
-    input: './src/wasip2-node.ts',
+    input: './src/host/wasip2/node/wasip2.ts',
     output: [
         {
             format: 'es',
@@ -163,7 +171,7 @@ const wasip2Node = {
 
 
 const wasip2Types = {
-    input: './src/wasip2.ts',
+    input: './src/host/wasip2/wasip2.ts',
     output: [
         {
             format: 'es',
@@ -179,7 +187,7 @@ const wasip2Types = {
 };
 
 const wasip2NodeTypes = {
-    input: './src/wasip2-node.ts',
+    input: './src/host/wasip2/node/wasip2.ts',
     output: [
         {
             format: 'es',
