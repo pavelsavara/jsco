@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Hello-world integration test — minimal wasm32-wasip2 WASI command
  *

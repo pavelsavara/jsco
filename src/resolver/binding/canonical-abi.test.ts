@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../../utils/assert';
 initializeAsserts();
 
@@ -16,29 +18,29 @@ import { describeDebugOnly } from '../../test-utils/debug-only';
 function validateUtf8(bytes: Uint8Array): void {
     let i = 0;
     while (i < bytes.length) {
-        const b0 = bytes[i];
+        const b0 = bytes[i]!;
         if (b0 < 0x80) {
             i++;
         } else if ((b0 & 0xE0) === 0xC0) {
             if (b0 < 0xC2) throw new Error(`invalid UTF-8: overlong 2-byte sequence at offset ${i}`);
             if (i + 1 >= bytes.length) throw new Error(`invalid UTF-8: truncated 2-byte sequence at offset ${i}`);
-            if ((bytes[i + 1] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
+            if ((bytes[i + 1]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
             i += 2;
         } else if ((b0 & 0xF0) === 0xE0) {
             if (i + 2 >= bytes.length) throw new Error(`invalid UTF-8: truncated 3-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
+            const b1 = bytes[i + 1]!;
             if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if ((bytes[i + 2]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
             if (b0 === 0xE0 && b1 < 0xA0) throw new Error(`invalid UTF-8: overlong 3-byte sequence at offset ${i}`);
             if (b0 === 0xED && b1 >= 0xA0) throw new Error(`invalid UTF-8: surrogate codepoint at offset ${i}`);
             i += 3;
         } else if ((b0 & 0xF8) === 0xF0) {
             if (b0 > 0xF4) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
             if (i + 3 >= bytes.length) throw new Error(`invalid UTF-8: truncated 4-byte sequence at offset ${i}`);
-            const b1 = bytes[i + 1];
+            const b1 = bytes[i + 1]!;
             if ((b1 & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 1}`);
-            if ((bytes[i + 2] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
-            if ((bytes[i + 3] & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
+            if ((bytes[i + 2]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 2}`);
+            if ((bytes[i + 3]! & 0xC0) !== 0x80) throw new Error(`invalid UTF-8: bad continuation byte at offset ${i + 3}`);
             if (b0 === 0xF0 && b1 < 0x90) throw new Error(`invalid UTF-8: overlong 4-byte sequence at offset ${i}`);
             if (b0 === 0xF4 && b1 > 0x8F) throw new Error(`invalid UTF-8: codepoint > U+10FFFF at offset ${i}`);
             i += 4;
@@ -1529,6 +1531,157 @@ describeDebugOnly('Security: spilled-path memory loader validation', () => {
 
             const result = (lowerer as any)(ctx, 16, 2);
             expect(result).toBe('hi');
+        });
+    });
+});
+
+// =============================================================================
+// useNumberForInt64 memory-path (compound types with i64 fields)
+// =============================================================================
+
+describeDebugOnly('useNumberForInt64 memory-path', () => {
+    function createNumberRctx(): ResolverContext {
+        return {
+            resolved: {
+                liftingCache: new Map(), loweringCache: new Map(),
+                resolvedTypes: new Map(),
+                usesNumberForInt64: true,
+            },
+        } as any as ResolverContext;
+    }
+
+    describe('record with s64 field', () => {
+        const recordModel = {
+            tag: ModelTag.ComponentTypeDefinedRecord,
+            members: [
+                { name: 'id', type: prim(PrimitiveValType.U32) },
+                { name: 'value', type: prim(PrimitiveValType.S64) },
+            ],
+        } as any;
+
+        test('loadFromMemory returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 42, true); // id
+            dv.setBigInt64(8, 123n, true); // value (aligned to 8)
+            const result = loadFromMemory(ctx, 0, recordModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result.id).toBe(42);
+            expect(result.value).toBe(123);
+            expect(typeof result.value).toBe('number');
+        });
+
+        test('loadFromMemory returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 42, true);
+            dv.setBigInt64(8, 123n, true);
+            const result = loadFromMemory(ctx, 0, recordModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result.id).toBe(42);
+            expect(result.value).toBe(123n);
+            expect(typeof result.value).toBe('bigint');
+        });
+    });
+
+    describe('result<u64, string>', () => {
+        const resultModel = {
+            tag: ModelTag.ComponentTypeDefinedResult,
+            ok: prim(PrimitiveValType.U64),
+            err: prim(PrimitiveValType.String),
+        } as any;
+
+        test('ok payload returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 0); // disc=0 (ok)
+            dv.setBigUint64(8, 999n, true); // payload (aligned to 8)
+            const result = loadFromMemory(ctx, 0, resultModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result.tag).toBe('ok');
+            expect(result.val).toBe(999);
+            expect(typeof result.val).toBe('number');
+        });
+
+        test('ok payload returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 0);
+            dv.setBigUint64(8, 999n, true);
+            const result = loadFromMemory(ctx, 0, resultModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result.tag).toBe('ok');
+            expect(result.val).toBe(999n);
+            expect(typeof result.val).toBe('bigint');
+        });
+    });
+
+    describe('option<s64>', () => {
+        const optionModel = {
+            tag: ModelTag.ComponentTypeDefinedOption,
+            value: prim(PrimitiveValType.S64),
+        } as any;
+
+        test('Some returns number when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 1); // disc=1 (Some)
+            dv.setBigInt64(8, -42n, true); // payload (aligned to 8)
+            const result = loadFromMemory(ctx, 0, optionModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result).toBe(-42);
+            expect(typeof result).toBe('number');
+        });
+
+        test('Some returns bigint when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint8(0, 1);
+            dv.setBigInt64(8, -42n, true);
+            const result = loadFromMemory(ctx, 0, optionModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result).toBe(-42n);
+            expect(typeof result).toBe('bigint');
+        });
+    });
+
+    describe('tuple<u32, s64>', () => {
+        const tupleModel = {
+            tag: ModelTag.ComponentTypeDefinedTuple,
+            members: [
+                prim(PrimitiveValType.U32),
+                prim(PrimitiveValType.S64),
+            ],
+        } as any;
+
+        test('returns [number, number] when useNumberForInt64=true', () => {
+            const rctx = createNumberRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 7, true); // u32
+            dv.setBigInt64(8, 100n, true); // s64 (aligned to 8)
+            const result = loadFromMemory(ctx, 0, tupleModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, true);
+            expect(result).toEqual([7, 100]);
+            expect(typeof result[1]).toBe('number');
+        });
+
+        test('returns [number, bigint] when useNumberForInt64=false', () => {
+            const rctx = createMinimalRctx();
+            const { ctx, buffer } = createMockMemoryContext(128);
+            const dv = new DataView(buffer);
+            dv.setUint32(0, 7, true);
+            dv.setBigInt64(8, 100n, true);
+            const result = loadFromMemory(ctx, 0, tupleModel,
+                rctx.resolved.stringEncoding, rctx.resolved.canonicalResourceIds, false);
+            expect(result).toEqual([7, 100n]);
+            expect(typeof result[1]).toBe('bigint');
         });
     });
 });

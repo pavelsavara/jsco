@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createSyncPollable, createAsyncPollable, poll, hasJspi, JspiBlockSignal } from './poll';
 
 describe('wasi:io/poll', () => {

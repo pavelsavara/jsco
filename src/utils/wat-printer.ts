@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ModelTag, WITSection } from '../model/tags';
 import type { WITModel } from '../parser';
 import type { ComponentSection } from '../parser/types';

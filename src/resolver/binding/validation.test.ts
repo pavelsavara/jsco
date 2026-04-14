@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { validateAllocResult, validatePointerAlignment, validateUtf16, checkNotPoisoned, checkNotReentrant } from './validation';
 import type { BindingContext } from '../types';
 

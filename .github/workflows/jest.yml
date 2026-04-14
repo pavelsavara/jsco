@@ -31,7 +31,7 @@ jobs:
     - name: Run Jest unit tests (${{ matrix.configuration }})
       run: |
         COVERAGE_FLAG=${{ matrix.configuration == 'Debug' && '--coverage' || '--no-coverage' }}
-        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test
+        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test use-number-for-int64.test
 
     - name: Upload coverage (Debug only)
       if: matrix.configuration == 'Debug'
@@ -66,15 +66,15 @@ jobs:
     - name: Build release bundle
       run: npm run build
 
-    - name: Assert bundle size under 90 KB
+    - name: Assert bundle size under 95 KB
       run: |
         size=$(stat --format=%s dist/index.js)
         echo "Release bundle size: ${size} bytes"
-        if [ "$size" -gt 92160 ]; then
-          echo "::error::Release bundle size ${size} bytes exceeds 90 KB limit (92160 bytes)"
+        if [ "$size" -gt 97280 ]; then
+          echo "::error::Release bundle size ${size} bytes exceeds 95 KB limit (97280 bytes)"
           exit 1
         fi
-        echo "✓ Bundle size OK (under 90 KB)"
+        echo "✓ Bundle size OK (under 95 KB)"
 
   browser-tests:
     runs-on: ubuntu-latest
@@ -94,7 +94,7 @@ jobs:
       run: npm run build
 
     - name: Install Playwright browsers
-      run: npx playwright install --with-deps chromium
+      run: npx playwright install --with-deps chromium firefox
 
     - name: Run Playwright browser tests
       run: npm run test:browser

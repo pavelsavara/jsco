@@ -12,6 +12,8 @@
         "skipLibCheck": true,
         "outDir": "./dist",
         "strict": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
         "lib": [
             "esnext",
             "dom"
@@ -27,11 +29,8 @@
     "include": [
         "src/**/*",
         "src/.types.d.ts",
-        "hello/**/*.ts",
-        "zoo/**/*.ts",
         "tests/*.ts",
-        "tests/*.d.ts",
-        "usage.ts"
+        "tests/*.d.ts"
     ],
     "exclude": [
         "node_modules",

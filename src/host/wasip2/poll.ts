@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * wasi:io/poll — Pollable resource and poll() function
  *
@@ -76,7 +78,9 @@ export function poll(pollables: WasiPollable[]): PollResult {
 
     const ready: number[] = [];
     for (let i = 0; i < pollables.length; i++) {
-        if (pollables[i].ready()) {
+        const p = pollables[i];
+        if (!p) throw new Error(`poll: pollable ${i} is undefined`);
+        if (p.ready()) {
             ready.push(i);
         }
     }
@@ -88,12 +92,16 @@ export function poll(pollables: WasiPollable[]): PollResult {
     // None ready — need to block. For synchronous-only pollables this
     // will throw. For async pollables with JSPI, the first async one
     // will suspend the WASM stack.
-    pollables[0].block();
+    const first = pollables[0];
+    if (!first) throw new Error('poll: first pollable is undefined');
+    first.block();
 
     // After block returns (via JSPI resume), re-check all
     const readyAfterBlock: number[] = [];
     for (let i = 0; i < pollables.length; i++) {
-        if (pollables[i].ready()) {
+        const p = pollables[i];
+        if (!p) throw new Error(`poll: pollable ${i} is undefined`);
+        if (p.ready()) {
             readyAfterBlock.push(i);
         }
     }

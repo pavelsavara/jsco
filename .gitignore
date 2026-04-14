@@ -135,5 +135,8 @@ dist
 target/
 
 *.wasm
-# Hand-written WAT test component (checked in, 5KB)
+# Hand-written WAT test components (checked in)
 !integration-tests/echo-reactor-wat/echo.wasm
+!integration-tests/hello-world-wat/hello.wasm
+!integration-tests/hello-city-wat/hello-city.wasm
+test-results/.last-run.json

@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
@@ -12,7 +14,7 @@ import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
-import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
+import { _f32, _i32, _f64, _i64, _i32_64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../constants';
 
@@ -53,7 +55,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         const canonicalResourceIds = rctx.canonicalResourceIds;
 
         // Pre-create memory loaders/storer for spilled calling convention
-        const paramLoaders = paramResolvedTypes.map(pt => createMemoryLoader(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
+        const paramLoaders = paramResolvedTypes.map(pt => createMemoryLoader(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64));
         const resultStorer = resultType !== undefined ? createMemoryStorer(resultType, stringEncoding, canonicalResourceIds) : undefined;
 
         // Pre-compute spilled parameter offsets
@@ -71,6 +73,10 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         // Pre-allocate result buffer for flat result path (MAX_FLAT_RESULTS=1, so always 1 value)
         const resultBuf: WasmValue[] = [0];
 
+        // Pre-compute whether the flat result is i64 (needs BigInt conversion for WASM)
+        const resultFlatTypes = resultType ? flattenType(resultType) : [];
+        const resultIsI64 = resultFlatTypes.length === 1 && resultFlatTypes[0] === FlatType.I64;
+
         if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
             const paramNames = exportModel.params.map(p => p.name).join(', ');
             rctx.logger!('binder', LogLevel.Summary,
@@ -86,14 +92,15 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                     // Spill: WASM passes single pointer, read params from memory
                     const ptr = args[0] as number;
                     for (let i = 0; i < paramLoaders.length; i++) {
-                        convertedArgs[i] = paramLoaders[i](ctx, ptr + spilledParamOffsets[i]);
+                        convertedArgs[i] = paramLoaders[i]!(ctx, ptr + spilledParamOffsets[i]!);
                     }
                 } else {
                     // Flat/Scalar: read each param using lowerers
                     let flatOffset = 0;
                     for (let i = 0; i < paramLowerers.length; i++) {
-                        const spill = (paramLowerers[i] as any).spill;
-                        convertedArgs[i] = paramLowerers[i](ctx, ...args.slice(flatOffset, flatOffset + spill));
+                        const lowerer = paramLowerers[i]!;
+                        const spill = (lowerer as any).spill;
+                        convertedArgs[i] = lowerer(ctx, ...args.slice(flatOffset, flatOffset + spill));
                         flatOffset += spill;
                     }
                 }
@@ -119,7 +126,11 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                         ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
                     }
                     if (resultLifters.length === 1) {
-                        resultLifters[0](ctx, resJs, resultBuf, 0);
+                        resultLifters[0]!(ctx, resJs, resultBuf, 0);
+                        // Convert i64 result to BigInt for WASM if lifter stored Number
+                        if (resultIsI64 && typeof resultBuf[0] !== 'bigint') {
+                            return BigInt(resultBuf[0] as number);
+                        }
                         return resultBuf[0];
                     }
                 }
@@ -174,7 +185,7 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
                 return createLowering(rctx, resolved!);
             }
             case ModelTag.ComponentValTypeResolved:
-                return createLowering(rctx, (typeModel as any).resolved);
+                return createLowering(rctx, typeModel.resolved as ResolvedType);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLowering(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
@@ -265,7 +276,7 @@ function createU32Lowering(): LoweringToJs {
 
 function createS64LoweringBigInt(): LoweringToJs {
     const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        return BigInt.asIntN(64, args[0] as bigint);
+        return args[0];
     };
     fn.spill = 1;
     return fn;
@@ -281,6 +292,7 @@ function createS64LoweringNumber(): LoweringToJs {
 
 function createU64LoweringBigInt(): LoweringToJs {
     const fn = (_: BindingContext, ...args: WasmValue[]) => {
+        // WASM returns i64 as signed BigInt — reinterpret as unsigned
         return BigInt.asUintN(64, args[0] as bigint);
     };
     fn.spill = 1;
@@ -342,8 +354,9 @@ function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeD
         const result: Record<string, unknown> = {};
         let offset = 0;
         for (let i = 0; i < fieldLowerers.length; i++) {
-            const spill = (fieldLowerers[i].lowerer as any).spill;
-            result[fieldLowerers[i].name] = fieldLowerers[i].lowerer(ctx, ...args.slice(offset, offset + spill));
+            const fl = fieldLowerers[i]!;
+            const spill = (fl.lowerer as any).spill;
+            result[fl.name] = fl.lowerer(ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;
@@ -412,7 +425,7 @@ function createStringLoweringUtf16(): LoweringToJs {
 
 export type MemoryLoader = (ctx: BindingContext, ptr: number) => any;
 
-function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding): MemoryLoader {
+function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding, usesNumberForInt64: boolean): MemoryLoader {
     switch (prim) {
         case PrimitiveValType.Bool:
             return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0) !== 0;
@@ -429,9 +442,13 @@ function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding)
         case PrimitiveValType.U32:
             return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
         case PrimitiveValType.S64:
-            return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigInt64(0, true);
+            return usesNumberForInt64
+                ? (ctx, ptr) => Number(ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigInt64(0, true))
+                : (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigInt64(0, true);
         case PrimitiveValType.U64:
-            return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigUint64(0, true);
+            return usesNumberForInt64
+                ? (ctx, ptr) => Number(ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigUint64(0, true))
+                : (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigUint64(0, true);
         case PrimitiveValType.Float32:
             return (ctx, ptr) => ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getFloat32(0, true);
         case PrimitiveValType.Float64:
@@ -486,11 +503,11 @@ function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding)
     }
 }
 
-export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, ownInstanceResources?: Set<number>): MemoryLoader {
+export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, ownInstanceResources: Set<number> | undefined, usesNumberForInt64: boolean): MemoryLoader {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
-            return createPrimitiveLoader(type.value, stringEncoding);
+            return createPrimitiveLoader(type.value, stringEncoding, usesNumberForInt64);
         case ModelTag.ComponentTypeDefinedRecord: {
             const fieldLoaders: { name: string, offset: number, loader: MemoryLoader }[] = [];
             let offset = 0;
@@ -501,14 +518,15 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 fieldLoaders.push({
                     name: camelCase(member.name),
                     offset,
-                    loader: createMemoryLoader(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources)
+                    loader: createMemoryLoader(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64)
                 });
                 offset += sizeOf(fieldType);
             }
             return (ctx, ptr) => {
                 const result: Record<string, unknown> = {};
                 for (let i = 0; i < fieldLoaders.length; i++) {
-                    result[fieldLoaders[i].name] = fieldLoaders[i].loader(ctx, ptr + fieldLoaders[i].offset);
+                    const fl = fieldLoaders[i]!;
+                    result[fl.name] = fl.loader(ctx, ptr + fl.offset);
                 }
                 return result;
             };
@@ -517,7 +535,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             const elemType = resolveValTypePure(type.value);
             const elemSize = sizeOf(elemType);
             const elemAlign = alignOf(elemType);
-            const elemLoader = createMemoryLoader(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
+            const elemLoader = createMemoryLoader(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64);
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
                 const listPtr = dv.getUint32(0, true);
@@ -540,7 +558,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             const payloadType = resolveValTypePure(type.value);
             const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
-            const payloadLoader = createMemoryLoader(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources);
+            const payloadLoader = createMemoryLoader(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64);
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const disc = dv.getUint8(0);
@@ -554,8 +572,8 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
             if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
-            const okLoader = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
-            const errLoader = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
+            const okLoader = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
+            const errLoader = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
             return (ctx, ptr) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
                 const disc = dv.getUint8(0);
@@ -577,7 +595,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const caseLoaders = type.variants.map(c =>
-                c.ty !== undefined ? createMemoryLoader(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined
+                c.ty !== undefined ? createMemoryLoader(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined
             );
             const caseNames = type.variants.map(c => c.name);
             const numCases = type.variants.length;
@@ -618,7 +636,7 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                     const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                     const word = dv.getInt32(0, true);
                     for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                        result[memberNames[w * 32 + b]] = !!(word & (1 << b));
+                        result[memberNames[w * 32 + b]!] = !!(word & (1 << b));
                     }
                 }
                 return result;
@@ -631,13 +649,14 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 const memberType = resolveValTypePure(member);
                 const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                memberLoaders.push({ offset, loader: createMemoryLoader(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources) });
+                memberLoaders.push({ offset, loader: createMemoryLoader(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) });
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr) => {
                 const result = new Array(memberLoaders.length);
                 for (let i = 0; i < memberLoaders.length; i++) {
-                    result[i] = memberLoaders[i].loader(ctx, ptr + memberLoaders[i].offset);
+                    const ml = memberLoaders[i]!;
+                    result[i] = ml.loader(ctx, ptr + ml.offset);
                 }
                 return result;
             };
@@ -673,7 +692,7 @@ function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefin
     const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
-    const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
+    const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64);
 
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const ptr = (args[0] as number) >>> 0;
@@ -738,8 +757,10 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
         if (discriminant === 0) {
             if (okNeedsCoercion) {
                 for (let i = 0; i < okFlatTypes.length; i++) {
-                    if (payloadJoined[i] !== okFlatTypes[i]) {
-                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], okFlatTypes[i]);
+                    const joinedFT = payloadJoined[i];
+                    const okFT = okFlatTypes[i];
+                    if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
                     }
                 }
             }
@@ -748,8 +769,10 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
         } else {
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
-                    if (payloadJoined[i] !== errFlatTypes[i]) {
-                        payload[i] = coerceFlatLower(payload[i], payloadJoined[i], errFlatTypes[i]);
+                    const joinedFT = payloadJoined[i];
+                    const errFT = errFlatTypes[i];
+                    if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
                     }
                 }
             }
@@ -792,8 +815,8 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
                 for (let i = 0; i < c.caseFlatTypes.length; i++) {
                     const have = payloadJoined[i];
                     const want = c.caseFlatTypes[i];
-                    if (have !== want) {
-                        payload[i] = coerceFlatLower(payload[i], have, want);
+                    if (have !== undefined && want !== undefined && have !== want) {
+                        payload[i] = coerceFlatLower(payload[i] as WasmValue, have, want);
                     }
                 }
             }
@@ -813,21 +836,23 @@ function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): Wasm
     // (i32, f32): decode_i32_as_float
     if (have === FlatType.I32 && want === FlatType.F32) {
         _i32[0] = value as number;
-        return _f32[0];
+        return _f32[0] as number;
     }
-    // (i64, i32): wrap_i64_to_i32
+    // (i64, i32): wrap_i64_to_i32 — use shared buffer to avoid BigInt.asUintN allocation
     if (have === FlatType.I64 && want === FlatType.I32) {
-        return Number(BigInt.asUintN(32, value as bigint));
+        _i64[0] = value as bigint;
+        return _i32_64[0]! >>> 0;
     }
     // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
     if (have === FlatType.I64 && want === FlatType.F32) {
-        _i32[0] = Number(BigInt.asUintN(32, value as bigint));
-        return _f32[0];
+        _i64[0] = value as bigint;
+        _i32[0] = _i32_64[0]!;
+        return _f32[0] as number;
     }
     // (i64, f64): decode_i64_as_float
     if (have === FlatType.I64 && want === FlatType.F64) {
         _i64[0] = value as bigint;
-        return _f64[0];
+        return _f64[0] as number;
     }
     return value;
 }
@@ -854,7 +879,7 @@ function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDe
         const result: Record<string, boolean> = {};
         for (let i = 0; i < memberNames.length; i++) {
             const word = args[i >>> 5] as number;
-            result[memberNames[i]] = !!(word & (1 << (i & 31)));
+            result[memberNames[i]!] = !!(word & (1 << (i & 31)));
         }
         return result;
     };
@@ -874,8 +899,9 @@ function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDef
         const result = new Array(elementLowerers.length);
         let offset = 0;
         for (let i = 0; i < elementLowerers.length; i++) {
-            const spill = (elementLowerers[i] as any).spill;
-            result[i] = elementLowerers[i](ctx, ...args.slice(offset, offset + spill));
+            const lowerer = elementLowerers[i]!;
+            const spill = (lowerer as any).spill;
+            result[i] = lowerer(ctx, ...args.slice(offset, offset + spill));
             offset += spill;
         }
         return result;

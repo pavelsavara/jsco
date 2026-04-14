@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Shared types for the WASI Preview 2 host implementation.
  */
@@ -32,6 +34,10 @@ export interface WasiConfig {
     stderr?: (bytes: Uint8Array) => void;
     /** Virtual filesystem — full unix paths to file contents */
     fs?: Map<string, Uint8Array>;
+    /** Maximum response body size in bytes. Undefined = unlimited. */
+    maxResponseBodyBytes?: number;
+    /** WASI interface prefixes to disable (e.g. ['wasi:http', 'wasi:sockets']) */
+    disabledInterfaces?: string[];
 }
 
 /** Opaque handle ID for WASI resources */

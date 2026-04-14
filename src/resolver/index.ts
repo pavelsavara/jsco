@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { parse } from '../parser';
 import { ParserOptions } from '../parser/types';
@@ -101,6 +103,10 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
         const lines = [`Plan (${sortedPlan.length} ops):`];
         for (let i = 0; i < sortedPlan.length; i++) {
             const op = sortedPlan[i];
+            if (!op) {
+                rctx.resolved.logger!('resolver', LogLevel.Summary, `WARNING: sortedPlan has missing op at index ${i}`);
+                continue;
+            }
             lines.push(`  ${i + 1}. ${planOpKindName(op.kind).padEnd(16)} ${op.label}`);
         }
         lines.push('');

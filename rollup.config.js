@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { defineConfig } from 'rollup';
 import typescript from '@rollup/plugin-typescript';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
@@ -42,7 +44,7 @@ const plugins = isDebug ? [] : [terser({
         },
     },
 })];
-const banner = '//! Pavel Savara licenses this file to you under the MIT license.\n';
+const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash'];
 const jsco = {
     treeshake: !isDebug,

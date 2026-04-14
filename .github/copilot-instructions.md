@@ -2,6 +2,7 @@
 
 ## Coding Conventions
 
+- **Always add the MIT license banner** as the very first line of every new `.ts`, `.js`, or `.mjs` file: `// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.` followed by a blank line before any imports or code.
 - **Always use numeric `const enum`** — never string-valued enum members. Numeric enums inline to integer literals in the bundle, saving significant minified code size. String enums emit string comparisons and string literals that cannot be minified.
 - **Never use inline `import()` for types** — always use top-level `import` or `import type` statements. Inline `import('...').SomeType` in type annotations is prohibited; add the type to an existing top-level import (or create a new `import type` line) instead.
 
@@ -73,6 +74,20 @@ const component = await createComponent(wasmSource, {
 **Execution order / plan step tracing** → enable `executor: LogLevel.Detailed`. Logs each binding plan operation (`ImportBind`, `CoreInstantiate`, `ExportBind`) as it executes, showing the exact sequence. Useful when Summary-level trampoline values look correct but something runs in the wrong order or is skipped.
 
 **Lift/lower cache issues (duplicate compilation)** → enable `binder: LogLevel.Detailed`. Logs cache HIT/MISS for each lifting/lowering function key. Useful when diagnosing unnecessary recompilation or verifying deduplication works correctly.
+
+## Boundary Checks, Casting & Type Coercion
+
+jsco has three tiers of validation depending on where the code runs:
+
+- **Bind-time code** (runs once during `createComponent`): use `if (!x) throw` guards for unimplemented paths and structural invariants that must hold.
+- **Execution-time hot paths** (inner closures called per WASM↔JS transition): use `!` for `noUncheckedIndexedAccess` narrowing on arrays bounded by their own `.length`. Do **not** add `if/throw` guards for indexes that are already bounded.
+- **System boundary** (values crossing JS↔WASM boundary in `to-abi.ts` lifting/storer functions): always validate or coerce user-provided values before casting. Specifically:
+  - **float/char primitives**: `typeof` check before use — floats silently produce NaN from non-numbers, char crashes on non-strings.
+  - **integer primitives**: bitwise ops (`| 0`, `>>> 0`, `<< >>`, `& mask`) already coerce correctly via JS `ToInt32`/`ToUint32` semantics — no extra guard needed.
+  - **compound types** (record, list, tuple, flags, result, variant): null/undefined guard before property/index access — prevents cryptic "Cannot read properties of null" errors.
+  - **BigInt types**: `BigInt()` constructor already throws `TypeError` with clear message — no extra guard needed.
+  - **string**: existing `typeof str !== 'string'` check in string lifting — no extra guard needed.
+  - Never use `as T` to silence the compiler on user input without a runtime check at the boundary.
 
 ## Verification
 

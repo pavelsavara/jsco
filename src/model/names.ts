@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { NameMap, u8 } from './core';
 import { ModelTag } from './tags';
 

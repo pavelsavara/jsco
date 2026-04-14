@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../../utils/assert';
 initializeAsserts();
 
@@ -342,7 +344,7 @@ describeDebugOnly('own vs borrow semantics', () => {
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'owned' };
         const [handle] = lifter(bctx, obj);
-        const result = lowerer(bctx, handle);
+        const result = lowerer(bctx, handle!);
         expect(result).toBe(obj);
         expect(bctx.resources.has(0, handle as number)).toBe(false);
     });
@@ -352,7 +354,7 @@ describeDebugOnly('own vs borrow semantics', () => {
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'borrowed' };
         const [handle] = lifter(bctx, obj);
-        const result = lowerer(bctx, handle);
+        const result = lowerer(bctx, handle!);
         expect(result).toBe(obj);
         expect(bctx.resources.has(0, handle as number)).toBe(true);
     });
@@ -362,7 +364,7 @@ describeDebugOnly('own vs borrow semantics', () => {
         const borrowLowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'owned-but-borrowed' };
         const [handle] = lifter(bctx, obj);
-        const result = borrowLowerer(bctx, handle);
+        const result = borrowLowerer(bctx, handle!);
         expect(result).toBe(obj);
         expect(bctx.resources.has(0, handle as number)).toBe(true);
     });
@@ -372,8 +374,8 @@ describeDebugOnly('own vs borrow semantics', () => {
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'consumed' };
         const [handle] = lifter(bctx, obj);
-        lowerer(bctx, handle);
-        expect(() => lowerer(bctx, handle)).toThrow('Invalid resource handle');
+        lowerer(bctx, handle!);
+        expect(() => lowerer(bctx, handle!)).toThrow('Invalid resource handle');
     });
 });
 
@@ -515,13 +517,13 @@ describeDebugOnly('resource handle isolation', () => {
         // Access within type works
         for (let type = 0; type < 10; type++) {
             for (let i = 0; i < 10; i++) {
-                const h = handles[type * 10 + i];
+                const h = handles[type * 10 + i]!;
                 expect(resources.get(type, h)).toBe(`type${type}-${i}`);
             }
         }
         // Cross-type access fails
-        expect(() => resources.get(1, handles[0])).toThrow('belongs to type');
-        expect(() => resources.get(0, handles[10])).toThrow('belongs to type');
+        expect(() => resources.get(1, handles[0]!)).toThrow('belongs to type');
+        expect(() => resources.get(0, handles[10]!)).toThrow('belongs to type');
     });
 });
 
@@ -563,18 +565,18 @@ describeDebugOnly('resource handle cleanup and ref counting', () => {
         // Add 5 handles
         for (let i = 0; i < 5; i++) handles.push(resources.add(0, `obj-${i}`));
         // Lend first 3
-        for (let i = 0; i < 3; i++) resources.lend(0, handles[i]);
+        for (let i = 0; i < 3; i++) resources.lend(0, handles[i]!);
         // Remove handles 3,4 (no borrows)
-        resources.remove(0, handles[3]);
-        resources.remove(0, handles[4]);
+        resources.remove(0, handles[3]!);
+        resources.remove(0, handles[4]!);
         // Try to remove handle 0 (has borrow) — should trap
-        expect(() => resources.remove(0, handles[0])).toThrow('outstanding borrow');
+        expect(() => resources.remove(0, handles[0]!)).toThrow('outstanding borrow');
         // Unlend, then remove
-        resources.unlend(0, handles[0]);
-        expect(resources.remove(0, handles[0])).toBe('obj-0');
+        resources.unlend(0, handles[0]!);
+        expect(resources.remove(0, handles[0]!)).toBe('obj-0');
         // Handles 1,2 still have borrows
-        expect(resources.lendCount(0, handles[1])).toBe(1);
-        expect(resources.lendCount(0, handles[2])).toBe(1);
+        expect(resources.lendCount(0, handles[1]!)).toBe(1);
+        expect(resources.lendCount(0, handles[2]!)).toBe(1);
     });
 
     test('double remove throws', () => {
@@ -607,11 +609,11 @@ describeDebugOnly('resource handle cleanup and ref counting', () => {
         }
         expect(new Set(handles).size).toBe(1000);
         for (let i = 0; i < 1000; i++) {
-            expect(resources.remove(0, handles[i])).toBe(`r${i}`);
+            expect(resources.remove(0, handles[i]!)).toBe(`r${i}`);
         }
         // All gone
         for (let i = 0; i < 1000; i++) {
-            expect(resources.has(0, handles[i])).toBe(false);
+            expect(resources.has(0, handles[i]!)).toBe(false);
         }
     });
 });

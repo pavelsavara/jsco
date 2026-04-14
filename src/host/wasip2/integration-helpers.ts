@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Shared helpers for integration tests.
  * Extracted to a module so multiple test files can reuse them
@@ -110,12 +112,14 @@ function parseTestResults(stdout: string): { name: string; passed: boolean; reas
     for (const line of stdout.split('\n')) {
         const passMatch = line.match(/^\[PASS\] (.+)$/);
         if (passMatch) {
-            results.push({ name: passMatch[1], passed: true });
+            const name = passMatch[1];
+            if (name) results.push({ name, passed: true });
             continue;
         }
         const failMatch = line.match(/^\[FAIL\] ([^:]+): (.+)$/);
         if (failMatch) {
-            results.push({ name: failMatch[1], passed: false, reason: failMatch[2] });
+            const name = failMatch[1];
+            if (name) results.push({ name, passed: false, reason: failMatch[2] });
         }
     }
     return results;

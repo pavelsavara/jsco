@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * JS implementation of echo interfaces.
  *
@@ -21,10 +23,10 @@ function replacer(_key: string, value: unknown): unknown {
 
 function reviver(_key: string, value: unknown): unknown {
     if (value && typeof value === 'object' && '__bigint' in value) {
-        return BigInt((value as Record<string, string>).__bigint);
+        return BigInt((value as Record<string, string>).__bigint!);
     }
     if (value && typeof value === 'object' && '__uint8array' in value) {
-        return new Uint8Array((value as Record<string, number[]>).__uint8array);
+        return new Uint8Array((value as Record<string, number[]>).__uint8array!);
     }
     return value;
 }

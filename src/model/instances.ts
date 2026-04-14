@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ComponentAliasInstanceExport } from './aliases';
 import { Export, u32 } from './core';
 import { ComponentExport, ComponentExternalKind } from './exports';

@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 export default {
     'roots': [
         '<rootDir>/src'
@@ -49,6 +51,8 @@ export default {
         // Thin wrappers over platform APIs (node fs, fetch, component import resolution)
         '!src/utils/fetch-like.ts',
         '!src/resolver/component-imports.ts',
+        // CLI entry point (tests import.meta.url === main module; untestable in Jest)
+        '!src/index.ts',
     ],
     coverageReporters: ['text', 'lcov', 'json-summary', 'json'],
     coverageThreshold: {

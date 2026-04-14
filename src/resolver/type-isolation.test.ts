@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
@@ -194,7 +196,7 @@ describeDebugOnly('instance-local type isolation', () => {
         const deepResolved = deepResolveType(rctx.resolved, record as any);
 
         // Original is untouched
-        expect(record.members[1].type.tag).toBe(ModelTag.ComponentValTypeType);
+        expect(record.members[1]!.type.tag).toBe(ModelTag.ComponentValTypeType);
 
         // Deep-resolved clone has ComponentValTypeResolved for the type reference
         const deepRecord = deepResolved as any;

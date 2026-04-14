@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createWasiWallClock } from './wall-clock';
 
 describe('wasi:clocks/wall-clock', () => {

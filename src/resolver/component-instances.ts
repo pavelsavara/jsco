@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import camelCase from 'just-camel-case';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
@@ -6,6 +8,7 @@ import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInsta
 import { ComponentAliasInstanceExport } from '../model/aliases';
 import { ModelTag, TaggedElement } from '../model/tags';
 import { ComponentTypeInstance } from '../model/types';
+import { stripImportPrefix } from './import-names';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { JsImports } from './api-types';
 import { resolveComponentFunction } from './component-functions';
@@ -122,17 +125,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 // We strip the prefix to recover the original WIT name for internal wiring.
                 // Note: we do NOT camelCase here — internal component wiring should use
                 // the original WIT names. CamelCase conversion is only for the JS-host boundary.
-                if (argName.startsWith('import-func-')) {
-                    argName = argName.substring('import-func-'.length);
-                } else if (argName.startsWith('import-method-')) {
-                    argName = argName.substring('import-method-'.length);
-                } else if (argName.startsWith('import-constructor-')) {
-                    argName = argName.substring('import-constructor-'.length);
-                } else if (argName.startsWith('import-static-')) {
-                    argName = argName.substring('import-static-'.length);
-                } else if (argName.startsWith('import-type-')) {
-                    argName = argName.substring('import-type-'.length);
-                }
+                argName = stripImportPrefix(argName);
                 // For Instance args, pass the flat exports (interface functions),
                 // not the whole ComponentInstanceData. The child's import resolution
                 // for ComponentTypeRefInstance does Object.assign(exports, imprt),

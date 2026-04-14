@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import type { ResolvedType } from '../type-resolution';
 import { BindingContext, StringEncoding } from '../types';
 import { createMemoryStorer } from './to-abi';
@@ -8,6 +10,6 @@ export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedTy
     createMemoryStorer(type, stringEncoding, canonicalResourceIds)(ctx, ptr, jsValue);
 }
 
-export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): any {
-    return createMemoryLoader(type, stringEncoding, canonicalResourceIds)(ctx, ptr);
+export function loadFromMemory(ctx: BindingContext, ptr: number, type: ResolvedType, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>, usesNumberForInt64 = false): any {
+    return createMemoryLoader(type, stringEncoding, canonicalResourceIds, undefined, usesNumberForInt64)(ctx, ptr);
 }

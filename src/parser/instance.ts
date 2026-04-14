@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readComponentInstantiationArgs } from './values';

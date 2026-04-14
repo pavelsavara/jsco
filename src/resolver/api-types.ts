@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 
 export type JsInterface = Record<string, Function>;
 export type JsInterfaceCollection = Record<string, JsInterface>;

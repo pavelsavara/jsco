@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
@@ -166,7 +168,7 @@ describe('sizeOf', () => {
         });
         test('variant with many cases (>255)', () => {
             const cases = Array.from({ length: 300 }, (_, i) => ({ name: `c${i}`, ty: undefined }));
-            cases[0].ty = primVT(PrimitiveValType.U8) as any;
+            cases[0]!.ty = primVT(PrimitiveValType.U8) as any;
             const type = { tag: ModelTag.ComponentTypeDefinedVariant, variants: cases } as any;
             // disc(2) + u8(1) + pad(1) = 4
             expect(sizeOf(type)).toBe(4);

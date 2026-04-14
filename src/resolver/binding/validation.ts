@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { BindingContext } from '../types';
 import { WasmPointer } from './types';
 
@@ -36,14 +38,17 @@ export function validatePointerAlignment(ptr: number, align: number, context: st
  * CM spec requires well-formed UTF-16: no unpaired surrogates.
  */
 export function validateUtf16(codeUnits: Uint16Array): void {
+    if (!(codeUnits instanceof Uint16Array)) {
+        throw new TypeError(`validateUtf16: expected Uint16Array, got ${typeof codeUnits}`);
+    }
     for (let i = 0; i < codeUnits.length; i++) {
-        const cu = codeUnits[i];
+        const cu = codeUnits[i] as number | 0;
         if (cu >= 0xD800 && cu <= 0xDBFF) {
             // High surrogate — must be followed by low surrogate
             if (i + 1 >= codeUnits.length) {
                 throw new Error(`invalid UTF-16: unpaired high surrogate 0x${cu.toString(16)} at index ${i}`);
             }
-            const next = codeUnits[i + 1];
+            const next = codeUnits[i + 1] as number | 0;
             if (next < 0xDC00 || next > 0xDFFF) {
                 throw new Error(`invalid UTF-16: high surrogate 0x${cu.toString(16)} at index ${i} not followed by low surrogate`);
             }

@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../../utils/assert';
 initializeAsserts();
 
@@ -591,7 +593,7 @@ describeDebugOnly('list round-trip', () => {
 
         const original = [10, 20, 30, 40, 50];
         const [ptr, len] = lifter(ctx, original);
-        const result = lowerer(ctx, ptr, len);
+        const result = lowerer(ctx, ptr!, len!);
         expect(result).toEqual(original);
     });
 });

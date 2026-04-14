@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 export type u32 = number;
 export type u64 = number;
 export type u8 = number;

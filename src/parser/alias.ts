@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { SyncSource } from '../utils/streaming';
 import { ComponentAlias, ComponentAliasInstanceExport, ComponentAliasCoreInstanceExport, ComponentAliasOuter } from '../model/aliases';
 import { ParserContext } from './types';

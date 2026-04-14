@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { ModelTag } from '../model/tags';
 import { Source } from '../utils/streaming';
 import { ParserContext, CoreModule } from './types';

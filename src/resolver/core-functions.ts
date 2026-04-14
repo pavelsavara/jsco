@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
 import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
@@ -14,7 +16,7 @@ import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
 import { getCanonicalResourceId } from './context';
 import { getComponentFunction, getComponentType } from './indices';
-import { Resolver, BinderRes, ResolverRes, ResolverContext, resolveCanonicalOptions } from './types';
+import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -50,34 +52,29 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     //   ComponentAliasInstanceExport → resolvedTypes lookup
     //
     // Instance-local type isolation: resolveLoweredFuncType may call
-    // registerInstanceLocalTypes, which overwrites global resolvedTypes entries
+    // registerInstanceLocalTypes, which overwrites resolvedTypes entries
     // with instance-local types. createFunctionLowering deep-resolves all nested
     // ComponentValTypeType references at creation time, so after it runs the
-    // local types are no longer needed. Restore global entries afterward to
-    // prevent polluting the export resolution path.
-    const savedResolvedTypes = new Map(rctx.resolved.resolvedTypes);
+    // local types are no longer needed. Use a shallow copy of resolved with a
+    // cloned resolvedTypes map so the original context stays untouched.
+    const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
+    const localResolved: ResolvedContext = {
+        ...rctx.resolved,
+        resolvedTypes: new Map(rctx.resolved.resolvedTypes),
+        stringEncoding: canonOpts.stringEncoding,
+    };
+    const localRctx: ResolverContext = { ...rctx, resolved: localResolved };
 
-    const funcType = resolveLoweredFuncType(rctx, componentFunction);
+    const funcType = resolveLoweredFuncType(localRctx, componentFunction);
 
-    if (isDebug && (rctx.resolved.verbose?.binder ?? 0) >= LogLevel.Summary) {
+    if (isDebug && (localResolved.verbose?.binder ?? 0) >= LogLevel.Summary) {
         const chain = `canon.lower[${canonicalFunctionLowerElem.selfSortIndex}] → ${componentFunction.tag}[${componentFunction.selfSortIndex}]`;
         const funcName = (componentFunction as any).name ?? '';
-        rctx.resolved.logger!('binder', LogLevel.Summary,
+        localResolved.logger!('binder', LogLevel.Summary,
             `type chain: ${chain}${funcName ? ` name="${funcName}"` : ''} → ComponentTypeFunc[${funcType.selfSortIndex ?? '?'}]`);
     }
 
-    const canonOpts = resolveCanonicalOptions(canonicalFunctionLowerElem.options);
-
-    // Set string encoding for this canonical function — read by createLifting/createLowering
-    const savedEncoding = rctx.resolved.stringEncoding;
-    rctx.resolved.stringEncoding = canonOpts.stringEncoding;
-
-    const loweringBinder = createFunctionLowering(rctx.resolved, funcType);
-
-    rctx.resolved.stringEncoding = savedEncoding;
-    // Restore global resolved types after createFunctionLowering (which deep-resolves
-    // and caches all local type references in its memoize factory).
-    rctx.resolved.resolvedTypes = savedResolvedTypes;
+    const loweringBinder = createFunctionLowering(localResolved, funcType);
 
     return {
         callerElement: rargs.callerElement,
@@ -154,6 +151,7 @@ function resolveAliasedFuncType(
     jsco_assert(alias.instance_index < rctx.indexes.componentInstances.length,
         () => `instance_index ${alias.instance_index} out of bounds (${rctx.indexes.componentInstances.length} instances)`);
     const instance = rctx.indexes.componentInstances[alias.instance_index];
+    if (!instance) throw new Error(`instance_index ${alias.instance_index} out of bounds`);
 
     if (instance.tag === ModelTag.ComponentTypeInstance) {
         const instanceType = instance as ComponentTypeInstance;

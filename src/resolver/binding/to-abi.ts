@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
@@ -52,7 +54,10 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
 
         // Pre-create memory storers/loader for spilled calling convention
         const paramStorers = paramResolvedTypes.map(pt => createMemoryStorer(pt, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources));
-        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources) : undefined;
+        const resultLoader = resultType !== undefined ? createMemoryLoader(resultType, stringEncoding, canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64) : undefined;
+        if (callingConvention.results === CallingConvention.Spilled && !resultLoader) {
+            throw new Error('Spilled calling convention for results requires a result type (named multi-value results not yet supported)');
+        }
 
         // Pre-compute spilled parameter offsets, total size, and max alignment
         const spilledParamOffsets: number[] = [];
@@ -66,6 +71,19 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
             spilledParamsMaxAlign = Math.max(spilledParamsMaxAlign, a);
         }
         const totalFlatParams = paramResolvedTypes.reduce((sum, pt) => sum + flatCount(pt), 0);
+
+        // Pre-compute which flat positions are i64 for BigInt conversion at WASM call site
+        const i64ParamPositions: number[] = [];
+        {
+            let pos = 0;
+            for (const pt of paramResolvedTypes) {
+                const ft = flattenType(pt);
+                for (let j = 0; j < ft.length; j++) {
+                    if (ft[j] === FlatType.I64) i64ParamPositions.push(pos);
+                    pos++;
+                }
+            }
+        }
 
         if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
             const paramNames = importModel.params.map(p => p.name).join(', ');
@@ -81,7 +99,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                 if (callingConvention.results === CallingConvention.Spilled) {
                     result = resultLoader!(ctx, rawWasm as number);
                 } else if (resultLowerers.length === 1) {
-                    result = resultLowerers[0](ctx, rawWasm);
+                    result = resultLowerers[0]!(ctx, rawWasm);
                 }
 
                 // Post-return cleanup
@@ -105,14 +123,17 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                     ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
                 }
                 try {
+                    if (args.length !== paramStorers.length) {
+                        throw new Error(`Expected ${paramStorers.length} arguments, got ${args.length}`);
+                    }
                     let wasmArgs: any[];
                     if (callingConvention.params === CallingConvention.Spilled) {
                         // Spill: store all params to memory, pass single pointer
                         const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize,
                             spilledParamsMaxAlign as WasmSize, spilledParamsTotalSize as WasmSize);
                         validateAllocResult(ctx, ptr, spilledParamsMaxAlign, spilledParamsTotalSize);
-                        for (let i = 0; i < args.length; i++) {
-                            paramStorers[i](ctx, ptr + spilledParamOffsets[i], args[i]);
+                        for (let i = 0; i < paramStorers.length; i++) {
+                            paramStorers[i]!(ctx, ptr + spilledParamOffsets[i]!, args[i]);
                         }
                         wasmArgs = [ptr];
                     } else {
@@ -120,7 +141,14 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                         wasmArgs = new Array(totalFlatParams);
                         let pos = 0;
                         for (let i = 0; i < paramLifters.length; i++) {
-                            pos += paramLifters[i](ctx, args[i], wasmArgs, pos);
+                            pos += paramLifters[i]!(ctx, args[i], wasmArgs, pos);
+                        }
+                        // Convert i64 flat slots to BigInt for WASM
+                        for (let k = 0; k < i64ParamPositions.length; k++) {
+                            const idx = i64ParamPositions[k]!;
+                            if (typeof wasmArgs[idx] !== 'bigint') {
+                                wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
+                            }
                         }
                     }
 
@@ -208,7 +236,7 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
                 return createLifting(rctx, resolved!);
             }
             case ModelTag.ComponentValTypeResolved:
-                return createLifting(rctx, (typeModel as any).resolved);
+                return createLifting(rctx, typeModel.resolved as ResolvedType);
             case ModelTag.ComponentTypeDefinedRecord:
                 return createRecordLifting(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
@@ -242,9 +270,11 @@ function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDe
         lifters.push({ name: camelCase(member.name), lifter });
     }
     return (ctx, srcJsRecord, out, offset) => {
+        if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
         let pos = 0;
         for (let i = 0; i < lifters.length; i++) {
-            pos += lifters[i].lifter(ctx, srcJsRecord[lifters[i].name], out, offset + pos);
+            const l = lifters[i]!;
+            pos += l.lifter(ctx, srcJsRecord[l.name], out, offset + pos);
         }
         return pos;
     };
@@ -307,39 +337,36 @@ function createU32Lifting(): LiftingFromJs {
 
 function createS64LiftingNumber(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as bigint;
-        out[offset] = Number(BigInt.asIntN(52, num));
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createS64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as bigint;
-        out[offset] = BigInt.asIntN(64, num);
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createU64LiftingNumber(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = BigInt(srcJsValue as number | bigint);
-        out[offset] = Number(BigInt.asUintN(64, num));
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createU64LiftingBigInt(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = BigInt(srcJsValue as number | bigint);
-        out[offset] = BigInt.asUintN(64, num);
+        out[offset] = srcJsValue;
         return 1;
     };
 }
 
 function createF32Lifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = Math.fround(srcJsValue as number);
+        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f32, got ${typeof srcJsValue}`);
+        const num = Math.fround(srcJsValue);
         // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
         out[offset] = num !== num ? canonicalNaN32 : num;
         return 1;
@@ -348,7 +375,8 @@ function createF32Lifting(): LiftingFromJs {
 
 function createF64Lifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const num = +(srcJsValue as number);
+        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f64, got ${typeof srcJsValue}`);
+        const num = +srcJsValue;
         // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
         out[offset] = num !== num ? canonicalNaN64 : num;
         return 1;
@@ -357,8 +385,8 @@ function createF64Lifting(): LiftingFromJs {
 
 function createCharLifting(): LiftingFromJs {
     return (_, srcJsValue, out, offset) => {
-        const str = srcJsValue as string;
-        const cp = str.codePointAt(0)!;
+        if (typeof srcJsValue !== 'string') throw new TypeError(`expected a string for char, got ${typeof srcJsValue}`);
+        const cp = srcJsValue.codePointAt(0)!;
         // Spec: char_to_i32 — surrogates are not valid Unicode scalar values
         if (cp >= 0xD800 && cp <= 0xDFFF) throw new Error(`Invalid char: surrogate codepoint ${cp}`);
         out[offset] = cp;
@@ -385,13 +413,13 @@ function createStringLiftingUtf8(): LiftingFromJs {
             out[offset + 1] = 0;
             return 2;
         }
-        let allocLen: WasmSize = 0 as any;
-        let ptr: WasmPointer = 0 as any;
+        let allocLen: WasmSize = 0;
+        let ptr: WasmPointer = 0;
         let writtenTotal = 0;
         while (str.length > 0) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1 as any, allocLen + str.length as any);
-            validateAllocResult(ctx, ptr, 1, (allocLen as number) + str.length);
-            allocLen += str.length as any;
+            ptr = ctx.allocator.realloc(ptr, allocLen, 1, allocLen + str.length);
+            validateAllocResult(ctx, ptr, 1, allocLen + str.length);
+            allocLen += str.length;
             const { read, written } = ctx.utf8Encoder.encodeInto(
                 str,
                 ctx.memory.getViewU8(ptr + writtenTotal, allocLen - writtenTotal)
@@ -400,7 +428,7 @@ function createStringLiftingUtf8(): LiftingFromJs {
             str = str.slice(read);
         }
         if (allocLen > writtenTotal) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1 as any, writtenTotal as any);
+            ptr = ctx.allocator.realloc(ptr, allocLen, 1, writtenTotal);
             validateAllocResult(ctx, ptr, 1, writtenTotal);
         }
         out[offset] = ptr;
@@ -421,7 +449,7 @@ function createStringLiftingUtf16(): LiftingFromJs {
         // UTF-16: each code unit is 2 bytes, alignment = 2
         const codeUnits = str.length;
         const byteLen = codeUnits * 2;
-        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2 as any, byteLen as any);
+        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2, byteLen);
         validateAllocResult(ctx, ptr, 2, byteLen);
         const view = ctx.memory.getViewU8(ptr, byteLen as WasmSize);
         for (let i = 0; i < codeUnits; i++) {
@@ -457,15 +485,24 @@ function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding)
         case PrimitiveValType.U32:
             return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as number) >>> 0, true); };
         case PrimitiveValType.S64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val as any), true); };
+            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val), true); };
         case PrimitiveValType.U64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val as any), true); };
+            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true); };
         case PrimitiveValType.Float32:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val as number, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'number') throw new TypeError(`expected a number for f32, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val, true);
+            };
         case PrimitiveValType.Float64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val as number, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'number') throw new TypeError(`expected a number for f64, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val, true);
+            };
         case PrimitiveValType.Char:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as string).codePointAt(0)!, true); };
+            return (ctx, ptr, val) => {
+                if (typeof val !== 'string') throw new TypeError(`expected a string for char, got ${typeof val}`);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, val.codePointAt(0)!, true);
+            };
         case PrimitiveValType.String: {
             const lifter = createStringLifting(encoding);
             const tmp: WasmValue[] = [0, 0];
@@ -498,8 +535,10 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(fieldType);
             }
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for record, got ${jsValue === null ? 'null' : typeof jsValue}`);
                 for (let i = 0; i < fieldStorers.length; i++) {
-                    fieldStorers[i].storer(ctx, ptr + fieldStorers[i].offset, jsValue[fieldStorers[i].name]);
+                    const f = fieldStorers[i]!;
+                    f.storer(ctx, ptr + f.offset, jsValue[f.name]);
                 }
             };
         }
@@ -509,15 +548,15 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const elemAlign = alignOf(elemType);
             const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
             return (ctx, ptr, jsValue) => {
-                const arr = jsValue as any[];
-                const len = arr.length;
+                if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
+                const len = jsValue.length;
                 let listPtr = 0;
                 if (len > 0) {
                     const totalSize = len * elemSize;
                     listPtr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, elemAlign as WasmSize, totalSize as WasmSize);
                     validateAllocResult(ctx, listPtr as WasmPointer, elemAlign, totalSize);
                     for (let i = 0; i < len; i++) {
-                        elemStorer(ctx, listPtr + i * elemSize, arr[i]);
+                        elemStorer(ctx, listPtr + i * elemSize, jsValue[i]);
                     }
                 }
                 const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
@@ -549,7 +588,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             return (ctx, ptr, jsValue) => {
                 const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
-                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
+                if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
+                const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 if (tag === OK) {
                     dv.setUint8(0, 0);
@@ -578,9 +618,11 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
             return (ctx, ptr, jsValue) => {
-                const tag = (jsValue as any)[TAG], val = (jsValue as any)[VAL];
+                if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
+                const tag = jsValue[TAG], val = jsValue[VAL];
                 if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
-                const caseIndex = nameToIndex.get(tag)!;
+                const caseIndex = nameToIndex.get(tag);
+                if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 if (discSize === 1) dv.setUint8(0, caseIndex);
                 else if (discSize === 2) dv.setUint16(0, caseIndex, true);
@@ -595,7 +637,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const discSize = discriminantSize(type.members.length);
             const nameToIndex = new Map(type.members.map((name, i) => [name, i]));
             return (ctx, ptr, jsValue) => {
-                const idx = nameToIndex.get(jsValue as string)!;
+                const idx = nameToIndex.get(jsValue as string);
+                if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
                 const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
                 if (discSize === 1) dv.setUint8(0, idx);
                 else if (discSize === 2) dv.setUint16(0, idx, true);
@@ -606,11 +649,12 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
             const memberNames = type.members.map(m => camelCase(m));
             return (ctx, ptr, jsValue) => {
+                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
                 const flags = jsValue as Record<string, boolean>;
                 for (let w = 0; w < wordCount; w++) {
                     let word = 0;
                     for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                        if (flags[memberNames[w * 32 + b]]) word |= (1 << b);
+                        if (flags[memberNames[w * 32 + b]!]) word |= (1 << b);
                     }
                     const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
                     dv.setInt32(0, word, true);
@@ -628,9 +672,13 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 offset += sizeOf(memberType);
             }
             return (ctx, ptr, jsValue) => {
-                const arr = jsValue as any[];
+                if (jsValue == null) throw new TypeError(`expected an array for tuple, got ${jsValue === null ? 'null' : 'undefined'}`);
+                if (jsValue.length !== memberStorers.length) {
+                    throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${jsValue.length}`);
+                }
                 for (let i = 0; i < memberStorers.length; i++) {
-                    memberStorers[i].storer(ctx, ptr + memberStorers[i].offset, arr[i]);
+                    const m = memberStorers[i]!;
+                    m.storer(ctx, ptr + m.offset, jsValue[i]);
                 }
             };
         }
@@ -668,8 +716,8 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
     const elemStorer = createMemoryStorer(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
 
     return (ctx, srcJsValue, out, offset) => {
-        const arr = srcJsValue as any[];
-        const len = arr.length;
+        if (srcJsValue == null) throw new TypeError(`expected an array for list, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+        const len = srcJsValue.length;
         if (len === 0) {
             out[offset] = 0;
             out[offset + 1] = 0;
@@ -681,7 +729,7 @@ function createListLifting(rctx: ResolvedContext, listModel: ComponentTypeDefine
         validateAllocResult(ctx, ptr, elemAlign, totalSize);
 
         for (let i = 0; i < len; i++) {
-            elemStorer(ctx, ptr + i * elemSize, arr[i]);
+            elemStorer(ctx, ptr + i * elemSize, srcJsValue[i]);
         }
 
         out[offset] = ptr;
@@ -699,7 +747,7 @@ function createOptionLifting(rctx: ResolvedContext, optionModel: ComponentTypeDe
     const totalSize = 1 + innerFlatN;
 
     return (ctx, srcJsValue, out, offset) => {
-        for (let i = 0; i < totalSize; i++) out[offset + i] = 0;
+        out.fill(0, offset, offset + totalSize);
         if (srcJsValue === null || srcJsValue === undefined) {
             return totalSize;
         }
@@ -721,7 +769,6 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const joinedFlatTypes = flattenType(resolved);
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
-    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
 
     const okFlatTypes = resolved.ok ? flattenValType(resolved.ok) : [];
     const errFlatTypes = resolved.err ? flattenValType(resolved.err) : [];
@@ -729,15 +776,18 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
     return (ctx, srcJsValue, out, offset) => {
-        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
+        if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+        const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
-        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
+        out.fill(0, offset, offset + totalSize);
         if (tag === OK) {
             if (okLifter) okLifter(ctx, val, out, offset + 1);
             if (okNeedsCoercion) {
                 for (let i = 0; i < okFlatTypes.length; i++) {
-                    if (okFlatTypes[i] !== payloadJoined[i]) {
-                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFlatTypes[i], payloadJoined[i]);
+                    const okFT = okFlatTypes[i];
+                    const joinedFT = payloadJoined[i];
+                    if (okFT !== undefined && joinedFT !== undefined && okFT !== joinedFT) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFT, joinedFT);
                     }
                 }
             }
@@ -746,8 +796,10 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
             if (errLifter) errLifter(ctx, val, out, offset + 1);
             if (errNeedsCoercion) {
                 for (let i = 0; i < errFlatTypes.length; i++) {
-                    if (errFlatTypes[i] !== payloadJoined[i]) {
-                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFlatTypes[i], payloadJoined[i]);
+                    const errFT = errFlatTypes[i];
+                    const joinedFT = payloadJoined[i];
+                    if (errFT !== undefined && joinedFT !== undefined && errFT !== joinedFT) {
+                        out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFT, joinedFT);
                     }
                 }
             }
@@ -764,8 +816,6 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     // joinedFlatTypes[0] is the discriminant (i32), rest are payload
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSize = joinedFlatTypes.length;
-    // Pre-compute zero values for each slot: 0n for i64, 0 for everything else
-    const zeroValues: WasmValue[] = joinedFlatTypes.map(ft => ft === FlatType.I64 ? 0n : 0);
 
     const cases = variantModel.variants.map((c, i) => {
         const resolved = c.ty ? deepResolveType(rctx, resolveValType(rctx, c.ty)) : undefined;
@@ -783,12 +833,12 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
     const nameToCase = new Map(cases.map(c => [c.name, c]));
 
     return (ctx, srcJsValue, out, offset) => {
-        const tag = (srcJsValue as any)[TAG], val = (srcJsValue as any)[VAL];
+        if (srcJsValue == null) throw new TypeError(`expected a variant value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+        const tag = srcJsValue[TAG], val = srcJsValue[VAL];
         if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
         const c = nameToCase.get(tag);
         if (!c) throw new Error(`Unknown variant case: ${tag}`);
-        // Zero-fill with type-appropriate zeros
-        for (let i = 0; i < totalSize; i++) out[offset + i] = zeroValues[i];
+        out.fill(0, offset, offset + totalSize);
         out[offset] = c.index;
         if (c.lifter && val !== undefined) {
             c.lifter(ctx, val, out, offset + 1);
@@ -798,7 +848,7 @@ function createVariantLifting(rctx: ResolvedContext, variantModel: ComponentType
             for (let i = 0; i < c.caseFlatTypes.length; i++) {
                 const have = c.caseFlatTypes[i];
                 const want = payloadJoined[i];
-                if (have !== want) {
+                if (have !== undefined && want !== undefined && have !== want) {
                     out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, have, want);
                 }
             }
@@ -815,21 +865,21 @@ function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValu
     // (f32, i32): reinterpret f32 as i32
     if (have === FlatType.F32 && want === FlatType.I32) {
         _f32[0] = value;
-        return _i32[0];
+        return _i32[0] as number;
     }
-    // (i32, i64): widen i32 to i64
+    // (i32, i64): widen i32 to i64 — keep as Number, trampoline converts to BigInt
     if (have === FlatType.I32 && want === FlatType.I64) {
-        return BigInt(value >>> 0);
+        return value >>> 0;
     }
-    // (f32, i64): reinterpret f32 as i32, then widen to i64
+    // (f32, i64): reinterpret f32 as i32, then widen to i64 — keep as Number
     if (have === FlatType.F32 && want === FlatType.I64) {
         _f32[0] = value;
-        return BigInt(_i32[0] >>> 0);
+        return (_i32[0] as number) >>> 0;
     }
     // (f64, i64): reinterpret f64 as i64
     if (have === FlatType.F64 && want === FlatType.I64) {
         _f64[0] = value;
-        return _i64[0];
+        return _i64[0] as bigint;
     }
     return value;
 }
@@ -853,11 +903,12 @@ function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDef
     const memberNames = flagsModel.members.map(m => camelCase(m));
 
     return (_, srcJsValue, out, offset) => {
+        if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
         const flags = srcJsValue as Record<string, boolean>;
         for (let w = 0; w < wordCount; w++) {
             let word = 0;
             for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                if (flags[memberNames[w * 32 + b]]) word |= (1 << (b & 31));
+                if (flags[memberNames[w * 32 + b]!]) word |= (1 << (b & 31));
             }
             out[offset + w] = word;
         }
@@ -871,10 +922,14 @@ function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefi
     const elementLifters = tupleModel.members.map(m => createLifting(rctx, m));
 
     return (ctx, srcJsValue, out, offset) => {
-        const arr = srcJsValue as any[];
+        if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+        if (srcJsValue.length !== elementLifters.length) {
+            throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${srcJsValue.length}`);
+        }
         let pos = 0;
         for (let i = 0; i < elementLifters.length; i++) {
-            pos += elementLifters[i](ctx, arr[i], out, offset + pos);
+            const lifter = elementLifters[i]!;
+            pos += lifter(ctx, srcJsValue[i], out, offset + pos);
         }
         return pos;
     };

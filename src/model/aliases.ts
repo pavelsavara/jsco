@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';

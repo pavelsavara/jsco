@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 /**
  * Test utility: captures verbose log messages per test case.
  * When a test fails, accumulated messages are printed to aid debugging.

@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
@@ -18,8 +20,7 @@ import {
     readComponentValType, readOptionalComponentValType, readOptionalRefinement,
     readNamedValues, readComponentFuncResult,
     parsePrimitiveValType, parseAsComponentOuterAliasKind,
-    readComponentInstantiationArgs,
-    readCoreInstance, readExports, readInstantiationArgs, readInstantiationArgKind,
+    readCoreInstance, readInstantiationArgKind,
     readInstanceTypeDeclarations,
 } from './values';
 import type { SyncSource } from '../utils/streaming';
@@ -278,7 +279,7 @@ describe('values.ts', () => {
             ]);
             const result = readModuleTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.ModuleTypeDeclarationImport);
+            expect(result[0]!.tag).toBe(ModelTag.ModuleTypeDeclarationImport);
         });
 
         test('type declaration', async () => {
@@ -288,7 +289,7 @@ describe('values.ts', () => {
             ]);
             const result = readModuleTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.ModuleTypeDeclarationType);
+            expect(result[0]!.tag).toBe(ModelTag.ModuleTypeDeclarationType);
         });
 
         test('type declaration with non-0x60 tag throws', async () => {
@@ -301,7 +302,7 @@ describe('values.ts', () => {
             const src = await syncSrc([...encU32(1), 0x02, 0x10, ...encU32(0), ...encU32(0)]);
             const result = readModuleTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.ModuleTypeDeclarationOuterAlias);
+            expect(result[0]!.tag).toBe(ModelTag.ModuleTypeDeclarationOuterAlias);
         });
 
         test('outer alias with wrong sort throws', async () => {
@@ -318,7 +319,7 @@ describe('values.ts', () => {
             ]);
             const result = readModuleTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.ModuleTypeDeclarationExport);
+            expect(result[0]!.tag).toBe(ModelTag.ModuleTypeDeclarationExport);
         });
 
         test('unknown kind throws', async () => {
@@ -745,7 +746,7 @@ describe('values.ts', () => {
             ]);
             const result = readNamedValues(src);
             expect(result).toHaveLength(1);
-            expect(result[0].name).toBe('x');
+            expect(result[0]!.name).toBe('x');
         });
     });
 
@@ -876,7 +877,7 @@ describe('values.ts', () => {
             ]);
             const result = readInstanceTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.InstanceTypeDeclarationCoreType);
+            expect(result[0]!.tag).toBe(ModelTag.InstanceTypeDeclarationCoreType);
         });
 
         test('type declaration', async () => {
@@ -886,7 +887,7 @@ describe('values.ts', () => {
             ]);
             const result = readInstanceTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.InstanceTypeDeclarationType);
+            expect(result[0]!.tag).toBe(ModelTag.InstanceTypeDeclarationType);
         });
 
         test('export declaration', async () => {
@@ -898,7 +899,7 @@ describe('values.ts', () => {
             ]);
             const result = readInstanceTypeDeclarations(src);
             expect(result).toHaveLength(1);
-            expect(result[0].tag).toBe(ModelTag.InstanceTypeDeclarationExport);
+            expect(result[0]!.tag).toBe(ModelTag.InstanceTypeDeclarationExport);
         });
 
         test('unknown type throws', async () => {

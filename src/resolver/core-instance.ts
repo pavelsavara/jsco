@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import isDebug from 'env:isDebug';
 import { Export, ExternalKind } from '../model/core';
 import { CoreInstanceIndex } from '../model/indices';
@@ -36,12 +38,14 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
         switch (exp.kind) {
             case ExternalKind.Func: {
                 const func = rctx.indexes.coreFunctions[exp.index];
+                if (!func) throw new Error(`CoreInstanceFromExports: core function ${exp.index} not found`);
                 const exportResolution = resolveCoreFunction(rctx, { element: func, callerElement: exp as unknown as TaggedElement });
                 exportResolutions.push(exportResolution);
                 break;
             }
             case ExternalKind.Table: {
                 const table = rctx.indexes.coreTables[exp.index];
+                if (!table) throw new Error(`CoreInstanceFromExports: core table ${exp.index} not found`);
                 const exportResolution = resolveCoreFunction(rctx, { element: table, callerElement: exp as unknown as TaggedElement });
                 exportResolutions.push(exportResolution);
                 break;
@@ -52,9 +56,11 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 // rather than the global bctx.memory singleton — this handles components
                 // with multiple core modules where memory flows between them.
                 const coreMemoryAlias = rctx.indexes.coreMemories[exp.index];
+                if (!coreMemoryAlias) throw new Error(`CoreInstanceFromExports: core memory ${exp.index} not found`);
                 const sourceInstanceIndex = coreMemoryAlias.instance_index;
                 const sourceExportName = coreMemoryAlias.name;
                 const sourceInstance = rctx.indexes.coreInstances[sourceInstanceIndex];
+                if (!sourceInstance) throw new Error(`CoreInstanceFromExports: core instance ${sourceInstanceIndex} not found`);
                 const sourceResolution = resolveCoreInstance(rctx, { element: sourceInstance, callerElement: exp as unknown as TaggedElement });
                 exportResolutions.push({
                     element: exp as unknown as TaggedElement,

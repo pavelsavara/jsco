@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { validateExportType, validateImportType } from './type-validation';
 import { ModelTag } from '../model/tags';
 import { ComponentExternalKind } from '../model/exports';
@@ -8,7 +10,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
     return {
         usesNumberForInt64: false,
         validateTypes: true,
-        wasmInstantiate: async (m, i) => WebAssembly.instantiate(m, i),
+        wasmInstantiate: async (m: WebAssembly.Module, i: WebAssembly.Imports | undefined) => WebAssembly.instantiate(m, i),
         liftingCache: new Map(), loweringCache: new Map(),
         resolvedTypes: new Map(),
         importToInstanceIndex: new Map(),
@@ -31,7 +33,7 @@ function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): Resol
             componentSections: [],
             ...overrides,
         },
-    };
+    } as unknown as ResolverContext;
 }
 
 describe('type-validation', () => {
@@ -451,6 +453,59 @@ describe('type-validation', () => {
                 index: 0,
                 ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
             })).not.toThrow();
+        });
+
+        test('param with ComponentValTypeType matching passes', () => {
+            const funcType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 5 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const rctx = makeMinimalRctx({
+                componentTypes: [funcType, funcType],
+                componentFunctions: [{
+                    tag: ModelTag.CanonicalFunctionLift,
+                    core_func_index: 0,
+                    type_index: 1,
+                    options: [],
+                } as any],
+            });
+            expect(() => validateExportType(rctx, {
+                tag: ModelTag.ComponentExport,
+                name: { tag: ModelTag.ComponentExternNameKebab, name: 'f' },
+                kind: ComponentExternalKind.Func,
+                index: 0,
+                ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
+            })).not.toThrow();
+        });
+
+        test('param with ComponentValTypeType mismatch throws', () => {
+            const declaredType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 5 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const actualType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 7 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const rctx = makeMinimalRctx({
+                componentTypes: [declaredType, actualType],
+                componentFunctions: [{
+                    tag: ModelTag.CanonicalFunctionLift,
+                    core_func_index: 0,
+                    type_index: 1,
+                    options: [],
+                } as any],
+            });
+            expect(() => validateExportType(rctx, {
+                tag: ModelTag.ComponentExport,
+                name: { tag: ModelTag.ComponentExternNameKebab, name: 'f' },
+                kind: ComponentExternalKind.Func,
+                index: 0,
+                ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
+            })).toThrow(/param 0.*type mismatch/);
         });
     });
 });

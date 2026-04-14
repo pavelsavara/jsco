@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
 import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry } from './filesystem';
 import type { WasiDatetime } from './types';
 
@@ -638,7 +640,7 @@ describe('wasi:filesystem', () => {
             ]));
             const dirs = fs.preopens.getDirectories();
             expect(dirs.length).toBe(1);
-            const [desc, path] = dirs[0];
+            const [desc, path] = dirs[0]!;
             expect(path).toBe('/data');
             expect(unwrap(desc.getType())).toBe('directory');
         });
@@ -647,7 +649,7 @@ describe('wasi:filesystem', () => {
             const fs = createWasiFilesystem();
             const dirs = fs.preopens.getDirectories();
             expect(dirs.length).toBe(1);
-            expect(dirs[0][1]).toBe('/');
+            expect(dirs[0]![1]).toBe('/');
         });
 
         it('file-only root gives root preopen', () => {
