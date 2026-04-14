@@ -14,12 +14,13 @@
 import { parse } from '../../parser';
 import { createComponent } from '../../resolver';
 import { createWasiP2Host } from './index';
-import { WasiExit } from './types';
-import { instantiateWasiComponent } from './instantiate';
+import { WasiExit } from './api';
+import { instantiateWasiComponent, setCreateComponent } from './instantiate';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
 initializeAsserts();
+setCreateComponent(createComponent);
 
 const helloWasm = './integration-tests/target/wasm32-wasip1/release/hello_world.wasm';
 

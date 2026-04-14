@@ -1,11 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { getBuildInfo, createComponent, instantiateWasiComponent, createWasiP2Host, LogLevel } from './index';
+import { getBuildInfo, createComponent, LogLevel } from './index';
+import { instantiateWasiComponent, createWasiP2Host } from './wasip2';
 import { GIT_HASH, CONFIGURATION } from './constants';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
-import { WasiExit } from './host/wasip2/types';
+import { WasiExit } from './host/wasip2/api';
 
 initializeAsserts();
 

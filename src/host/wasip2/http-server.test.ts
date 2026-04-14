@@ -4,14 +4,16 @@
  * Tests for wasi:http/incoming-handler — Node.js HTTP server integration
  */
 
+import type {
+    WasiIncomingRequest,
+    WasiResponseOutparam,
+    IncomingHandlerFn,
+} from './api';
 import {
     createHttpServer,
     createOutgoingResponse,
     responseOutparamSet,
     createFutureTrailers,
-    WasiIncomingRequest,
-    WasiResponseOutparam,
-    IncomingHandlerFn,
 } from './http-server';
 import { createFields, createFieldsFromList } from './http';
 
@@ -244,6 +246,85 @@ describe('wasi:http/incoming-handler server', () => {
         try {
             const response = await fetch(`http://127.0.0.1:${port}/`);
             expect(response.status).toBe(500);
+        } finally {
+            await server.stop();
+        }
+    }, 10000);
+
+    test('URL exceeding maxRequestUrlBytes returns 414', async () => {
+        const handler: IncomingHandlerFn = (_req, responseOut) => {
+            const fields = createFields();
+            const response = createOutgoingResponse(fields);
+            responseOutparamSet(responseOut, { tag: 'ok', val: response });
+        };
+
+        const server = createHttpServer(handler, {
+            port: 0,
+            network: { maxRequestUrlBytes: 20 },
+        });
+        const port = await server.start();
+
+        try {
+            const longPath = '/a'.repeat(50);
+            const response = await fetch(`http://127.0.0.1:${port}${longPath}`);
+            expect(response.status).toBe(414);
+        } finally {
+            await server.stop();
+        }
+    }, 10000);
+
+    test('short URL within maxRequestUrlBytes succeeds', async () => {
+        const handler: IncomingHandlerFn = (_req, responseOut) => {
+            const fields = createFields();
+            const response = createOutgoingResponse(fields);
+            responseOutparamSet(responseOut, { tag: 'ok', val: response });
+        };
+
+        const server = createHttpServer(handler, {
+            port: 0,
+            network: { maxRequestUrlBytes: 1000 },
+        });
+        const port = await server.start();
+
+        try {
+            const response = await fetch(`http://127.0.0.1:${port}/ok`);
+            expect(response.status).toBe(200);
+        } finally {
+            await server.stop();
+        }
+    }, 10000);
+
+    test('server port() returns actual listening port', async () => {
+        const handler: IncomingHandlerFn = (_req, responseOut) => {
+            const fields = createFields();
+            const response = createOutgoingResponse(fields);
+            responseOutparamSet(responseOut, { tag: 'ok', val: response });
+        };
+
+        const server = createHttpServer(handler, { port: 0 });
+        const port = await server.start();
+
+        try {
+            expect(server.port()).toBe(port);
+            expect(port).toBeGreaterThan(0);
+        } finally {
+            await server.stop();
+        }
+    }, 10000);
+
+    test('server accepts custom hostname', async () => {
+        const handler: IncomingHandlerFn = (_req, responseOut) => {
+            const fields = createFields();
+            const response = createOutgoingResponse(fields);
+            responseOutparamSet(responseOut, { tag: 'ok', val: response });
+        };
+
+        const server = createHttpServer(handler, { port: 0, hostname: '127.0.0.1' });
+        const port = await server.start();
+
+        try {
+            const response = await fetch(`http://127.0.0.1:${port}/`);
+            expect(response.status).toBe(200);
         } finally {
             await server.stop();
         }

@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { createNodeFilesystem } from './filesystem-node';
-import type { FsResult } from './filesystem';
+import type { FsResult } from './api';
 
 /** Helper: unwrap an ok result or throw */
 function unwrap<T>(result: FsResult<T>): T {
@@ -440,6 +440,132 @@ describe('filesystem-node', () => {
             const root = filesystem.rootDescriptor();
 
             expectErr(root.openAt({}, 'file.txt', { directory: true }, { read: true }), 'not-directory');
+        });
+    });
+
+    // ─── Path traversal hardening ───
+
+    describe('path traversal hardening', () => {
+        test('.. escape above mount root returns access error', () => {
+            const subDir = path.join(tempDir, 'sandbox');
+            fs.mkdirSync(subDir);
+            fs.writeFileSync(path.join(tempDir, 'secret.txt'), 'secret');
+            const filesystem = createNodeFilesystem([{ hostPath: subDir, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            expectErr(root.openAt({}, '../secret.txt', {}, { read: true }), 'access');
+        });
+
+        test('nested .. does not escape mount root', () => {
+            const subDir = path.join(tempDir, 'a', 'b');
+            fs.mkdirSync(subDir, { recursive: true });
+            fs.writeFileSync(path.join(tempDir, 'escape.txt'), 'escaped');
+            const filesystem = createNodeFilesystem([{ hostPath: subDir, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            expectErr(root.openAt({}, '../../escape.txt', {}, { read: true }), 'access');
+        });
+
+        test('symlink inside mount is followed', () => {
+            fs.writeFileSync(path.join(tempDir, 'target.txt'), 'linked');
+            try {
+                fs.symlinkSync(path.join(tempDir, 'target.txt'), path.join(tempDir, 'link.txt'));
+            } catch {
+                // symlinks require elevated privileges on Windows
+                return;
+            }
+            const filesystem = createNodeFilesystem([{ hostPath: tempDir, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            const fd = unwrap(root.openAt({}, 'link.txt', {}, { read: true }));
+            const data = unwrap(fd.read(100n, 0n));
+            expect(dec.decode(data[0])).toBe('linked');
+        });
+
+        test('symlink escaping mount root returns access error', () => {
+            // Create a symlink inside the sandbox that points outside
+            const sandbox = path.join(tempDir, 'jail');
+            fs.mkdirSync(sandbox);
+            fs.writeFileSync(path.join(tempDir, 'outside.txt'), 'outside');
+            try {
+                fs.symlinkSync(path.join(tempDir, 'outside.txt'), path.join(sandbox, 'escape-link'));
+            } catch {
+                return;
+            }
+
+            const filesystem = createNodeFilesystem([{ hostPath: sandbox, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            expectErr(root.openAt({}, 'escape-link', {}, { read: true }), 'access');
+        });
+
+        test('write through symlink escaping mount returns access error', () => {
+            const sandbox = path.join(tempDir, 'jail2');
+            fs.mkdirSync(sandbox);
+            fs.writeFileSync(path.join(tempDir, 'target-outside.txt'), 'original');
+            try {
+                fs.symlinkSync(path.join(tempDir, 'target-outside.txt'), path.join(sandbox, 'write-escape'));
+            } catch {
+                return;
+            }
+
+            const filesystem = createNodeFilesystem([{ hostPath: sandbox, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            expectErr(root.openAt({}, 'write-escape', {}, { write: true }), 'access');
+            // original file should not be modified
+            expect(fs.readFileSync(path.join(tempDir, 'target-outside.txt'), 'utf8')).toBe('original');
+        });
+
+        test('create file through symlinked directory escaping mount returns access error', () => {
+            const sandbox = path.join(tempDir, 'jail3');
+            fs.mkdirSync(sandbox);
+            const outsideDir = path.join(tempDir, 'outside-dir');
+            fs.mkdirSync(outsideDir);
+            try {
+                fs.symlinkSync(outsideDir, path.join(sandbox, 'dir-escape'));
+            } catch {
+                return;
+            }
+
+            const filesystem = createNodeFilesystem([{ hostPath: sandbox, guestPath: '/' }]);
+            const root = filesystem.rootDescriptor();
+
+            expectErr(root.openAt({}, 'dir-escape/new-file.txt', { create: true }, { write: true }), 'access');
+        });
+    });
+
+    // ─── Read-only mounts ───
+
+    describe('read-only mounts', () => {
+        test('read-only mount allows read', () => {
+            fs.writeFileSync(path.join(tempDir, 'readonly.txt'), 'readable');
+            const filesystem = createNodeFilesystem([{ hostPath: tempDir, guestPath: '/', readOnly: true }]);
+            const root = filesystem.rootDescriptor();
+
+            const fd = unwrap(root.openAt({}, 'readonly.txt', {}, { read: true }));
+            const data = unwrap(fd.read(100n, 0n));
+            expect(dec.decode(data[0])).toBe('readable');
+        });
+    });
+
+    // ─── Multiple mounts ───
+
+    describe('multiple mounts', () => {
+        test('files accessible from each mount', () => {
+            const dirA = path.join(tempDir, 'mount-a');
+            const dirB = path.join(tempDir, 'mount-b');
+            fs.mkdirSync(dirA);
+            fs.mkdirSync(dirB);
+            fs.writeFileSync(path.join(dirA, 'a.txt'), 'from-a');
+            fs.writeFileSync(path.join(dirB, 'b.txt'), 'from-b');
+
+            const filesystem = createNodeFilesystem([
+                { hostPath: dirA, guestPath: '/mnt/a' },
+                { hostPath: dirB, guestPath: '/mnt/b' },
+            ]);
+            const dirs = filesystem.preopens.getDirectories();
+            expect(dirs.length).toBe(2);
         });
     });
 });

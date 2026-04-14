@@ -22,7 +22,7 @@
  */
 
 import type { Stats } from 'node:fs';
-import {
+import type {
     ErrorCode,
     DescriptorType,
     DescriptorFlags,
@@ -34,10 +34,11 @@ import {
     FsResult,
     WasiDirectoryEntryStream,
     WasiDescriptor,
-    WasiFilesystem,
-} from './filesystem';
-import type { WasiDatetime } from './types';
-import type { WasiInputStream, WasiOutputStream } from './streams';
+    WasiDatetime,
+    WasiInputStream,
+    WasiOutputStream,
+} from './api';
+import type { WasiFilesystem, FsMount } from './types';
 import { createInputStream, createOutputStream } from './streams';
 
 // ─── Node.js fs detection ───
@@ -66,18 +67,6 @@ function getNodePath(): typeof import('node:path') | null {
         }
     }
     return _nodePath;
-}
-
-// ─── Types ───
-
-/** A mount point mapping host path to guest path */
-export interface FsMount {
-    /** Host filesystem path (absolute or relative to cwd) */
-    hostPath: string;
-    /** Guest path visible to the WASM component */
-    guestPath: string;
-    /** Read-only mount. Default: false (read-write) */
-    readOnly?: boolean;
 }
 
 // ─── Helpers ───

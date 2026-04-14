@@ -7,19 +7,8 @@
  * subscribeDuration() / subscribeInstant() create Pollables via setTimeout.
  */
 
-import { WasiPollable, createSyncPollable, createAsyncPollable } from './poll';
-
-/** wasi:clocks/monotonic-clock — monotonic clock resource */
-export interface WasiMonotonicClock {
-    /** Current time in nanoseconds (monotonic, not wall-clock) */
-    now(): bigint;
-    /** Clock resolution in nanoseconds */
-    resolution(): bigint;
-    /** Subscribe for a duration (nanoseconds from now). Returns a pollable. */
-    subscribeDuration(nanos: bigint): WasiPollable;
-    /** Subscribe until an absolute instant (nanoseconds since clock epoch). Returns a pollable. */
-    subscribeInstant(instant: bigint): WasiPollable;
-}
+import type { WasiPollable, WasiMonotonicClock } from './api';
+import { createSyncPollable, createAsyncPollable } from './poll';
 
 /** Nanoseconds per millisecond */
 const NS_PER_MS = 1_000_000n;

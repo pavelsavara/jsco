@@ -16,66 +16,27 @@
  * - Incoming handler: stub (would need Service Worker)
  */
 
-import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-import { WasiPollable, createAsyncPollable } from './poll';
-
-// ─── Method ───
-
-/** wasi:http/types method variant */
-export type HttpMethod =
-    | { tag: 'get' }
-    | { tag: 'head' }
-    | { tag: 'post' }
-    | { tag: 'put' }
-    | { tag: 'delete' }
-    | { tag: 'connect' }
-    | { tag: 'options' }
-    | { tag: 'trace' }
-    | { tag: 'patch' }
-    | { tag: 'other'; val: string };
-
-/** wasi:http/types scheme variant */
-export type HttpScheme =
-    | { tag: 'HTTP' }
-    | { tag: 'HTTPS' }
-    | { tag: 'other'; val: string };
-
-// ─── Error Code ───
-
-/** wasi:http/types error-code variant (subset of 30+ cases) */
-export type HttpErrorCode =
-    | { tag: 'DNS-timeout' }
-    | { tag: 'DNS-error'; val?: { rcode?: string; infoCode?: number } }
-    | { tag: 'destination-not-found' }
-    | { tag: 'destination-unavailable' }
-    | { tag: 'connection-refused' }
-    | { tag: 'connection-terminated' }
-    | { tag: 'connection-timeout' }
-    | { tag: 'TLS-protocol-error' }
-    | { tag: 'TLS-alert-received'; val?: { alertId?: number; alertMessage?: string } }
-    | { tag: 'HTTP-request-denied' }
-    | { tag: 'HTTP-request-body-size'; val?: bigint }
-    | { tag: 'HTTP-request-method-invalid' }
-    | { tag: 'HTTP-request-URI-invalid' }
-    | { tag: 'HTTP-request-header-section-size'; val?: number }
-    | { tag: 'HTTP-request-header-size'; val?: { fieldName?: string; fieldSize?: number } }
-    | { tag: 'HTTP-response-incomplete' }
-    | { tag: 'HTTP-response-header-section-size'; val?: number }
-    | { tag: 'HTTP-response-header-size'; val?: { fieldName?: string; fieldSize?: number } }
-    | { tag: 'HTTP-response-body-size'; val?: bigint }
-    | { tag: 'HTTP-response-transfer-coding'; val?: string }
-    | { tag: 'HTTP-response-content-coding'; val?: string }
-    | { tag: 'size-exceeded'; val?: string }
-    | { tag: 'internal-error'; val?: string };
-
-/** wasi:http/types header-error */
-export type HeaderError =
-    | { tag: 'invalid-syntax' }
-    | { tag: 'forbidden' }
-    | { tag: 'immutable' };
-
-/** Result type for HTTP operations */
-export type HttpResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: HttpErrorCode };
+import type {
+    WasiInputStream,
+    WasiOutputStream,
+    WasiPollable,
+    HttpMethod,
+    HttpScheme,
+    HttpErrorCode,
+    HeaderError,
+    HttpResult,
+    WasiFields,
+    WasiOutgoingRequest,
+    WasiOutgoingBody,
+    WasiRequestOptions,
+    WasiIncomingResponse,
+    WasiIncomingBody,
+    WasiFutureIncomingResponse,
+    WasiOutgoingHandler,
+} from './api';
+import type { FetchFn } from './types';
+import { createInputStream, createOutputStream } from './streams';
+import { createAsyncPollable } from './poll';
 
 function httpOk<T>(val: T): HttpResult<T> {
     return { tag: 'ok', val };
@@ -86,24 +47,6 @@ function httpErr<T>(code: HttpErrorCode): HttpResult<T> {
 }
 
 // ─── Fields ───
-
-/** wasi:http/types fields resource — HTTP headers/trailers */
-export interface WasiFields {
-    /** Get all values for a header name */
-    get(name: string): Uint8Array[];
-    /** Check if a header exists */
-    has(name: string): boolean;
-    /** Set all values for a header name */
-    set(name: string, values: Uint8Array[]): { tag: 'ok' } | { tag: 'err'; val: HeaderError };
-    /** Append a value to a header */
-    append(name: string, value: Uint8Array): { tag: 'ok' } | { tag: 'err'; val: HeaderError };
-    /** Delete a header */
-    delete(name: string): { tag: 'ok' } | { tag: 'err'; val: HeaderError };
-    /** Get all entries */
-    entries(): [string, Uint8Array][];
-    /** Clone this fields resource */
-    clone(): WasiFields;
-}
 
 /** Forbidden headers that cannot be set via the WASI HTTP API */
 const FORBIDDEN_HEADERS = new Set([
@@ -210,36 +153,6 @@ function createFieldsFromMap(map: Map<string, Uint8Array[]>, immutable = false):
 
 // ─── Outgoing Request ───
 
-/** wasi:http/types outgoing-request resource */
-export interface WasiOutgoingRequest {
-    /** Get the HTTP method */
-    method(): HttpMethod;
-    /** Set the HTTP method */
-    setMethod(method: HttpMethod): boolean;
-    /** Get path with query */
-    pathWithQuery(): string | undefined;
-    /** Set path with query */
-    setPathWithQuery(path: string | undefined): boolean;
-    /** Get scheme */
-    scheme(): HttpScheme | undefined;
-    /** Set scheme */
-    setScheme(scheme: HttpScheme | undefined): boolean;
-    /** Get authority (host:port) */
-    authority(): string | undefined;
-    /** Set authority */
-    setAuthority(authority: string | undefined): boolean;
-    /** Get headers */
-    headers(): WasiFields;
-    /** Get body (only once) */
-    body(): HttpResult<WasiOutgoingBody>;
-}
-
-/** wasi:http/types outgoing-body resource */
-export interface WasiOutgoingBody {
-    /** Get the output stream (only once) */
-    write(): HttpResult<WasiOutputStream>;
-}
-
 /** Create an outgoing request */
 export function createOutgoingRequest(headers: WasiFields): WasiOutgoingRequest {
     let _method: HttpMethod = { tag: 'get' };
@@ -281,19 +194,6 @@ export function createOutgoingRequest(headers: WasiFields): WasiOutgoingRequest 
 
 // ─── Request Options ───
 
-/** wasi:http/types request-options resource */
-export interface WasiRequestOptions {
-    /** Connect timeout in nanoseconds */
-    connectTimeout(): bigint | undefined;
-    setConnectTimeout(timeout: bigint | undefined): boolean;
-    /** First byte timeout in nanoseconds */
-    firstByteTimeout(): bigint | undefined;
-    setFirstByteTimeout(timeout: bigint | undefined): boolean;
-    /** Between bytes timeout in nanoseconds */
-    betweenBytesTimeout(): bigint | undefined;
-    setBetweenBytesTimeout(timeout: bigint | undefined): boolean;
-}
-
 /** Create request options */
 export function createRequestOptions(): WasiRequestOptions {
     let _connectTimeout: bigint | undefined = undefined;
@@ -311,22 +211,6 @@ export function createRequestOptions(): WasiRequestOptions {
 }
 
 // ─── Incoming Response ───
-
-/** wasi:http/types incoming-response resource */
-export interface WasiIncomingResponse {
-    /** HTTP status code */
-    status(): number;
-    /** Response headers */
-    headers(): WasiFields;
-    /** Consume the body (only once) */
-    consume(): HttpResult<WasiIncomingBody>;
-}
-
-/** wasi:http/types incoming-body resource */
-export interface WasiIncomingBody {
-    /** Get the input stream (only once) */
-    stream(): HttpResult<WasiInputStream>;
-}
 
 function createIncomingResponse(status: number, headers: WasiFields, bodyBytes: Uint8Array): WasiIncomingResponse {
     let consumed = false;
@@ -349,26 +233,7 @@ function createIncomingResponse(status: number, headers: WasiFields, bodyBytes: 
     };
 }
 
-// ─── Future Incoming Response ───
-
-/** wasi:http/types future-incoming-response resource */
-export interface WasiFutureIncomingResponse {
-    /** Subscribe for readiness */
-    subscribe(): WasiPollable;
-    /** Get the response (returns undefined if not ready yet) */
-    get(): HttpResult<WasiIncomingResponse> | undefined;
-}
-
 // ─── Outgoing Handler ───
-
-/** Fetch function type — matches the browser fetch API signature */
-export type FetchFn = (input: string | URL, init?: RequestInit) => Promise<Response>;
-
-/** wasi:http/outgoing-handler interface */
-export interface WasiOutgoingHandler {
-    /** Send an outgoing request, get a future response */
-    handle(request: WasiOutgoingRequest, options?: WasiRequestOptions): HttpResult<WasiFutureIncomingResponse>;
-}
 
 /** Convert an HttpMethod variant to a fetch method string */
 function methodToString(method: HttpMethod): string {
@@ -506,7 +371,7 @@ export function createOutgoingHandler(fetchFn?: FetchFn, maxHttpBodyBytes?: numb
                     let totalBodySize = 0;
                     if (response.body) {
                         const reader = response.body.getReader();
-                        for (;;) {
+                        for (; ;) {
                             const { done, value: chunk } = await reader.read();
                             if (done) break;
                             totalBodySize += chunk.byteLength;

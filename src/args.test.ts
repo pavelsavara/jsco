@@ -1,10 +1,13 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { parseCliArgs, HELP_TEXT } from './args';
+import { parseCliArgs, HELP_TEXT, getHelpText, RUN_HELP_TEXT, SERVE_HELP_TEXT } from './args';
 
 describe('parseCliArgs', () => {
-    test('bare .wasm path as last argument', () => {
+    // ─── Command detection ───
+
+    test('bare .wasm path defaults to run command', () => {
         const result = parseCliArgs(['component.wasm']);
+        expect(result.command).toBe('run');
         expect(result.componentUrl).toBe('component.wasm');
         expect(result.error).toBeUndefined();
         expect(result.help).toBe(false);
@@ -12,6 +15,40 @@ describe('parseCliArgs', () => {
         expect(result.options.noJspi).toBe(false);
         expect(result.options.validateTypes).toBe(true);
     });
+
+    test('explicit run command', () => {
+        const result = parseCliArgs(['run', 'component.wasm']);
+        expect(result.command).toBe('run');
+        expect(result.componentUrl).toBe('component.wasm');
+        expect(result.error).toBeUndefined();
+    });
+
+    test('serve command', () => {
+        const result = parseCliArgs(['serve', 'component.wasm']);
+        expect(result.command).toBe('serve');
+        expect(result.componentUrl).toBe('component.wasm');
+        expect(result.error).toBeUndefined();
+    });
+
+    test('help command shows help', () => {
+        const result = parseCliArgs(['help']);
+        expect(result.help).toBe(true);
+        expect(result.error).toBeUndefined();
+    });
+
+    test('help run shows run help', () => {
+        const result = parseCliArgs(['help', 'run']);
+        expect(result.help).toBe(true);
+        expect(result.command).toBe('run');
+    });
+
+    test('help serve shows serve help', () => {
+        const result = parseCliArgs(['help', 'serve']);
+        expect(result.help).toBe(true);
+        expect(result.command).toBe('serve');
+    });
+
+    // ─── Common flags ───
 
     test('--component= flag', () => {
         const result = parseCliArgs(['--component=/path/to/my.wasm']);
@@ -38,8 +75,9 @@ describe('parseCliArgs', () => {
         expect(result.error).toBeUndefined();
     });
 
-    test('all flags combined', () => {
-        const result = parseCliArgs(['--use-number-for-int64', '--no-jspi', '--validate-types', '--component=app.wasm']);
+    test('all flags combined with run', () => {
+        const result = parseCliArgs(['run', '--use-number-for-int64', '--no-jspi', '--validate-types', '--component=app.wasm']);
+        expect(result.command).toBe('run');
         expect(result.options.useNumberForInt64).toBe(true);
         expect(result.options.noJspi).toBe(true);
         expect(result.options.validateTypes).toBe(true);
@@ -56,11 +94,6 @@ describe('parseCliArgs', () => {
         const result = parseCliArgs([]);
         expect(result.error).toContain('usage:');
         expect(result.componentUrl).toBeUndefined();
-    });
-
-    test('.wasm only recognized as last argument', () => {
-        const result = parseCliArgs(['foo.wasm', 'bar.wasm']);
-        expect(result.error).toBe('Unknown argument: foo.wasm');
     });
 
     test('empty strings are skipped', () => {
@@ -95,30 +128,190 @@ describe('parseCliArgs', () => {
         expect(result.componentUrl).toBeUndefined();
     });
 
-    test('HELP_TEXT contains all networking options', () => {
-        expect(HELP_TEXT).toContain('--max-http-body-bytes');
-        expect(HELP_TEXT).toContain('--max-http-headers-bytes');
-        expect(HELP_TEXT).toContain('--socket-buffer-bytes');
-        expect(HELP_TEXT).toContain('--max-tcp-pending');
-        expect(HELP_TEXT).toContain('--tcp-idle-timeout-ms');
-        expect(HELP_TEXT).toContain('--http-request-timeout-ms');
-        expect(HELP_TEXT).toContain('--max-udp-datagrams');
-        expect(HELP_TEXT).toContain('--dns-timeout-ms');
-        expect(HELP_TEXT).toContain('--max-concurrent-dns');
-        expect(HELP_TEXT).toContain('--max-http-connections');
-        expect(HELP_TEXT).toContain('--max-request-url-bytes');
-        expect(HELP_TEXT).toContain('--http-headers-timeout-ms');
-        expect(HELP_TEXT).toContain('--http-keep-alive-timeout-ms');
-        expect(HELP_TEXT).toContain('--env=');
-        expect(HELP_TEXT).toContain('--env-inherit');
-        expect(HELP_TEXT).toContain('--dir=');
-        expect(HELP_TEXT).toContain('--cwd=');
-        expect(HELP_TEXT).toContain('--enable=');
+    test('run --help returns help for run', () => {
+        const result = parseCliArgs(['run', '--help']);
+        expect(result.help).toBe(true);
+        expect(result.command).toBe('run');
     });
 
+    test('serve --help returns help for serve', () => {
+        const result = parseCliArgs(['serve', '--help']);
+        expect(result.help).toBe(true);
+        expect(result.command).toBe('serve');
+    });
+
+    // ─── Help text content ───
+
+    test('HELP_TEXT contains commands', () => {
+        expect(HELP_TEXT).toContain('run');
+        expect(HELP_TEXT).toContain('serve');
+        expect(HELP_TEXT).toContain('help');
+    });
+
+    test('RUN_HELP_TEXT contains run-specific content', () => {
+        expect(RUN_HELP_TEXT).toContain('Runs a WebAssembly component');
+        expect(RUN_HELP_TEXT).toContain('--dir');
+        expect(RUN_HELP_TEXT).toContain('--env');
+        expect(RUN_HELP_TEXT).toContain('--max-http-body-bytes');
+    });
+
+    test('SERVE_HELP_TEXT contains serve-specific content', () => {
+        expect(SERVE_HELP_TEXT).toContain('Serves requests');
+        expect(SERVE_HELP_TEXT).toContain('--addr');
+        expect(SERVE_HELP_TEXT).toContain('0.0.0.0:8080');
+    });
+
+    test('getHelpText returns correct text per command', () => {
+        expect(getHelpText()).toBe(HELP_TEXT);
+        expect(getHelpText('run')).toBe(RUN_HELP_TEXT);
+        expect(getHelpText('serve')).toBe(SERVE_HELP_TEXT);
+    });
+
+    // ─── Serve-specific options ───
+
+    describe('serve options', () => {
+        test('--addr with = syntax', () => {
+            const result = parseCliArgs(['serve', '--addr=127.0.0.1:3000', 'test.wasm']);
+            expect(result.command).toBe('serve');
+            expect(result.options.addr).toBe('127.0.0.1:3000');
+        });
+
+        test('--addr with space syntax', () => {
+            const result = parseCliArgs(['serve', '--addr', '0.0.0.0:9090', 'test.wasm']);
+            expect(result.command).toBe('serve');
+            expect(result.options.addr).toBe('0.0.0.0:9090');
+        });
+
+        test('addr defaults to undefined (resolved at runtime)', () => {
+            const result = parseCliArgs(['serve', 'test.wasm']);
+            expect(result.options.addr).toBeUndefined();
+        });
+    });
+
+    // ─── Environment CLI args ───
+
+    describe('environment CLI args', () => {
+        test('--env KEY=VALUE with = syntax', () => {
+            const result = parseCliArgs(['--env=HOME=/usr/home', 'test.wasm']);
+            expect(result.options.env).toEqual({ HOME: '/usr/home' });
+            expect(result.error).toBeUndefined();
+        });
+
+        test('--env KEY=VALUE with space syntax', () => {
+            const result = parseCliArgs(['--env', 'HOME=/usr/home', 'test.wasm']);
+            expect(result.options.env).toEqual({ HOME: '/usr/home' });
+            expect(result.error).toBeUndefined();
+        });
+
+        test('multiple --env args', () => {
+            const result = parseCliArgs(['--env', 'A=1', '--env', 'B=2', 'test.wasm']);
+            expect(result.options.env).toEqual({ A: '1', B: '2' });
+        });
+
+        test('--env with value containing =', () => {
+            const result = parseCliArgs(['--env', 'PATH=/usr/bin:/bin', 'test.wasm']);
+            expect(result.options.env).toEqual({ PATH: '/usr/bin:/bin' });
+        });
+
+        test('--env NAME inherits single variable', () => {
+            const result = parseCliArgs(['--env', 'HOME', 'test.wasm']);
+            expect(result.options.envInheritNames).toEqual(['HOME']);
+            expect(result.error).toBeUndefined();
+        });
+
+        test('--env=NAME inherits single variable (= syntax)', () => {
+            const result = parseCliArgs(['--env=HOME', 'test.wasm']);
+            expect(result.options.envInheritNames).toEqual(['HOME']);
+        });
+
+        test('--env-inherit flag', () => {
+            const result = parseCliArgs(['--env-inherit', 'test.wasm']);
+            expect(result.options.envInheritAll).toBe(true);
+            expect(result.error).toBeUndefined();
+        });
+    });
+
+    // ─── Mount CLI args ───
+
+    describe('mount CLI args', () => {
+        test('--dir HOST::GUEST with space syntax', () => {
+            const result = parseCliArgs(['--dir', '/data::/mnt/data', 'test.wasm']);
+            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/mnt/data', readOnly: false }]);
+            expect(result.error).toBeUndefined();
+        });
+
+        test('--dir=HOST::GUEST with = syntax', () => {
+            const result = parseCliArgs(['--dir=/data::/mnt/data', 'test.wasm']);
+            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/mnt/data', readOnly: false }]);
+        });
+
+        test('--dir HOST::GUEST::ro mounts read-only', () => {
+            const result = parseCliArgs(['--dir', '/data::/mnt/data::ro', 'test.wasm']);
+            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/mnt/data', readOnly: true }]);
+        });
+
+        test('--dir HOST_DIR without guest maps to same path', () => {
+            const result = parseCliArgs(['--dir', '/data', 'test.wasm']);
+            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/data', readOnly: false }]);
+        });
+
+        test('multiple --dir args', () => {
+            const result = parseCliArgs(['--dir', '.::/app', '--dir', '/tmp::/tmp::ro', 'test.wasm']);
+            expect(result.options.mounts).toHaveLength(2);
+            expect(result.options.mounts[0]).toEqual({ hostPath: '.', guestPath: '/app', readOnly: false });
+            expect(result.options.mounts[1]).toEqual({ hostPath: '/tmp', guestPath: '/tmp', readOnly: true });
+        });
+    });
+
+    // ─── CWD ───
+
+    describe('cwd CLI arg', () => {
+        test('--cwd with = syntax', () => {
+            const result = parseCliArgs(['--cwd=/app', 'test.wasm']);
+            expect(result.options.cwd).toBe('/app');
+            expect(result.error).toBeUndefined();
+        });
+
+        test('--cwd with space syntax', () => {
+            const result = parseCliArgs(['--cwd', '/app', 'test.wasm']);
+            expect(result.options.cwd).toBe('/app');
+        });
+    });
+
+    // ─── Enabled interfaces ───
+
+    describe('enabledInterfaces CLI args', () => {
+        test('--enable with = syntax', () => {
+            const result = parseCliArgs(['--enable=wasi:http', 'test.wasm']);
+            expect(result.options.enabledInterfaces).toEqual(['wasi:http']);
+        });
+
+        test('--enable with space syntax', () => {
+            const result = parseCliArgs(['--enable', 'wasi:http', 'test.wasm']);
+            expect(result.options.enabledInterfaces).toEqual(['wasi:http']);
+        });
+
+        test('multiple --enable args', () => {
+            const result = parseCliArgs(['--enable', 'wasi:http', '--enable', 'wasi:cli', 'test.wasm']);
+            expect(result.options.enabledInterfaces).toEqual(['wasi:http', 'wasi:cli']);
+        });
+
+        test('no --enable leaves enabledInterfaces undefined', () => {
+            const result = parseCliArgs(['test.wasm']);
+            expect(result.options.enabledInterfaces).toBeUndefined();
+        });
+    });
+
+    // ─── Networking CLI args ───
+
     describe('networking CLI args', () => {
-        test('--max-http-body-bytes', () => {
+        test('--max-http-body-bytes with = syntax', () => {
             const result = parseCliArgs(['--max-http-body-bytes=4194304', 'test.wasm']);
+            expect(result.options.network.maxHttpBodyBytes).toBe(4194304);
+        });
+
+        test('--max-http-body-bytes with space syntax', () => {
+            const result = parseCliArgs(['--max-http-body-bytes', '4194304', 'test.wasm']);
             expect(result.options.network.maxHttpBodyBytes).toBe(4194304);
         });
 
@@ -162,6 +355,26 @@ describe('parseCliArgs', () => {
             expect(result.options.network.maxConcurrentDnsLookups).toBe(50);
         });
 
+        test('--max-http-connections', () => {
+            const result = parseCliArgs(['--max-http-connections=500', 'test.wasm']);
+            expect(result.options.network.maxHttpConnections).toBe(500);
+        });
+
+        test('--max-request-url-bytes', () => {
+            const result = parseCliArgs(['--max-request-url-bytes=4096', 'test.wasm']);
+            expect(result.options.network.maxRequestUrlBytes).toBe(4096);
+        });
+
+        test('--http-headers-timeout-ms', () => {
+            const result = parseCliArgs(['--http-headers-timeout-ms=30000', 'test.wasm']);
+            expect(result.options.network.httpHeadersTimeoutMs).toBe(30000);
+        });
+
+        test('--http-keep-alive-timeout-ms', () => {
+            const result = parseCliArgs(['--http-keep-alive-timeout-ms=10000', 'test.wasm']);
+            expect(result.options.network.httpKeepAliveTimeoutMs).toBe(10000);
+        });
+
         test('all networking args combined', () => {
             const result = parseCliArgs([
                 '--max-http-body-bytes=1048576',
@@ -181,104 +394,275 @@ describe('parseCliArgs', () => {
         });
     });
 
-    describe('environment CLI args', () => {
-        test('--env=KEY=VALUE sets env variable', () => {
-            const result = parseCliArgs(['--env=HOME=/usr/home', 'test.wasm']);
-            expect(result.options.env).toEqual({ HOME: '/usr/home' });
-            expect(result.error).toBeUndefined();
+    // ─── Usage message includes command ───
+
+    test('no args error includes run in usage', () => {
+        const result = parseCliArgs([]);
+        expect(result.error).toContain('jsco run');
+    });
+
+    test('serve without .wasm error includes serve in usage', () => {
+        const result = parseCliArgs(['serve']);
+        expect(result.error).toContain('jsco serve');
+    });
+
+    // ─── Missing value errors ───
+
+    describe('missing value errors', () => {
+        test('--env at end of args returns error', () => {
+            const result = parseCliArgs(['--env']);
+            expect(result.error).toBe('Missing value for --env');
         });
 
-        test('multiple --env args', () => {
-            const result = parseCliArgs(['--env=A=1', '--env=B=2', 'test.wasm']);
-            expect(result.options.env).toEqual({ A: '1', B: '2' });
+        test('--env followed by flag returns error', () => {
+            const result = parseCliArgs(['--env', '--no-jspi', 'test.wasm']);
+            expect(result.error).toBe('Missing value for --env');
         });
 
-        test('--env with value containing =', () => {
-            const result = parseCliArgs(['--env=PATH=/usr/bin:/bin', 'test.wasm']);
-            expect(result.options.env).toEqual({ PATH: '/usr/bin:/bin' });
+        test('--dir at end of args returns error', () => {
+            const result = parseCliArgs(['--dir']);
+            expect(result.error).toBe('Missing value for --dir');
         });
 
-        test('--env without = in value is an error', () => {
-            const result = parseCliArgs(['--env=NOVALUE', 'test.wasm']);
-            expect(result.error).toContain('Invalid --env format');
+        test('--dir followed by flag returns error', () => {
+            const result = parseCliArgs(['--dir', '--help']);
+            expect(result.error).toBe('Missing value for --dir');
         });
 
-        test('--env-inherit flag', () => {
-            const result = parseCliArgs(['--env-inherit', 'test.wasm']);
-            expect(result.options.envInherit).toBe(true);
-            expect(result.error).toBeUndefined();
+        test('--cwd at end of args returns error', () => {
+            const result = parseCliArgs(['--cwd']);
+            expect(result.error).toBe('Missing value for --cwd');
+        });
+
+        test('--enable at end of args returns error', () => {
+            const result = parseCliArgs(['--enable']);
+            expect(result.error).toBe('Missing value for --enable');
+        });
+
+        test('--addr at end of args returns error', () => {
+            const result = parseCliArgs(['serve', '--addr']);
+            expect(result.error).toBe('Missing value for --addr');
+        });
+
+        test('--max-http-body-bytes at end returns error', () => {
+            const result = parseCliArgs(['--max-http-body-bytes']);
+            expect(result.error).toBe('Missing value for --max-http-body-bytes');
+        });
+
+        test('--max-http-headers-bytes at end returns error', () => {
+            const result = parseCliArgs(['--max-http-headers-bytes']);
+            expect(result.error).toBe('Missing value for --max-http-headers-bytes');
+        });
+
+        test('--socket-buffer-bytes at end returns error', () => {
+            const result = parseCliArgs(['--socket-buffer-bytes']);
+            expect(result.error).toBe('Missing value for --socket-buffer-bytes');
+        });
+
+        test('--max-tcp-pending at end returns error', () => {
+            const result = parseCliArgs(['--max-tcp-pending']);
+            expect(result.error).toBe('Missing value for --max-tcp-pending');
+        });
+
+        test('--tcp-idle-timeout-ms at end returns error', () => {
+            const result = parseCliArgs(['--tcp-idle-timeout-ms']);
+            expect(result.error).toBe('Missing value for --tcp-idle-timeout-ms');
+        });
+
+        test('--http-request-timeout-ms at end returns error', () => {
+            const result = parseCliArgs(['--http-request-timeout-ms']);
+            expect(result.error).toBe('Missing value for --http-request-timeout-ms');
+        });
+
+        test('--max-udp-datagrams at end returns error', () => {
+            const result = parseCliArgs(['--max-udp-datagrams']);
+            expect(result.error).toBe('Missing value for --max-udp-datagrams');
+        });
+
+        test('--dns-timeout-ms at end returns error', () => {
+            const result = parseCliArgs(['--dns-timeout-ms']);
+            expect(result.error).toBe('Missing value for --dns-timeout-ms');
+        });
+
+        test('--max-concurrent-dns at end returns error', () => {
+            const result = parseCliArgs(['--max-concurrent-dns']);
+            expect(result.error).toBe('Missing value for --max-concurrent-dns');
+        });
+
+        test('--max-http-connections at end returns error', () => {
+            const result = parseCliArgs(['--max-http-connections']);
+            expect(result.error).toBe('Missing value for --max-http-connections');
+        });
+
+        test('--max-request-url-bytes at end returns error', () => {
+            const result = parseCliArgs(['--max-request-url-bytes']);
+            expect(result.error).toBe('Missing value for --max-request-url-bytes');
+        });
+
+        test('--http-headers-timeout-ms at end returns error', () => {
+            const result = parseCliArgs(['--http-headers-timeout-ms']);
+            expect(result.error).toBe('Missing value for --http-headers-timeout-ms');
+        });
+
+        test('--http-keep-alive-timeout-ms at end returns error', () => {
+            const result = parseCliArgs(['--http-keep-alive-timeout-ms']);
+            expect(result.error).toBe('Missing value for --http-keep-alive-timeout-ms');
         });
     });
 
-    describe('mount CLI args', () => {
-        test('--dir=HOST::GUEST mounts read-write', () => {
-            const result = parseCliArgs(['--dir=/data::/mnt/data', 'test.wasm']);
-            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/mnt/data', readOnly: false }]);
-            expect(result.error).toBeUndefined();
+    // ─── --dir format errors ───
+
+    describe('--dir format errors', () => {
+        test('invalid double-colon format returns error', () => {
+            const result = parseCliArgs(['--dir', '/host::/guest::rw', 'test.wasm']);
+            expect(result.error).toContain('Invalid --dir format');
         });
 
-        test('--dir=HOST::GUEST::ro mounts read-only', () => {
-            const result = parseCliArgs(['--dir=/data::/mnt/data::ro', 'test.wasm']);
-            expect(result.options.mounts).toEqual([{ hostPath: '/data', guestPath: '/mnt/data', readOnly: true }]);
-        });
-
-        test('multiple --dir args', () => {
-            const result = parseCliArgs(['--dir=.::/app', '--dir=/tmp::/tmp::ro', 'test.wasm']);
-            expect(result.options.mounts).toHaveLength(2);
-            expect(result.options.mounts[0]).toEqual({ hostPath: '.', guestPath: '/app', readOnly: false });
-            expect(result.options.mounts[1]).toEqual({ hostPath: '/tmp', guestPath: '/tmp', readOnly: true });
-        });
-
-        test('invalid --dir format', () => {
-            const result = parseCliArgs(['--dir=/data', 'test.wasm']);
+        test('too many :: segments returns error', () => {
+            const result = parseCliArgs(['--dir', 'a::b::c::d', 'test.wasm']);
             expect(result.error).toContain('Invalid --dir format');
         });
     });
 
-    describe('cwd CLI arg', () => {
-        test('--cwd sets working directory', () => {
-            const result = parseCliArgs(['--cwd=/app', 'test.wasm']);
+    // ─── Mixed environment args ───
+
+    describe('mixed environment args', () => {
+        test('inherit + explicit in same invocation', () => {
+            const result = parseCliArgs(['--env', 'PATH', '--env', 'HOME=/my/home', 'test.wasm']);
+            expect(result.options.envInheritNames).toEqual(['PATH']);
+            expect(result.options.env).toEqual({ HOME: '/my/home' });
+        });
+
+        test('multiple inherits', () => {
+            const result = parseCliArgs(['--env', 'PATH', '--env', 'LANG', 'test.wasm']);
+            expect(result.options.envInheritNames).toEqual(['PATH', 'LANG']);
+        });
+
+        test('--env-inherit with explicit env', () => {
+            const result = parseCliArgs(['--env-inherit', '--env', 'EXTRA=val', 'test.wasm']);
+            expect(result.options.envInheritAll).toBe(true);
+            expect(result.options.env).toEqual({ EXTRA: 'val' });
+        });
+
+        test('env value with empty value after =', () => {
+            const result = parseCliArgs(['--env', 'KEY=', 'test.wasm']);
+            expect(result.options.env).toEqual({ KEY: '' });
+        });
+    });
+
+    // ─── Networking args with space syntax ───
+
+    describe('networking space syntax', () => {
+        test('--max-http-headers-bytes with space', () => {
+            const result = parseCliArgs(['--max-http-headers-bytes', '50000', 'test.wasm']);
+            expect(result.options.network.maxHttpHeadersBytes).toBe(50000);
+        });
+
+        test('--socket-buffer-bytes with space', () => {
+            const result = parseCliArgs(['--socket-buffer-bytes', '32768', 'test.wasm']);
+            expect(result.options.network.socketBufferBytes).toBe(32768);
+        });
+
+        test('--max-tcp-pending with space', () => {
+            const result = parseCliArgs(['--max-tcp-pending', '256', 'test.wasm']);
+            expect(result.options.network.maxTcpPendingConnections).toBe(256);
+        });
+
+        test('--tcp-idle-timeout-ms with space', () => {
+            const result = parseCliArgs(['--tcp-idle-timeout-ms', '30000', 'test.wasm']);
+            expect(result.options.network.tcpIdleTimeoutMs).toBe(30000);
+        });
+
+        test('--max-udp-datagrams with space', () => {
+            const result = parseCliArgs(['--max-udp-datagrams', '100', 'test.wasm']);
+            expect(result.options.network.maxUdpDatagrams).toBe(100);
+        });
+
+        test('--dns-timeout-ms with space', () => {
+            const result = parseCliArgs(['--dns-timeout-ms', '5000', 'test.wasm']);
+            expect(result.options.network.dnsTimeoutMs).toBe(5000);
+        });
+
+        test('--max-concurrent-dns with space', () => {
+            const result = parseCliArgs(['--max-concurrent-dns', '20', 'test.wasm']);
+            expect(result.options.network.maxConcurrentDnsLookups).toBe(20);
+        });
+
+        test('--max-http-connections with space', () => {
+            const result = parseCliArgs(['--max-http-connections', '200', 'test.wasm']);
+            expect(result.options.network.maxHttpConnections).toBe(200);
+        });
+
+        test('--max-request-url-bytes with space', () => {
+            const result = parseCliArgs(['--max-request-url-bytes', '8192', 'test.wasm']);
+            expect(result.options.network.maxRequestUrlBytes).toBe(8192);
+        });
+
+        test('--http-headers-timeout-ms with space', () => {
+            const result = parseCliArgs(['--http-headers-timeout-ms', '15000', 'test.wasm']);
+            expect(result.options.network.httpHeadersTimeoutMs).toBe(15000);
+        });
+
+        test('--http-keep-alive-timeout-ms with space', () => {
+            const result = parseCliArgs(['--http-keep-alive-timeout-ms', '5000', 'test.wasm']);
+            expect(result.options.network.httpKeepAliveTimeoutMs).toBe(5000);
+        });
+
+        test('--http-request-timeout-ms with space', () => {
+            const result = parseCliArgs(['--http-request-timeout-ms', '10000', 'test.wasm']);
+            expect(result.options.network.httpRequestTimeoutMs).toBe(10000);
+        });
+    });
+
+    // ─── Complex combined scenarios ───
+
+    describe('complex combined scenarios', () => {
+        test('serve with all options', () => {
+            const result = parseCliArgs([
+                'serve',
+                '--addr=localhost:3000',
+                '--dir', '/data::/mnt/data',
+                '--env', 'PORT=3000',
+                '--env', 'NODE_ENV',
+                '--cwd', '/app',
+                '--enable', 'wasi:http',
+                '--max-http-body-bytes=5242880',
+                'server.wasm',
+            ]);
+            expect(result.command).toBe('serve');
+            expect(result.options.addr).toBe('localhost:3000');
+            expect(result.options.mounts).toHaveLength(1);
+            expect(result.options.env).toEqual({ PORT: '3000' });
+            expect(result.options.envInheritNames).toEqual(['NODE_ENV']);
             expect(result.options.cwd).toBe('/app');
+            expect(result.options.enabledInterfaces).toEqual(['wasi:http']);
+            expect(result.options.network.maxHttpBodyBytes).toBe(5242880);
+            expect(result.componentUrl).toBe('server.wasm');
             expect(result.error).toBeUndefined();
         });
-    });
 
-    describe('enabledInterfaces CLI args', () => {
-        test('--enable sets enabled interfaces', () => {
-            const result = parseCliArgs(['--enable=wasi:http', 'test.wasm']);
-            expect(result.options.enabledInterfaces).toEqual(['wasi:http']);
+        test('run with multiple mounts and enables', () => {
+            const result = parseCliArgs([
+                'run',
+                '--dir=.::/app',
+                '--dir=/tmp::/tmp::ro',
+                '--dir', '/home/user',
+                '--enable=wasi:cli',
+                '--enable=wasi:filesystem',
+                '--no-jspi',
+                'app.wasm',
+            ]);
+            expect(result.command).toBe('run');
+            expect(result.options.mounts).toHaveLength(3);
+            expect(result.options.mounts[2]).toEqual({ hostPath: '/home/user', guestPath: '/home/user', readOnly: false });
+            expect(result.options.enabledInterfaces).toEqual(['wasi:cli', 'wasi:filesystem']);
+            expect(result.options.noJspi).toBe(true);
+            expect(result.error).toBeUndefined();
         });
 
-        test('multiple --enable args', () => {
-            const result = parseCliArgs(['--enable=wasi:http', '--enable=wasi:cli', 'test.wasm']);
-            expect(result.options.enabledInterfaces).toEqual(['wasi:http', 'wasi:cli']);
-        });
-
-        test('no --enable leaves enabledInterfaces undefined', () => {
-            const result = parseCliArgs(['test.wasm']);
-            expect(result.options.enabledInterfaces).toBeUndefined();
-        });
-    });
-
-    describe('new networking CLI args', () => {
-        test('--max-http-connections', () => {
-            const result = parseCliArgs(['--max-http-connections=500', 'test.wasm']);
-            expect(result.options.network.maxHttpConnections).toBe(500);
-        });
-
-        test('--max-request-url-bytes', () => {
-            const result = parseCliArgs(['--max-request-url-bytes=4096', 'test.wasm']);
-            expect(result.options.network.maxRequestUrlBytes).toBe(4096);
-        });
-
-        test('--http-headers-timeout-ms', () => {
-            const result = parseCliArgs(['--http-headers-timeout-ms=30000', 'test.wasm']);
-            expect(result.options.network.httpHeadersTimeoutMs).toBe(30000);
-        });
-
-        test('--http-keep-alive-timeout-ms', () => {
-            const result = parseCliArgs(['--http-keep-alive-timeout-ms=10000', 'test.wasm']);
-            expect(result.options.network.httpKeepAliveTimeoutMs).toBe(10000);
+        test('non-wasm positional arg returns error', () => {
+            const result = parseCliArgs(['run', 'something']);
+            expect(result.error).toContain('Unknown argument');
         });
     });
 });

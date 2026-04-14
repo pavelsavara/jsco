@@ -6,13 +6,7 @@
  * Browser implementation using Date.now().
  */
 
-import { WasiDatetime } from './types';
-
-/** wasi:clocks/wall-clock */
-export interface WasiWallClock {
-    now(): WasiDatetime;
-    resolution(): WasiDatetime;
-}
+import type { WasiDatetime, WasiWallClock } from './api';
 
 export function createWasiWallClock(): WasiWallClock {
     return {

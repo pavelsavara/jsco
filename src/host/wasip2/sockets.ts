@@ -16,52 +16,27 @@
 
 import type { Socket as NetSocket, Server as NetServer } from 'node:net';
 import type { Socket as DgramSocket } from 'node:dgram';
-import { WasiInputStream, WasiOutputStream } from './streams';
-import { WasiPollable, createSyncPollable, createAsyncPollable } from './poll';
+import type {
+    WasiInputStream,
+    WasiOutputStream,
+    WasiPollable,
+    SocketErrorCode,
+    IpAddressFamily,
+    IpAddress,
+    IpSocketAddress,
+    SocketResult,
+    WasiNetwork,
+    WasiTcpSocket,
+    IncomingDatagram,
+    OutgoingDatagram,
+    WasiIncomingDatagramStream,
+    WasiOutgoingDatagramStream,
+    WasiUdpSocket,
+    WasiResolveAddressStream,
+} from './api';
 import type { NetworkConfig } from './types';
+import { createSyncPollable, createAsyncPollable } from './poll';
 import { NETWORK_DEFAULTS } from './types';
-
-// ─── Types ───
-
-/** wasi:sockets/network error-code (string form matching WIT enum) */
-export type SocketErrorCode =
-    | 'unknown'
-    | 'access-denied'
-    | 'not-supported'
-    | 'invalid-argument'
-    | 'out-of-memory'
-    | 'timeout'
-    | 'concurrency-conflict'
-    | 'not-in-progress'
-    | 'would-block'
-    | 'invalid-state'
-    | 'new-socket-limit'
-    | 'address-not-bindable'
-    | 'address-in-use'
-    | 'remote-unreachable'
-    | 'connection-refused'
-    | 'connection-reset'
-    | 'connection-aborted'
-    | 'datagram-too-large'
-    | 'name-unresolvable'
-    | 'temporary-resolver-failure'
-    | 'permanent-resolver-failure';
-
-/** wasi:sockets/network ip-address-family */
-export type IpAddressFamily = 'ipv4' | 'ipv6';
-
-/** wasi:sockets/network ip-address variant */
-export type IpAddress =
-    | { tag: 'ipv4'; val: [number, number, number, number] }
-    | { tag: 'ipv6'; val: [number, number, number, number, number, number, number, number] };
-
-/** wasi:sockets/network ip-socket-address variant */
-export type IpSocketAddress =
-    | { tag: 'ipv4'; val: { port: number; address: [number, number, number, number] } }
-    | { tag: 'ipv6'; val: { port: number; flowInfo: number; address: [number, number, number, number, number, number, number, number]; scopeId: number } };
-
-/** Socket result type */
-export type SocketResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: SocketErrorCode };
 
 function socketOk<T>(val: T): SocketResult<T> {
     return { tag: 'ok', val };
@@ -193,11 +168,6 @@ function isZeroAddress(addr: IpSocketAddress): boolean {
 
 // ─── Network ───
 
-/** wasi:sockets/network — opaque network resource */
-export interface WasiNetwork {
-    _tag: 'network';
-}
-
 /** Create a network resource */
 export function createNetwork(): WasiNetwork {
     return { _tag: 'network' };
@@ -301,38 +271,6 @@ const enum TcpState {
     ConnectInProgress = 5,
     Connected = 6,
     Closed = 7,
-}
-
-/** wasi:sockets/tcp — TCP socket resource */
-export interface WasiTcpSocket {
-    startBind(network: WasiNetwork, localAddress: IpSocketAddress): SocketResult<void>;
-    finishBind(): SocketResult<void>;
-    startConnect(network: WasiNetwork, remoteAddress: IpSocketAddress): SocketResult<void>;
-    finishConnect(): SocketResult<[WasiInputStream, WasiOutputStream]>;
-    startListen(): SocketResult<void>;
-    finishListen(): SocketResult<void>;
-    accept(): SocketResult<[WasiTcpSocket, WasiInputStream, WasiOutputStream]>;
-    localAddress(): SocketResult<IpSocketAddress>;
-    remoteAddress(): SocketResult<IpSocketAddress>;
-    isListening(): boolean;
-    addressFamily(): IpAddressFamily;
-    setListenBacklogSize(value: bigint): SocketResult<void>;
-    keepAliveEnabled(): SocketResult<boolean>;
-    setKeepAliveEnabled(value: boolean): SocketResult<void>;
-    keepAliveIdleTime(): SocketResult<bigint>;
-    setKeepAliveIdleTime(value: bigint): SocketResult<void>;
-    keepAliveInterval(): SocketResult<bigint>;
-    setKeepAliveInterval(value: bigint): SocketResult<void>;
-    keepAliveCount(): SocketResult<number>;
-    setKeepAliveCount(value: number): SocketResult<void>;
-    hopLimit(): SocketResult<number>;
-    setHopLimit(value: number): SocketResult<void>;
-    receiveBufferSize(): SocketResult<bigint>;
-    setReceiveBufferSize(value: bigint): SocketResult<void>;
-    sendBufferSize(): SocketResult<bigint>;
-    setSendBufferSize(value: bigint): SocketResult<void>;
-    subscribe(): WasiPollable;
-    shutdown(shutdownType: string): SocketResult<void>;
 }
 
 /** Create a connected WasiTcpSocket wrapping an accepted node socket */
@@ -607,52 +545,10 @@ export function createTcpSocket(addressFamily: IpAddressFamily, networkConfig?: 
 
 // ─── UDP Socket ───
 
-/** Incoming datagram record */
-export interface IncomingDatagram {
-    data: Uint8Array;
-    remoteAddress: IpSocketAddress;
-}
-
-/** Outgoing datagram record */
-export interface OutgoingDatagram {
-    data: Uint8Array;
-    remoteAddress?: IpSocketAddress;
-}
-
-/** wasi:sockets/udp incoming-datagram-stream resource */
-export interface WasiIncomingDatagramStream {
-    receive(maxResults: bigint): SocketResult<IncomingDatagram[]>;
-    subscribe(): WasiPollable;
-}
-
-/** wasi:sockets/udp outgoing-datagram-stream resource */
-export interface WasiOutgoingDatagramStream {
-    checkSend(): SocketResult<bigint>;
-    send(datagrams: OutgoingDatagram[]): SocketResult<bigint>;
-    subscribe(): WasiPollable;
-}
-
 const enum UdpState {
     Unbound = 0,
     BindInProgress = 1,
     Bound = 2,
-}
-
-/** wasi:sockets/udp — UDP socket resource */
-export interface WasiUdpSocket {
-    startBind(network: WasiNetwork, localAddress: IpSocketAddress): SocketResult<void>;
-    finishBind(): SocketResult<void>;
-    stream(remoteAddress: IpSocketAddress | undefined): SocketResult<[WasiIncomingDatagramStream, WasiOutgoingDatagramStream]>;
-    localAddress(): SocketResult<IpSocketAddress>;
-    remoteAddress(): SocketResult<IpSocketAddress>;
-    addressFamily(): IpAddressFamily;
-    unicastHopLimit(): SocketResult<number>;
-    setUnicastHopLimit(value: number): SocketResult<void>;
-    receiveBufferSize(): SocketResult<bigint>;
-    setReceiveBufferSize(value: bigint): SocketResult<void>;
-    sendBufferSize(): SocketResult<bigint>;
-    setSendBufferSize(value: bigint): SocketResult<void>;
-    subscribe(): WasiPollable;
 }
 
 /** Create a UDP socket. On Node.js, creates a real socket. On browser, returns 'not-supported'. */
@@ -778,12 +674,6 @@ export function createUdpSocket(addressFamily: IpAddressFamily, networkConfig?: 
 }
 
 // ─── IP Name Lookup ───
-
-/** wasi:sockets/ip-name-lookup — resolve-address-stream resource */
-export interface WasiResolveAddressStream {
-    resolveNextAddress(): SocketResult<IpAddress | undefined>;
-    subscribe(): WasiPollable;
-}
 
 // ─── DNS concurrent lookup counter ───
 let _activeDnsLookups = 0;

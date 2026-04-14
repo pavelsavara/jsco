@@ -8,17 +8,7 @@
  */
 
 import { SUSPENDING } from '../../constants';
-
-/** wasi:io/poll — pollable resource */
-export interface WasiPollable {
-    /** Check if the pollable is ready (non-blocking) */
-    ready(): boolean;
-    /** Block until ready. Requires JSPI for async pollables. */
-    block(): void;
-}
-
-/** Result of poll() — indices of ready pollables */
-export type PollResult = Uint32Array;
+import type { WasiPollable, PollResult } from './api';
 
 /**
  * Create a pollable from a synchronous readiness check.

@@ -19,12 +19,32 @@
  * - wasi:sockets/* stubs (D6)
  */
 
-import { WasiConfig } from './types';
+import type {
+    WasiError,
+    WasiDescriptor,
+    WasiDirectoryEntryStream,
+    WasiFields,
+    WasiOutgoingRequest,
+    WasiOutgoingBody,
+    WasiRequestOptions,
+    WasiIncomingResponse,
+    WasiIncomingBody,
+    WasiFutureIncomingResponse,
+    WasiTcpSocket,
+    WasiUdpSocket,
+    WasiResolveAddressStream,
+    WasiIncomingDatagramStream,
+    WasiOutgoingDatagramStream,
+    WasiNetwork,
+    WasiInputStream,
+    WasiOutputStream,
+} from './api';
+import type { WasiConfig, WasiP2HostExports } from './types';
 import { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
 import { createWasiWallClock } from './wall-clock';
 import { createWasiMonotonicClock } from './monotonic-clock';
 import { createWasiCli } from './cli';
-import { createWasiFilesystem, WasiDescriptor, WasiDirectoryEntryStream } from './filesystem';
+import { createWasiFilesystem } from './filesystem';
 import { createNodeFilesystem } from './filesystem-node';
 import { poll } from './poll';
 import {
@@ -33,59 +53,48 @@ import {
     createFieldsFromList,
     createOutgoingRequest,
     createRequestOptions,
-    WasiFields,
-    WasiOutgoingRequest,
-    WasiOutgoingBody,
-    WasiRequestOptions,
-    WasiIncomingResponse,
-    WasiIncomingBody,
-    WasiFutureIncomingResponse,
 } from './http';
 import {
     createTcpSocket,
     createUdpSocket,
     resolveAddresses,
     instanceNetwork,
-    WasiTcpSocket,
-    WasiUdpSocket,
-    WasiResolveAddressStream,
-    WasiIncomingDatagramStream,
-    WasiOutgoingDatagramStream,
-    WasiNetwork,
 } from './sockets';
-import { WasiInputStream, WasiOutputStream } from './streams';
-import { WasiError } from './error';
 
-// Re-exports for direct usage
-export type { WasiConfig, WasiDatetime, HandleId, HandleTable, NetworkConfig } from './types';
-export { WasiExit, createHandleTable, NETWORK_DEFAULTS } from './types';
-export type { WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed } from './random';
+// Re-exports — WASI P2 API types
+export type {
+    WasiError,
+    WasiPollable, PollResult,
+    StreamError, WasiInputStream, WasiOutputStream, StreamResult,
+    WasiDatetime,
+    WasiMonotonicClock,
+    WasiWallClock,
+    WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed,
+    WasiEnvironment, WasiCliExit, WasiStdin, WasiStdout, WasiStderr, WasiTerminalInput, WasiTerminalOutput,
+    ErrorCode, DescriptorType, DescriptorFlags, PathFlags, OpenFlags, DescriptorStat, DirectoryEntry, MetadataHashValue, FsResult, WasiDirectoryEntryStream, WasiDescriptor, WasiPreopens,
+    HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler,
+    WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, IncomingHandlerFn, WasiFutureTrailers,
+    SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, IncomingDatagram, OutgoingDatagram, WasiIncomingDatagramStream, WasiOutgoingDatagramStream, WasiResolveAddressStream,
+} from './api';
+export { WasiExit } from './api';
+
+// Re-exports — internal types
+export type { WasiConfig, HandleId, HandleTable, NetworkConfig, WasiCli, WasiFilesystem, FsMount, FetchFn, HttpServerConfig, WasiHttpServer, WasiP2InterfaceName, WasiP2HostExports } from './types';
+export { createHandleTable, NETWORK_DEFAULTS } from './types';
+
+// Re-exports — factory functions
 export { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
-export type { WasiWallClock } from './wall-clock';
 export { createWasiWallClock } from './wall-clock';
-export type { WasiError } from './error';
 export { createWasiError } from './error';
-export type { WasiPollable, PollResult } from './poll';
 export { JspiBlockSignal, createSyncPollable, createAsyncPollable, poll, hasJspi } from './poll';
-export type { WasiInputStream, WasiOutputStream, StreamError, StreamResult } from './streams';
 export { createInputStream, createOutputStream } from './streams';
-export type { WasiMonotonicClock } from './monotonic-clock';
 export { createWasiMonotonicClock } from './monotonic-clock';
-export type { WasiEnvironment, WasiCliExit, WasiStdin, WasiStdout, WasiStderr, WasiTerminalInput, WasiTerminalOutput, WasiCli } from './cli';
 export { createWasiCli } from './cli';
-export type { ErrorCode, DescriptorType, DescriptorFlags, PathFlags, OpenFlags, DescriptorStat, DirectoryEntry, MetadataHashValue, FsResult, WasiDirectoryEntryStream, WasiDescriptor, WasiPreopens, WasiFilesystem } from './filesystem';
 export { createWasiFilesystem } from './filesystem';
-export type { FsMount } from './filesystem-node';
 export { createNodeFilesystem } from './filesystem-node';
-export type { HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler, FetchFn } from './http';
 export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler } from './http';
-export type { WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, IncomingHandlerFn, HttpServerConfig, WasiHttpServer, WasiFutureTrailers } from './http-server';
 export { createOutgoingResponse, createHttpServer, responseOutparamSet, createFutureTrailers } from './http-server';
-export type { SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, IncomingDatagram, OutgoingDatagram, WasiIncomingDatagramStream, WasiOutgoingDatagramStream, WasiResolveAddressStream } from './sockets';
 export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
-
-/** JsImports-compatible flat map: { 'wasi:cli/stdin': { 'get-stdin': fn }, ... } */
-export type WasiP2HostExports = Record<string, Record<string, Function>>;
 
 /**
  * Create a flat JsImports object containing all WASI host implementations.
@@ -111,7 +120,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         : createWasiFilesystem(config?.fs);
     const outgoingHandler = createOutgoingHandler(undefined, config?.network?.maxHttpBodyBytes);
 
-    const result: WasiP2HostExports = {};
+    const result: Record<string, Record<string, Function>> = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
     const wasiPrefix = 'wasi:';
     const methodPrefix = '[method]';

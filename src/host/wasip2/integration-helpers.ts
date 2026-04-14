@@ -10,7 +10,7 @@
 
 import { createComponent } from '../../resolver';
 import { createWasiP2Host } from './index';
-import { WasiExit } from './types';
+import { WasiExit } from './api';
 import type { VerboseCapture } from '../../test-utils/verbose-logger';
 import { verboseOptions } from '../../test-utils/verbose-logger';
 import type { ResolutionStats } from '../../resolver/api-types';

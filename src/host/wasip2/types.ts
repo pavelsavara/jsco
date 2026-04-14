@@ -1,22 +1,25 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 /**
- * Shared types for the WASI Preview 2 host implementation.
+ * Internal (non-WASI-spec) types for the WASI Preview 2 host implementation.
+ * WASI P2 API type declarations live in api.ts.
  */
 
-/** WASI datetime record — used by wall-clock and filesystem */
-export interface WasiDatetime {
-    seconds: bigint;
-    nanoseconds: number;
-}
+import type {
+    WasiEnvironment,
+    WasiCliExit,
+    WasiStdin,
+    WasiStdout,
+    WasiStderr,
+    WasiTerminalInput,
+    WasiTerminalOutput,
+    WasiPreopens,
+    WasiDescriptor,
+} from './api';
 
-/** Thrown by wasi:cli/exit to signal process termination */
-export class WasiExit extends Error {
-    constructor(public readonly status: number) {
-        super(`WASI exit with status ${status}`);
-        this.name = 'WasiExit';
-    }
-}
+// Re-export WasiExit and WasiDatetime from api.ts for backward compatibility
+export { WasiExit } from './api';
+export type { WasiDatetime } from './api';
 
 /** Networking configuration for HTTP, sockets, and DNS */
 export interface NetworkConfig {
@@ -147,3 +150,95 @@ export function createHandleTable<T>(): HandleTable<T> {
         },
     };
 }
+
+// ─── Aggregate / configuration types from other modules ───
+
+/** Complete CLI host — all wasi:cli/* interfaces */
+export interface WasiCli {
+    environment: WasiEnvironment;
+    exit: WasiCliExit;
+    stdin: WasiStdin;
+    stdout: WasiStdout;
+    stderr: WasiStderr;
+    terminalInput: WasiTerminalInput;
+    terminalOutput: WasiTerminalOutput;
+}
+
+/** wasi:filesystem combined interface */
+export interface WasiFilesystem {
+    preopens: WasiPreopens;
+    /** Open a root descriptor for the entire VFS */
+    rootDescriptor(): WasiDescriptor;
+}
+
+/** A mount point mapping host path to guest path */
+export interface FsMount {
+    /** Host filesystem path (absolute or relative to cwd) */
+    hostPath: string;
+    /** Guest path visible to the WASM component */
+    guestPath: string;
+    /** Read-only mount. Default: false (read-write) */
+    readOnly?: boolean;
+}
+
+/** Fetch function type — matches the browser fetch API signature */
+export type FetchFn = (input: string | URL, init?: RequestInit) => Promise<Response>;
+
+/** Configuration for the HTTP server */
+export interface HttpServerConfig {
+    /** Port to listen on. Default: 0 (auto-assign) */
+    port?: number;
+    /** Hostname to bind to. Default: '127.0.0.1' */
+    hostname?: string;
+    /** Networking limits. Merged with NETWORK_DEFAULTS. */
+    network?: NetworkConfig;
+}
+
+/** HTTP server handle */
+export interface WasiHttpServer {
+    /** Start listening. Returns the actual port. */
+    start(): Promise<number>;
+    /** Stop the server gracefully */
+    stop(): Promise<void>;
+    /** The actual port the server is listening on (after start) */
+    port(): number;
+}
+
+// ─── WASI P2 host exports ───
+
+/** All WASI P2 interface names supported by the host */
+export type WasiP2InterfaceName =
+    | 'wasi:random/random'
+    | 'wasi:random/insecure'
+    | 'wasi:random/insecure-seed'
+    | 'wasi:clocks/wall-clock'
+    | 'wasi:clocks/monotonic-clock'
+    | 'wasi:io/poll'
+    | 'wasi:io/error'
+    | 'wasi:io/streams'
+    | 'wasi:cli/environment'
+    | 'wasi:cli/exit'
+    | 'wasi:cli/stdin'
+    | 'wasi:cli/stdout'
+    | 'wasi:cli/stderr'
+    | 'wasi:cli/terminal-input'
+    | 'wasi:cli/terminal-stdout'
+    | 'wasi:cli/terminal-stderr'
+    | 'wasi:filesystem/types'
+    | 'wasi:filesystem/preopens'
+    | 'wasi:http/types'
+    | 'wasi:http/outgoing-handler'
+    | 'wasi:sockets/instance-network'
+    | 'wasi:sockets/network'
+    | 'wasi:sockets/tcp-create-socket'
+    | 'wasi:sockets/tcp'
+    | 'wasi:sockets/udp-create-socket'
+    | 'wasi:sockets/udp'
+    | 'wasi:sockets/ip-name-lookup';
+
+/** WASI P2 host exports: flat map of WASI interface → method records.
+ * Both unversioned ('wasi:cli/stdin') and versioned ('wasi:cli/stdin@0.2.0') keys are present.
+ * Some interfaces may be absent when `enabledInterfaces` is used to filter. */
+export type WasiP2HostExports = {
+    [key in WasiP2InterfaceName | `${WasiP2InterfaceName}@${string}`]?: Record<string, Function>;
+} & Record<string, Record<string, Function>>;

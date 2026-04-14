@@ -46,6 +46,36 @@ const plugins = isDebug ? [] : [terser({
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash'];
+/** Rollup plugin: externalize sibling module imports (wasip2, wasip2-node, index) */
+function externalizeSiblingModules() {
+    return {
+        name: 'externalize-sibling-modules',
+        resolveId(source) {
+            if (source === './wasip2' || source === './wasip2.js') {
+                return { id: './wasip2.js', external: true };
+            }
+            if (source === './wasip2-node' || source === './wasip2-node.js') {
+                return { id: './wasip2-node.js', external: true };
+            }
+            if (source === './index' || source === './index.js') {
+                return { id: './index.js', external: true };
+            }
+            return null;
+        }
+    };
+}
+
+const sourcePlugins = [
+    virtual(constants),
+    nodeResolve({
+        extensions: ['.ts'],
+    }),
+    typescript({
+        exclude: ['**/*.test.ts', '**/*.spec.ts', 'tests/**', '**/integration-helpers.ts'],
+        compilerOptions: { rootDir: './src' },
+    })
+];
+
 const jsco = {
     treeshake: !isDebug,
     input: './src/index.ts',
@@ -62,14 +92,8 @@ const jsco = {
     onwarn,
     external: externalDependencies,
     plugins: [
-        virtual(constants),
-        nodeResolve({
-            extensions: ['.ts'],
-        }),
-        typescript({
-            exclude: ['**/*.test.ts', '**/*.spec.ts', 'tests/**', '**/integration-helpers.ts'],
-            compilerOptions: { rootDir: './src' },
-        })
+        externalizeSiblingModules(),
+        ...sourcePlugins,
     ]
 };
 const jscoTypes = {
@@ -85,9 +109,57 @@ const jscoTypes = {
     plugins: [dts()],
 };
 
+// WASI Preview 2 — browser-compatible host module
+const wasip2 = {
+    treeshake: !isDebug,
+    input: './src/wasip2.ts',
+    output: [
+        {
+            format: 'es',
+            file: 'dist/wasip2.js',
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
+
+// WASI Preview 2 — Node.js-specific extensions
+const wasip2Node = {
+    treeshake: !isDebug,
+    input: './src/wasip2-node.ts',
+    output: [
+        {
+            format: 'es',
+            file: 'dist/wasip2-node.js',
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
+
 export default defineConfig([
     jsco,
     jscoTypes,
+    wasip2,
+    wasip2Node,
 ]);
 
 

@@ -236,4 +236,59 @@ describe('createWasiP2Host', () => {
             expect(typeof seed[1]).toBe('bigint');
         });
     });
+
+    describe('enabledInterfaces filtering', () => {
+        it('all interfaces present when enabledInterfaces is undefined', () => {
+            const host = createWasiP2Host();
+            expect(host['wasi:cli/stdout']).toBeDefined();
+            expect(host['wasi:random/random']).toBeDefined();
+            expect(host['wasi:clocks/wall-clock']).toBeDefined();
+            expect(host['wasi:http/outgoing-handler']).toBeDefined();
+            expect(host['wasi:sockets/tcp-create-socket']).toBeDefined();
+            expect(host['wasi:filesystem/preopens']).toBeDefined();
+        });
+
+        it('enabledInterfaces filters to only matching prefixes', () => {
+            const host = createWasiP2Host({ enabledInterfaces: ['cli'] });
+            // cli interfaces present
+            expect(host['wasi:cli/stdout']).toBeDefined();
+            expect(host['wasi:cli/stderr']).toBeDefined();
+            expect(host['wasi:cli/stdin']).toBeDefined();
+            expect(host['wasi:cli/environment']).toBeDefined();
+            expect(host['wasi:cli/exit']).toBeDefined();
+            // non-cli interfaces absent
+            expect(host['wasi:random/random']).toBeUndefined();
+            expect(host['wasi:clocks/wall-clock']).toBeUndefined();
+            expect(host['wasi:http/outgoing-handler']).toBeUndefined();
+            expect(host['wasi:sockets/tcp-create-socket']).toBeUndefined();
+        });
+
+        it('enabledInterfaces with multiple prefixes', () => {
+            const host = createWasiP2Host({ enabledInterfaces: ['cli', 'random'] });
+            expect(host['wasi:cli/stdout']).toBeDefined();
+            expect(host['wasi:random/random']).toBeDefined();
+            expect(host['wasi:clocks/wall-clock']).toBeUndefined();
+            expect(host['wasi:http/outgoing-handler']).toBeUndefined();
+        });
+
+        it('enabledInterfaces with specific interface path', () => {
+            const host = createWasiP2Host({ enabledInterfaces: ['random/random'] });
+            expect(host['wasi:random/random']).toBeDefined();
+            // random/insecure should NOT match random/random prefix
+            expect(host['wasi:random/insecure']).toBeUndefined();
+        });
+
+        it('enabledInterfaces empty array disables all', () => {
+            const host = createWasiP2Host({ enabledInterfaces: [] });
+            expect(host['wasi:cli/stdout']).toBeUndefined();
+            expect(host['wasi:random/random']).toBeUndefined();
+            expect(host['wasi:clocks/wall-clock']).toBeUndefined();
+        });
+
+        it('versioned aliases are also filtered', () => {
+            const host = createWasiP2Host({ enabledInterfaces: ['cli'] });
+            expect(host['wasi:cli/stdout@0.2.0']).toBeDefined();
+            expect(host['wasi:random/random@0.2.0']).toBeUndefined();
+        });
+    });
 });

@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { createWasiCli } from './cli';
-import { WasiExit } from './types';
+import { WasiExit } from './api';
 
 describe('wasi:cli/environment', () => {
     it('getEnvironment returns empty list when no config', () => {

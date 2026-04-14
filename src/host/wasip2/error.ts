@@ -6,10 +6,7 @@
  * Wraps an underlying error with a debug string representation.
  */
 
-/** wasi:io/error — error resource */
-export interface WasiError {
-    toDebugString(): string;
-}
+import type { WasiError } from './api';
 
 export function createWasiError(message: string): WasiError {
     return {

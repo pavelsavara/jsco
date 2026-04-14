@@ -7,15 +7,17 @@
  * and DNS name lookup using real Node.js modules.
  */
 
+import type {
+    IpSocketAddress,
+    WasiTcpSocket,
+    WasiNetwork,
+} from './api';
 import {
     createTcpSocket,
     createUdpSocket,
     resolveAddresses,
     createNetwork,
     instanceNetwork,
-    IpSocketAddress,
-    WasiTcpSocket,
-    WasiNetwork,
 } from './sockets';
 import * as net from 'node:net';
 

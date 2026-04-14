@@ -14,7 +14,7 @@
  */
 
 import type { IncomingMessage, ServerResponse, Server as HttpServer } from 'node:http';
-import {
+import type {
     WasiFields,
     WasiIncomingBody,
     WasiOutgoingBody,
@@ -22,25 +22,24 @@ import {
     HttpScheme,
     HttpErrorCode,
     HttpResult,
+    WasiIncomingRequest,
+    WasiOutgoingResponse,
+    WasiResponseOutparam,
+    IncomingHandlerFn,
+    WasiFutureTrailers,
+    WasiInputStream,
+    WasiOutputStream,
+} from './api';
+import type { HttpServerConfig, WasiHttpServer } from './types';
+import {
     createFields,
     createFieldsFromList,
 } from './http';
-import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-import { WasiPollable, createSyncPollable } from './poll';
-import type { NetworkConfig } from './types';
+import { createInputStream, createOutputStream } from './streams';
+import { createSyncPollable } from './poll';
 import { NETWORK_DEFAULTS } from './types';
 
 // ─── Incoming Request ───
-
-/** wasi:http/types incoming-request resource */
-export interface WasiIncomingRequest {
-    method(): HttpMethod;
-    pathWithQuery(): string | undefined;
-    scheme(): HttpScheme | undefined;
-    authority(): string | undefined;
-    headers(): WasiFields;
-    consume(): HttpResult<WasiIncomingBody>;
-}
 
 /** Create an incoming request from a Node.js IncomingMessage with a streaming body */
 function createIncomingRequest(req: IncomingMessage, bodyStream: WasiInputStream): WasiIncomingRequest {
@@ -109,14 +108,6 @@ function parseMethod(method: string): HttpMethod {
 
 // ─── Outgoing Response ───
 
-/** wasi:http/types outgoing-response resource */
-export interface WasiOutgoingResponse {
-    statusCode(): number;
-    setStatusCode(code: number): boolean;
-    headers(): WasiFields;
-    body(): HttpResult<WasiOutgoingBody>;
-}
-
 /** Create an outgoing response */
 export function createOutgoingResponse(headers: WasiFields): WasiOutgoingResponse {
     let _statusCode = 200;
@@ -157,12 +148,6 @@ export function createOutgoingResponse(headers: WasiFields): WasiOutgoingRespons
 
 // ─── Response Outparam ───
 
-/** wasi:http/types response-outparam resource */
-export interface WasiResponseOutparam {
-    /** Set the response or error. Consumes the outparam. */
-    _resolve: (response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode }) => void;
-}
-
 /** Create a response-outparam */
 function createResponseOutparam(): { outparam: WasiResponseOutparam; promise: Promise<WasiOutgoingResponse | HttpErrorCode> } {
     let resolve!: (val: WasiOutgoingResponse | HttpErrorCode) => void;
@@ -182,29 +167,6 @@ function createResponseOutparam(): { outparam: WasiResponseOutparam; promise: Pr
 }
 
 // ─── HTTP Server ───
-
-/** Handler function type matching wasi:http/incoming-handler.handle */
-export type IncomingHandlerFn = (request: WasiIncomingRequest, responseOut: WasiResponseOutparam) => void;
-
-/** Configuration for the HTTP server */
-export interface HttpServerConfig {
-    /** Port to listen on. Default: 0 (auto-assign) */
-    port?: number;
-    /** Hostname to bind to. Default: '127.0.0.1' */
-    hostname?: string;
-    /** Networking limits. Merged with NETWORK_DEFAULTS. */
-    network?: NetworkConfig;
-}
-
-/** HTTP server handle */
-export interface WasiHttpServer {
-    /** Start listening. Returns the actual port. */
-    start(): Promise<number>;
-    /** Stop the server gracefully */
-    stop(): Promise<void>;
-    /** The actual port the server is listening on (after start) */
-    port(): number;
-}
 
 /**
  * Create an HTTP server that routes requests to a WASM incoming-handler.
@@ -415,12 +377,6 @@ export function responseOutparamSet(
 }
 
 // ─── Future Trailers (for incoming-body.finish) ───
-
-/** wasi:http/types future-trailers resource */
-export interface WasiFutureTrailers {
-    subscribe(): WasiPollable;
-    get(): { tag: 'ok'; val: { tag: 'ok'; val: WasiFields | undefined } } | { tag: 'err'; val: string } | undefined;
-}
 
 /** Create a future-trailers that immediately resolves with no trailers */
 export function createFutureTrailers(): WasiFutureTrailers {

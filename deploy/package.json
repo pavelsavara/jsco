@@ -8,6 +8,12 @@
     "bin": {
         "jsco": "index.js"
     },
+    "exports": {
+        ".": {
+            "types": "./index.d.ts",
+            "import": "./index.js"
+        }
+    },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/pavelsavara/jsco.git"

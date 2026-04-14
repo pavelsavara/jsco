@@ -4,17 +4,19 @@
  * Tests for wasi:http/types + wasi:http/outgoing-handler
  */
 
+import type {
+    HttpMethod,
+    WasiFutureIncomingResponse,
+    HttpResult,
+    WasiIncomingResponse,
+} from './api';
+import type { FetchFn } from './types';
 import {
     createFields,
     createFieldsFromList,
     createOutgoingRequest,
     createRequestOptions,
     createOutgoingHandler,
-    HttpMethod,
-    WasiFutureIncomingResponse,
-    HttpResult,
-    WasiIncomingResponse,
-    FetchFn,
 } from './http';
 
 // ─── Helpers ───

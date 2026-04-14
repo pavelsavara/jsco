@@ -1,7 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createWasiFilesystem, WasiDescriptor, WasiFilesystem, FsResult, DirectoryEntry } from './filesystem';
-import type { WasiDatetime } from './types';
+import type { WasiDescriptor, FsResult, DirectoryEntry, WasiDatetime } from './api';
+import type { WasiFilesystem } from './types';
+import { createWasiFilesystem } from './filesystem';
 
 /** Helper: unwrap an ok result or throw */
 function unwrap<T>(result: FsResult<T>): T {
