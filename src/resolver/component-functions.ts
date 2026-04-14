@@ -15,7 +15,7 @@ import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
-import { PROMISING } from '../constants';
+import { PROMISING } from '../utils/constants';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const cached = rctx.componentFunctionCache.get(rargs.element);

@@ -6,7 +6,7 @@ import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from './context';
 import { BinderArgs, BindingContext, ResolvedContext, ResolverRes } from './types';
-import { EXPORTS, ABORT } from '../constants';
+import { EXPORTS, ABORT } from '../utils/constants';
 
 export const enum PlanOpKind {
     CoreInstantiate,

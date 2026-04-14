@@ -1,14 +1,32 @@
 {
   "version": "1.0.0",
   "configurations": [
-
+    {
+      "name": "jsco",
+      "program": "${workspaceFolder}/dist/debug/index.js",
+      "args": [
+        "--experimental-wasm-jspi",
+        "help"
+      ],
+      "request": "launch",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "node"
+    },
     {
       "type": "node",
       "request": "launch",
       "name": "Jest: current file",
-      "env": { "NODE_OPTIONS": "--experimental-vm-modules" },
+      "env": {
+        "NODE_OPTIONS": "--experimental-vm-modules"
+      },
       "program": "${workspaceFolder}/node_modules/.bin/jest",
-      "args": ["${fileBasenameNoExtension}", "--config", "jest.config.js"],
+      "args": [
+        "${fileBasenameNoExtension}",
+        "--config",
+        "jest.config.js"
+      ],
       "console": "integratedTerminal",
       "disableOptimisticBPs": true,
       "windows": {
@@ -19,9 +37,15 @@
       "type": "node",
       "request": "launch",
       "name": "Jest: src/resolver/hello.test.ts",
-      "env": { "NODE_OPTIONS": "--experimental-vm-modules" },
+      "env": {
+        "NODE_OPTIONS": "--experimental-vm-modules"
+      },
       "program": "${workspaceFolder}/node_modules/.bin/jest",
-      "args": ["hello.test", "--config", "jest.config.js"],
+      "args": [
+        "hello.test",
+        "--config",
+        "jest.config.js"
+      ],
       "console": "integratedTerminal",
       "disableOptimisticBPs": true,
       "windows": {

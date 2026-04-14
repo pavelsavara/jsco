@@ -37,9 +37,9 @@ import type {
     WasiDatetime,
     WasiInputStream,
     WasiOutputStream,
-} from './api';
-import type { WasiFilesystem, FsMount } from './types';
-import { createInputStream, createOutputStream } from './streams';
+} from '../api';
+import type { WasiFilesystem, FsMount } from '../types';
+import { createInputStream, createOutputStream } from '../streams';
 
 // ─── Node.js fs detection ───
 
@@ -240,7 +240,7 @@ function createNodeDescriptor(hostPath: string, flags: DescriptorFlags, rootPath
                 const fd = fs.openSync(hostPath, 'r');
                 try {
                     const buf = Buffer.alloc(Number(length));
-                    const bytesRead = fs.readSync(fd, buf, 0, buf.length, Number(offset));
+                    const bytesRead = fs.readSync(fd, buf as any, 0, buf.length, Number(offset));
                     const stats = fs.fstatSync(fd);
                     const eof = Number(offset) + bytesRead >= stats.size;
                     return ok([new Uint8Array(buf.slice(0, bytesRead)), eof]);

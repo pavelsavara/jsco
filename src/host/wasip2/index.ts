@@ -46,7 +46,7 @@ import { createWasiWallClock } from './wall-clock';
 import { createWasiMonotonicClock } from './monotonic-clock';
 import { createWasiCli } from './cli';
 import { createWasiFilesystem } from './filesystem';
-import { createNodeFilesystem } from './filesystem-node';
+import { createNodeFilesystem } from './node/filesystem-node';
 import { poll } from './poll';
 import {
     createOutgoingHandler,
@@ -60,7 +60,7 @@ import {
     createUdpSocket,
     resolveAddresses,
     instanceNetwork,
-} from './sockets';
+} from './node/sockets';
 
 // Re-exports — WASI P2 API types
 export type {
@@ -88,15 +88,15 @@ export { createHandleTable, NETWORK_DEFAULTS } from './types';
 export { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
 export { createWasiWallClock } from './wall-clock';
 export { createWasiError } from './error';
-export { JspiBlockSignal, createSyncPollable, createAsyncPollable, poll, hasJspi } from './poll';
+export { JspiBlockSignal, createSyncPollable, createAsyncPollable, poll } from './poll';
 export { createInputStream, createOutputStream } from './streams';
 export { createWasiMonotonicClock } from './monotonic-clock';
 export { createWasiCli } from './cli';
 export { createWasiFilesystem } from './filesystem';
-export { createNodeFilesystem } from './filesystem-node';
+export { createNodeFilesystem } from './node/filesystem-node';
 export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler } from './http';
-export { createOutgoingResponse, createHttpServer, responseOutparamSet, createFutureTrailers } from './http-server';
-export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
+export { createOutgoingResponse, createHttpServer, responseOutparamSet, createFutureTrailers } from './node/http-server';
+export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './node/sockets';
 
 /**
  * Create a flat JsImports object containing all WASI host implementations.

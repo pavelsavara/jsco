@@ -8,14 +8,14 @@ import type {
     WasiIncomingRequest,
     WasiResponseOutparam,
     IncomingHandlerFn,
-} from './api';
+} from '../api';
 import {
     createHttpServer,
     createOutgoingResponse,
     responseOutparamSet,
     createFutureTrailers,
 } from './http-server';
-import { createFields, createFieldsFromList } from './http';
+import { createFields, createFieldsFromList } from '../http';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();

@@ -16,7 +16,7 @@ import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { _f32, _i32, _f64, _i64, _i32_64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK, ERR } from '../../constants';
+import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {

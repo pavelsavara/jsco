@@ -29,15 +29,15 @@ import type {
     WasiFutureTrailers,
     WasiInputStream,
     WasiOutputStream,
-} from './api';
-import type { HttpServerConfig, WasiHttpServer } from './types';
+} from '../api';
+import type { HttpServerConfig, WasiHttpServer } from '../types';
 import {
     createFields,
     createFieldsFromList,
-} from './http';
-import { createInputStream, createOutputStream } from './streams';
-import { createSyncPollable } from './poll';
-import { NETWORK_DEFAULTS } from './types';
+} from '../http';
+import { createInputStream, createOutputStream } from '../streams';
+import { createSyncPollable } from '../poll';
+import { NETWORK_DEFAULTS } from '../types';
 
 // ─── Incoming Request ───
 

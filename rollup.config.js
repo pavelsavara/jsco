@@ -41,16 +41,23 @@ const plugins = isDebug ? [] : [terser({
         toplevel: true,
         properties: {
             keep_quoted: 'strict',
+            reserved: ['leb128DecodeU64', 'leb128DecodeI64', 'leb128EncodeU64', 'leb128EncodeI64', 'buf', 'buffer', 'memory']
         },
     },
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash'];
+const outDir = isDebug ? 'dist/debug' : 'dist/release';
 /** Rollup plugin: externalize sibling module imports (wasip2, wasip2-node, index) */
 function externalizeSiblingModules() {
+    const srcDir = path.resolve('./src');
     return {
         name: 'externalize-sibling-modules',
-        resolveId(source) {
+        resolveId(source, importer) {
+            // Only externalize when the importer is a top-level entry module (src/*.ts)
+            if (!importer || path.dirname(path.resolve(importer)) !== srcDir) {
+                return null;
+            }
             if (source === './wasip2' || source === './wasip2.js') {
                 return { id: './wasip2.js', external: true };
             }
@@ -82,7 +89,7 @@ const jsco = {
     output: [
         {
             format: 'es',
-            file: 'dist/index.js',
+            file: `${outDir}/index.js`,
             banner,
             plugins,
             sourcemap: true,
@@ -101,7 +108,7 @@ const jscoTypes = {
     output: [
         {
             format: 'es',
-            file: 'dist/index.d.ts',
+            file: `${outDir}/index.d.ts`,
             banner: banner,
         }
     ],
@@ -116,7 +123,7 @@ const wasip2 = {
     output: [
         {
             format: 'es',
-            file: 'dist/wasip2.js',
+            file: `${outDir}/wasip2.js`,
             banner: banner.replace('#!/usr/bin/env node\n', ''),
             plugins,
             sourcemap: true,
@@ -139,7 +146,7 @@ const wasip2Node = {
     output: [
         {
             format: 'es',
-            file: 'dist/wasip2-node.js',
+            file: `${outDir}/wasip2-node.js`,
             banner: banner.replace('#!/usr/bin/env node\n', ''),
             plugins,
             sourcemap: true,
@@ -155,11 +162,45 @@ const wasip2Node = {
 };
 
 
+const wasip2Types = {
+    input: './src/wasip2.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip2.d.ts`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+        }
+    ],
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
+};
+
+const wasip2NodeTypes = {
+    input: './src/wasip2-node.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip2-node.d.ts`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+        }
+    ],
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
+};
+
 export default defineConfig([
     jsco,
     jscoTypes,
     wasip2,
+    wasip2Types,
     wasip2Node,
+    wasip2NodeTypes,
 ]);
 
 

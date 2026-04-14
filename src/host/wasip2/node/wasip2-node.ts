@@ -4,16 +4,16 @@
 // Provides HTTP server, Node.js filesystem, and CLI serve command.
 // Import from '@pavelsavara/jsco/wasip2-node'
 
-import type { NetworkConfig } from './host/wasip2/types';
-import type { IncomingHandlerFn } from './host/wasip2/api';
-import { createHttpServer } from './host/wasip2/http-server';
+import type { NetworkConfig } from '../types';
+import type { IncomingHandlerFn } from '../api';
+export type { IncomingHandlerFn, WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, WasiFutureTrailers } from '../api';
+export type { HttpServerConfig, WasiHttpServer } from '../types';
+export type { FsMount } from '../types';
 
-export { createHttpServer } from './host/wasip2/http-server';
-export type { IncomingHandlerFn, WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, WasiFutureTrailers } from './host/wasip2/api';
-export type { HttpServerConfig, WasiHttpServer } from './host/wasip2/types';
-export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from './host/wasip2/http-server';
-export { createNodeFilesystem } from './host/wasip2/filesystem-node';
-export type { FsMount } from './host/wasip2/types';
+import { createHttpServer } from './http-server';
+export { createHttpServer } from './http-server';
+export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from './http-server';
+export { createNodeFilesystem } from './filesystem-node';
 
 export interface ServeInstance {
     exports: Record<string, Record<string, Function> | undefined>;

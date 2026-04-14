@@ -7,7 +7,7 @@
  * JSPI: block() awaits the internal promise when JSPI is available.
  */
 
-import { SUSPENDING } from '../../constants';
+import { hasJspi } from '../../utils/jspi';
 import type { WasiPollable, PollResult } from './api';
 
 /**
@@ -111,17 +111,4 @@ export function poll(pollables: WasiPollable[]): PollResult {
  */
 export class JspiBlockSignal {
     constructor(public readonly promise: Promise<void>) { }
-}
-
-/** Detect JSPI availability at runtime (cached after first check) */
-let _jspiCached: boolean | undefined;
-export function hasJspi(): boolean {
-    if (_jspiCached !== undefined) return _jspiCached;
-    try {
-        _jspiCached = typeof WebAssembly !== 'undefined'
-            && typeof (WebAssembly as any)[SUSPENDING] === 'function';
-    } catch {
-        _jspiCached = false;
-    }
-    return _jspiCached;
 }

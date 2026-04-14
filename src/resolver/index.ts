@@ -12,7 +12,7 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
-import { INSTANTIATE } from '../constants';
+import { INSTANTIATE } from '../utils/constants';
 
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,

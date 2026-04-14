@@ -1,7 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { NetworkConfig } from './host/wasip2/types';
-import { NETWORK_DEFAULTS } from './host/wasip2/types';
+import type { NetworkConfig } from '../host/wasip2/types';
+import { NETWORK_DEFAULTS } from '../host/wasip2/types';
+import { createComponent } from '../resolver';
+import { hasJspi } from './jspi';
 
 export interface FsMount {
     hostPath: string;
@@ -22,6 +24,8 @@ export interface CliOptions {
     enabledInterfaces: string[] | undefined;
     /** serve-specific: listen address as host:port. Default: 0.0.0.0:8080 */
     addr: string | undefined;
+    /** Arguments to pass to the WASM component via wasi:cli/environment get-arguments */
+    componentArgs: string[];
 }
 
 export interface CliParseResult {
@@ -57,6 +61,8 @@ Common Options:
   --cwd <PATH>               Set the working directory for the component
   --enable <PREFIX>          Enable only WASI interfaces matching prefix
   -h, --help                 Print help
+
+Arguments after -- are passed to the component via wasi:cli/environment.
 `;
 
 const RUN_HELP_TEXT = `Runs a WebAssembly component
@@ -88,6 +94,8 @@ Options:
                              (e.g. --enable wasi:http --enable wasi:cli)
                              By default all interfaces are enabled.
   -h, --help                 Print help
+
+Arguments after -- are passed to the component via wasi:cli/environment.
 
 Networking options:
   --max-http-body-bytes <N>           Max HTTP body size in bytes (default: ${NETWORK_DEFAULTS.maxHttpBodyBytes})
@@ -125,6 +133,8 @@ Options:
   --enable <PREFIX>          Enable only WASI interfaces matching prefix
   -h, --help                 Print help
 
+Arguments after -- are passed to the component via wasi:cli/environment.
+
 Networking options:
   --max-http-body-bytes <N>           Max HTTP body size in bytes (default: ${NETWORK_DEFAULTS.maxHttpBodyBytes})
   --max-http-headers-bytes <N>        Max HTTP headers size in bytes (default: ${NETWORK_DEFAULTS.maxHttpHeadersBytes})
@@ -161,6 +171,7 @@ function createDefaultOptions(): CliOptions {
         cwd: undefined,
         enabledInterfaces: undefined,
         addr: undefined,
+        componentArgs: [],
     };
 }
 
@@ -351,6 +362,10 @@ export function parseCliArgs(args: string[]): CliParseResult {
             if (!cv) { error = 'Missing value for --http-keep-alive-timeout-ms'; return { command, componentUrl, options, error, help }; }
             i = cv.nextI;
             options.network.httpKeepAliveTimeoutMs = parseInt(cv.val, 10) || 0;
+        } else if (arg === '--') {
+            // Everything after -- is passed as component args
+            options.componentArgs = args.slice(i + 1);
+            break;
         } else if (arg.startsWith('-')) {
             error = `Unknown argument: ${arg}`;
             return { command, componentUrl, options, error, help };
@@ -380,18 +395,18 @@ export async function cliMain(): Promise<void> {
     if (typeof process === 'undefined' || process.versions == null || process.versions.node == null) return;
 
     // and that we are the main esm entry point (not imported by another module)
-    const { realpathSync } = await import('node:fs');
-    const { pathToFileURL } = await import('node:url');
+    const realpathSync = (await import('node:fs'))['realpathSync'];
+    const pathToFileURL = (await import('node:url'))['pathToFileURL'];
     const mainModulePath = process.argv[1];
     if (!mainModulePath) return;
     const mainModuleUrl = pathToFileURL(realpathSync(mainModulePath)).href;
     if (import.meta.url !== mainModuleUrl) return;
 
     // re-exec with --experimental-wasm-jspi if not already set
-    if (!process.execArgv.some(a => a.includes('experimental-wasm-jspi'))) {
-        const { spawnSync } = await import('node:child_process');
-        const result = spawnSync(process.execPath, ['--experimental-wasm-jspi', ...process.execArgv, mainModulePath, ...process.argv.slice(2)], { stdio: 'inherit' });
-        process.exit(result.status ?? 1);
+    if (!hasJspi()) {
+        const spawnSync = (await import('node:child_process'))['spawnSync'];
+        const result = spawnSync(process['execPath'], ['--experimental-wasm-jspi', ...process['execArgv'] as string[], mainModulePath, ...process.argv.slice(2)], { 'stdio': 'inherit' });
+        process.exit(result['status'] ?? 1);
     }
 
     const args = process.argv.slice(2);
@@ -413,19 +428,21 @@ export async function cliMain(): Promise<void> {
     // Build env pairs: explicit values + inherited names + inherit-all
     const envRecord: Record<string, string> = {};
     if (options.envInheritAll) {
-        Object.assign(envRecord, process.env);
+        Object.assign(envRecord, process['env']);
     }
     for (const name of options.envInheritNames) {
-        if (name in process.env) {
-            envRecord[name] = process.env[name]!;
+        if (name in process['env']) {
+            envRecord[name] = process['env'][name]!;
         }
     }
     Object.assign(envRecord, options.env);
     const envPairs: [string, string][] | undefined = Object.keys(envRecord).length > 0
         ? Object.entries(envRecord) : undefined;
 
-    // Dynamic import of wasip2 for instantiation
-    const { instantiateWasiComponent } = await import('./wasip2');
+    // Dynamic import of wasip2 for instantiation (avoid static import to prevent circular dependency)
+    const wasip2 = await import('../host/wasip2/wasip2');
+    wasip2['setCreateComponent'](createComponent);
+    const instantiateWasiComponent = wasip2['instantiateWasiComponent'];
 
     try {
         const instance = await instantiateWasiComponent(componentUrl, {
@@ -434,14 +451,15 @@ export async function cliMain(): Promise<void> {
             env: envPairs,
             mounts: options.mounts.length > 0 ? options.mounts : undefined,
             cwd: options.cwd,
+            args: options.componentArgs.length > 0 ? options.componentArgs : undefined,
         }, {}, options);
 
         if (command === 'serve') {
             // Dynamic import of wasip2-node for serve command
-            const { runServe } = await import('./wasip2-node');
+            const runServe = (await import('../host/wasip2/node/wasip2-node'))['runServe'];
             await runServe(instance, options.addr, options.network);
         } else {
-            const run = instance.exports['wasi:cli/run@0.2.11']?.run;
+            const run = instance.exports['wasi:cli/run@0.2.11']?.['run'];
             if (!run) throw new Error('Component does not export wasi:cli/run@0.2.11');
             await run();
         }

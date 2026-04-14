@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { createNodeFilesystem } from './filesystem-node';
-import type { FsResult } from './api';
+import type { FsResult } from '../api';
 
 /** Helper: unwrap an ok result or throw */
 function unwrap<T>(result: FsResult<T>): T {

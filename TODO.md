@@ -54,6 +54,7 @@
 - update `Demo scope` in readme
 
 # Other
+- pass CLI args to wasi:cli
 - OCI download
 - convert this TODO into github issues (this is more convenient for now)
 - attract more contributors

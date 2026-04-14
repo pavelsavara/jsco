@@ -33,10 +33,10 @@ import type {
     WasiOutgoingDatagramStream,
     WasiUdpSocket,
     WasiResolveAddressStream,
-} from './api';
-import type { NetworkConfig } from './types';
-import { createSyncPollable, createAsyncPollable } from './poll';
-import { NETWORK_DEFAULTS } from './types';
+} from '../api';
+import type { NetworkConfig } from '../types';
+import { createSyncPollable, createAsyncPollable } from '../poll';
+import { NETWORK_DEFAULTS } from '../types';
 
 function socketOk<T>(val: T): SocketResult<T> {
     return { tag: 'ok', val };

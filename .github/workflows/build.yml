@@ -33,5 +33,5 @@ jobs:
       with:
         name: jsco.${{github.sha}}
         path: |
-          dist/*.*
-          dist/LICENSE
+          dist/release/*.*
+          dist/release/LICENSE

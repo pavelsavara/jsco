@@ -12,6 +12,14 @@
         ".": {
             "types": "./index.d.ts",
             "import": "./index.js"
+        },
+        "./wasip2": {
+            "types": "./wasip2.d.ts",
+            "import": "./wasip2.js"
+        },
+        "./wasip2-node": {
+            "types": "./wasip2-node.d.ts",
+            "import": "./wasip2-node.js"
         }
     },
     "repository": {

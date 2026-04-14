@@ -21,7 +21,7 @@ import type { ParserOptions } from '../../parser/types';
 import type { JsImports, WasmComponent, WasmComponentInstance } from '../../resolver/api-types';
 import type { WasiConfig } from './types';
 import { createWasiP2Host } from './index';
-import { hasJspi } from './poll';
+import { hasJspi } from '../../utils/jspi';
 
 /** Options for WASI component instantiation */
 export interface WasiInstantiateOptions extends ComponentFactoryOptions, ParserOptions {

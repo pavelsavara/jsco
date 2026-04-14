@@ -16,7 +16,7 @@ import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, 
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK } from '../../constants';
+import { TAG, VAL, OK } from '../../utils/constants';
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
