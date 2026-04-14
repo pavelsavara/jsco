@@ -18,6 +18,52 @@ export class WasiExit extends Error {
     }
 }
 
+/** Networking configuration for HTTP, sockets, and DNS */
+export interface NetworkConfig {
+    /** Maximum HTTP body size in bytes (request and response). Default: 2MB (2_097_152) */
+    maxHttpBodyBytes?: number;
+    /** Maximum HTTP headers total size in bytes. Default: 200KB (204_800) */
+    maxHttpHeadersBytes?: number;
+    /** Per-connection socket read buffer size in bytes. Default: 200KB (204_800) */
+    socketBufferBytes?: number;
+    /** Maximum pending TCP connections (backlog). Default: 500. Overflows are dropped. */
+    maxTcpPendingConnections?: number;
+    /** TCP idle timeout in milliseconds. Connections idle longer are closed. Default: 120_000 (2 min) */
+    tcpIdleTimeoutMs?: number;
+    /** HTTP server request timeout in milliseconds. Default: 30_000 (30s) */
+    httpRequestTimeoutMs?: number;
+    /** Maximum queued UDP datagrams per socket. Default: 1_000 */
+    maxUdpDatagrams?: number;
+    /** DNS lookup timeout in milliseconds. Default: 5_000 */
+    dnsTimeoutMs?: number;
+    /** Maximum concurrent DNS lookups. Default: 100 */
+    maxConcurrentDnsLookups?: number;
+    /** Maximum concurrent HTTP connections to the server. Default: 1_000 */
+    maxHttpConnections?: number;
+    /** Maximum request URL length in bytes. Default: 8_192 */
+    maxRequestUrlBytes?: number;
+    /** Node.js HTTP server headersTimeout in ms (Slowloris protection). Default: 60_000 */
+    httpHeadersTimeoutMs?: number;
+    /** Node.js HTTP server keepAliveTimeout in ms. Default: 5_000 */
+    httpKeepAliveTimeoutMs?: number;
+}
+
+export const NETWORK_DEFAULTS = {
+    maxHttpBodyBytes: 2_097_152,
+    maxHttpHeadersBytes: 204_800,
+    socketBufferBytes: 204_800,
+    maxTcpPendingConnections: 500,
+    tcpIdleTimeoutMs: 120_000,
+    httpRequestTimeoutMs: 30_000,
+    maxUdpDatagrams: 1_000,
+    dnsTimeoutMs: 5_000,
+    maxConcurrentDnsLookups: 100,
+    maxHttpConnections: 1_000,
+    maxRequestUrlBytes: 8_192,
+    httpHeadersTimeoutMs: 60_000,
+    httpKeepAliveTimeoutMs: 5_000,
+} as const;
+
 /** Configuration for createWasiP2Host() */
 export interface WasiConfig {
     /** Environment variables as [key, value] pairs */
@@ -34,10 +80,29 @@ export interface WasiConfig {
     stderr?: (bytes: Uint8Array) => void;
     /** Virtual filesystem — full unix paths to file contents */
     fs?: Map<string, Uint8Array>;
-    /** Maximum response body size in bytes. Undefined = unlimited. */
-    maxResponseBodyBytes?: number;
-    /** WASI interface prefixes to disable (e.g. ['wasi:http', 'wasi:sockets']) */
-    disabledInterfaces?: string[];
+    /**
+     * Real filesystem mount points (Node.js only).
+     * Each entry maps a host directory to a guest path.
+     * Similar to wasmtime's --dir flag.
+     *
+     * @example
+     * ```ts
+     * mounts: [
+     *   { hostPath: '.', guestPath: '/' },
+     *   { hostPath: '/data', guestPath: '/mnt/data', readOnly: true },
+     * ]
+     * ```
+     *
+     * When mounts are specified, they take precedence over the `fs` VFS.
+     */
+    mounts?: Array<{ hostPath: string; guestPath: string; readOnly?: boolean }>;
+    /** Networking limits and timeouts */
+    network?: NetworkConfig;
+    /**
+     * WASI interface prefixes to enable (e.g. ['wasi:cli', 'wasi:http', 'wasi:sockets']).
+     * Default: all interfaces enabled. When set, only matching prefixes are registered.
+     */
+    enabledInterfaces?: string[];
 }
 
 /** Opaque handle ID for WASI resources */

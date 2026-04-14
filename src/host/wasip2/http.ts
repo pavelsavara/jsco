@@ -460,10 +460,11 @@ function getTimeoutMs(options?: WasiRequestOptions): number | undefined {
  * Create a wasi:http/outgoing-handler implementation.
  *
  * @param fetchFn The fetch function to use. Defaults to globalThis.fetch.
- * @param maxResponseBodyBytes Maximum response body size in bytes. Undefined = unlimited.
+ * @param maxHttpBodyBytes Maximum HTTP body size in bytes. Default: 2MB.
  */
-export function createOutgoingHandler(fetchFn?: FetchFn, maxResponseBodyBytes?: number): WasiOutgoingHandler {
+export function createOutgoingHandler(fetchFn?: FetchFn, maxHttpBodyBytes?: number): WasiOutgoingHandler {
     const doFetch: FetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
+    const bodyLimit = maxHttpBodyBytes ?? 2_097_152;
 
     return {
         handle(request: WasiOutgoingRequest, options?: WasiRequestOptions): HttpResult<WasiFutureIncomingResponse> {
@@ -481,10 +482,10 @@ export function createOutgoingHandler(fetchFn?: FetchFn, maxResponseBodyBytes?: 
 
             const fetchPromise = doFetch(url, init)
                 .then(async (response) => {
-                    // Enforce response body size limit
-                    if (maxResponseBodyBytes !== undefined) {
+                    // Enforce response body size limit via Content-Length header
+                    if (bodyLimit !== undefined) {
                         const contentLength = response.headers.get('content-length');
-                        if (contentLength !== null && parseInt(contentLength, 10) > maxResponseBodyBytes) {
+                        if (contentLength !== null && parseInt(contentLength, 10) > bodyLimit) {
                             result = httpErr({ tag: 'HTTP-response-body-size', val: BigInt(parseInt(contentLength, 10)) });
                             return;
                         }
@@ -500,13 +501,30 @@ export function createOutgoingHandler(fetchFn?: FetchFn, maxResponseBodyBytes?: 
                         ? fieldsResult.val
                         : createFields(); // fallback if headers have forbidden names
 
-                    // Read body
-                    const bodyBytes = new Uint8Array(await response.arrayBuffer());
+                    // Stream body with size enforcement
+                    const bodyChunks: Uint8Array[] = [];
+                    let totalBodySize = 0;
+                    if (response.body) {
+                        const reader = response.body.getReader();
+                        for (;;) {
+                            const { done, value: chunk } = await reader.read();
+                            if (done) break;
+                            totalBodySize += chunk.byteLength;
+                            if (bodyLimit !== undefined && totalBodySize > bodyLimit) {
+                                reader.cancel();
+                                result = httpErr({ tag: 'HTTP-response-body-size', val: BigInt(totalBodySize) });
+                                return;
+                            }
+                            bodyChunks.push(chunk);
+                        }
+                    }
 
-                    // Enforce limit for responses without Content-Length
-                    if (maxResponseBodyBytes !== undefined && bodyBytes.length > maxResponseBodyBytes) {
-                        result = httpErr({ tag: 'HTTP-response-body-size', val: BigInt(bodyBytes.length) });
-                        return;
+                    // Concatenate chunks
+                    const bodyBytes = new Uint8Array(totalBodySize);
+                    let offset = 0;
+                    for (const chunk of bodyChunks) {
+                        bodyBytes.set(chunk, offset);
+                        offset += chunk.byteLength;
                     }
 
                     result = httpOk(createIncomingResponse(response.status, responseHeaders, bodyBytes));

@@ -9,7 +9,7 @@ import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
 import { GIT_HASH, CONFIGURATION } from './constants';
 import { instantiateWasiComponent } from './host/wasip2/instantiate';
-import { parseCliArgs } from './cli';
+import { parseCliArgs } from './args';
 
 export type { WasiInstantiateOptions } from './host/wasip2/instantiate';
 export type { WasiConfig } from './host/wasip2/types';
@@ -44,7 +44,13 @@ if (typeof process !== 'undefined' && process.versions != null && process.versio
             process.exit(result.status ?? 1);
         }
         const args = process.argv.slice(2);
-        const { componentUrl, options, error } = parseCliArgs(args);
+        const { componentUrl, options, error, help } = parseCliArgs(args);
+        if (help) {
+            const { HELP_TEXT } = await import('./args');
+            // eslint-disable-next-line no-console
+            console.log(HELP_TEXT);
+            process.exit(0);
+        }
         if (error) {
             // eslint-disable-next-line no-console
             console.error(error);
@@ -54,7 +60,17 @@ if (typeof process !== 'undefined' && process.versions != null && process.versio
             process.exit(1);
         }
 
-        const instance = await instantiateWasiComponent(componentUrl, {}, {}, options);
+        const envPairs: [string, string][] | undefined = options.envInherit
+            ? Object.entries({ ...process.env as Record<string, string>, ...options.env })
+            : Object.keys(options.env).length > 0 ? Object.entries(options.env) : undefined;
+
+        const instance = await instantiateWasiComponent(componentUrl, {
+            network: options.network,
+            enabledInterfaces: options.enabledInterfaces,
+            env: envPairs,
+            mounts: options.mounts.length > 0 ? options.mounts : undefined,
+            cwd: options.cwd,
+        }, {}, options);
         const run = instance.exports['wasi:cli/run@0.2.11']?.run;
         if (!run) throw new Error('Component does not export wasi:cli/run@0.2.11');
         await run();

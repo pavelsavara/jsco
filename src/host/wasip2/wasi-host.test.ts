@@ -214,10 +214,10 @@ describe('createWasiP2Host', () => {
             expect(() => host['wasi:cli/exit']!['exit']!({ tag: 'err' })).toThrow('WASI exit with status 1');
         });
 
-        it('socket stubs return not-supported', () => {
+        it('socket creation returns a socket', () => {
             const host = createWasiP2Host();
             const result = host['wasi:sockets/tcp-create-socket']!['create-tcp-socket']!('ipv4');
-            expect(result).toEqual({ tag: 'err', val: 'not-supported' });
+            expect(result.tag).toBe('ok');
         });
 
         it('insecure random returns bytes', () => {
