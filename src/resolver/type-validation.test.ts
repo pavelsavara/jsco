@@ -454,5 +454,58 @@ describe('type-validation', () => {
                 ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
             })).not.toThrow();
         });
+
+        test('param with ComponentValTypeType matching passes', () => {
+            const funcType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 5 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const rctx = makeMinimalRctx({
+                componentTypes: [funcType, funcType],
+                componentFunctions: [{
+                    tag: ModelTag.CanonicalFunctionLift,
+                    core_func_index: 0,
+                    type_index: 1,
+                    options: [],
+                } as any],
+            });
+            expect(() => validateExportType(rctx, {
+                tag: ModelTag.ComponentExport,
+                name: { tag: ModelTag.ComponentExternNameKebab, name: 'f' },
+                kind: ComponentExternalKind.Func,
+                index: 0,
+                ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
+            })).not.toThrow();
+        });
+
+        test('param with ComponentValTypeType mismatch throws', () => {
+            const declaredType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 5 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const actualType = {
+                tag: ModelTag.ComponentTypeFunc as const,
+                params: [{ name: 'x', type: { tag: ModelTag.ComponentValTypeType as const, value: 7 } }],
+                results: { tag: ModelTag.ComponentFuncResultUnnamed as const, type: { tag: ModelTag.ComponentValTypePrimitive as const, value: PrimitiveValType.U32 } },
+            };
+            const rctx = makeMinimalRctx({
+                componentTypes: [declaredType, actualType],
+                componentFunctions: [{
+                    tag: ModelTag.CanonicalFunctionLift,
+                    core_func_index: 0,
+                    type_index: 1,
+                    options: [],
+                } as any],
+            });
+            expect(() => validateExportType(rctx, {
+                tag: ModelTag.ComponentExport,
+                name: { tag: ModelTag.ComponentExternNameKebab, name: 'f' },
+                kind: ComponentExternalKind.Func,
+                index: 0,
+                ty: { tag: ModelTag.ComponentTypeRefFunc, value: 0 },
+            })).toThrow(/param 0.*type mismatch/);
+        });
     });
 });
