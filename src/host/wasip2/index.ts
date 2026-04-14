@@ -38,8 +38,9 @@ import type {
     WasiNetwork,
     WasiInputStream,
     WasiOutputStream,
+    WasiP2HostExports,
 } from './api';
-import type { WasiConfig, WasiP2HostExports } from './types';
+import type { WasiConfig } from './types';
 import { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
 import { createWasiWallClock } from './wall-clock';
 import { createWasiMonotonicClock } from './monotonic-clock';
@@ -75,11 +76,12 @@ export type {
     HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler,
     WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, IncomingHandlerFn, WasiFutureTrailers,
     SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, IncomingDatagram, OutgoingDatagram, WasiIncomingDatagramStream, WasiOutgoingDatagramStream, WasiResolveAddressStream,
+    WasiP2Interfaces, WasiP2InterfaceName, WasiP2HostExports,
 } from './api';
 export { WasiExit } from './api';
 
 // Re-exports — internal types
-export type { WasiConfig, HandleId, HandleTable, NetworkConfig, WasiCli, WasiFilesystem, FsMount, FetchFn, HttpServerConfig, WasiHttpServer, WasiP2InterfaceName, WasiP2HostExports } from './types';
+export type { WasiConfig, HandleId, HandleTable, NetworkConfig, WasiCli, WasiFilesystem, FsMount, FetchFn, HttpServerConfig, WasiHttpServer } from './types';
 export { createHandleTable, NETWORK_DEFAULTS } from './types';
 
 // Re-exports — factory functions

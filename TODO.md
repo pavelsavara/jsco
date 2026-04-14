@@ -54,6 +54,7 @@
 - update `Demo scope` in readme
 
 # Other
+- OCI download
 - convert this TODO into github issues (this is more convenient for now)
 - attract more contributors
 - review license & add CoC
