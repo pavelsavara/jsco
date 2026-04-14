@@ -2626,3 +2626,203 @@ describeDebugOnly('boundary guard errors (lifting)', () => {
         });
     });
 });
+
+// ─── Boundary guard error tests (null/undefined/wrong-type at lift boundary) ──
+
+describeDebugOnly('boundary guard errors (lifting)', () => {
+    let rctx: ResolverContext;
+    let bctx: BindingContext;
+
+    beforeEach(() => {
+        rctx = createMinimalRctx();
+        bctx = createMinimalBctx();
+    });
+
+    describe('record guards', () => {
+        const recordModel = {
+            tag: ModelTag.ComponentTypeDefinedRecord as const,
+            members: [
+                { name: 'x', type: prim(PrimitiveValType.U32) },
+            ],
+        };
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, recordModel);
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+            expect(() => lifter(bctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, recordModel);
+            expect(() => lifter(bctx, undefined)).toThrow(TypeError);
+            expect(() => lifter(bctx, undefined)).toThrow(/undefined/);
+        });
+
+        test('number throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, recordModel);
+            expect(() => lifter(bctx, 42)).toThrow(TypeError);
+            expect(() => lifter(bctx, 42)).toThrow(/number/);
+        });
+    });
+
+    describe('variant guards', () => {
+        const variantModel = {
+            tag: ModelTag.ComponentTypeDefinedVariant as const,
+            variants: [
+                { name: 'a', ty: prim(PrimitiveValType.U32) },
+                { name: 'b' },
+            ],
+        };
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, variantModel);
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+            expect(() => lifter(bctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, variantModel);
+            expect(() => lifter(bctx, undefined)).toThrow(TypeError);
+            expect(() => lifter(bctx, undefined)).toThrow(/undefined/);
+        });
+
+        test('number (no tag field) throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, variantModel);
+            expect(() => lifter(bctx, 42)).toThrow(TypeError);
+        });
+    });
+
+    describe('result guards', () => {
+        const resultModel = {
+            tag: ModelTag.ComponentTypeDefinedResult as const,
+            ok: prim(PrimitiveValType.U32),
+            err: prim(PrimitiveValType.String),
+        };
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, resultModel);
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+            expect(() => lifter(bctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, resultModel);
+            expect(() => lifter(bctx, undefined)).toThrow(TypeError);
+            expect(() => lifter(bctx, undefined)).toThrow(/undefined/);
+        });
+
+        test('number (no tag field) throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, resultModel);
+            expect(() => lifter(bctx, 42)).toThrow(TypeError);
+        });
+    });
+
+    describe('list guards', () => {
+        const listModel = {
+            tag: ModelTag.ComponentTypeDefinedList as const,
+            value: prim(PrimitiveValType.U32),
+        };
+
+        test('null throws TypeError', () => {
+            const { ctx } = createMockMemoryContext();
+            const lifter = createLifting(rctx.resolved, listModel);
+            expect(() => lifter(ctx, null)).toThrow(TypeError);
+            expect(() => lifter(ctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const { ctx } = createMockMemoryContext();
+            const lifter = createLifting(rctx.resolved, listModel);
+            expect(() => lifter(ctx, undefined)).toThrow(TypeError);
+            expect(() => lifter(ctx, undefined)).toThrow(/undefined/);
+        });
+    });
+
+    describe('tuple guards', () => {
+        const tupleModel = {
+            tag: ModelTag.ComponentTypeDefinedTuple as const,
+            members: [prim(PrimitiveValType.U32), prim(PrimitiveValType.Bool)],
+        };
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, tupleModel);
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+            expect(() => lifter(bctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, tupleModel);
+            expect(() => lifter(bctx, undefined)).toThrow(TypeError);
+            expect(() => lifter(bctx, undefined)).toThrow(/undefined/);
+        });
+
+        test('wrong length throws', () => {
+            const lifter = createLifting(rctx.resolved, tupleModel);
+            expect(() => lifter(bctx, [1])).toThrow(/Expected tuple of 2 elements, got 1/);
+            expect(() => lifter(bctx, [1, 2, 3])).toThrow(/Expected tuple of 2 elements, got 3/);
+        });
+    });
+
+    describe('flags guards', () => {
+        const flagsModel = {
+            tag: ModelTag.ComponentTypeDefinedFlags as const,
+            members: ['a', 'b'],
+        };
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, flagsModel);
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+            expect(() => lifter(bctx, null)).toThrow(/null/);
+        });
+
+        test('undefined throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, flagsModel);
+            expect(() => lifter(bctx, undefined)).toThrow(TypeError);
+        });
+
+        test('number throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, flagsModel);
+            expect(() => lifter(bctx, 42)).toThrow(TypeError);
+            expect(() => lifter(bctx, 42)).toThrow(/number/);
+        });
+    });
+
+    describe('f32 guards', () => {
+        test('string throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
+            expect(() => lifter(bctx, 'hello')).toThrow(TypeError);
+            expect(() => lifter(bctx, 'hello')).toThrow(/f32/);
+        });
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+        });
+    });
+
+    describe('f64 guards', () => {
+        test('string throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
+            expect(() => lifter(bctx, 'hello')).toThrow(TypeError);
+            expect(() => lifter(bctx, 'hello')).toThrow(/f64/);
+        });
+
+        test('object throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
+            expect(() => lifter(bctx, {})).toThrow(TypeError);
+        });
+    });
+
+    describe('char guards', () => {
+        test('number throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
+            expect(() => lifter(bctx, 65)).toThrow(TypeError);
+            expect(() => lifter(bctx, 65)).toThrow(/char/);
+        });
+
+        test('null throws TypeError', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Char));
+            expect(() => lifter(bctx, null)).toThrow(TypeError);
+        });
+    });
+});

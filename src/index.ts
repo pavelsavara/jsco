@@ -9,6 +9,7 @@ import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
 import { GIT_HASH, CONFIGURATION } from './constants';
 import { instantiateWasiComponent } from './host/wasip2/instantiate';
+import { parseCliArgs } from './cli';
 
 export type { WasiInstantiateOptions } from './host/wasip2/instantiate';
 export type { WasiConfig } from './host/wasip2/types';
@@ -43,39 +44,17 @@ if (typeof process !== 'undefined' && process.versions != null && process.versio
             process.exit(result.status ?? 1);
         }
         const args = process.argv.slice(2);
-        let componentUrl;
-        const options = {
-            useNumberForInt64: false,
-            noJspi: false,
-            validateTypes: true
-        } as any;
-        // process arguments and map them to them to options and componentUrl
-        for (let i = 0; i < args.length; i++) {
-            const arg = args[i];
-            if (!arg) continue;
-            if (arg === '--use-number-for-int64') {
-                options.useNumberForInt64 = true;
-            } else if (arg === '--no-jspi') {
-                options.noJspi = true;
-            } else if (arg === '--validate-types') {
-                options.validateTypes = true;
-            } else if (arg.startsWith('--component=')) {
-                componentUrl = arg.substring('--component='.length);
-            } else if (arg.endsWith('.wasm') && i == args.length - 1) {
-                componentUrl = arg;
-            } else {
-                // eslint-disable-next-line no-console
-                console.error(`Unknown argument: ${arg}`);
-                process.exit(1);
-            }
+        const { componentUrl, options, error } = parseCliArgs(args);
+        if (error) {
+            // eslint-disable-next-line no-console
+            console.error(error);
+            process.exit(1);
         }
         if (!componentUrl) {
-            // eslint-disable-next-line no-console
-            console.error('usage: npx @pavelsavara/jsco [--use-number-for-int64] [--no-jspi] [--validate-types] path/to/component.wasm');
             process.exit(1);
         }
 
-        const instance = await instantiateWasiComponent(componentUrl, options);
+        const instance = await instantiateWasiComponent(componentUrl, {}, {}, options);
         const run = instance.exports['wasi:cli/run@0.2.11']?.run;
         if (!run) throw new Error('Component does not export wasi:cli/run@0.2.11');
         await run();
