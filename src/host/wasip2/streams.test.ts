@@ -425,6 +425,64 @@ describe('wasi:io/streams', () => {
                 expect(result.val.val.toDebugString()).toBe('string error');
             }
         });
+
+        // ─── splice / blockingSplice ───
+
+        it('splice reads from input and writes to output', () => {
+            const inputData = new Uint8Array([10, 20, 30, 40, 50]);
+            const inputStream = createInputStream(inputData);
+            const flushed: Uint8Array[] = [];
+            const outputStream = createOutputStream((bytes) => { flushed.push(new Uint8Array(bytes)); });
+
+            const result = outputStream.splice(inputStream, 3n);
+            expect(result.tag).toBe('ok');
+            if (result.tag === 'ok') {
+                expect(result.val).toBe(3n);
+            }
+
+            // Flush to see the data
+            outputStream.flush();
+            expect(flushed.length).toBe(1);
+            expect(flushed[0]).toEqual(new Uint8Array([10, 20, 30]));
+        });
+
+        it('splice returns shorter count at end of input', () => {
+            const inputData = new Uint8Array([1, 2]);
+            const inputStream = createInputStream(inputData);
+            const flushed: Uint8Array[] = [];
+            const outputStream = createOutputStream((bytes) => { flushed.push(new Uint8Array(bytes)); });
+
+            const result = outputStream.splice(inputStream, 100n);
+            expect(result.tag).toBe('ok');
+            if (result.tag === 'ok') {
+                expect(result.val).toBe(2n);
+            }
+        });
+
+        it('blockingSplice reads and flushes to output', () => {
+            const inputData = new Uint8Array([7, 8, 9]);
+            const inputStream = createInputStream(inputData);
+            const flushed: Uint8Array[] = [];
+            const outputStream = createOutputStream((bytes) => { flushed.push(new Uint8Array(bytes)); });
+
+            const result = outputStream.blockingSplice(inputStream, 3n);
+            expect(result.tag).toBe('ok');
+            if (result.tag === 'ok') {
+                expect(result.val).toBe(3n);
+            }
+            // blockingSplice flushes automatically
+            expect(flushed.length).toBe(1);
+            expect(flushed[0]).toEqual(new Uint8Array([7, 8, 9]));
+        });
+
+        it('splice propagates input stream error', () => {
+            // Empty input — reading returns closed
+            const inputStream = createInputStream(new Uint8Array(0));
+            const outputStream = createOutputStream(() => { /* no-op */ });
+
+            const result = outputStream.splice(inputStream, 10n);
+            expect(result.tag).toBe('err');
+        });
     });
 });
 

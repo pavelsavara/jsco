@@ -15,11 +15,32 @@ import type {
     WasiTerminalOutput,
     WasiPreopens,
     WasiDescriptor,
+    WasiResponseOutparam,
+    WasiOutgoingResponse,
+    HttpErrorCode,
+    WasiNetwork,
 } from './api';
 
 // Re-export WasiExit and WasiDatetime from api.ts for backward compatibility
 export { WasiExit } from './api';
 export type { WasiDatetime } from './api';
+
+// ─── Internal extended interfaces (not part of WASI spec) ───
+
+/** @internal Extended WasiDescriptor with VFS node access */
+export interface WasiDescriptorInternal extends WasiDescriptor {
+    _node(): unknown;
+}
+
+/** @internal Extended WasiResponseOutparam with resolve callback */
+export interface WasiResponseOutparamInternal extends WasiResponseOutparam {
+    _resolve(response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode }): void;
+}
+
+/** @internal Extended WasiNetwork with tag */
+export interface WasiNetworkInternal extends WasiNetwork {
+    _tag: string;
+}
 
 /** Networking configuration for HTTP, sockets, and DNS */
 export interface NetworkConfig {

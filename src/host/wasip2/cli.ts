@@ -74,6 +74,9 @@ export function createWasiCli(config?: WasiConfig): WasiCli {
                 const code = status.tag === 'ok' ? 0 : 1;
                 throw new WasiExit(code);
             },
+            exitWithCode(statusCode: number): never {
+                throw new WasiExit(statusCode);
+            },
         },
 
         stdin: {

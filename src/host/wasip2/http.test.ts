@@ -17,6 +17,7 @@ import {
     createOutgoingRequest,
     createRequestOptions,
     createOutgoingHandler,
+    finishOutgoingBody,
 } from './http';
 
 // ─── Helpers ───
@@ -794,5 +795,47 @@ describe('wasi:http edge cases', () => {
         expect(first.tag).toBe('ok');
         const second = bodyResult.val.stream();
         expect(second.tag).toBe('err');
+    });
+});
+
+// ─── finishOutgoingBody ───
+
+describe('wasi:http/types outgoing-body finish', () => {
+    test('finishOutgoingBody succeeds on fresh body', () => {
+        const request = createOutgoingRequest(createFields());
+        const bodyResult = request.body();
+        expect(bodyResult.tag).toBe('ok');
+        if (bodyResult.tag !== 'ok') return;
+
+        const result = finishOutgoingBody(bodyResult.val);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('finishOutgoingBody succeeds after writing', () => {
+        const request = createOutgoingRequest(createFields());
+        const bodyResult = request.body();
+        expect(bodyResult.tag).toBe('ok');
+        if (bodyResult.tag !== 'ok') return;
+
+        const streamResult = bodyResult.val.write();
+        expect(streamResult.tag).toBe('ok');
+        if (streamResult.tag === 'ok') {
+            streamResult.val.write(new TextEncoder().encode('hello'));
+            streamResult.val.flush();
+        }
+
+        const result = finishOutgoingBody(bodyResult.val);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('finishOutgoingBody accepts optional trailers', () => {
+        const request = createOutgoingRequest(createFields());
+        const bodyResult = request.body();
+        expect(bodyResult.tag).toBe('ok');
+        if (bodyResult.tag !== 'ok') return;
+
+        const trailers = createFields();
+        const result = finishOutgoingBody(bodyResult.val, trailers);
+        expect(result.tag).toBe('ok');
     });
 });

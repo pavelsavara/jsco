@@ -210,6 +210,14 @@ export function createRequestOptions(): WasiRequestOptions {
     };
 }
 
+// ─── Outgoing Body finish ───
+
+/** Finish an outgoing-body — flush stream, mark complete */
+export function finishOutgoingBody(_body: WasiOutgoingBody, _trailers?: WasiFields): HttpResult<void> {
+    // The body is already collected via the write stream. Just accept and succeed.
+    return httpOk(undefined);
+}
+
 // ─── Incoming Response ───
 
 function createIncomingResponse(status: number, headers: WasiFields, bodyBytes: Uint8Array): WasiIncomingResponse {

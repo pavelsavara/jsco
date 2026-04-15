@@ -30,7 +30,7 @@ import type {
     WasiInputStream,
     WasiOutputStream,
 } from '../api';
-import type { HttpServerConfig, WasiHttpServer } from '../types';
+import type { HttpServerConfig, WasiHttpServer, WasiResponseOutparamInternal } from '../types';
 import {
     createFields,
     createFieldsFromList,
@@ -149,11 +149,11 @@ export function createOutgoingResponse(headers: WasiFields): WasiOutgoingRespons
 // ─── Response Outparam ───
 
 /** Create a response-outparam */
-function createResponseOutparam(): { outparam: WasiResponseOutparam; promise: Promise<WasiOutgoingResponse | HttpErrorCode> } {
+function createResponseOutparam(): { outparam: WasiResponseOutparamInternal; promise: Promise<WasiOutgoingResponse | HttpErrorCode> } {
     let resolve!: (val: WasiOutgoingResponse | HttpErrorCode) => void;
     const promise = new Promise<WasiOutgoingResponse | HttpErrorCode>(r => { resolve = r; });
 
-    const outparam: WasiResponseOutparam = {
+    const outparam: WasiResponseOutparamInternal = {
         _resolve(response) {
             if (response.tag === 'ok') {
                 resolve(response.val);
@@ -373,15 +373,20 @@ export function responseOutparamSet(
     param: WasiResponseOutparam,
     response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode },
 ): void {
-    param._resolve(response);
+    (param as WasiResponseOutparamInternal)._resolve(response);
 }
 
 // ─── Future Trailers (for incoming-body.finish) ───
 
 /** Create a future-trailers that immediately resolves with no trailers */
 export function createFutureTrailers(): WasiFutureTrailers {
+    let consumed = false;
     return {
         subscribe: () => createSyncPollable(() => true),
-        get: () => ({ tag: 'ok', val: { tag: 'ok', val: undefined } }),
+        get: () => {
+            if (consumed) return undefined;
+            consumed = true;
+            return { tag: 'ok', val: { tag: 'ok', val: undefined } };
+        },
     };
 }

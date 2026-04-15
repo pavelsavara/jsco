@@ -43,12 +43,12 @@ const ipv4Addr = (port: number): IpSocketAddress => ({
 describe('wasi:sockets/network', () => {
     test('createNetwork returns a network resource', () => {
         const net = createNetwork();
-        expect(net._tag).toBe('network');
+        expect((net as any)._tag).toBe('network');
     });
 
     test('instanceNetwork returns a network resource', () => {
         const net = instanceNetwork();
-        expect(net._tag).toBe('network');
+        expect((net as any)._tag).toBe('network');
     });
 });
 
@@ -161,6 +161,18 @@ describe('wasi:sockets/tcp', () => {
 
         test('shutdown fails for non-connected socket', () => {
             const result = socket.shutdown('both');
+            expect(result.tag).toBe('err');
+            if (result.tag === 'err') expect(result.val).toBe('invalid-state');
+        });
+
+        test('shutdown with receive fails for non-connected socket', () => {
+            const result = socket.shutdown('receive');
+            expect(result.tag).toBe('err');
+            if (result.tag === 'err') expect(result.val).toBe('invalid-state');
+        });
+
+        test('shutdown with send fails for non-connected socket', () => {
+            const result = socket.shutdown('send');
             expect(result.tag).toBe('err');
             if (result.tag === 'err') expect(result.val).toBe('invalid-state');
         });

@@ -39,6 +39,12 @@ import type {
     WasiInputStream,
     WasiOutputStream,
     WasiP2HostExports,
+    Advice,
+    ShutdownType,
+    WasiIncomingRequest,
+    WasiOutgoingResponse,
+    WasiResponseOutparam,
+    WasiFutureTrailers,
 } from './api';
 import type { WasiConfig } from './types';
 import { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
@@ -54,6 +60,7 @@ import {
     createFieldsFromList,
     createOutgoingRequest,
     createRequestOptions,
+    finishOutgoingBody,
 } from './http';
 import {
     createTcpSocket,
@@ -61,6 +68,11 @@ import {
     resolveAddresses,
     instanceNetwork,
 } from './node/sockets';
+import {
+    createOutgoingResponse,
+    responseOutparamSet,
+    createFutureTrailers,
+} from './node/http-server';
 
 // Re-exports — WASI P2 API types
 export type {
@@ -73,9 +85,11 @@ export type {
     WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed,
     WasiEnvironment, WasiCliExit, WasiStdin, WasiStdout, WasiStderr, WasiTerminalInput, WasiTerminalOutput,
     ErrorCode, DescriptorType, DescriptorFlags, PathFlags, OpenFlags, DescriptorStat, DirectoryEntry, MetadataHashValue, FsResult, WasiDirectoryEntryStream, WasiDescriptor, WasiPreopens,
+    Advice, NewTimestamp,
     HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler,
     WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, IncomingHandlerFn, WasiFutureTrailers,
     SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, IncomingDatagram, OutgoingDatagram, WasiIncomingDatagramStream, WasiOutgoingDatagramStream, WasiResolveAddressStream,
+    ShutdownType,
     WasiP2Interfaces, WasiP2InterfaceName, WasiP2HostExports,
 } from './api';
 export { WasiExit } from './api';
@@ -94,7 +108,7 @@ export { createWasiMonotonicClock } from './monotonic-clock';
 export { createWasiCli } from './cli';
 export { createWasiFilesystem } from './filesystem';
 export { createNodeFilesystem } from './node/filesystem-node';
-export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler } from './http';
+export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler, finishOutgoingBody } from './http';
 export { createOutgoingResponse, createHttpServer, responseOutparamSet, createFutureTrailers } from './node/http-server';
 export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './node/sockets';
 
@@ -191,6 +205,8 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         [method(outputStreamPrefix, 'blocking-flush')]: (self: WasiOutputStream) => self.blockingFlush(),
         [method(outputStreamPrefix, 'write-zeroes')]: (self: WasiOutputStream, len: bigint) => self.writeZeroes(len),
         [method(outputStreamPrefix, 'blocking-write-zeroes-and-flush')]: (self: WasiOutputStream, len: bigint) => self.blockingWriteZeroesAndFlush(len),
+        [method(outputStreamPrefix, 'splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.splice(src, len),
+        [method(outputStreamPrefix, 'blocking-splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.blockingSplice(src, len),
         [method(outputStreamPrefix, 'subscribe')]: (self: WasiOutputStream) => self.subscribe(),
         [drop(outputStreamPrefix)]: (_self: WasiOutputStream) => { /* GC handles cleanup */ },
     });
@@ -203,6 +219,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
     register('cli/exit', {
         'exit': cli.exit.exit,
+        'exit-with-code': cli.exit.exitWithCode,
     });
     register('cli/stdin', {
         'get-stdin': cli.stdin.getStdin,
@@ -253,10 +270,13 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         [method(descriptorPrefix, 'metadata-hash')]: (self: WasiDescriptor) => self.metadataHash(),
         [method(descriptorPrefix, 'metadata-hash-at')]: (self: WasiDescriptor, pathFlags: any, path: string) => self.metadataHashAt(pathFlags, path),
         [method(descriptorPrefix, 'rename-at')]: (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
+        [method(descriptorPrefix, 'link-at')]: (self: WasiDescriptor, oldPathFlags: any, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.linkAt(oldPathFlags, oldPath, newDesc, newPath),
+        [method(descriptorPrefix, 'readlink-at')]: (self: WasiDescriptor, path: string) => self.readlinkAt(path),
+        [method(descriptorPrefix, 'symlink-at')]: (self: WasiDescriptor, oldPath: string, newPath: string) => self.symlinkAt(oldPath, newPath),
         [method(descriptorPrefix, 'set-times')]: (self: WasiDescriptor, atime: any, mtime: any) => self.setTimes(atime, mtime),
         [method(descriptorPrefix, 'set-times-at')]: (self: WasiDescriptor, pathFlags: any, path: string, atime: any, mtime: any) => self.setTimesAt(pathFlags, path, atime, mtime),
         [method(descriptorPrefix, 'is-same-object')]: (self: WasiDescriptor, other: WasiDescriptor) => self.isSameObject(other),
-        [method(descriptorPrefix, 'advise')]: (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
+        [method(descriptorPrefix, 'advise')]: (self: WasiDescriptor, offset: bigint, length: bigint, advice: Advice) => self.advise(offset, length, advice),
         [drop(directoryPrefix)]: (_self: WasiDirectoryEntryStream) => { /* GC handles cleanup */ },
         [method(directoryPrefix, 'read-directory-entry')]: (self: WasiDirectoryEntryStream) => self.readDirectoryEntry(),
     });
@@ -300,6 +320,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         // Outgoing body
         [drop(outBodyPrefix)]: (_self: WasiOutgoingBody) => { /* GC */ },
         [method(outBodyPrefix, 'write')]: (self: WasiOutgoingBody) => self.write(),
+        '[static]outgoing-body.finish': (body: WasiOutgoingBody, trailers?: WasiFields) => finishOutgoingBody(body, trailers),
         // Request options
         '[constructor]request-options': () => createRequestOptions(),
         [drop(reqOptsPrefix)]: (_self: WasiRequestOptions) => { /* GC */ },
@@ -317,12 +338,25 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         // Incoming body
         [drop(inBodyPrefix)]: (_self: WasiIncomingBody) => { /* GC */ },
         [method(inBodyPrefix, 'stream')]: (self: WasiIncomingBody) => self.stream(),
+        '[static]incoming-body.finish': (_body: WasiIncomingBody) => createFutureTrailers(),
         // Future incoming response
         [drop(futRespPrefix)]: (_self: WasiFutureIncomingResponse) => { /* GC */ },
         [method(futRespPrefix, 'subscribe')]: (self: WasiFutureIncomingResponse) => self.subscribe(),
         [method(futRespPrefix, 'get')]: (self: WasiFutureIncomingResponse) => self.get(),
         // HTTP error-code helper
         'http-error-code': (_err: WasiError) => undefined,
+        // Incoming request
+        [drop('incoming-request')]: (_self: WasiIncomingRequest) => { /* GC */ },
+        // Outgoing response
+        '[constructor]outgoing-response': (headers: WasiFields) => createOutgoingResponse(headers),
+        [drop('outgoing-response')]: (_self: WasiOutgoingResponse) => { /* GC */ },
+        // Response outparam
+        [drop('response-outparam')]: (_self: WasiResponseOutparam) => { /* GC */ },
+        '[static]response-outparam.set': (param: WasiResponseOutparam, response: any) => responseOutparamSet(param, response),
+        // Future trailers
+        [drop('future-trailers')]: (_self: WasiFutureTrailers) => { /* GC */ },
+        [method('future-trailers', 'subscribe')]: (self: WasiFutureTrailers) => self.subscribe(),
+        [method('future-trailers', 'get')]: (self: WasiFutureTrailers) => self.get(),
     });
     register('http/outgoing-handler', {
         'handle': outgoingHandler.handle,
@@ -334,6 +368,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
     register('sockets/network', {
         [drop('network')]: (_self: WasiNetwork) => { /* GC */ },
+        'network-error-code': (_err: WasiError) => undefined,
     });
     register('sockets/tcp-create-socket', {
         'create-tcp-socket': (family: any) => createTcpSocket(family, config?.network),
@@ -368,7 +403,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         [method(tcpPrefix, 'send-buffer-size')]: (self: WasiTcpSocket) => self.sendBufferSize(),
         [method(tcpPrefix, 'set-send-buffer-size')]: (self: WasiTcpSocket, v: bigint) => self.setSendBufferSize(v),
         [method(tcpPrefix, 'subscribe')]: (self: WasiTcpSocket) => self.subscribe(),
-        [method(tcpPrefix, 'shutdown')]: (self: WasiTcpSocket, how: string) => self.shutdown(how),
+        [method(tcpPrefix, 'shutdown')]: (self: WasiTcpSocket, how: ShutdownType) => self.shutdown(how),
     });
     register('sockets/udp-create-socket', {
         'create-udp-socket': (family: any) => createUdpSocket(family, config?.network),

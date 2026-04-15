@@ -64,6 +64,10 @@ export interface WasiOutputStream {
     writeZeroes(len: bigint): StreamResult<void>;
     /** Blocking write zeroes + flush */
     blockingWriteZeroesAndFlush(len: bigint): StreamResult<void>;
+    /** Read from a source input-stream and write to this output-stream */
+    splice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
+    /** Blocking splice */
+    blockingSplice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
     /** Subscribe to writability */
     subscribe(): WasiPollable;
 }
@@ -142,6 +146,8 @@ export interface WasiEnvironment {
 export interface WasiCliExit {
     /** Exit with a result. Throws WasiExit. */
     exit(status: { tag: 'ok' } | { tag: 'err' }): never;
+    /** Exit with a specific status code. Throws WasiExit. */
+    exitWithCode(statusCode: number): never;
 }
 
 /** wasi:cli/stdin interface */
@@ -172,9 +178,11 @@ export interface WasiTerminalOutput {
 
 // ─── wasi:filesystem ───
 
-/** wasi:filesystem/types error-code enum — 36 variants */
+/** wasi:filesystem/types error-code enum */
 export type ErrorCode =
     | 'access'
+    | 'would-block'
+    | 'already'
     | 'bad-descriptor'
     | 'busy'
     | 'deadlock'
@@ -208,8 +216,7 @@ export type ErrorCode =
     | 'read-only'
     | 'invalid-seek'
     | 'text-file-busy'
-    | 'cross-device'
-    | 'other';
+    | 'cross-device';
 
 /** wasi:filesystem/types descriptor-type */
 export type DescriptorType =
@@ -228,6 +235,7 @@ export interface DescriptorFlags {
     write?: boolean;
     fileIntegritySync?: boolean;
     dataIntegritySync?: boolean;
+    requestedWriteSync?: boolean;
     mutateDirectory?: boolean;
 }
 
@@ -265,6 +273,15 @@ export interface MetadataHashValue {
     upper: bigint;
     lower: bigint;
 }
+
+/** wasi:filesystem/types advice enum */
+export type Advice = 'normal' | 'sequential' | 'random' | 'will-need' | 'dont-need' | 'no-reuse';
+
+/** wasi:filesystem/types new-timestamp variant */
+export type NewTimestamp =
+    | { tag: 'no-change' }
+    | { tag: 'now' }
+    | { tag: 'timestamp'; val: WasiDatetime };
 
 /** Result type for filesystem operations */
 export type FsResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: ErrorCode };
@@ -320,7 +337,7 @@ export interface WasiDescriptor {
     /** Link (unsupported) */
     linkAt(oldPathFlags: PathFlags, oldPath: string, newDescriptor: WasiDescriptor, newPath: string): FsResult<void>;
     /** Set times on a path */
-    setTimesAt(pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void>;
+    setTimesAt(pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): FsResult<void>;
     /** Check if two descriptors refer to the same node */
     isSameObject(other: WasiDescriptor): boolean;
     /** Metadata hash */
@@ -328,11 +345,9 @@ export interface WasiDescriptor {
     /** Metadata hash at path */
     metadataHashAt(pathFlags: PathFlags, path: string): FsResult<MetadataHashValue>;
     /** Advise the implementation about access patterns (no-op) */
-    advise(offset: bigint, length: bigint, advice: string): FsResult<void>;
+    advise(offset: bigint, length: bigint, advice: Advice): FsResult<void>;
     /** Set times on this descriptor */
-    setTimes(atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void>;
-    /** @internal Get the underlying VFS node */
-    _node(): unknown;
+    setTimes(atime: NewTimestamp, mtime: NewTimestamp): FsResult<void>;
 }
 
 /** wasi:filesystem/preopens — returns list of (descriptor, path) pairs */
@@ -361,30 +376,46 @@ export type HttpScheme =
     | { tag: 'HTTPS' }
     | { tag: 'other'; val: string };
 
-/** wasi:http/types error-code variant (subset of 30+ cases) */
+/** wasi:http/types error-code variant */
 export type HttpErrorCode =
     | { tag: 'DNS-timeout' }
     | { tag: 'DNS-error'; val?: { rcode?: string; infoCode?: number } }
     | { tag: 'destination-not-found' }
     | { tag: 'destination-unavailable' }
+    | { tag: 'destination-IP-prohibited' }
+    | { tag: 'destination-IP-unroutable' }
     | { tag: 'connection-refused' }
     | { tag: 'connection-terminated' }
     | { tag: 'connection-timeout' }
+    | { tag: 'connection-read-timeout' }
+    | { tag: 'connection-write-timeout' }
+    | { tag: 'connection-limit-reached' }
     | { tag: 'TLS-protocol-error' }
+    | { tag: 'TLS-certificate-error' }
     | { tag: 'TLS-alert-received'; val?: { alertId?: number; alertMessage?: string } }
     | { tag: 'HTTP-request-denied' }
+    | { tag: 'HTTP-request-length-required' }
     | { tag: 'HTTP-request-body-size'; val?: bigint }
     | { tag: 'HTTP-request-method-invalid' }
     | { tag: 'HTTP-request-URI-invalid' }
+    | { tag: 'HTTP-request-URI-too-long' }
     | { tag: 'HTTP-request-header-section-size'; val?: number }
     | { tag: 'HTTP-request-header-size'; val?: { fieldName?: string; fieldSize?: number } }
+    | { tag: 'HTTP-request-trailer-section-size'; val?: number }
+    | { tag: 'HTTP-request-trailer-size'; val: { fieldName?: string; fieldSize?: number } }
     | { tag: 'HTTP-response-incomplete' }
     | { tag: 'HTTP-response-header-section-size'; val?: number }
-    | { tag: 'HTTP-response-header-size'; val?: { fieldName?: string; fieldSize?: number } }
+    | { tag: 'HTTP-response-header-size'; val: { fieldName?: string; fieldSize?: number } }
     | { tag: 'HTTP-response-body-size'; val?: bigint }
+    | { tag: 'HTTP-response-trailer-section-size'; val?: number }
+    | { tag: 'HTTP-response-trailer-size'; val: { fieldName?: string; fieldSize?: number } }
     | { tag: 'HTTP-response-transfer-coding'; val?: string }
     | { tag: 'HTTP-response-content-coding'; val?: string }
-    | { tag: 'size-exceeded'; val?: string }
+    | { tag: 'HTTP-response-timeout' }
+    | { tag: 'HTTP-upgrade-failed' }
+    | { tag: 'HTTP-protocol-error' }
+    | { tag: 'loop-detected' }
+    | { tag: 'configuration-error' }
     | { tag: 'internal-error'; val?: string };
 
 /** wasi:http/types header-error */
@@ -506,9 +537,8 @@ export interface WasiOutgoingResponse {
 }
 
 /** wasi:http/types response-outparam resource */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WasiResponseOutparam {
-    /** Set the response or error. Consumes the outparam. */
-    _resolve: (response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode }) => void;
 }
 
 /** Handler function type matching wasi:http/incoming-handler.handle */
@@ -563,9 +593,12 @@ export type IpSocketAddress =
 export type SocketResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: SocketErrorCode };
 
 /** wasi:sockets/network — opaque network resource */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WasiNetwork {
-    _tag: 'network';
 }
+
+/** wasi:sockets/tcp shutdown-type enum */
+export type ShutdownType = 'receive' | 'send' | 'both';
 
 /** wasi:sockets/tcp — TCP socket resource */
 export interface WasiTcpSocket {
@@ -596,7 +629,7 @@ export interface WasiTcpSocket {
     sendBufferSize(): SocketResult<bigint>;
     setSendBufferSize(value: bigint): SocketResult<void>;
     subscribe(): WasiPollable;
-    shutdown(shutdownType: string): SocketResult<void>;
+    shutdown(shutdownType: ShutdownType): SocketResult<void>;
 }
 
 /** Incoming datagram record */
@@ -704,6 +737,8 @@ export interface WasiP2Interfaces {
         '[method]output-stream.blocking-flush': (self: WasiOutputStream) => StreamResult<void>;
         '[method]output-stream.write-zeroes': (self: WasiOutputStream, len: bigint) => StreamResult<void>;
         '[method]output-stream.blocking-write-zeroes-and-flush': (self: WasiOutputStream, len: bigint) => StreamResult<void>;
+        '[method]output-stream.splice': (self: WasiOutputStream, src: WasiInputStream, len: bigint) => StreamResult<bigint>;
+        '[method]output-stream.blocking-splice': (self: WasiOutputStream, src: WasiInputStream, len: bigint) => StreamResult<bigint>;
         '[method]output-stream.subscribe': (self: WasiOutputStream) => WasiPollable;
         '[resource-drop]output-stream': (self: WasiOutputStream) => void;
     };
@@ -716,6 +751,7 @@ export interface WasiP2Interfaces {
     };
     'wasi:cli/exit': {
         'exit': (status: { tag: 'ok' } | { tag: 'err' }) => never;
+        'exit-with-code': (statusCode: number) => never;
     };
     'wasi:cli/stdin': {
         'get-stdin': () => WasiInputStream;
@@ -760,10 +796,13 @@ export interface WasiP2Interfaces {
         '[method]descriptor.metadata-hash': (self: WasiDescriptor) => FsResult<MetadataHashValue>;
         '[method]descriptor.metadata-hash-at': (self: WasiDescriptor, pathFlags: PathFlags, path: string) => FsResult<MetadataHashValue>;
         '[method]descriptor.rename-at': (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => FsResult<void>;
-        '[method]descriptor.set-times': (self: WasiDescriptor, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined) => FsResult<void>;
-        '[method]descriptor.set-times-at': (self: WasiDescriptor, pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined) => FsResult<void>;
+        '[method]descriptor.link-at': (self: WasiDescriptor, oldPathFlags: PathFlags, oldPath: string, newDescriptor: WasiDescriptor, newPath: string) => FsResult<void>;
+        '[method]descriptor.readlink-at': (self: WasiDescriptor, path: string) => FsResult<string>;
+        '[method]descriptor.symlink-at': (self: WasiDescriptor, oldPath: string, newPath: string) => FsResult<void>;
+        '[method]descriptor.set-times': (self: WasiDescriptor, atime: NewTimestamp, mtime: NewTimestamp) => FsResult<void>;
+        '[method]descriptor.set-times-at': (self: WasiDescriptor, pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp) => FsResult<void>;
         '[method]descriptor.is-same-object': (self: WasiDescriptor, other: WasiDescriptor) => boolean;
-        '[method]descriptor.advise': (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => FsResult<void>;
+        '[method]descriptor.advise': (self: WasiDescriptor, offset: bigint, length: bigint, advice: Advice) => FsResult<void>;
         '[resource-drop]directory-entry-stream': (self: WasiDirectoryEntryStream) => void;
         '[method]directory-entry-stream.read-directory-entry': (self: WasiDirectoryEntryStream) => FsResult<DirectoryEntry | undefined>;
     };
@@ -800,6 +839,7 @@ export interface WasiP2Interfaces {
         // outgoing-body
         '[resource-drop]outgoing-body': (self: WasiOutgoingBody) => void;
         '[method]outgoing-body.write': (self: WasiOutgoingBody) => HttpResult<WasiOutputStream>;
+        '[static]outgoing-body.finish': (body: WasiOutgoingBody, trailers?: WasiFields) => HttpResult<void>;
         // request-options
         '[constructor]request-options': () => WasiRequestOptions;
         '[resource-drop]request-options': (self: WasiRequestOptions) => void;
@@ -817,12 +857,25 @@ export interface WasiP2Interfaces {
         // incoming-body
         '[resource-drop]incoming-body': (self: WasiIncomingBody) => void;
         '[method]incoming-body.stream': (self: WasiIncomingBody) => HttpResult<WasiInputStream>;
+        '[static]incoming-body.finish': (body: WasiIncomingBody) => WasiFutureTrailers;
         // future-incoming-response
         '[resource-drop]future-incoming-response': (self: WasiFutureIncomingResponse) => void;
         '[method]future-incoming-response.subscribe': (self: WasiFutureIncomingResponse) => WasiPollable;
         '[method]future-incoming-response.get': (self: WasiFutureIncomingResponse) => HttpResult<WasiIncomingResponse> | undefined;
         // error-code helper
         'http-error-code': (err: WasiError) => HttpErrorCode | undefined;
+        // incoming-request
+        '[resource-drop]incoming-request': (self: WasiIncomingRequest) => void;
+        // outgoing-response
+        '[constructor]outgoing-response': (headers: WasiFields) => WasiOutgoingResponse;
+        '[resource-drop]outgoing-response': (self: WasiOutgoingResponse) => void;
+        // response-outparam
+        '[resource-drop]response-outparam': (self: WasiResponseOutparam) => void;
+        '[static]response-outparam.set': (param: WasiResponseOutparam, response: HttpResult<WasiOutgoingResponse>) => void;
+        // future-trailers
+        '[resource-drop]future-trailers': (self: WasiFutureTrailers) => void;
+        '[method]future-trailers.subscribe': (self: WasiFutureTrailers) => WasiPollable;
+        '[method]future-trailers.get': (self: WasiFutureTrailers) => HttpResult<WasiFields | undefined> | undefined;
     };
     'wasi:http/outgoing-handler': {
         'handle': (request: WasiOutgoingRequest, options?: WasiRequestOptions) => HttpResult<WasiFutureIncomingResponse>;
@@ -834,9 +887,10 @@ export interface WasiP2Interfaces {
     };
     'wasi:sockets/network': {
         '[resource-drop]network': (self: WasiNetwork) => void;
+        'network-error-code': (err: WasiError) => SocketErrorCode | undefined;
     };
     'wasi:sockets/tcp-create-socket': {
-        'create-tcp-socket': (family: IpAddressFamily) => WasiTcpSocket;
+        'create-tcp-socket': (family: IpAddressFamily) => SocketResult<WasiTcpSocket>;
     };
     'wasi:sockets/tcp': {
         '[resource-drop]tcp-socket': (self: WasiTcpSocket) => void;
@@ -867,10 +921,10 @@ export interface WasiP2Interfaces {
         '[method]tcp-socket.send-buffer-size': (self: WasiTcpSocket) => SocketResult<bigint>;
         '[method]tcp-socket.set-send-buffer-size': (self: WasiTcpSocket, value: bigint) => SocketResult<void>;
         '[method]tcp-socket.subscribe': (self: WasiTcpSocket) => WasiPollable;
-        '[method]tcp-socket.shutdown': (self: WasiTcpSocket, shutdownType: string) => SocketResult<void>;
+        '[method]tcp-socket.shutdown': (self: WasiTcpSocket, shutdownType: ShutdownType) => SocketResult<void>;
     };
     'wasi:sockets/udp-create-socket': {
-        'create-udp-socket': (family: IpAddressFamily) => WasiUdpSocket;
+        'create-udp-socket': (family: IpAddressFamily) => SocketResult<WasiUdpSocket>;
     };
     'wasi:sockets/udp': {
         '[resource-drop]udp-socket': (self: WasiUdpSocket) => void;
@@ -897,7 +951,7 @@ export interface WasiP2Interfaces {
         '[method]outgoing-datagram-stream.subscribe': (self: WasiOutgoingDatagramStream) => WasiPollable;
     };
     'wasi:sockets/ip-name-lookup': {
-        'resolve-addresses': (network: WasiNetwork, name: string) => WasiResolveAddressStream;
+        'resolve-addresses': (network: WasiNetwork, name: string) => SocketResult<WasiResolveAddressStream>;
         '[resource-drop]resolve-address-stream': (self: WasiResolveAddressStream) => void;
         '[method]resolve-address-stream.resolve-next-address': (self: WasiResolveAddressStream) => SocketResult<IpAddress | undefined>;
         '[method]resolve-address-stream.subscribe': (self: WasiResolveAddressStream) => WasiPollable;

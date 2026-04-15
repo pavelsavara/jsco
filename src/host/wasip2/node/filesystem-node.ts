@@ -37,8 +37,10 @@ import type {
     WasiDatetime,
     WasiInputStream,
     WasiOutputStream,
+    NewTimestamp,
+    Advice,
 } from '../api';
-import type { WasiFilesystem, FsMount } from '../types';
+import type { WasiFilesystem, FsMount, WasiDescriptorInternal } from '../types';
 import { createInputStream, createOutputStream } from '../streams';
 
 // ─── Node.js fs detection ───
@@ -399,14 +401,14 @@ function createNodeDescriptor(hostPath: string, flags: DescriptorFlags, rootPath
             catch (e) { return err(mapFsError(e as NodeJS.ErrnoException)); }
         },
 
-        setTimesAt(_pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
+        setTimesAt(_pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
             if (readOnly) return err('read-only');
             const resolved = safeResolve(hostPath, path);
             if (!resolved) return err('access');
             try {
                 const now = new Date();
-                const atimeDate = atime ? new Date(Number(atime.seconds) * 1000 + atime.nanoseconds / 1e6) : now;
-                const mtimeDate = mtime ? new Date(Number(mtime.seconds) * 1000 + mtime.nanoseconds / 1e6) : now;
+                const atimeDate = atime.tag === 'timestamp' ? new Date(Number(atime.val.seconds) * 1000 + atime.val.nanoseconds / 1e6) : now;
+                const mtimeDate = mtime.tag === 'timestamp' ? new Date(Number(mtime.val.seconds) * 1000 + mtime.val.nanoseconds / 1e6) : now;
                 fs.utimesSync(resolved, atimeDate, mtimeDate);
                 return ok(undefined);
             } catch (e) { return err(mapFsError(e as NodeJS.ErrnoException)); }
@@ -433,14 +435,14 @@ function createNodeDescriptor(hostPath: string, flags: DescriptorFlags, rootPath
             } catch { return ok(hashPath(resolved || hostPath)); }
         },
 
-        advise(): FsResult<void> { return ok(undefined); },
+        advise(_offset: bigint, _length: bigint, _advice: Advice): FsResult<void> { return ok(undefined); },
 
-        setTimes(atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
+        setTimes(atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
             if (readOnly) return err('read-only');
             try {
                 const now = new Date();
-                const atimeDate = atime ? new Date(Number(atime.seconds) * 1000 + atime.nanoseconds / 1e6) : now;
-                const mtimeDate = mtime ? new Date(Number(mtime.seconds) * 1000 + mtime.nanoseconds / 1e6) : now;
+                const atimeDate = atime.tag === 'timestamp' ? new Date(Number(atime.val.seconds) * 1000 + atime.val.nanoseconds / 1e6) : now;
+                const mtimeDate = mtime.tag === 'timestamp' ? new Date(Number(mtime.val.seconds) * 1000 + mtime.val.nanoseconds / 1e6) : now;
                 fs.utimesSync(hostPath, atimeDate, mtimeDate);
                 return ok(undefined);
             } catch (e) { return err(mapFsError(e as NodeJS.ErrnoException)); }
@@ -448,7 +450,7 @@ function createNodeDescriptor(hostPath: string, flags: DescriptorFlags, rootPath
 
         _node() { return null as any; }, // Not applicable for real fs
         _hostPath: hostPath,
-    } as WasiDescriptor & { _hostPath: string };
+    } as WasiDescriptorInternal & { _hostPath: string };
 
     return descriptor;
 }

@@ -9,6 +9,7 @@ import type {
     WasiResponseOutparam,
     IncomingHandlerFn,
 } from '../api';
+import type { WasiResponseOutparamInternal } from '../types';
 import {
     createHttpServer,
     createOutgoingResponse,
@@ -72,7 +73,7 @@ describe('wasi:http/types response-outparam.set', () => {
         const response = createOutgoingResponse(fields);
         let resolved = false;
 
-        const mockOutparam: WasiResponseOutparam = {
+        const mockOutparam: WasiResponseOutparamInternal = {
             _resolve: () => { resolved = true; },
         };
 
@@ -97,6 +98,22 @@ describe('wasi:http/types future-trailers', () => {
                 expect(result.val.tag).toBe('ok');
             }
         }
+    });
+
+    test('get returns undefined on second call', () => {
+        const ft = createFutureTrailers();
+        const first = ft.get();
+        expect(first).toBeDefined();
+        const second = ft.get();
+        expect(second).toBeUndefined();
+    });
+
+    test('subscribe returns pollable that is always ready', () => {
+        const ft = createFutureTrailers();
+        const p = ft.subscribe();
+        expect(p.ready()).toBe(true);
+        // Calling ready again should still be true
+        expect(p.ready()).toBe(true);
     });
 });
 

@@ -20,6 +20,7 @@ import type {
     WasiInputStream,
     WasiOutputStream,
     WasiPollable,
+    StreamResult,
     SocketErrorCode,
     IpAddressFamily,
     IpAddress,
@@ -34,7 +35,7 @@ import type {
     WasiUdpSocket,
     WasiResolveAddressStream,
 } from '../api';
-import type { NetworkConfig } from '../types';
+import type { NetworkConfig, WasiNetworkInternal } from '../types';
 import { createSyncPollable, createAsyncPollable } from '../poll';
 import { NETWORK_DEFAULTS } from '../types';
 
@@ -170,7 +171,7 @@ function isZeroAddress(addr: IpSocketAddress): boolean {
 
 /** Create a network resource */
 export function createNetwork(): WasiNetwork {
-    return { _tag: 'network' };
+    return { _tag: 'network' } as WasiNetworkInternal as WasiNetwork;
 }
 
 // ─── Stream factories for TCP sockets ───
@@ -252,6 +253,22 @@ function createStreamsForSocket(sock: NetSocket, bufferLimit: number): [WasiInpu
             return { tag: 'ok', val: undefined };
         },
         blockingWriteZeroesAndFlush(len: bigint) { return this.writeZeroes(len); },
+        splice(src: WasiInputStream, len: bigint) {
+            const readResult = src.read(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.write(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return { tag: 'ok' as const, val: BigInt(data.length) };
+        },
+        blockingSplice(src: WasiInputStream, len: bigint) {
+            const readResult = src.blockingRead(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.blockingWriteAndFlush(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return { tag: 'ok' as const, val: BigInt(data.length) };
+        },
         subscribe() { return createSyncPollable(() => !writeClosed); },
     };
 

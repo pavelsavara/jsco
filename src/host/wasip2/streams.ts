@@ -157,6 +157,24 @@ export function createOutputStream(
             return doFlush();
         },
 
+        splice(src: WasiInputStream, len: bigint): StreamResult<bigint> {
+            const readResult = src.read(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.write(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return streamOk(BigInt(data.length));
+        },
+
+        blockingSplice(src: WasiInputStream, len: bigint): StreamResult<bigint> {
+            const readResult = src.blockingRead(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.blockingWriteAndFlush(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return streamOk(BigInt(data.length));
+        },
+
         subscribe(): WasiPollable {
             // Synchronous output stream is always writable (until buffer full)
             return createSyncPollable(() => !closed && buffer.length < bufferCapacity);

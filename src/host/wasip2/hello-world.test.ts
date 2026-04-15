@@ -170,4 +170,31 @@ describe('hello-world component', () => {
             expect(exitCode).toBe(0);
         }));
     });
+
+    describe('custom stdout fully replaces console', () => {
+        test('custom stdout callback captures all output', () => runWithVerbose(verbose, async () => {
+            const lines: string[] = [];
+
+            const wasiExports = createWasiP2Host({
+                stdout: (bytes) => {
+                    const text = new TextDecoder().decode(bytes);
+                    lines.push(...text.split('\n').filter(l => l.length > 0));
+                },
+            });
+
+            const component = await createComponent(helloWasm, verboseOptions(verbose));
+
+            try {
+                const instance = await component.instantiate(wasiExports);
+                const runNs = (instance.exports['wasi:cli/run@0.2.11']
+                    ?? instance.exports['wasi:cli/run']) as any;
+                await runNs.run();
+            } catch (e) {
+                if (!(e instanceof WasiExit)) throw e;
+            }
+
+            expect(lines.length).toBeGreaterThan(0);
+            expect(lines.some(l => l.includes('hello from jsco'))).toBe(true);
+        }));
+    });
 });

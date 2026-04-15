@@ -32,8 +32,10 @@ import type {
     WasiDescriptor,
     WasiInputStream,
     WasiOutputStream,
+    NewTimestamp,
+    Advice,
 } from './api';
-import type { WasiFilesystem } from './types';
+import type { WasiFilesystem, WasiDescriptorInternal } from './types';
 import { createInputStream, createOutputStream } from './streams';
 
 function ok<T>(val: T): FsResult<T> {
@@ -414,7 +416,7 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             if (!target) return err('no-entry');
 
             // Resolve new — newDescriptor must point to a directory
-            const newNode = newDescriptor._node() as VfsNode;
+            const newNode = (newDescriptor as WasiDescriptorInternal)._node() as VfsNode;
             const newResolved = resolveParent(newNode, newPath);
             if (!newResolved) return err('no-entry');
             const { parent: newParent, name: newName } = newResolved;
@@ -448,17 +450,20 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             return err('unsupported');
         },
 
-        setTimesAt(_pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
+        setTimesAt(_pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
             if (node.type !== 'directory') return err('not-directory');
             const target = resolvePathFull(node, path);
             if (!target) return err('no-entry');
-            if (atime) target.atime = atime;
-            if (mtime) target.mtime = mtime;
+            const now = nowDatetime();
+            if (atime.tag === 'timestamp') target.atime = atime.val;
+            else if (atime.tag === 'now') target.atime = now;
+            if (mtime.tag === 'timestamp') target.mtime = mtime.val;
+            else if (mtime.tag === 'now') target.mtime = now;
             return ok(undefined);
         },
 
         isSameObject(other: WasiDescriptor): boolean {
-            return node === (other._node() as VfsNode);
+            return node === ((other as WasiDescriptorInternal)._node() as VfsNode);
         },
 
         metadataHash(): FsResult<MetadataHashValue> {
@@ -472,20 +477,23 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             return ok(hashPath(nodePath + '/' + path));
         },
 
-        advise(_offset: bigint, _length: bigint, _advice: string): FsResult<void> {
+        advise(_offset: bigint, _length: bigint, _advice: Advice): FsResult<void> {
             return ok(undefined); // No-op for in-memory VFS
         },
 
-        setTimes(atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
-            if (atime) node.atime = atime;
-            if (mtime) node.mtime = mtime;
+        setTimes(atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
+            const now = nowDatetime();
+            if (atime.tag === 'timestamp') node.atime = atime.val;
+            else if (atime.tag === 'now') node.atime = now;
+            if (mtime.tag === 'timestamp') node.mtime = mtime.val;
+            else if (mtime.tag === 'now') node.mtime = now;
             return ok(undefined);
         },
 
         _node(): VfsNode {
             return node;
         },
-    };
+    } as WasiDescriptorInternal;
 
     return descriptor;
 }

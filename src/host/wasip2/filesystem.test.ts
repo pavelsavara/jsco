@@ -543,7 +543,7 @@ describe('wasi:filesystem', () => {
             const root = fs.rootDescriptor();
             const file = unwrap(root.openAt({}, 'file.txt', {}, { write: true }));
             const newTime: WasiDatetime = { seconds: 1234567890n, nanoseconds: 0 };
-            unwrap(file.setTimes(newTime, newTime));
+            unwrap(file.setTimes({ tag: 'timestamp', val: newTime }, { tag: 'timestamp', val: newTime }));
             const stat = unwrap(file.stat());
             expect(stat.dataAccessTimestamp?.seconds).toBe(1234567890n);
             expect(stat.dataModificationTimestamp?.seconds).toBe(1234567890n);
@@ -556,9 +556,48 @@ describe('wasi:filesystem', () => {
             const root = fs.rootDescriptor();
             const dir = unwrap(root.openAt({}, 'dir', { directory: true }, {}));
             const newTime: WasiDatetime = { seconds: 999n, nanoseconds: 500 };
-            unwrap(dir.setTimesAt({}, 'file.txt', newTime, undefined));
+            unwrap(dir.setTimesAt({}, 'file.txt', { tag: 'timestamp', val: newTime }, { tag: 'no-change' }));
             const stat = unwrap(dir.statAt({}, 'file.txt'));
             expect(stat.dataAccessTimestamp?.seconds).toBe(999n);
+        });
+
+        it('setTimes with now updates to current time', () => {
+            const fs = createWasiFilesystem(new Map([
+                ['/file.txt', textFile('x')],
+            ]));
+            const root = fs.rootDescriptor();
+            const file = unwrap(root.openAt({}, 'file.txt', {}, { write: true }));
+            unwrap(file.setTimes({ tag: 'now' }, { tag: 'now' }));
+            const stat = unwrap(file.stat());
+            // "now" should produce a timestamp close to the current time
+            expect(stat.dataAccessTimestamp?.seconds).toBeGreaterThan(0n);
+            expect(stat.dataModificationTimestamp?.seconds).toBeGreaterThan(0n);
+        });
+
+        it('setTimes with no-change preserves timestamps', () => {
+            const fs = createWasiFilesystem(new Map([
+                ['/file.txt', textFile('x')],
+            ]));
+            const root = fs.rootDescriptor();
+            const file = unwrap(root.openAt({}, 'file.txt', {}, { write: true }));
+            const statBefore = unwrap(file.stat());
+            unwrap(file.setTimes({ tag: 'no-change' }, { tag: 'no-change' }));
+            const statAfter = unwrap(file.stat());
+            expect(statAfter.dataAccessTimestamp?.seconds).toBe(statBefore.dataAccessTimestamp?.seconds);
+            expect(statAfter.dataModificationTimestamp?.seconds).toBe(statBefore.dataModificationTimestamp?.seconds);
+        });
+
+        it('setTimesAt with now and timestamp mixed', () => {
+            const fs = createWasiFilesystem(new Map([
+                ['/dir/file.txt', textFile('x')],
+            ]));
+            const root = fs.rootDescriptor();
+            const dir = unwrap(root.openAt({}, 'dir', { directory: true }, {}));
+            const specificTime: WasiDatetime = { seconds: 42n, nanoseconds: 0 };
+            unwrap(dir.setTimesAt({}, 'file.txt', { tag: 'now' }, { tag: 'timestamp', val: specificTime }));
+            const stat = unwrap(dir.statAt({}, 'file.txt'));
+            expect(stat.dataAccessTimestamp?.seconds).toBeGreaterThan(0n);
+            expect(stat.dataModificationTimestamp?.seconds).toBe(42n);
         });
 
         it('write updates mtime', () => {
@@ -712,6 +751,18 @@ describe('wasi:filesystem', () => {
             const root = fs.rootDescriptor();
             const file = unwrap(root.openAt({}, 'file.txt', {}, {}));
             expect(unwrap(file.advise(0n, 100n, 'sequential'))).toBeUndefined();
+        });
+
+        it('accepts all Advice enum variants', () => {
+            const fs = createWasiFilesystem(new Map([
+                ['/file.txt', textFile('x')],
+            ]));
+            const root = fs.rootDescriptor();
+            const file = unwrap(root.openAt({}, 'file.txt', {}, {}));
+            const variants: string[] = ['normal', 'sequential', 'random', 'will-need', 'dont-need', 'no-reuse'];
+            for (const advice of variants) {
+                expect(unwrap(file.advise(0n, 100n, advice as any))).toBeUndefined();
+            }
         });
     });
 
