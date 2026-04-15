@@ -444,6 +444,18 @@ export async function cliMain(): Promise<void> {
     wasip2['setCreateComponent'](createComponent);
     const instantiateWasiComponent = wasip2['instantiateWasiComponent'];
 
+    // Read stdin if it's piped (not a TTY)
+    let stdin: Uint8Array | undefined;
+    if (!process.stdin.isTTY) {
+        try {
+            const fs = await import('fs');
+            const buf = fs.readFileSync(0);
+            if (buf.length > 0) stdin = new Uint8Array(buf);
+        } catch {
+            // stdin not available — leave undefined
+        }
+    }
+
     try {
         const instance = await instantiateWasiComponent(componentUrl, {
             network: options.network,
@@ -452,6 +464,7 @@ export async function cliMain(): Promise<void> {
             mounts: options.mounts.length > 0 ? options.mounts : undefined,
             cwd: options.cwd,
             args: options.componentArgs.length > 0 ? options.componentArgs : undefined,
+            stdin,
         }, {}, options);
 
         if (command === 'serve') {
@@ -459,8 +472,17 @@ export async function cliMain(): Promise<void> {
             const runServe = (await import('../host/wasip2/node/wasip2'))['runServe'];
             await runServe(instance, options.addr, options.network);
         } else {
-            const run = instance.exports['wasi:cli/run@0.2.11']?.['run'];
-            if (!run) throw new Error('Component does not export wasi:cli/run@0.2.11');
+            // Find wasi:cli/run export — try exact version first, then any versioned key
+            let run = instance.exports['wasi:cli/run@0.2.11']?.['run'];
+            if (!run) {
+                for (const key of Object.keys(instance.exports)) {
+                    if (key.startsWith('wasi:cli/run@')) {
+                        run = (instance.exports as Record<string, Record<string, Function>>)[key]?.['run'];
+                        if (run) break;
+                    }
+                }
+            }
+            if (!run) throw new Error('Component does not export wasi:cli/run');
             await run();
         }
     } catch (e: unknown) {

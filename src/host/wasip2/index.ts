@@ -21,6 +21,7 @@
 
 import type {
     WasiError,
+    WasiPollable,
     WasiDescriptor,
     WasiDirectoryEntryStream,
     WasiFields,
@@ -177,8 +178,12 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
 
     // wasi:io/*
+    const pollablePrefix = 'pollable';
     register('io/poll', {
         'poll': poll,
+        [method(pollablePrefix, 'ready')]: (self: WasiPollable) => self.ready(),
+        [method(pollablePrefix, 'block')]: (self: WasiPollable) => self.block(),
+        [drop(pollablePrefix)]: (_self: WasiPollable) => { /* GC handles cleanup */ },
     });
     // wasi:io/error — resource methods dispatched on WasiError objects
     const _error = 'error';
@@ -231,6 +236,12 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         'get-stderr': cli.stderr.getStderr,
     });
     register('cli/terminal-input', {
+        // resource terminal-input (no functions — resource is opaque)
+    });
+    register('cli/terminal-output', {
+        // resource terminal-output (no functions — resource is opaque)
+    });
+    register('cli/terminal-stdin', {
         'get-terminal-stdin': cli.terminalInput.getTerminalStdin,
     });
     register('cli/terminal-stdout', {

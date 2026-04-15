@@ -46,29 +46,33 @@ import { createInputStream, createOutputStream } from '../streams';
 // ─── Node.js fs detection ───
 
 let _nodeFs: typeof import('node:fs') | null | undefined;
-function getNodeFs(): typeof import('node:fs') | null {
-    if (_nodeFs === undefined) {
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-            _nodeFs = require('node:fs') as typeof import('node:fs');
-        } catch {
-            _nodeFs = null;
-        }
+let _nodePath: typeof import('node:path') | null | undefined;
+
+// Initialize Node.js modules. In ESM bundles, `require` is not available,
+// so we fall back to dynamic `import('module')` → `createRequire()`.
+try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    _nodeFs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    _nodePath = require('node:path') as typeof import('node:path');
+} catch {
+    try {
+        const m = await import('module');
+        const req = (m as any).createRequire(import.meta.url);
+        _nodeFs = req('node:fs') as typeof import('node:fs');
+        _nodePath = req('node:path') as typeof import('node:path');
+    } catch {
+        _nodeFs = null;
+        _nodePath = null;
     }
-    return _nodeFs;
 }
 
-let _nodePath: typeof import('node:path') | null | undefined;
+function getNodeFs(): typeof import('node:fs') | null {
+    return _nodeFs ?? null;
+}
+
 function getNodePath(): typeof import('node:path') | null {
-    if (_nodePath === undefined) {
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-            _nodePath = require('node:path') as typeof import('node:path');
-        } catch {
-            _nodePath = null;
-        }
-    }
-    return _nodePath;
+    return _nodePath ?? null;
 }
 
 // ─── Helpers ───
@@ -318,6 +322,9 @@ function createNodeDescriptor(hostPath: string, flags: DescriptorFlags, rootPath
         openAt(_pathFlags: PathFlags, path: string, openFlags: OpenFlags, descriptorFlags: DescriptorFlags): FsResult<WasiDescriptor> {
             const resolved = safeResolve(hostPath, path);
             if (!resolved) return err('access');
+
+            // Check write access on a read-only filesystem
+            if (readOnly && descriptorFlags.write) return err('read-only');
 
             try {
                 let stats: Stats | null = null;

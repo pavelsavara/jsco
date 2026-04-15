@@ -31,7 +31,7 @@ function perfNowNanos(): bigint {
  * Create a wasi:clocks/monotonic-clock implementation.
  */
 export function createWasiMonotonicClock(): WasiMonotonicClock {
-    return {
+    const clock: WasiMonotonicClock = {
         now(): bigint {
             return perfNowNanos();
         },
@@ -94,7 +94,8 @@ export function createWasiMonotonicClock(): WasiMonotonicClock {
             }
 
             const deltaNanos = instant - currentNanos;
-            return this.subscribeDuration(deltaNanos);
+            return clock.subscribeDuration(deltaNanos);
         },
     };
+    return clock;
 }

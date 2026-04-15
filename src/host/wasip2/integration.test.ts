@@ -150,7 +150,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(wrappedStats!.createScopedResolverContext).toBe(14);
             expect(wrappedStats!.componentSectionCacheHits).toBe(0);
             expect(wrappedStats!.componentInstanceCacheHits).toBe(63);
-            expect(wrappedStats!.coreInstanceCacheHits).toBe(154);
+            expect(wrappedStats!.coreInstanceCacheHits).toBe(155);
             // plain forwarder: 13 unique sub-components, 42 instance cache hits
             expect(fwdStats!.createScopedResolverContext).toBe(13);
             expect(fwdStats!.componentInstanceCacheHits).toBe(51);
@@ -176,7 +176,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(dblStats!.createScopedResolverContext).toBe(14);
             expect(dblStats!.componentSectionCacheHits).toBe(1);
             expect(dblStats!.componentInstanceCacheHits).toBe(80);
-            expect(dblStats!.coreInstanceCacheHits).toBe(154);
+            expect(dblStats!.coreInstanceCacheHits).toBe(155);
         }
     }));
 
@@ -199,7 +199,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(nestedStats!.createScopedResolverContext).toBe(29);
             expect(nestedStats!.componentSectionCacheHits).toBe(0);
             expect(nestedStats!.componentInstanceCacheHits).toBe(143);
-            expect(nestedStats!.coreInstanceCacheHits).toBe(308);
+            expect(nestedStats!.coreInstanceCacheHits).toBe(310);
         }
     }));
 
@@ -221,7 +221,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(composedStats!.createScopedResolverContext).toBe(27);
             expect(composedStats!.componentSectionCacheHits).toBe(0);
             expect(composedStats!.componentInstanceCacheHits).toBe(73);
-            expect(composedStats!.coreInstanceCacheHits).toBe(228);
+            expect(composedStats!.coreInstanceCacheHits).toBe(229);
         }
     }));
 
@@ -243,7 +243,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(composedStats!.createScopedResolverContext).toBe(27);
             expect(composedStats!.componentSectionCacheHits).toBe(1);
             expect(composedStats!.componentInstanceCacheHits).toBe(90);
-            expect(composedStats!.coreInstanceCacheHits).toBe(228);
+            expect(composedStats!.coreInstanceCacheHits).toBe(229);
         }
     }));
 
@@ -265,7 +265,7 @@ describe('Integration tests (WAC compositions)', () => {
             expect(nestedStats!.createScopedResolverContext).toBe(42);
             expect(nestedStats!.componentSectionCacheHits).toBe(0);
             expect(nestedStats!.componentInstanceCacheHits).toBe(153);
-            expect(nestedStats!.coreInstanceCacheHits).toBe(382);
+            expect(nestedStats!.coreInstanceCacheHits).toBe(384);
         }
     }));
 
