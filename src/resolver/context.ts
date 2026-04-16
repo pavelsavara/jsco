@@ -14,7 +14,7 @@ import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../model/imports';
 import type { ComponentTypeInstance } from '../model/types';
-import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER } from '../constants';
+import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER } from '../utils/constants';
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
@@ -368,13 +368,16 @@ export function createAllocator(): Allocator {
     function initialize(realloc: TCabiRealloc) {
         cabi_realloc = realloc;
     }
+    function isInitialized() {
+        return cabi_realloc !== undefined;
+    }
     function realloc(oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) {
         return cabi_realloc(oldPtr, oldSize, align, newSize);
     }
     function alloc(newSize: WasmSize, align: WasmSize) {
         return cabi_realloc(0 as any, 0 as any, align, newSize);
     }
-    return { initialize, alloc, realloc };
+    return { initialize, isInitialized, alloc, realloc };
 }
 
 export function createInstanceTable(): InstanceTable {

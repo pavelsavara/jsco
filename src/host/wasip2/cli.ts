@@ -16,61 +16,13 @@
  * All configurable via WasiConfig.
  */
 
-import { WasiConfig, WasiExit } from './types';
-import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-
-/** wasi:cli/environment interface */
-export interface WasiEnvironment {
-    /** Returns environment variables as [key, value] pairs */
-    getEnvironment(): [string, string][];
-    /** Returns command-line arguments */
-    getArguments(): string[];
-    /** Returns initial working directory, or undefined if not set */
-    initialCwd(): string | undefined;
-}
-
-/** wasi:cli/exit interface */
-export interface WasiCliExit {
-    /** Exit with a result. Throws WasiExit. */
-    exit(status: { tag: 'ok' } | { tag: 'err' }): never;
-}
-
-/** wasi:cli/stdin interface */
-export interface WasiStdin {
-    getStdin(): WasiInputStream;
-}
-
-/** wasi:cli/stdout interface */
-export interface WasiStdout {
-    getStdout(): WasiOutputStream;
-}
-
-/** wasi:cli/stderr interface */
-export interface WasiStderr {
-    getStderr(): WasiOutputStream;
-}
-
-/** wasi:cli/terminal-input interface */
-export interface WasiTerminalInput {
-    getTerminalStdin(): undefined;
-}
-
-/** wasi:cli/terminal-output interface */
-export interface WasiTerminalOutput {
-    getTerminalStdout(): undefined;
-    getTerminalStderr(): undefined;
-}
-
-/** Complete CLI host — all wasi:cli/* interfaces */
-export interface WasiCli {
-    environment: WasiEnvironment;
-    exit: WasiCliExit;
-    stdin: WasiStdin;
-    stdout: WasiStdout;
-    stderr: WasiStderr;
-    terminalInput: WasiTerminalInput;
-    terminalOutput: WasiTerminalOutput;
-}
+import type {
+    WasiInputStream,
+    WasiOutputStream,
+} from './api';
+import { WasiExit } from './api';
+import type { WasiConfig, WasiCli } from './types';
+import { createInputStream, createOutputStream } from './streams';
 
 const defaultTextDecoder = new TextDecoder();
 
@@ -121,6 +73,9 @@ export function createWasiCli(config?: WasiConfig): WasiCli {
             exit(status: { tag: 'ok' } | { tag: 'err' }): never {
                 const code = status.tag === 'ok' ? 0 : 1;
                 throw new WasiExit(code);
+            },
+            exitWithCode(statusCode: number): never {
+                throw new WasiExit(statusCode);
             },
         },
 

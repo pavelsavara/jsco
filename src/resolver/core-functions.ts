@@ -5,7 +5,7 @@ import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as Compon
 import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
-import { ComponentTypeIndex } from '../model/indices';
+import { ComponentTypeIndex, CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
@@ -14,9 +14,12 @@ import { JsFunction } from './binding/types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
-import { getCanonicalResourceId } from './context';
-import { getComponentFunction, getComponentType } from './indices';
+import { getCanonicalResourceId, createAllocator } from './context';
+import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
+import type { TCabiRealloc } from './binding/types';
 import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
+import { hasJspi } from '../utils/jspi';
+import { SUSPENDING } from '../utils/constants';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -76,6 +79,12 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
 
     const loweringBinder = createFunctionLowering(localResolved, funcType);
 
+    // If the canon.lower specifies a per-function realloc, resolve it now.
+    // The resolved binder will be called at bind time to get the actual function.
+    const reallocResolution = canonOpts.reallocIndex !== undefined
+        ? resolveCoreFunction(rctx, { element: getCoreFunction(rctx, canonOpts.reallocIndex as CoreFuncIndex), callerElement: canonicalFunctionLowerElem })
+        : undefined;
+
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLowerElem,
@@ -89,10 +98,30 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
             debugStack(args, args, componentFunction.tag + ':' + componentFunction.selfSortIndex);
             const functionResult = await componentFunctionResolution.binder(bctx, args);
 
-            const wasmFunction = loweringBinder(bctx, functionResult.result as JsFunction);
+            // Use per-canon realloc if specified, otherwise use the global allocator
+            let effectiveBctx = bctx;
+            if (reallocResolution) {
+                const reallocResult = await reallocResolution.binder(bctx, args);
+                const reallocFn = reallocResult.result as TCabiRealloc;
+                const customAllocator = createAllocator();
+                customAllocator.initialize(reallocFn);
+                effectiveBctx = { ...bctx, allocator: customAllocator };
+            }
+
+            const wasmFunction = loweringBinder(effectiveBctx, functionResult.result as JsFunction);
+
+            // JSPI: wrap the lowering trampoline with Suspending so that when
+            // the host function blocks (returns a promise via JspiBlockSignal),
+            // the WASM stack is suspended until the promise resolves.
+            // Only wrap when JSPI is available AND not disabled via noJspi option.
+            const noJspi = rctx.resolved.noJspi;
+            const shouldWrapSuspending = hasJspi() && noJspi !== true;
+            const finalFunction = shouldWrapSuspending
+                ? new (WebAssembly as any)[SUSPENDING](wasmFunction)
+                : wasmFunction;
 
             const binderResult = {
-                result: wasmFunction
+                result: finalFunction
             };
             return binderResult;
         }, rargs.element.tag + ':' + rargs.element.selfSortIndex)

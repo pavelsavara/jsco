@@ -7,18 +7,8 @@
  * JSPI: block() awaits the internal promise when JSPI is available.
  */
 
-import { SUSPENDING } from '../../constants';
-
-/** wasi:io/poll — pollable resource */
-export interface WasiPollable {
-    /** Check if the pollable is ready (non-blocking) */
-    ready(): boolean;
-    /** Block until ready. Requires JSPI for async pollables. */
-    block(): void;
-}
-
-/** Result of poll() — indices of ready pollables */
-export type PollResult = Uint32Array;
+import { hasJspi } from '../../utils/jspi';
+import type { WasiPollable, PollResult } from './api';
 
 /**
  * Create a pollable from a synchronous readiness check.
@@ -121,17 +111,4 @@ export function poll(pollables: WasiPollable[]): PollResult {
  */
 export class JspiBlockSignal {
     constructor(public readonly promise: Promise<void>) { }
-}
-
-/** Detect JSPI availability at runtime (cached after first check) */
-let _jspiCached: boolean | undefined;
-export function hasJspi(): boolean {
-    if (_jspiCached !== undefined) return _jspiCached;
-    try {
-        _jspiCached = typeof WebAssembly !== 'undefined'
-            && typeof (WebAssembly as any)[SUSPENDING] === 'function';
-    } catch {
-        _jspiCached = false;
-    }
-    return _jspiCached;
 }

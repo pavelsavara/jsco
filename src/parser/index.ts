@@ -12,7 +12,7 @@ import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async, readU32, readCoreType, readStartFunction } from './values';
 import { parseSectionAlias } from './alias';
-import { OTHER_SECTION_DATA, COMPILE_STREAMING, PROCESS_CUSTOM_SECTION, VERBOSE, LOGGER } from '../constants';
+import { OTHER_SECTION_DATA, COMPILE_STREAMING, PROCESS_CUSTOM_SECTION, VERBOSE, LOGGER } from '../utils/constants';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';

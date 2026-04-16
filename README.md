@@ -48,19 +48,51 @@ Prints `hello from jsco` to the console.
 See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
 
 # CLI
+
+jsco follows a command-based CLI similar to [wasmtime](https://wasmtime.dev/).
+If no subcommand is provided, `run` is used by default.
+
 ```sh
-node ./dist/index.js ./integration-tests/hello-world-wat/hello.wasm
-# or
-npx @pavelsavara/jsco ./integration-tests/hello-world-wat/hello.wasm
+# Run a component (default command)
+jsco run ./integration-tests/hello-world-wat/hello.wasm
+# or without the subcommand
+jsco ./integration-tests/hello-world-wat/hello.wasm
+
+# Serve an HTTP proxy component
+jsco serve --addr 0.0.0.0:8080 ./my-http-component.wasm
+
+# Show help
+jsco --help
+jsco run --help
+jsco serve --help
 ```
 
-## Options
+When installed locally or via npx:
+```sh
+npx @pavelsavara/jsco run ./integration-tests/hello-world-wat/hello.wasm
+```
+
+### Common Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `validateTypes` | `false` | Validate export/import type annotations against the component's type index. Catches kind mismatches and structural function type differences. |
-| `useNumberForInt64` | `false` | Convert 64-bit integers to 52-bit `number` instead of `bigint`. `false` (default) — all exports use `bigint`. `true` — all exports use `number`. `string[]` — only the listed export names use `number`; all others use `bigint`. |
-| `noJspi` | `false` | Disable JSPI wrapping of exports. `false` (default) — all exports are wrapped with `WebAssembly.promising()` and return `Promise`s. `true` — no exports are wrapped (synchronous, blocking WASI will not work). `string[]` — only the listed export names are synchronous; all others remain async. |
-| `wasmInstantiate` | `WebAssembly.instantiate` | Custom WASM instantiation function (used by JSPI wrapping) |
+| `--dir <HOST[::GUEST[::ro]]>` | — | Mount a host directory into the guest. `--dir .` maps cwd, `--dir /data::/mnt` remaps. |
+| `--env <NAME[=VAL]>` | — | Set (`--env FOO=bar`) or inherit (`--env FOO`) an environment variable. |
+| `--env-inherit` | — | Inherit all host environment variables. |
+| `--cwd <PATH>` | — | Set the working directory for the component. |
+| `--enable <PREFIX>` | all | Enable only WASI interfaces matching prefix (e.g. `--enable wasi:http`). |
+| `--use-number-for-int64` | `false` | Use `number` instead of `bigint` for i64. |
+| `--no-jspi` | `false` | Disable JSPI wrapping of exports. |
+| `--validate-types` | `true` | Validate export/import type annotations. |
+
+### `serve` Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--addr <HOST:PORT>` | `0.0.0.0:8080` | Socket address for the HTTP server to bind to. |
+
+### Networking Options
+
+All networking limits are configurable via CLI flags. Run `jsco run --help` for the full list.
 
 See [./jspi.md](./jspi.md) for more details about JSPI - synchronous calls to JS APIs which are blocking, like I/O.

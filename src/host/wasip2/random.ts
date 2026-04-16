@@ -8,22 +8,7 @@
  * Browser implementation using crypto.getRandomValues() and Math.random().
  */
 
-/** wasi:random/random */
-export interface WasiRandom {
-    getRandomBytes(len: bigint): Uint8Array;
-    getRandomU64(): bigint;
-}
-
-/** wasi:random/insecure */
-export interface WasiRandomInsecure {
-    getInsecureRandomBytes(len: bigint): Uint8Array;
-    getInsecureRandomU64(): bigint;
-}
-
-/** wasi:random/insecure-seed */
-export interface WasiRandomInsecureSeed {
-    insecureSeed(): [bigint, bigint];
-}
+import type { WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed } from './api';
 
 const MAX_CRYPTO_BATCH = 65536;
 

@@ -11,52 +11,9 @@
  * - closed — stream ended normally
  */
 
-import { WasiError, createWasiError } from './error';
-import { WasiPollable, createSyncPollable } from './poll';
-
-/** wasi:io/streams stream-error variant */
-export type StreamError =
-    | { tag: 'last-operation-failed'; val: WasiError }
-    | { tag: 'closed' };
-
-/** wasi:io/streams input-stream resource */
-export interface WasiInputStream {
-    /** Non-blocking read of up to len bytes */
-    read(len: bigint): StreamResult<Uint8Array>;
-    /** Block until data available, then read */
-    blockingRead(len: bigint): StreamResult<Uint8Array>;
-    /** Skip up to len bytes */
-    skip(len: bigint): StreamResult<bigint>;
-    /** Block until data available, then skip */
-    blockingSkip(len: bigint): StreamResult<bigint>;
-    /** Subscribe to readiness */
-    subscribe(): WasiPollable;
-}
-
-/** wasi:io/streams output-stream resource */
-export interface WasiOutputStream {
-    /** Check how many bytes can be written without blocking */
-    checkWrite(): StreamResult<bigint>;
-    /** Write bytes (must call checkWrite first) */
-    write(contents: Uint8Array): StreamResult<void>;
-    /** Blocking write + flush */
-    blockingWriteAndFlush(contents: Uint8Array): StreamResult<void>;
-    /** Begin flushing — non-blocking */
-    flush(): StreamResult<void>;
-    /** Block until flush completes */
-    blockingFlush(): StreamResult<void>;
-    /** Write zero bytes */
-    writeZeroes(len: bigint): StreamResult<void>;
-    /** Blocking write zeroes + flush */
-    blockingWriteZeroesAndFlush(len: bigint): StreamResult<void>;
-    /** Subscribe to writability */
-    subscribe(): WasiPollable;
-}
-
-/** Result type for stream operations */
-export type StreamResult<T> =
-    | { tag: 'ok'; val: T }
-    | { tag: 'err'; val: StreamError };
+import type { WasiPollable, WasiInputStream, WasiOutputStream, StreamResult } from './api';
+import { createWasiError } from './error';
+import { createSyncPollable } from './poll';
 
 function streamOk<T>(val: T): StreamResult<T> {
     return { tag: 'ok', val };
@@ -198,6 +155,24 @@ export function createOutputStream(
             const writeResult = this.writeZeroes(len);
             if (writeResult.tag === 'err') return writeResult;
             return doFlush();
+        },
+
+        splice(src: WasiInputStream, len: bigint): StreamResult<bigint> {
+            const readResult = src.read(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.write(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return streamOk(BigInt(data.length));
+        },
+
+        blockingSplice(src: WasiInputStream, len: bigint): StreamResult<bigint> {
+            const readResult = src.blockingRead(len);
+            if (readResult.tag === 'err') return readResult as StreamResult<bigint>;
+            const data = readResult.val;
+            const writeResult = this.blockingWriteAndFlush(data);
+            if (writeResult.tag === 'err') return writeResult as StreamResult<bigint>;
+            return streamOk(BigInt(data.length));
         },
 
         subscribe(): WasiPollable {

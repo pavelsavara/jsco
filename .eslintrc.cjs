@@ -19,6 +19,8 @@ module.exports = {
     "ignorePatterns": [
         "node_modules/**/*.*",
         "hello/**/*.*",
+        "dist/**/*.*",
+        "wit/**/*.*",
     ],
     "rules": {
         "@typescript-eslint/no-unused-vars": ["warn", {

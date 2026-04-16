@@ -37,13 +37,13 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
     const cached = rctx.resolved.componentSectionCache.get(componentSection);
     if (cached) {
         if (isDebug && rctx.resolved.stats) rctx.resolved.stats.componentSectionCacheHits++;
-        if (isDebug) {
+        if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Summary) {
             rctx.resolved.logger!('resolver', LogLevel.Summary, `resolveComponentSection #${rctx.resolved.stats?.resolveComponentSection} sections=${componentSection.sections.length} CACHE HIT`);
         }
         return cached;
     }
 
-    if (isDebug) {
+    if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Summary) {
         const callerTag = rargs.callerElement ? `${rargs.callerElement.tag}:${(rargs.callerElement as any).selfSortIndex}` : 'top';
         rctx.resolved.logger!('resolver', LogLevel.Summary, `resolveComponentSection #${rctx.resolved.stats?.resolveComponentSection} sections=${componentSection.sections.length} caller=${callerTag}`);
     }

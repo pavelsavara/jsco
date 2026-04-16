@@ -190,9 +190,18 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
             if (memory) {
                 bctx.memory.initialize(memory);
             }
+            // Prefer cabi_realloc (standard canonical ABI name).
+            // Fall back to cabi_import_realloc only if the allocator hasn't
+            // been initialized yet — this avoids the adapter's internal
+            // realloc from overwriting the main module's allocator.
             const cabi_realloc = exports['cabi_realloc'] as TCabiRealloc | undefined;
             if (cabi_realloc) {
                 bctx.allocator.initialize(cabi_realloc);
+            } else if (!bctx.allocator.isInitialized()) {
+                const cabi_import_realloc = exports['cabi_import_realloc'] as TCabiRealloc | undefined;
+                if (cabi_import_realloc) {
+                    bctx.allocator.initialize(cabi_import_realloc);
+                }
             }
 
             binderResult.result = exports;

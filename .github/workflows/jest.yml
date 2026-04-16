@@ -66,15 +66,24 @@ jobs:
     - name: Build release bundle
       run: npm run build
 
-    - name: Assert bundle size under 95 KB
+    - name: Assert bundle size under limits
       run: |
-        size=$(stat --format=%s dist/index.js)
-        echo "Release bundle size: ${size} bytes"
-        if [ "$size" -gt 97280 ]; then
-          echo "::error::Release bundle size ${size} bytes exceeds 95 KB limit (97280 bytes)"
-          exit 1
-        fi
-        echo "✓ Bundle size OK (under 95 KB)"
+        check_size() {
+          local file=$1 limit=$2 label=$3
+          local size
+          size=$(stat --format=%s "$file")
+          echo "${label}: ${size} bytes (limit: ${limit})"
+          if [ "$size" -gt "$limit" ]; then
+            echo "::error::${label} size ${size} bytes exceeds limit (${limit} bytes)"
+            return 1
+          fi
+        }
+        fail=0
+        check_size dist/release/index.js       92160  "index.js (90 KB)"       || fail=1
+        check_size dist/release/wasip2.js       46080  "wasip2.js (45 KB)"      || fail=1
+        check_size dist/release/wasip2-node.js  16384  "wasip2-node.js (16 KB)" || fail=1
+        if [ "$fail" -eq 1 ]; then exit 1; fi
+        echo "✓ All bundle sizes OK"
 
   browser-tests:
     runs-on: ubuntu-latest

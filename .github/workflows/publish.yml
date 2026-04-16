@@ -34,12 +34,12 @@ jobs:
     - name: Set version from tag
       run: |
         VERSION="${GITHUB_REF_NAME#v}"
-        cd dist
+        cd dist/release
         npm version "$VERSION" --no-git-tag-version
 
     - name: Publish to npm
       run: npm publish --access public
-      working-directory: dist
+      working-directory: dist/release
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -48,5 +48,9 @@ jobs:
       with:
         generate_release_notes: true
         files: |
-          dist/index.js
-          dist/index.d.ts
+          dist/release/index.js
+          dist/release/index.d.ts
+          dist/release/wasip2.js
+          dist/release/wasip2.d.ts
+          dist/release/wasip2-node.js
+          dist/release/wasip2-node.d.ts

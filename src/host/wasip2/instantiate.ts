@@ -9,19 +9,31 @@
  * call async host functions synchronously.
  *
  * JSPI is enabled by default and can be disabled via options.
+ *
+ * NOTE: createComponent is injected via setCreateComponent() by the
+ * wasip2 entry module to avoid pulling the entire resolver/parser
+ * into the wasip2 bundle. Falls back to dynamic import from
+ * ../../resolver for direct usage (e.g. tests).
  */
 
-import { createComponent } from '../../resolver';
-import { ComponentFactoryInput, ComponentFactoryOptions } from '../../resolver/types';
-import { ParserOptions } from '../../parser/types';
-import { JsImports, WasmComponentInstance } from '../../resolver/api-types';
-import { WasiConfig } from './types';
+import type { ComponentFactoryInput, ComponentFactoryOptions } from '../../resolver/types';
+import type { ParserOptions } from '../../parser/types';
+import type { JsImports, WasmComponent, WasmComponentInstance } from '../../resolver/api-types';
+import type { WasiConfig } from './types';
 import { createWasiP2Host } from './index';
-import { hasJspi } from './poll';
-import { NO_JSPI, INSTANTIATE } from '../../constants';
+import { hasJspi } from '../../utils/jspi';
 
 /** Options for WASI component instantiation */
 export interface WasiInstantiateOptions extends ComponentFactoryOptions, ParserOptions {
+}
+
+type CreateComponentFn = <T>(source: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions) => Promise<WasmComponent<T>>;
+
+let _createComponent: CreateComponentFn | undefined;
+
+/** Inject the createComponent function (called from wasip2 entry module) */
+export function setCreateComponent(fn: CreateComponentFn): void {
+    _createComponent = fn;
 }
 
 /**
@@ -43,7 +55,11 @@ export async function instantiateWasiComponent<TJSExports>(
     extraImports?: JsImports,
     options?: WasiInstantiateOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    const noJspi = options?.[NO_JSPI];
+    if (!_createComponent) {
+        throw new Error('createComponent not initialized. Call setCreateComponent() or import the wasip2 entry module first.');
+    }
+
+    const noJspi = options?.noJspi;
     const needsJspi = noJspi !== true; // false or array both need JSPI available
 
     if (needsJspi && !hasJspi()) {
@@ -69,6 +85,6 @@ export async function instantiateWasiComponent<TJSExports>(
         ...(options ?? {}),
     };
 
-    const component = await createComponent<TJSExports>(source, componentOptions);
-    return component[INSTANTIATE](mergedImports);
+    const component = await _createComponent<TJSExports>(source, componentOptions);
+    return component.instantiate(mergedImports);
 }

@@ -17,109 +17,26 @@
  * - Preopens derived from the map's directory structure
  */
 
-import { WasiDatetime } from './types';
-import { WasiInputStream, WasiOutputStream, createInputStream, createOutputStream } from './streams';
-
-// ─── Error Codes ───
-
-/** wasi:filesystem/types error-code enum — 36 variants */
-export type ErrorCode =
-    | 'access'
-    | 'bad-descriptor'
-    | 'busy'
-    | 'deadlock'
-    | 'quota'
-    | 'exist'
-    | 'file-too-large'
-    | 'illegal-byte-sequence'
-    | 'in-progress'
-    | 'interrupted'
-    | 'invalid'
-    | 'io'
-    | 'is-directory'
-    | 'loop'
-    | 'too-many-links'
-    | 'message-size'
-    | 'name-too-long'
-    | 'no-device'
-    | 'no-entry'
-    | 'no-lock'
-    | 'insufficient-memory'
-    | 'insufficient-space'
-    | 'not-directory'
-    | 'not-empty'
-    | 'not-recoverable'
-    | 'unsupported'
-    | 'no-tty'
-    | 'no-such-device'
-    | 'overflow'
-    | 'not-permitted'
-    | 'pipe'
-    | 'read-only'
-    | 'invalid-seek'
-    | 'text-file-busy'
-    | 'cross-device'
-    | 'other';
-
-// ─── Descriptor Types & Flags ───
-
-/** wasi:filesystem/types descriptor-type */
-export type DescriptorType =
-    | 'unknown'
-    | 'block-device'
-    | 'character-device'
-    | 'directory'
-    | 'fifo'
-    | 'symbolic-link'
-    | 'regular-file'
-    | 'socket';
-
-/** wasi:filesystem/types descriptor-flags */
-export interface DescriptorFlags {
-    read?: boolean;
-    write?: boolean;
-    fileIntegritySync?: boolean;
-    dataIntegritySync?: boolean;
-    mutateDirectory?: boolean;
-}
-
-/** wasi:filesystem/types path-flags */
-export interface PathFlags {
-    symlinkFollow?: boolean;
-}
-
-/** wasi:filesystem/types open-flags */
-export interface OpenFlags {
-    create?: boolean;
-    directory?: boolean;
-    exclusive?: boolean;
-    truncate?: boolean;
-}
-
-/** wasi:filesystem/types descriptor-stat */
-export interface DescriptorStat {
-    type: DescriptorType;
-    linkCount: bigint;
-    size: bigint;
-    dataAccessTimestamp?: WasiDatetime;
-    dataModificationTimestamp?: WasiDatetime;
-    statusChangeTimestamp?: WasiDatetime;
-}
-
-/** wasi:filesystem/types directory-entry */
-export interface DirectoryEntry {
-    type: DescriptorType;
-    name: string;
-}
-
-/** wasi:filesystem/types metadata-hash-value */
-export interface MetadataHashValue {
-    upper: bigint;
-    lower: bigint;
-}
-
-/** Result type for filesystem operations */
-export type FsResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: ErrorCode };
+import type {
+    WasiDatetime,
+    ErrorCode,
+    DescriptorType,
+    DescriptorFlags,
+    PathFlags,
+    OpenFlags,
+    DescriptorStat,
+    DirectoryEntry,
+    MetadataHashValue,
+    FsResult,
+    WasiDirectoryEntryStream,
+    WasiDescriptor,
+    WasiInputStream,
+    WasiOutputStream,
+    NewTimestamp,
+    Advice,
+} from './api';
+import type { WasiFilesystem, WasiDescriptorInternal } from './types';
+import { createInputStream, createOutputStream } from './streams';
 
 function ok<T>(val: T): FsResult<T> {
     return { tag: 'ok', val };
@@ -290,12 +207,6 @@ function hashPath(path: string): MetadataHashValue {
 
 // ─── Directory Entry Stream ───
 
-/** wasi:filesystem/types directory-entry-stream resource */
-export interface WasiDirectoryEntryStream {
-    /** Read the next directory entry, or undefined if exhausted */
-    readDirectoryEntry(): FsResult<DirectoryEntry | undefined>;
-}
-
 function createDirectoryEntryStream(dir: VfsNode): WasiDirectoryEntryStream {
     const entries = Array.from(dir.children!.entries());
     let index = 0;
@@ -317,66 +228,6 @@ function createDirectoryEntryStream(dir: VfsNode): WasiDirectoryEntryStream {
 }
 
 // ─── Descriptor ───
-
-/** wasi:filesystem/types descriptor resource */
-export interface WasiDescriptor {
-    /** Read via stream at offset */
-    readViaStream(offset: bigint): FsResult<WasiInputStream>;
-    /** Write via stream at offset */
-    writeViaStream(offset: bigint): FsResult<WasiOutputStream>;
-    /** Append via stream */
-    appendViaStream(): FsResult<WasiOutputStream>;
-    /** Get descriptor flags */
-    getFlags(): FsResult<DescriptorFlags>;
-    /** Get descriptor type */
-    getType(): FsResult<DescriptorType>;
-    /** Set file size */
-    setSize(size: bigint): FsResult<void>;
-    /** Read from file at offset */
-    read(length: bigint, offset: bigint): FsResult<[Uint8Array, boolean]>;
-    /** Write to file at offset */
-    write(buffer: Uint8Array, offset: bigint): FsResult<bigint>;
-    /** Read directory entries */
-    readDirectory(): FsResult<WasiDirectoryEntryStream>;
-    /** Sync data to storage (no-op in memory VFS) */
-    syncData(): FsResult<void>;
-    /** Sync metadata + data (no-op) */
-    sync(): FsResult<void>;
-    /** Get stat */
-    stat(): FsResult<DescriptorStat>;
-    /** Stat a path relative to this descriptor */
-    statAt(_pathFlags: PathFlags, path: string): FsResult<DescriptorStat>;
-    /** Create a directory at path */
-    createDirectoryAt(path: string): FsResult<void>;
-    /** Open a file/directory at path */
-    openAt(pathFlags: PathFlags, path: string, openFlags: OpenFlags, descriptorFlags: DescriptorFlags): FsResult<WasiDescriptor>;
-    /** Remove a directory at path */
-    removeDirectoryAt(path: string): FsResult<void>;
-    /** Unlink a file at path */
-    unlinkFileAt(path: string): FsResult<void>;
-    /** Rename from old-path to new-path (within same descriptor) */
-    renameAt(oldPath: string, newDescriptor: WasiDescriptor, newPath: string): FsResult<void>;
-    /** Read a symlink (unsupported) */
-    readlinkAt(path: string): FsResult<string>;
-    /** Create a symlink (unsupported) */
-    symlinkAt(oldPath: string, newPath: string): FsResult<void>;
-    /** Link (unsupported) */
-    linkAt(oldPathFlags: PathFlags, oldPath: string, newDescriptor: WasiDescriptor, newPath: string): FsResult<void>;
-    /** Set times on a path */
-    setTimesAt(pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void>;
-    /** Check if two descriptors refer to the same node */
-    isSameObject(other: WasiDescriptor): boolean;
-    /** Metadata hash */
-    metadataHash(): FsResult<MetadataHashValue>;
-    /** Metadata hash at path */
-    metadataHashAt(pathFlags: PathFlags, path: string): FsResult<MetadataHashValue>;
-    /** Advise the implementation about access patterns (no-op) */
-    advise(offset: bigint, length: bigint, advice: string): FsResult<void>;
-    /** Set times on this descriptor */
-    setTimes(atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void>;
-    /** Get the underlying VFS node (internal) */
-    _node(): VfsNode;
-}
 
 function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: string): WasiDescriptor {
     const descriptor: WasiDescriptor = {
@@ -565,7 +416,7 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             if (!target) return err('no-entry');
 
             // Resolve new — newDescriptor must point to a directory
-            const newNode = newDescriptor._node();
+            const newNode = (newDescriptor as WasiDescriptorInternal)._node() as VfsNode;
             const newResolved = resolveParent(newNode, newPath);
             if (!newResolved) return err('no-entry');
             const { parent: newParent, name: newName } = newResolved;
@@ -599,17 +450,20 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             return err('unsupported');
         },
 
-        setTimesAt(_pathFlags: PathFlags, path: string, atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
+        setTimesAt(_pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
             if (node.type !== 'directory') return err('not-directory');
             const target = resolvePathFull(node, path);
             if (!target) return err('no-entry');
-            if (atime) target.atime = atime;
-            if (mtime) target.mtime = mtime;
+            const now = nowDatetime();
+            if (atime.tag === 'timestamp') target.atime = atime.val;
+            else if (atime.tag === 'now') target.atime = now;
+            if (mtime.tag === 'timestamp') target.mtime = mtime.val;
+            else if (mtime.tag === 'now') target.mtime = now;
             return ok(undefined);
         },
 
         isSameObject(other: WasiDescriptor): boolean {
-            return node === other._node();
+            return node === ((other as WasiDescriptorInternal)._node() as VfsNode);
         },
 
         metadataHash(): FsResult<MetadataHashValue> {
@@ -623,39 +477,30 @@ function createDescriptor(node: VfsNode, flags: DescriptorFlags, nodePath: strin
             return ok(hashPath(nodePath + '/' + path));
         },
 
-        advise(_offset: bigint, _length: bigint, _advice: string): FsResult<void> {
+        advise(_offset: bigint, _length: bigint, _advice: Advice): FsResult<void> {
             return ok(undefined); // No-op for in-memory VFS
         },
 
-        setTimes(atime: WasiDatetime | undefined, mtime: WasiDatetime | undefined): FsResult<void> {
-            if (atime) node.atime = atime;
-            if (mtime) node.mtime = mtime;
+        setTimes(atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
+            const now = nowDatetime();
+            if (atime.tag === 'timestamp') node.atime = atime.val;
+            else if (atime.tag === 'now') node.atime = now;
+            if (mtime.tag === 'timestamp') node.mtime = mtime.val;
+            else if (mtime.tag === 'now') node.mtime = now;
             return ok(undefined);
         },
 
         _node(): VfsNode {
             return node;
         },
-    };
+    } as WasiDescriptorInternal;
 
     return descriptor;
 }
 
 // ─── Preopens ───
 
-/** wasi:filesystem/preopens — returns list of (descriptor, path) pairs */
-export interface WasiPreopens {
-    getDirectories(): [WasiDescriptor, string][];
-}
-
 // ─── Factory ───
-
-/** wasi:filesystem combined interface */
-export interface WasiFilesystem {
-    preopens: WasiPreopens;
-    /** Open a root descriptor for the entire VFS */
-    rootDescriptor(): WasiDescriptor;
-}
 
 /**
  * Create a wasi:filesystem implementation.

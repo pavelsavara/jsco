@@ -16,7 +16,7 @@ import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, 
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK } from '../../constants';
+import { TAG, VAL, OK } from '../../utils/constants';
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
@@ -406,33 +406,24 @@ function createStringLifting(encoding: StringEncoding): LiftingFromJs {
 
 function createStringLiftingUtf8(): LiftingFromJs {
     return (ctx, srcJsValue, out, offset) => {
-        let str = srcJsValue as string;
+        const str = srcJsValue as string;
         if (typeof str !== 'string') throw new TypeError('expected a string');
         if (str.length === 0) {
             out[offset] = 0;
             out[offset + 1] = 0;
             return 2;
         }
-        let allocLen: WasmSize = 0;
-        let ptr: WasmPointer = 0;
-        let writtenTotal = 0;
-        while (str.length > 0) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1, allocLen + str.length);
-            validateAllocResult(ctx, ptr, 1, allocLen + str.length);
-            allocLen += str.length;
-            const { read, written } = ctx.utf8Encoder.encodeInto(
-                str,
-                ctx.memory.getViewU8(ptr + writtenTotal, allocLen - writtenTotal)
-            );
-            writtenTotal += written;
-            str = str.slice(read);
-        }
-        if (allocLen > writtenTotal) {
-            ptr = ctx.allocator.realloc(ptr, allocLen, 1, writtenTotal);
-            validateAllocResult(ctx, ptr, 1, writtenTotal);
-        }
+        // Pre-compute exact UTF-8 byte length to avoid growing realloc calls.
+        // The WASI preview1 adapter's cabi_import_realloc only supports shrinking,
+        // and also expects adjacent string allocations (e.g., for "key=value\0"
+        // env vars), so we must allocate the exact size in a single call.
+        const encoded = ctx.utf8Encoder.encode(str);
+        const byteLen = encoded.byteLength;
+        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 1, byteLen);
+        validateAllocResult(ctx, ptr, 1, byteLen);
+        ctx.memory.getViewU8(ptr, byteLen as WasmSize).set(encoded);
         out[offset] = ptr;
-        out[offset + 1] = writtenTotal;
+        out[offset + 1] = byteLen;
         return 2;
     };
 }
@@ -593,12 +584,12 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
                 if (tag === OK) {
                     dv.setUint8(0, 0);
-                    if (okStorer && val !== undefined) {
+                    if (okStorer) {
                         okStorer(ctx, ptr + payloadOffset, val);
                     }
                 } else {
                     dv.setUint8(0, 1);
-                    if (errStorer && val !== undefined) {
+                    if (errStorer) {
                         errStorer(ctx, ptr + payloadOffset, val);
                     }
                 }

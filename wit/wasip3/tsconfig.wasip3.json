@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "skipLibCheck": false,
+    "moduleResolution": "node",
+    "noEmit": true,
+    "strict": true,
+    "module": "es2022"
+  },
+  "include": [
+    "wit/wasip3/types/wasip3-types.d.ts",
+    "wit/wasip3/types/**/host/**/*.d.ts"
+  ]
+}

@@ -16,7 +16,7 @@ import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { _f32, _i32, _f64, _i64, _i32_64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK, ERR } from '../../constants';
+import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
 
 export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
@@ -87,52 +87,61 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
 
             function loweringTrampoline(...args: any[]): any {
-                const convertedArgs = new Array(paramLoaders.length);
-                if (callingConvention.params === CallingConvention.Spilled) {
-                    // Spill: WASM passes single pointer, read params from memory
-                    const ptr = args[0] as number;
-                    for (let i = 0; i < paramLoaders.length; i++) {
-                        convertedArgs[i] = paramLoaders[i]!(ctx, ptr + spilledParamOffsets[i]!);
-                    }
-                } else {
-                    // Flat/Scalar: read each param using lowerers
-                    let flatOffset = 0;
-                    for (let i = 0; i < paramLowerers.length; i++) {
-                        const lowerer = paramLowerers[i]!;
-                        const spill = (lowerer as any).spill;
-                        convertedArgs[i] = lowerer(ctx, ...args.slice(flatOffset, flatOffset + spill));
-                        flatOffset += spill;
-                    }
-                }
-
-                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                    ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
-                }
-
-                if (callingConvention.results === CallingConvention.Spilled) {
-                    // canon_lower: WASM passed retptr as last flat arg
-                    const retptr = args[args.length - 1] as number;
-                    const resJs = jsFunction(...convertedArgs);
-                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-                    }
-                    if (resultStorer !== undefined) {
-                        resultStorer(ctx, retptr, resJs);
-                    }
-                    // No return value - WASM reads from retptr
-                } else {
-                    const resJs = jsFunction(...convertedArgs);
-                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-                    }
-                    if (resultLifters.length === 1) {
-                        resultLifters[0]!(ctx, resJs, resultBuf, 0);
-                        // Convert i64 result to BigInt for WASM if lifter stored Number
-                        if (resultIsI64 && typeof resultBuf[0] !== 'bigint') {
-                            return BigInt(resultBuf[0] as number);
+                try {
+                    const convertedArgs = new Array(paramLoaders.length);
+                    if (callingConvention.params === CallingConvention.Spilled) {
+                        // Spill: WASM passes single pointer, read params from memory
+                        const ptr = args[0] as number;
+                        for (let i = 0; i < paramLoaders.length; i++) {
+                            convertedArgs[i] = paramLoaders[i]!(ctx, ptr + spilledParamOffsets[i]!);
                         }
-                        return resultBuf[0];
+                    } else {
+                        // Flat/Scalar: read each param using lowerers
+                        let flatOffset = 0;
+                        for (let i = 0; i < paramLowerers.length; i++) {
+                            const lowerer = paramLowerers[i]!;
+                            const spill = (lowerer as any).spill;
+                            convertedArgs[i] = lowerer(ctx, ...args.slice(flatOffset, flatOffset + spill));
+                            flatOffset += spill;
+                        }
                     }
+
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
+                    }
+
+                    if (callingConvention.results === CallingConvention.Spilled) {
+                        // canon_lower: WASM passed retptr as last flat arg
+                        const retptr = args[args.length - 1] as number;
+                        const resJs = jsFunction(...convertedArgs);
+                        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+                        }
+                        if (resultStorer !== undefined) {
+                            resultStorer(ctx, retptr, resJs);
+                        }
+                        // No return value - WASM reads from retptr
+                    } else {
+                        const resJs = jsFunction(...convertedArgs);
+                        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+                        }
+                        if (resultLifters.length === 1) {
+                            resultLifters[0]!(ctx, resJs, resultBuf, 0);
+                            // Convert i64 result to BigInt for WASM if lifter stored Number
+                            if (resultIsI64 && typeof resultBuf[0] !== 'bigint') {
+                                return BigInt(resultBuf[0] as number);
+                            }
+                            return resultBuf[0];
+                        }
+                    }
+                } catch (e: unknown) {
+                    // JSPI: if a host function throws a blocking signal (JspiBlockSignal),
+                    // return its promise so WebAssembly.Suspending can suspend the WASM stack.
+                    if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
+                        return (e as any).promise;
+                    }
+                    throw e;
                 }
             }
             return loweringTrampoline as WasmFunction;

@@ -23,6 +23,7 @@
 - add Firefox browser test (Chrome done via Playwright)
 - scenarios testing memory leaks
 - consider too many HTTP headers or too large body
+- update consumer,forwarder,implementer to cover all wasip2 functions and fix tests
 
 # Build
 - add coverage to CI, fail if lower than some %
@@ -53,6 +54,8 @@
 - update `Demo scope` in readme
 
 # Other
+- pass CLI args to wasi:cli
+- OCI download
 - convert this TODO into github issues (this is more convenient for now)
 - attract more contributors
 - review license & add CoC

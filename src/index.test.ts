@@ -1,13 +1,15 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { getBuildInfo, createComponent, instantiateWasiComponent, createWasiP2Host, LogLevel } from './index';
-import { GIT_HASH, CONFIGURATION } from './constants';
+import { getBuildInfo, createComponent, LogLevel } from './index';
+import { instantiateWasiComponent, setCreateComponent, createWasiP2Host } from './host/wasip2/wasip2';
+import { GIT_HASH, CONFIGURATION } from './utils/constants';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
-import { WasiExit } from './host/wasip2/types';
+import { WasiExit } from './host/wasip2/api';
 
 initializeAsserts();
+setCreateComponent(createComponent);
 
 const echoReactorWatWasm = './integration-tests/echo-reactor-wat/echo.wasm';
 const helloWorldWatWasm = './integration-tests/hello-world-wat/hello.wasm';
@@ -249,7 +251,7 @@ describe('useNumberForInt64 contract', () => {
             };
             const instance = await component.instantiate(imports);
             const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
-            greeter.run({ name: 'Prague', headCount: 1_000_000, budget: 200_000_000 });
+            greeter.run!({ name: 'Prague', headCount: 1_000_000, budget: 200_000_000 });
             expect(logMessages.length).toBe(1);
             expect(logMessages[0]).toContain('Prague');
         }));

@@ -155,6 +155,7 @@ export type MemoryView = {
 
 export type Allocator = {
     initialize(cabi_realloc: TCabiRealloc): void;
+    isInitialized(): boolean;
     alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
     realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
 }

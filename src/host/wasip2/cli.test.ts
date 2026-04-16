@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { createWasiCli } from './cli';
-import { WasiExit } from './types';
+import { WasiExit } from './api';
 
 describe('wasi:cli/environment', () => {
     it('getEnvironment returns empty list when no config', () => {
@@ -109,6 +109,36 @@ describe('wasi:cli/exit', () => {
         } catch (e) {
             expect((e as WasiExit).message).toContain('WASI exit');
             expect((e as WasiExit).message).toContain('1');
+        }
+    });
+
+    it('exitWithCode throws WasiExit with the given status code', () => {
+        const cli = createWasiCli();
+        try {
+            cli.exit.exitWithCode(42);
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).status).toBe(42);
+        }
+    });
+
+    it('exitWithCode with 0 throws WasiExit with status 0', () => {
+        const cli = createWasiCli();
+        try {
+            cli.exit.exitWithCode(0);
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).status).toBe(0);
+        }
+    });
+
+    it('exitWithCode with 255 throws WasiExit with status 255', () => {
+        const cli = createWasiCli();
+        try {
+            cli.exit.exitWithCode(255);
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).status).toBe(255);
         }
     });
 });

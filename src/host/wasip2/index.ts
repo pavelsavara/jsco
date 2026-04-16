@@ -19,44 +19,99 @@
  * - wasi:sockets/* stubs (D6)
  */
 
-import { WasiConfig } from './types';
+import type {
+    WasiError,
+    WasiPollable,
+    WasiDescriptor,
+    WasiDirectoryEntryStream,
+    WasiFields,
+    WasiOutgoingRequest,
+    WasiOutgoingBody,
+    WasiRequestOptions,
+    WasiIncomingResponse,
+    WasiIncomingBody,
+    WasiFutureIncomingResponse,
+    WasiTcpSocket,
+    WasiUdpSocket,
+    WasiResolveAddressStream,
+    WasiIncomingDatagramStream,
+    WasiOutgoingDatagramStream,
+    WasiNetwork,
+    WasiInputStream,
+    WasiOutputStream,
+    WasiP2HostExports,
+    Advice,
+    ShutdownType,
+    WasiIncomingRequest,
+    WasiOutgoingResponse,
+    WasiResponseOutparam,
+    WasiFutureTrailers,
+} from './api';
+import type { WasiConfig } from './types';
 import { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
 import { createWasiWallClock } from './wall-clock';
 import { createWasiMonotonicClock } from './monotonic-clock';
 import { createWasiCli } from './cli';
-import { createWasiFilesystem, WasiDescriptor, WasiDirectoryEntryStream } from './filesystem';
+import { createWasiFilesystem } from './filesystem';
+import { createNodeFilesystem } from './node/filesystem-node';
 import { poll } from './poll';
-import { createOutgoingHandler } from './http';
-import { createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
-import { WasiInputStream, WasiOutputStream } from './streams';
-import { WasiError } from './error';
+import {
+    createOutgoingHandler,
+    createFields,
+    createFieldsFromList,
+    createOutgoingRequest,
+    createRequestOptions,
+    finishOutgoingBody,
+} from './http';
+import {
+    createTcpSocket,
+    createUdpSocket,
+    resolveAddresses,
+    instanceNetwork,
+} from './node/sockets';
+import {
+    createOutgoingResponse,
+    responseOutparamSet,
+    createFutureTrailers,
+} from './node/http-server';
 
-// Re-exports for direct usage
-export type { WasiConfig, WasiDatetime, HandleId, HandleTable } from './types';
-export { WasiExit, createHandleTable } from './types';
-export type { WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed } from './random';
+// Re-exports — WASI P2 API types
+export type {
+    WasiError,
+    WasiPollable, PollResult,
+    StreamError, WasiInputStream, WasiOutputStream, StreamResult,
+    WasiDatetime,
+    WasiMonotonicClock,
+    WasiWallClock,
+    WasiRandom, WasiRandomInsecure, WasiRandomInsecureSeed,
+    WasiEnvironment, WasiCliExit, WasiStdin, WasiStdout, WasiStderr, WasiTerminalInput, WasiTerminalOutput,
+    ErrorCode, DescriptorType, DescriptorFlags, PathFlags, OpenFlags, DescriptorStat, DirectoryEntry, MetadataHashValue, FsResult, WasiDirectoryEntryStream, WasiDescriptor, WasiPreopens,
+    Advice, NewTimestamp,
+    HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler,
+    WasiIncomingRequest, WasiOutgoingResponse, WasiResponseOutparam, IncomingHandlerFn, WasiFutureTrailers,
+    SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, IncomingDatagram, OutgoingDatagram, WasiIncomingDatagramStream, WasiOutgoingDatagramStream, WasiResolveAddressStream,
+    ShutdownType,
+    WasiP2Interfaces, WasiP2InterfaceName, WasiP2HostExports,
+} from './api';
+export { WasiExit } from './api';
+
+// Re-exports — internal types
+export type { WasiConfig, HandleId, HandleTable, NetworkConfig, WasiCli, WasiFilesystem, FsMount, FetchFn, HttpServerConfig, WasiHttpServer } from './types';
+export { createHandleTable, NETWORK_DEFAULTS } from './types';
+
+// Re-exports — factory functions
 export { createWasiRandom, createWasiRandomInsecure, createWasiRandomInsecureSeed } from './random';
-export type { WasiWallClock } from './wall-clock';
 export { createWasiWallClock } from './wall-clock';
-export type { WasiError } from './error';
 export { createWasiError } from './error';
-export type { WasiPollable, PollResult } from './poll';
-export { JspiBlockSignal, createSyncPollable, createAsyncPollable, poll, hasJspi } from './poll';
-export type { WasiInputStream, WasiOutputStream, StreamError, StreamResult } from './streams';
+export { JspiBlockSignal, createSyncPollable, createAsyncPollable, poll } from './poll';
 export { createInputStream, createOutputStream } from './streams';
-export type { WasiMonotonicClock } from './monotonic-clock';
 export { createWasiMonotonicClock } from './monotonic-clock';
-export type { WasiEnvironment, WasiCliExit, WasiStdin, WasiStdout, WasiStderr, WasiTerminalInput, WasiTerminalOutput, WasiCli } from './cli';
 export { createWasiCli } from './cli';
-export type { ErrorCode, DescriptorType, DescriptorFlags, PathFlags, OpenFlags, DescriptorStat, DirectoryEntry, MetadataHashValue, FsResult, WasiDirectoryEntryStream, WasiDescriptor, WasiPreopens, WasiFilesystem } from './filesystem';
 export { createWasiFilesystem } from './filesystem';
-export type { HttpMethod, HttpScheme, HttpErrorCode, HeaderError, HttpResult, WasiFields, WasiOutgoingRequest, WasiOutgoingBody, WasiRequestOptions, WasiIncomingResponse, WasiIncomingBody, WasiFutureIncomingResponse, WasiOutgoingHandler, FetchFn } from './http';
-export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler } from './http';
-export type { SocketErrorCode, IpAddressFamily, IpAddress, IpSocketAddress, SocketResult, WasiNetwork, WasiTcpSocket, WasiUdpSocket, WasiResolveAddressStream } from './sockets';
-export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './sockets';
-
-/** JsImports-compatible flat map: { 'wasi:cli/stdin': { 'get-stdin': fn }, ... } */
-export type WasiP2HostExports = Record<string, Record<string, Function>>;
+export { createNodeFilesystem } from './node/filesystem-node';
+export { createFields, createFieldsFromList, createOutgoingRequest, createRequestOptions, createOutgoingHandler, finishOutgoingBody } from './http';
+export { createOutgoingResponse, createHttpServer, responseOutparamSet, createFutureTrailers } from './node/http-server';
+export { createNetwork, createTcpSocket, createUdpSocket, resolveAddresses, instanceNetwork } from './node/sockets';
 
 /**
  * Create a flat JsImports object containing all WASI host implementations.
@@ -77,20 +132,22 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     const wallClock = createWasiWallClock();
     const monotonicClock = createWasiMonotonicClock();
     const cli = createWasiCli(config);
-    const filesystem = createWasiFilesystem(config?.fs);
-    const outgoingHandler = createOutgoingHandler(undefined, config?.maxResponseBodyBytes);
+    const filesystem = config?.mounts && config.mounts.length > 0
+        ? createNodeFilesystem(config.mounts)
+        : createWasiFilesystem(config?.fs);
+    const outgoingHandler = createOutgoingHandler(undefined, config?.network?.maxHttpBodyBytes);
 
-    const result: WasiP2HostExports = {};
+    const result: Record<string, Record<string, Function>> = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
     const wasiPrefix = 'wasi:';
     const methodPrefix = '[method]';
     const resourceDropPrefix = '[resource-drop]';
     const method = (cls: string, name: string) => methodPrefix + cls + '.' + name;
     const drop = (cls: string) => resourceDropPrefix + cls;
-    const disabled = config?.disabledInterfaces;
+    const enabled = config?.enabledInterfaces;
     function register(ns: string, methods: Record<string, Function>) {
         const key = wasiPrefix + ns;
-        if (disabled && disabled.some(prefix => key.startsWith(prefix))) return;
+        if (enabled && !enabled.some(prefix => key.startsWith(wasiPrefix + prefix))) return;
         result[key] = methods;
         for (const v of versions) result[key + '@' + v] = methods;
     }
@@ -121,8 +178,12 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
 
     // wasi:io/*
+    const pollablePrefix = 'pollable';
     register('io/poll', {
         'poll': poll,
+        [method(pollablePrefix, 'ready')]: (self: WasiPollable) => self.ready(),
+        [method(pollablePrefix, 'block')]: (self: WasiPollable) => self.block(),
+        [drop(pollablePrefix)]: (_self: WasiPollable) => { /* GC handles cleanup */ },
     });
     // wasi:io/error — resource methods dispatched on WasiError objects
     const _error = 'error';
@@ -149,6 +210,8 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         [method(outputStreamPrefix, 'blocking-flush')]: (self: WasiOutputStream) => self.blockingFlush(),
         [method(outputStreamPrefix, 'write-zeroes')]: (self: WasiOutputStream, len: bigint) => self.writeZeroes(len),
         [method(outputStreamPrefix, 'blocking-write-zeroes-and-flush')]: (self: WasiOutputStream, len: bigint) => self.blockingWriteZeroesAndFlush(len),
+        [method(outputStreamPrefix, 'splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.splice(src, len),
+        [method(outputStreamPrefix, 'blocking-splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.blockingSplice(src, len),
         [method(outputStreamPrefix, 'subscribe')]: (self: WasiOutputStream) => self.subscribe(),
         [drop(outputStreamPrefix)]: (_self: WasiOutputStream) => { /* GC handles cleanup */ },
     });
@@ -161,6 +224,7 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
     register('cli/exit', {
         'exit': cli.exit.exit,
+        'exit-with-code': cli.exit.exitWithCode,
     });
     register('cli/stdin', {
         'get-stdin': cli.stdin.getStdin,
@@ -172,6 +236,12 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         'get-stderr': cli.stderr.getStderr,
     });
     register('cli/terminal-input', {
+        // resource terminal-input (no functions — resource is opaque)
+    });
+    register('cli/terminal-output', {
+        // resource terminal-output (no functions — resource is opaque)
+    });
+    register('cli/terminal-stdin', {
         'get-terminal-stdin': cli.terminalInput.getTerminalStdin,
     });
     register('cli/terminal-stdout', {
@@ -211,10 +281,13 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
         [method(descriptorPrefix, 'metadata-hash')]: (self: WasiDescriptor) => self.metadataHash(),
         [method(descriptorPrefix, 'metadata-hash-at')]: (self: WasiDescriptor, pathFlags: any, path: string) => self.metadataHashAt(pathFlags, path),
         [method(descriptorPrefix, 'rename-at')]: (self: WasiDescriptor, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
+        [method(descriptorPrefix, 'link-at')]: (self: WasiDescriptor, oldPathFlags: any, oldPath: string, newDesc: WasiDescriptor, newPath: string) => self.linkAt(oldPathFlags, oldPath, newDesc, newPath),
+        [method(descriptorPrefix, 'readlink-at')]: (self: WasiDescriptor, path: string) => self.readlinkAt(path),
+        [method(descriptorPrefix, 'symlink-at')]: (self: WasiDescriptor, oldPath: string, newPath: string) => self.symlinkAt(oldPath, newPath),
         [method(descriptorPrefix, 'set-times')]: (self: WasiDescriptor, atime: any, mtime: any) => self.setTimes(atime, mtime),
         [method(descriptorPrefix, 'set-times-at')]: (self: WasiDescriptor, pathFlags: any, path: string, atime: any, mtime: any) => self.setTimesAt(pathFlags, path, atime, mtime),
         [method(descriptorPrefix, 'is-same-object')]: (self: WasiDescriptor, other: WasiDescriptor) => self.isSameObject(other),
-        [method(descriptorPrefix, 'advise')]: (self: WasiDescriptor, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
+        [method(descriptorPrefix, 'advise')]: (self: WasiDescriptor, offset: bigint, length: bigint, advice: Advice) => self.advise(offset, length, advice),
         [drop(directoryPrefix)]: (_self: WasiDirectoryEntryStream) => { /* GC handles cleanup */ },
         [method(directoryPrefix, 'read-directory-entry')]: (self: WasiDirectoryEntryStream) => self.readDirectoryEntry(),
     });
@@ -223,22 +296,162 @@ export function createWasiP2Host(config?: WasiConfig): WasiP2HostExports {
     });
 
     // wasi:http/*
+    const fieldsPrefix = 'fields';
+    const outReqPrefix = 'outgoing-request';
+    const outBodyPrefix = 'outgoing-body';
+    const reqOptsPrefix = 'request-options';
+    const inRespPrefix = 'incoming-response';
+    const inBodyPrefix = 'incoming-body';
+    const futRespPrefix = 'future-incoming-response';
+    register('http/types', {
+        // Fields constructors
+        '[constructor]fields': () => createFields(),
+        '[static]fields.from-list': (entries: [string, Uint8Array][]) => createFieldsFromList(entries),
+        [drop(fieldsPrefix)]: (_self: WasiFields) => { /* GC */ },
+        [method(fieldsPrefix, 'get')]: (self: WasiFields, name: string) => self.get(name),
+        [method(fieldsPrefix, 'has')]: (self: WasiFields, name: string) => self.has(name),
+        [method(fieldsPrefix, 'set')]: (self: WasiFields, name: string, values: Uint8Array[]) => self.set(name, values),
+        [method(fieldsPrefix, 'append')]: (self: WasiFields, name: string, value: Uint8Array) => self.append(name, value),
+        [method(fieldsPrefix, 'delete')]: (self: WasiFields, name: string) => self.delete(name),
+        [method(fieldsPrefix, 'entries')]: (self: WasiFields) => self.entries(),
+        [method(fieldsPrefix, 'clone')]: (self: WasiFields) => self.clone(),
+        // Outgoing request
+        '[constructor]outgoing-request': (headers: WasiFields) => createOutgoingRequest(headers),
+        [drop(outReqPrefix)]: (_self: WasiOutgoingRequest) => { /* GC */ },
+        [method(outReqPrefix, 'method')]: (self: WasiOutgoingRequest) => self.method(),
+        [method(outReqPrefix, 'set-method')]: (self: WasiOutgoingRequest, m: any) => self.setMethod(m),
+        [method(outReqPrefix, 'path-with-query')]: (self: WasiOutgoingRequest) => self.pathWithQuery(),
+        [method(outReqPrefix, 'set-path-with-query')]: (self: WasiOutgoingRequest, p: string | undefined) => self.setPathWithQuery(p),
+        [method(outReqPrefix, 'scheme')]: (self: WasiOutgoingRequest) => self.scheme(),
+        [method(outReqPrefix, 'set-scheme')]: (self: WasiOutgoingRequest, s: any) => self.setScheme(s),
+        [method(outReqPrefix, 'authority')]: (self: WasiOutgoingRequest) => self.authority(),
+        [method(outReqPrefix, 'set-authority')]: (self: WasiOutgoingRequest, a: string | undefined) => self.setAuthority(a),
+        [method(outReqPrefix, 'headers')]: (self: WasiOutgoingRequest) => self.headers(),
+        [method(outReqPrefix, 'body')]: (self: WasiOutgoingRequest) => self.body(),
+        // Outgoing body
+        [drop(outBodyPrefix)]: (_self: WasiOutgoingBody) => { /* GC */ },
+        [method(outBodyPrefix, 'write')]: (self: WasiOutgoingBody) => self.write(),
+        '[static]outgoing-body.finish': (body: WasiOutgoingBody, trailers?: WasiFields) => finishOutgoingBody(body, trailers),
+        // Request options
+        '[constructor]request-options': () => createRequestOptions(),
+        [drop(reqOptsPrefix)]: (_self: WasiRequestOptions) => { /* GC */ },
+        [method(reqOptsPrefix, 'connect-timeout')]: (self: WasiRequestOptions) => self.connectTimeout(),
+        [method(reqOptsPrefix, 'set-connect-timeout')]: (self: WasiRequestOptions, t: bigint | undefined) => self.setConnectTimeout(t),
+        [method(reqOptsPrefix, 'first-byte-timeout')]: (self: WasiRequestOptions) => self.firstByteTimeout(),
+        [method(reqOptsPrefix, 'set-first-byte-timeout')]: (self: WasiRequestOptions, t: bigint | undefined) => self.setFirstByteTimeout(t),
+        [method(reqOptsPrefix, 'between-bytes-timeout')]: (self: WasiRequestOptions) => self.betweenBytesTimeout(),
+        [method(reqOptsPrefix, 'set-between-bytes-timeout')]: (self: WasiRequestOptions, t: bigint | undefined) => self.setBetweenBytesTimeout(t),
+        // Incoming response
+        [drop(inRespPrefix)]: (_self: WasiIncomingResponse) => { /* GC */ },
+        [method(inRespPrefix, 'status')]: (self: WasiIncomingResponse) => self.status(),
+        [method(inRespPrefix, 'headers')]: (self: WasiIncomingResponse) => self.headers(),
+        [method(inRespPrefix, 'consume')]: (self: WasiIncomingResponse) => self.consume(),
+        // Incoming body
+        [drop(inBodyPrefix)]: (_self: WasiIncomingBody) => { /* GC */ },
+        [method(inBodyPrefix, 'stream')]: (self: WasiIncomingBody) => self.stream(),
+        '[static]incoming-body.finish': (_body: WasiIncomingBody) => createFutureTrailers(),
+        // Future incoming response
+        [drop(futRespPrefix)]: (_self: WasiFutureIncomingResponse) => { /* GC */ },
+        [method(futRespPrefix, 'subscribe')]: (self: WasiFutureIncomingResponse) => self.subscribe(),
+        [method(futRespPrefix, 'get')]: (self: WasiFutureIncomingResponse) => self.get(),
+        // HTTP error-code helper
+        'http-error-code': (_err: WasiError) => undefined,
+        // Incoming request
+        [drop('incoming-request')]: (_self: WasiIncomingRequest) => { /* GC */ },
+        // Outgoing response
+        '[constructor]outgoing-response': (headers: WasiFields) => createOutgoingResponse(headers),
+        [drop('outgoing-response')]: (_self: WasiOutgoingResponse) => { /* GC */ },
+        // Response outparam
+        [drop('response-outparam')]: (_self: WasiResponseOutparam) => { /* GC */ },
+        '[static]response-outparam.set': (param: WasiResponseOutparam, response: any) => responseOutparamSet(param, response),
+        // Future trailers
+        [drop('future-trailers')]: (_self: WasiFutureTrailers) => { /* GC */ },
+        [method('future-trailers', 'subscribe')]: (self: WasiFutureTrailers) => self.subscribe(),
+        [method('future-trailers', 'get')]: (self: WasiFutureTrailers) => self.get(),
+    });
     register('http/outgoing-handler', {
         'handle': outgoingHandler.handle,
     });
 
-    // wasi:sockets/* (all stubs)
+    // wasi:sockets/*
     register('sockets/instance-network', {
         'instance-network': instanceNetwork,
     });
+    register('sockets/network', {
+        [drop('network')]: (_self: WasiNetwork) => { /* GC */ },
+        'network-error-code': (_err: WasiError) => undefined,
+    });
     register('sockets/tcp-create-socket', {
-        'create-tcp-socket': (family: any) => createTcpSocket(family),
+        'create-tcp-socket': (family: any) => createTcpSocket(family, config?.network),
+    });
+    const tcpPrefix = 'tcp-socket';
+    register('sockets/tcp', {
+        [drop(tcpPrefix)]: (_self: WasiTcpSocket) => { /* GC */ },
+        [method(tcpPrefix, 'start-bind')]: (self: WasiTcpSocket, network: WasiNetwork, addr: any) => self.startBind(network, addr),
+        [method(tcpPrefix, 'finish-bind')]: (self: WasiTcpSocket) => self.finishBind(),
+        [method(tcpPrefix, 'start-connect')]: (self: WasiTcpSocket, network: WasiNetwork, addr: any) => self.startConnect(network, addr),
+        [method(tcpPrefix, 'finish-connect')]: (self: WasiTcpSocket) => self.finishConnect(),
+        [method(tcpPrefix, 'start-listen')]: (self: WasiTcpSocket) => self.startListen(),
+        [method(tcpPrefix, 'finish-listen')]: (self: WasiTcpSocket) => self.finishListen(),
+        [method(tcpPrefix, 'accept')]: (self: WasiTcpSocket) => self.accept(),
+        [method(tcpPrefix, 'local-address')]: (self: WasiTcpSocket) => self.localAddress(),
+        [method(tcpPrefix, 'remote-address')]: (self: WasiTcpSocket) => self.remoteAddress(),
+        [method(tcpPrefix, 'is-listening')]: (self: WasiTcpSocket) => self.isListening(),
+        [method(tcpPrefix, 'address-family')]: (self: WasiTcpSocket) => self.addressFamily(),
+        [method(tcpPrefix, 'set-listen-backlog-size')]: (self: WasiTcpSocket, v: bigint) => self.setListenBacklogSize(v),
+        [method(tcpPrefix, 'keep-alive-enabled')]: (self: WasiTcpSocket) => self.keepAliveEnabled(),
+        [method(tcpPrefix, 'set-keep-alive-enabled')]: (self: WasiTcpSocket, v: boolean) => self.setKeepAliveEnabled(v),
+        [method(tcpPrefix, 'keep-alive-idle-time')]: (self: WasiTcpSocket) => self.keepAliveIdleTime(),
+        [method(tcpPrefix, 'set-keep-alive-idle-time')]: (self: WasiTcpSocket, v: bigint) => self.setKeepAliveIdleTime(v),
+        [method(tcpPrefix, 'keep-alive-interval')]: (self: WasiTcpSocket) => self.keepAliveInterval(),
+        [method(tcpPrefix, 'set-keep-alive-interval')]: (self: WasiTcpSocket, v: bigint) => self.setKeepAliveInterval(v),
+        [method(tcpPrefix, 'keep-alive-count')]: (self: WasiTcpSocket) => self.keepAliveCount(),
+        [method(tcpPrefix, 'set-keep-alive-count')]: (self: WasiTcpSocket, v: number) => self.setKeepAliveCount(v),
+        [method(tcpPrefix, 'hop-limit')]: (self: WasiTcpSocket) => self.hopLimit(),
+        [method(tcpPrefix, 'set-hop-limit')]: (self: WasiTcpSocket, v: number) => self.setHopLimit(v),
+        [method(tcpPrefix, 'receive-buffer-size')]: (self: WasiTcpSocket) => self.receiveBufferSize(),
+        [method(tcpPrefix, 'set-receive-buffer-size')]: (self: WasiTcpSocket, v: bigint) => self.setReceiveBufferSize(v),
+        [method(tcpPrefix, 'send-buffer-size')]: (self: WasiTcpSocket) => self.sendBufferSize(),
+        [method(tcpPrefix, 'set-send-buffer-size')]: (self: WasiTcpSocket, v: bigint) => self.setSendBufferSize(v),
+        [method(tcpPrefix, 'subscribe')]: (self: WasiTcpSocket) => self.subscribe(),
+        [method(tcpPrefix, 'shutdown')]: (self: WasiTcpSocket, how: ShutdownType) => self.shutdown(how),
     });
     register('sockets/udp-create-socket', {
-        'create-udp-socket': (family: any) => createUdpSocket(family),
+        'create-udp-socket': (family: any) => createUdpSocket(family, config?.network),
     });
+    const udpPrefix = 'udp-socket';
+    const inDgramPrefix = 'incoming-datagram-stream';
+    const outDgramPrefix = 'outgoing-datagram-stream';
+    register('sockets/udp', {
+        [drop(udpPrefix)]: (_self: WasiUdpSocket) => { /* GC */ },
+        [method(udpPrefix, 'start-bind')]: (self: WasiUdpSocket, network: WasiNetwork, addr: any) => self.startBind(network, addr),
+        [method(udpPrefix, 'finish-bind')]: (self: WasiUdpSocket) => self.finishBind(),
+        [method(udpPrefix, 'stream')]: (self: WasiUdpSocket, remoteAddr: any) => self.stream(remoteAddr),
+        [method(udpPrefix, 'local-address')]: (self: WasiUdpSocket) => self.localAddress(),
+        [method(udpPrefix, 'remote-address')]: (self: WasiUdpSocket) => self.remoteAddress(),
+        [method(udpPrefix, 'address-family')]: (self: WasiUdpSocket) => self.addressFamily(),
+        [method(udpPrefix, 'unicast-hop-limit')]: (self: WasiUdpSocket) => self.unicastHopLimit(),
+        [method(udpPrefix, 'set-unicast-hop-limit')]: (self: WasiUdpSocket, v: number) => self.setUnicastHopLimit(v),
+        [method(udpPrefix, 'receive-buffer-size')]: (self: WasiUdpSocket) => self.receiveBufferSize(),
+        [method(udpPrefix, 'set-receive-buffer-size')]: (self: WasiUdpSocket, v: bigint) => self.setReceiveBufferSize(v),
+        [method(udpPrefix, 'send-buffer-size')]: (self: WasiUdpSocket) => self.sendBufferSize(),
+        [method(udpPrefix, 'set-send-buffer-size')]: (self: WasiUdpSocket, v: bigint) => self.setSendBufferSize(v),
+        [method(udpPrefix, 'subscribe')]: (self: WasiUdpSocket) => self.subscribe(),
+        // Datagram streams
+        [drop(inDgramPrefix)]: (_self: WasiIncomingDatagramStream) => { /* GC */ },
+        [method(inDgramPrefix, 'receive')]: (self: WasiIncomingDatagramStream, max: bigint) => self.receive(max),
+        [method(inDgramPrefix, 'subscribe')]: (self: WasiIncomingDatagramStream) => self.subscribe(),
+        [drop(outDgramPrefix)]: (_self: WasiOutgoingDatagramStream) => { /* GC */ },
+        [method(outDgramPrefix, 'check-send')]: (self: WasiOutgoingDatagramStream) => self.checkSend(),
+        [method(outDgramPrefix, 'send')]: (self: WasiOutgoingDatagramStream, datagrams: any[]) => self.send(datagrams),
+        [method(outDgramPrefix, 'subscribe')]: (self: WasiOutgoingDatagramStream) => self.subscribe(),
+    });
+    const resolveStreamPrefix = 'resolve-address-stream';
     register('sockets/ip-name-lookup', {
-        'resolve-addresses': (network: any, name: string) => resolveAddresses(network, name),
+        'resolve-addresses': (network: any, name: string) => resolveAddresses(network, name, config?.network),
+        [drop(resolveStreamPrefix)]: (_self: WasiResolveAddressStream) => { /* GC */ },
+        [method(resolveStreamPrefix, 'resolve-next-address')]: (self: WasiResolveAddressStream) => self.resolveNextAddress(),
+        [method(resolveStreamPrefix, 'subscribe')]: (self: WasiResolveAddressStream) => self.subscribe(),
     });
 
     return result;
