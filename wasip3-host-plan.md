@@ -373,6 +373,8 @@ IVfsBackend {
 - P3 `Response` → Node.js `ServerResponse` with streaming body
 - Graceful shutdown, timeout enforcement, error handling
 - Config: port, host, backlog, keepalive, header limits, body limits
+- Security: validate URL scheme (http/https only), header count/size limits (config.network.maxHeaders, maxHeaderSize), request body size limit, response body size limit. Reject forbidden headers (host, connection, etc. per spec). Sanitize header values (no CRLF injection).
+- streaming request and response
 
 ### Tasks
 - Create `src/host/wasip3/node/http-server.ts`

@@ -57,6 +57,7 @@ import {
     createTerminalInput, createTerminalOutput,
     createTerminalStdin, createTerminalStdout, createTerminalStderr,
 } from './stdio';
+import { initFilesystem, createPreopens, createFilesystemTypes } from './filesystem';
 export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
@@ -111,6 +112,7 @@ function stubInterface(): Record<string, (...args: unknown[]) => never> {
  * fully implemented. Remaining interfaces throw "not implemented".
  */
 export function createHost(config?: WasiP3Config): WasiP3Imports {
+    const fsState = initFilesystem(config);
     return {
         'wasi:cli/environment': createEnvironment(config),
         'wasi:cli/exit': createExit(),
@@ -127,8 +129,8 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
         'wasi:clocks/system-clock': createSystemClock(),
         'wasi:clocks/timezone': createTimezone(),
         'wasi:clocks/types': createClocksTypes(),
-        'wasi:filesystem/preopens': stubInterface() as unknown as typeof WasiFilesystemPreopens,
-        'wasi:filesystem/types': stubInterface() as unknown as typeof WasiFilesystemTypes,
+        'wasi:filesystem/preopens': createPreopens(fsState),
+        'wasi:filesystem/types': createFilesystemTypes(fsState),
         'wasi:http/client': stubInterface() as unknown as typeof WasiHttpClient,
         'wasi:http/handler': stubInterface() as unknown as typeof WasiHttpHandler,
         'wasi:http/types': stubInterface() as unknown as typeof WasiHttpTypes,

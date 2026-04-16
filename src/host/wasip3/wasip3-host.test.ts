@@ -93,14 +93,21 @@ describe('createHost', () => {
             const host = createHost();
             expect(host['wasi:cli/terminal-stdin'].getTerminalStdin()).toBeUndefined();
         });
+
+        it('wasi:filesystem/preopens.getDirectories returns preopens', () => {
+            const host = createHost();
+            const dirs = host['wasi:filesystem/preopens'].getDirectories();
+            expect(dirs.length).toBe(1);
+            expect(dirs[0][1]).toBe('/');
+        });
+
+        it('wasi:filesystem/types.Descriptor is defined', () => {
+            const host = createHost();
+            expect(host['wasi:filesystem/types'].Descriptor).toBeDefined();
+        });
     });
 
     describe('stub interfaces still throw not-implemented', () => {
-        it('wasi:filesystem/preopens.getDirectories throws', () => {
-            const host = createHost();
-            expect(() => host['wasi:filesystem/preopens'].getDirectories()).toThrow(/not implemented/);
-        });
-
         it('wasi:http/client.send throws', () => {
             const host = createHost();
             expect(() => (host['wasi:http/client'] as Record<string, Function>)['send']({})).toThrow(/not implemented/);
