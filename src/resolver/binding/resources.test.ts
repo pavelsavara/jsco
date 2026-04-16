@@ -41,6 +41,59 @@ function createMockCtxWithResources(): BindingContext {
     } as any as BindingContext;
 }
 
+function createMockHandleTable() {
+    const table = new Map<number, unknown>();
+    let nextHandle = 1;
+    return {
+        addReadable(_typeIdx: number, value: unknown): number {
+            const h = nextHandle++;
+            table.set(h, value);
+            return h;
+        },
+        getReadable(_typeIdx: number, handle: number): unknown {
+            if (!table.has(handle)) throw new Error('Invalid handle');
+            return table.get(handle);
+        },
+        removeReadable(_typeIdx: number, handle: number): unknown {
+            if (!table.has(handle)) throw new Error('Invalid handle');
+            const val = table.get(handle);
+            table.delete(handle);
+            return val;
+        },
+    };
+}
+
+function createMockErrorContextTable() {
+    const table = new Map<number, unknown>();
+    let nextHandle = 1;
+    return {
+        add(value: unknown): number {
+            const h = nextHandle++;
+            table.set(h, value);
+            return h;
+        },
+        get(handle: number): unknown {
+            if (!table.has(handle)) throw new Error('Invalid handle');
+            return table.get(handle);
+        },
+        remove(handle: number): unknown {
+            if (!table.has(handle)) throw new Error('Invalid handle');
+            const val = table.get(handle);
+            table.delete(handle);
+            return val;
+        },
+    };
+}
+
+function createMockCtxWithStreams(): BindingContext {
+    return {
+        resources: createResourceTable(),
+        streams: createMockHandleTable() as any,
+        futures: createMockHandleTable() as any,
+        errorContexts: createMockErrorContextTable() as any,
+    } as any as BindingContext;
+}
+
 describeDebugOnly('ResourceTable', () => {
     test('add returns handle >= 1', () => {
         const resources = createResourceTable();
@@ -615,5 +668,115 @@ describeDebugOnly('resource handle cleanup and ref counting', () => {
         for (let i = 0; i < 1000; i++) {
             expect(resources.has(0, handles[i]!)).toBe(false);
         }
+    });
+});
+
+describeDebugOnly('stream<T> lifting and lowering', () => {
+    let rctx: ResolverContext;
+    let bctx: BindingContext;
+
+    beforeEach(() => {
+        rctx = createMinimalRctx();
+        bctx = createMockCtxWithStreams();
+    });
+
+    test('JS async iterable lifts to [handle]', () => {
+        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const lifter = createLifting(rctx.resolved, streamModel as any);
+        const iterable = { [Symbol.asyncIterator]: () => ({}) };
+        const result = lifter(bctx, iterable);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeGreaterThan(0);
+    });
+
+    test('handle lowers to original async iterable', () => {
+        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const lowerer = createLowering(rctx.resolved, streamModel as any);
+        const iterable = { [Symbol.asyncIterator]: () => ({}) };
+        const handle = (bctx.streams as any).addReadable(0, iterable);
+        const result = lowerer(bctx, handle);
+        expect(result).toBe(iterable);
+    });
+
+    test('spill is 1', () => {
+        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream };
+        const lowerer = createLowering(rctx.resolved, streamModel as any);
+        expect((lowerer as any).spill).toBe(1);
+    });
+});
+
+describeDebugOnly('future<T> lifting and lowering', () => {
+    let rctx: ResolverContext;
+    let bctx: BindingContext;
+
+    beforeEach(() => {
+        rctx = createMinimalRctx();
+        bctx = createMockCtxWithStreams();
+    });
+
+    test('JS promise lifts to [handle]', () => {
+        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const lifter = createLifting(rctx.resolved, futureModel as any);
+        const promise = Promise.resolve(42);
+        const result = lifter(bctx, promise);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeGreaterThan(0);
+    });
+
+    test('handle lowers to original promise', () => {
+        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const lowerer = createLowering(rctx.resolved, futureModel as any);
+        const promise = Promise.resolve(42);
+        const handle = (bctx.futures as any).addReadable(0, promise);
+        const result = lowerer(bctx, handle);
+        expect(result).toBe(promise);
+    });
+
+    test('spill is 1', () => {
+        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture };
+        const lowerer = createLowering(rctx.resolved, futureModel as any);
+        expect((lowerer as any).spill).toBe(1);
+    });
+});
+
+describeDebugOnly('error-context lifting and lowering', () => {
+    let rctx: ResolverContext;
+    let bctx: BindingContext;
+
+    beforeEach(() => {
+        rctx = createMinimalRctx();
+        bctx = createMockCtxWithStreams();
+    });
+
+    test('JS Error lifts to [handle]', () => {
+        const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
+        const lifter = createLifting(rctx.resolved, errModel as any);
+        const err = new Error('test error');
+        const result = lifter(bctx, err);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeGreaterThan(0);
+    });
+
+    test('handle lowers to original Error', () => {
+        const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
+        const lowerer = createLowering(rctx.resolved, errModel as any);
+        const err = new Error('test error');
+        const handle = (bctx.errorContexts as any).add(err);
+        const result = lowerer(bctx, handle);
+        expect(result).toBe(err);
+    });
+
+    test('spill is 1', () => {
+        const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
+        const lowerer = createLowering(rctx.resolved, errModel as any);
+        expect((lowerer as any).spill).toBe(1);
+    });
+
+    test('multiple lifts produce unique handles', () => {
+        const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
+        const lifter = createLifting(rctx.resolved, errModel as any);
+        const [h1] = lifter(bctx, new Error('a'));
+        const [h2] = lifter(bctx, new Error('b'));
+        expect(h1).not.toBe(h2);
     });
 });

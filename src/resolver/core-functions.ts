@@ -2,7 +2,16 @@
 
 import isDebug from 'env:isDebug';
 import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
-import { CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from '../model/canonicals';
+import {
+    CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep,
+    CanonicalFunctionStreamNew, CanonicalFunctionStreamRead, CanonicalFunctionStreamWrite,
+    CanonicalFunctionStreamCancelRead, CanonicalFunctionStreamCancelWrite,
+    CanonicalFunctionStreamDropReadable, CanonicalFunctionStreamDropWritable,
+    CanonicalFunctionFutureNew, CanonicalFunctionFutureRead, CanonicalFunctionFutureWrite,
+    CanonicalFunctionFutureCancelRead, CanonicalFunctionFutureCancelWrite,
+    CanonicalFunctionFutureDropReadable, CanonicalFunctionFutureDropWritable,
+    CanonicalFunctionErrorContextNew, CanonicalFunctionErrorContextDebugMessage, CanonicalFunctionErrorContextDrop,
+} from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { ComponentTypeIndex, CoreFuncIndex } from '../model/indices';
@@ -34,6 +43,39 @@ export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
         case ModelTag.CanonicalFunctionResourceDrop: result = resolveCanonicalFunctionResourceDrop(rctx, rargs as any); break;
         case ModelTag.CanonicalFunctionResourceNew: result = resolveCanonicalFunctionResourceNew(rctx, rargs as any); break;
         case ModelTag.CanonicalFunctionResourceRep: result = resolveCanonicalFunctionResourceRep(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamNew: result = resolveCanonicalFunctionStreamNew(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamRead: result = resolveCanonicalFunctionStreamRead(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamWrite: result = resolveCanonicalFunctionStreamWrite(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamCancelRead: result = resolveCanonicalFunctionStreamCancelRead(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamCancelWrite: result = resolveCanonicalFunctionStreamCancelWrite(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamDropReadable: result = resolveCanonicalFunctionStreamDropReadable(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionStreamDropWritable: result = resolveCanonicalFunctionStreamDropWritable(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureNew: result = resolveCanonicalFunctionFutureNew(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureRead: result = resolveCanonicalFunctionFutureRead(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureWrite: result = resolveCanonicalFunctionFutureWrite(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureCancelRead: result = resolveCanonicalFunctionFutureCancelRead(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureCancelWrite: result = resolveCanonicalFunctionFutureCancelWrite(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureDropReadable: result = resolveCanonicalFunctionFutureDropReadable(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionFutureDropWritable: result = resolveCanonicalFunctionFutureDropWritable(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionErrorContextNew: result = resolveCanonicalFunctionErrorContextNew(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionErrorContextDebugMessage: result = resolveCanonicalFunctionErrorContextDebugMessage(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionErrorContextDrop: result = resolveCanonicalFunctionErrorContextDrop(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionBackpressureSet:
+        case ModelTag.CanonicalFunctionBackpressureInc:
+        case ModelTag.CanonicalFunctionBackpressureDec:
+        case ModelTag.CanonicalFunctionTaskReturn:
+        case ModelTag.CanonicalFunctionTaskCancel:
+        case ModelTag.CanonicalFunctionContextGet:
+        case ModelTag.CanonicalFunctionContextSet:
+        case ModelTag.CanonicalFunctionThreadYield:
+        case ModelTag.CanonicalFunctionSubtaskCancel:
+        case ModelTag.CanonicalFunctionSubtaskDrop:
+        case ModelTag.CanonicalFunctionWaitableSetNew:
+        case ModelTag.CanonicalFunctionWaitableSetWait:
+        case ModelTag.CanonicalFunctionWaitableSetPoll:
+        case ModelTag.CanonicalFunctionWaitableSetDrop:
+        case ModelTag.CanonicalFunctionWaitableJoin:
+            result = resolveCanonicalFunctionNotImplemented(rctx, rargs); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
     rctx.coreFunctionCache.set(rargs.element, result);
@@ -471,5 +513,265 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
             };
             return { result: repFn };
         }, `resource.rep:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Stream canonical built-ins ---
+
+export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStreamNew> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const streamNewFn = () => {
+                return bctx.streams.newStream(elem.type);
+            };
+            return { result: streamNewFn };
+        }, `stream.new:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStreamRead> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const streamReadFn = (handle: number, ptr: number, len: number) => {
+                return bctx.streams.read(elem.type, handle, ptr, len);
+            };
+            return { result: streamReadFn };
+        }, `stream.read:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStreamWrite> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const streamWriteFn = (handle: number, ptr: number, len: number) => {
+                return bctx.streams.write(elem.type, handle, ptr, len);
+            };
+            return { result: streamWriteFn };
+        }, `stream.write:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctionStreamCancelRead> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                return bctx.streams.cancelRead(elem.type, handle);
+            };
+            return { result: fn };
+        }, `stream.cancel-read:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFunctionStreamCancelWrite> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                return bctx.streams.cancelWrite(elem.type, handle);
+            };
+            return { result: fn };
+        }, `stream.cancel-write:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunctionStreamDropReadable> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.streams.dropReadable(elem.type, handle);
+            };
+            return { result: fn };
+        }, `stream.drop-readable:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunctionStreamDropWritable> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.streams.dropWritable(elem.type, handle);
+            };
+            return { result: fn };
+        }, `stream.drop-writable:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Future canonical built-ins ---
+
+export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFutureNew> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = () => {
+                return bctx.futures.newFuture(elem.type);
+            };
+            return { result: fn };
+        }, `future.new:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutureRead> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number, ptr: number) => {
+                return bctx.futures.read(elem.type, handle, ptr);
+            };
+            return { result: fn };
+        }, `future.read:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutureWrite> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number, ptr: number) => {
+                return bctx.futures.write(elem.type, handle, ptr);
+            };
+            return { result: fn };
+        }, `future.write:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctionFutureCancelRead> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                return bctx.futures.cancelRead(elem.type, handle);
+            };
+            return { result: fn };
+        }, `future.cancel-read:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFunctionFutureCancelWrite> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                return bctx.futures.cancelWrite(elem.type, handle);
+            };
+            return { result: fn };
+        }, `future.cancel-write:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunctionFutureDropReadable> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.futures.dropReadable(elem.type, handle);
+            };
+            return { result: fn };
+        }, `future.drop-readable:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunctionFutureDropWritable> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.futures.dropWritable(elem.type, handle);
+            };
+            return { result: fn };
+        }, `future.drop-writable:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Error-context canonical built-ins ---
+
+export const resolveCanonicalFunctionErrorContextNew: Resolver<CanonicalFunctionErrorContextNew> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (ptr: number, len: number) => {
+                return bctx.errorContexts.newErrorContext(ptr, len);
+            };
+            return { result: fn };
+        }, `error-context.new:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionErrorContextDebugMessage: Resolver<CanonicalFunctionErrorContextDebugMessage> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number, ptr: number) => {
+                bctx.errorContexts.debugMessage(handle, ptr);
+            };
+            return { result: fn };
+        }, `error-context.debug-message:${elem.selfSortIndex}`)
+    };
+};
+
+export const resolveCanonicalFunctionErrorContextDrop: Resolver<CanonicalFunctionErrorContextDrop> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.errorContexts.drop(handle);
+            };
+            return { result: fn };
+        }, `error-context.drop:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Placeholder resolver for not-yet-implemented async built-ins ---
+
+const resolveCanonicalFunctionNotImplemented: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (): Promise<BinderRes> => {
+            const fn = () => {
+                throw new Error(`Canonical built-in "${elem.tag}" is not yet implemented`);
+            };
+            return { result: fn };
+        }, `not-implemented:${elem.selfSortIndex}`)
     };
 };

@@ -293,6 +293,9 @@ export type ComponentTypeDefined =
     | ComponentTypeDefinedResult
     | ComponentTypeDefinedOwn
     | ComponentTypeDefinedBorrow
+    | ComponentTypeDefinedStream
+    | ComponentTypeDefinedFuture
+    | ComponentTypeDefinedErrorContext
 
 /// The type is one of the primitive value types.
 export type ComponentTypeDefinedPrimitive = IndexedElement & {
@@ -360,4 +363,21 @@ export type ComponentTypeDefinedOwn = IndexedElement & {
 export type ComponentTypeDefinedBorrow = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedBorrow,
     value: u32,
+}
+
+/// A stream type with an optional element type.
+export type ComponentTypeDefinedStream = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedStream,
+    value?: ComponentValType,
+}
+
+/// A future type with an optional element type.
+export type ComponentTypeDefinedFuture = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedFuture,
+    value?: ComponentValType,
+}
+
+/// An error-context handle type.
+export type ComponentTypeDefinedErrorContext = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedErrorContext,
 }

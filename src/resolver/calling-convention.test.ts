@@ -207,6 +207,12 @@ describe('sizeOf', () => {
         test('borrow → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4));
     });
 
+    describe('stream/future/error-context', () => {
+        test('stream → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4));
+        test('future → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4));
+        test('error-context → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4));
+    });
+
     describe('func', () => {
         test('func → 0', () => {
             expect(sizeOf({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
@@ -290,6 +296,12 @@ describe('alignOf', () => {
     test('own/borrow → 4', () => {
         expect(alignOf({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(4);
         expect(alignOf({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4);
+    });
+
+    test('stream/future/error-context → 4', () => {
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4);
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4);
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4);
     });
 
     test('func → 0', () => {
@@ -382,6 +394,18 @@ describe('flatCount', () => {
         expect(flatCount({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(1);
     });
 
+    test('stream → 1', () => {
+        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(1);
+    });
+
+    test('future → 1', () => {
+        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(1);
+    });
+
+    test('error-context → 1', () => {
+        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(1);
+    });
+
     test('func → 0', () => {
         expect(flatCount({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
     });
@@ -415,6 +439,18 @@ describe('flattenType', () => {
 
     test('own → [I32]', () => {
         expect(flattenType({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toEqual([FlatType.I32]);
+    });
+
+    test('stream → [I32]', () => {
+        expect(flattenType({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toEqual([FlatType.I32]);
+    });
+
+    test('future → [I32]', () => {
+        expect(flattenType({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toEqual([FlatType.I32]);
+    });
+
+    test('error-context → [I32]', () => {
+        expect(flattenType({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toEqual([FlatType.I32]);
     });
 
     test('record {u32, f32} → [I32, F32]', () => {
@@ -658,6 +694,24 @@ describe('deepResolveType', () => {
     test('own stays as-is', () => {
         const rctx = makeRctx();
         const type = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any;
+        expect(deepResolveType(rctx, type)).toBe(type);
+    });
+
+    test('stream stays as-is', () => {
+        const rctx = makeRctx();
+        const type = { tag: ModelTag.ComponentTypeDefinedStream } as any;
+        expect(deepResolveType(rctx, type)).toBe(type);
+    });
+
+    test('future stays as-is', () => {
+        const rctx = makeRctx();
+        const type = { tag: ModelTag.ComponentTypeDefinedFuture } as any;
+        expect(deepResolveType(rctx, type)).toBe(type);
+    });
+
+    test('error-context stays as-is', () => {
+        const rctx = makeRctx();
+        const type = { tag: ModelTag.ComponentTypeDefinedErrorContext } as any;
         expect(deepResolveType(rctx, type)).toBe(type);
     });
 

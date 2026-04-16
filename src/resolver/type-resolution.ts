@@ -7,6 +7,7 @@ import {
     ComponentTypeDefinedVariant, ComponentTypeDefinedList, ComponentTypeDefinedTuple,
     ComponentTypeDefinedFlags, ComponentTypeDefinedEnum, ComponentTypeDefinedOption,
     ComponentTypeDefinedResult, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
+    ComponentTypeDefinedStream, ComponentTypeDefinedFuture, ComponentTypeDefinedErrorContext,
     ComponentTypeFunc, ComponentType, ComponentTypeResource, ComponentTypeInstance,
 } from '../model/types';
 import { ComponentExternalKind } from '../model/exports';
@@ -32,6 +33,9 @@ export type ResolvedType =
     | ComponentTypeDefinedResult
     | ComponentTypeDefinedOwn
     | ComponentTypeDefinedBorrow
+    | ComponentTypeDefinedStream
+    | ComponentTypeDefinedFuture
+    | ComponentTypeDefinedErrorContext
     | ComponentTypeFunc;
 
 function resolveType(rctx: ResolverContext, type: ComponentType, visited: Set<ComponentType>): ResolvedType | undefined {
@@ -51,6 +55,9 @@ function resolveType(rctx: ResolverContext, type: ComponentType, visited: Set<Co
         case ModelTag.ComponentTypeDefinedResult:
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext:
         case ModelTag.ComponentTypeFunc:
             return type;
 

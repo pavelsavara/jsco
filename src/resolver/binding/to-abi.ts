@@ -3,7 +3,7 @@
 import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
+import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
 import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
@@ -257,6 +257,12 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
                 return createOwnLifting(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedBorrow:
                 return createBorrowLifting(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedStream:
+                return createStreamLifting(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedFuture:
+                return createFutureLifting(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedErrorContext:
+                return createErrorContextLifting();
             default:
                 throw new Error('Not implemented ' + typeModel.tag);
         }
@@ -693,6 +699,24 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
             };
         }
+        case ModelTag.ComponentTypeDefinedStream: {
+            return (ctx, ptr, jsValue) => {
+                const handle = ctx.streams.addReadable(0, jsValue);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
+            };
+        }
+        case ModelTag.ComponentTypeDefinedFuture: {
+            return (ctx, ptr, jsValue) => {
+                const handle = ctx.futures.addReadable(0, jsValue);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
+            };
+        }
+        case ModelTag.ComponentTypeDefinedErrorContext: {
+            return (ctx, ptr, jsValue) => {
+                const handle = ctx.errorContexts.add(jsValue);
+                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
+            };
+        }
         default:
             throw new Error('createMemoryStorer not implemented for tag ' + type.tag);
     }
@@ -952,6 +976,33 @@ function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDe
     }
     return (ctx, srcJsValue, out, offset) => {
         out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
+        return 1;
+    };
+}
+
+// --- Stream lifting (JS AsyncIterable → i32 handle) ---
+
+function createStreamLifting(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LiftingFromJs {
+    return (ctx, srcJsValue, out, offset) => {
+        out[offset] = ctx.streams.addReadable(0, srcJsValue);
+        return 1;
+    };
+}
+
+// --- Future lifting (JS Promise → i32 handle) ---
+
+function createFutureLifting(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LiftingFromJs {
+    return (ctx, srcJsValue, out, offset) => {
+        out[offset] = ctx.futures.addReadable(0, srcJsValue);
+        return 1;
+    };
+}
+
+// --- Error-context lifting (JS Error → i32 handle) ---
+
+function createErrorContextLifting(): LiftingFromJs {
+    return (ctx, srcJsValue, out, offset) => {
+        out[offset] = ctx.errorContexts.add(srcJsValue);
         return 1;
     };
 }

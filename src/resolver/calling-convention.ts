@@ -169,6 +169,9 @@ export function sizeOf(type: ResolvedType): number {
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext:
             return 4; // i32 handle
 
         case ModelTag.ComponentTypeFunc:
@@ -231,6 +234,9 @@ export function alignOf(type: ResolvedType): number {
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext:
             return 4;
 
         case ModelTag.ComponentTypeFunc:
@@ -291,6 +297,9 @@ export function flatCount(type: ResolvedType): number {
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext:
             return 1; // i32 handle
 
         case ModelTag.ComponentTypeFunc:
@@ -380,8 +389,21 @@ function _deepResolve(rctx: ResolvedContext, type: ResolvedType, cache: Map<unkn
         case ModelTag.ComponentTypeDefinedFlags:
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedErrorContext:
             // No nested ComponentValType references needing resolution
             result = type;
+            break;
+
+        case ModelTag.ComponentTypeDefinedStream:
+            result = type.value !== undefined
+                ? { ...type, value: _deepResolveValType(rctx, type.value, cache) }
+                : type;
+            break;
+
+        case ModelTag.ComponentTypeDefinedFuture:
+            result = type.value !== undefined
+                ? { ...type, value: _deepResolveValType(rctx, type.value, cache) }
+                : type;
             break;
 
         case ModelTag.ComponentTypeDefinedRecord:
@@ -550,6 +572,9 @@ export function flattenType(type: ResolvedType): FlatType[] {
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext:
             return [FlatType.I32]; // i32 handle
 
         case ModelTag.ComponentTypeFunc:

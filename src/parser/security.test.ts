@@ -315,10 +315,10 @@ describe('parser security', () => {
         });
 
         test('unknown canonical function type', async () => {
-            // Canon section (8): count=1, type=0x0F (unknown)
+            // Canon section (8): count=1, type=0x30 (unknown)
             const wasm = componentWithSection(8, [
                 0x01, // count = 1
-                0x0F, // invalid canonical function type
+                0x30, // invalid canonical function type
             ]);
             await expect(parse(wasm)).rejects.toThrow('Unrecognized type in readCanonicalFunction');
         });

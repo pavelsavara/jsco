@@ -3,7 +3,7 @@
 import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../../model/indices';
 import { ModelTag } from '../../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../../model/types';
+import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../../model/types';
 import { BindingContext, ResolvedContext, StringEncoding } from '../types';
 import { jsco_assert, LogLevel } from '../../utils/assert';
 import { callingConventionName } from '../../utils/debug-names';
@@ -215,6 +215,12 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
                 return createOwnLowering(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedBorrow:
                 return createBorrowLowering(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedStream:
+                return createStreamLowering(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedFuture:
+                return createFutureLowering(rctx, typeModel);
+            case ModelTag.ComponentTypeDefinedErrorContext:
+                return createErrorContextLowering();
             default:
                 throw new Error('Not implemented');
         }
@@ -690,6 +696,24 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
                 return ctx.resources.get(resourceTypeIdx, handle);
             };
         }
+        case ModelTag.ComponentTypeDefinedStream: {
+            return (ctx, ptr) => {
+                const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
+                return ctx.streams.removeReadable(0, handle);
+            };
+        }
+        case ModelTag.ComponentTypeDefinedFuture: {
+            return (ctx, ptr) => {
+                const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
+                return ctx.futures.removeReadable(0, handle);
+            };
+        }
+        case ModelTag.ComponentTypeDefinedErrorContext: {
+            return (ctx, ptr) => {
+                const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
+                return ctx.errorContexts.remove(handle);
+            };
+        }
         default:
             throw new Error('createMemoryLoader not implemented for tag ' + type.tag);
     }
@@ -949,6 +973,39 @@ function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeD
     const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
         const handle = args[0] as number;
         return ctx.resources.get(resourceTypeIdx, handle);
+    };
+    fn.spill = 1;
+    return fn;
+}
+
+// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+
+function createStreamLowering(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LoweringToJs {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
+        const handle = args[0] as number;
+        return ctx.streams.removeReadable(0, handle);
+    };
+    fn.spill = 1;
+    return fn;
+}
+
+// --- Future lowering (i32 handle → JS Promise) ---
+
+function createFutureLowering(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LoweringToJs {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
+        const handle = args[0] as number;
+        return ctx.futures.removeReadable(0, handle);
+    };
+    fn.spill = 1;
+    return fn;
+}
+
+// --- Error-context lowering (i32 handle → JS Error) ---
+
+function createErrorContextLowering(): LoweringToJs {
+    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
+        const handle = args[0] as number;
+        return ctx.errorContexts.remove(handle);
     };
     fn.spill = 1;
     return fn;

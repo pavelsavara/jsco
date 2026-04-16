@@ -182,6 +182,9 @@ export type BindingContext = {
     memory: MemoryView;
     allocator: Allocator;
     resources: ResourceTable;
+    streams: StreamTable;
+    futures: FutureTable;
+    errorContexts: ErrorContextTable;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
     abort: () => void;
@@ -191,6 +194,47 @@ export type BindingContext = {
     postReturnFn?: Function;
     verbose?: Verbosity;
     logger?: LogFn;
+}
+
+export interface StreamTable {
+    newStream(typeIdx: number): number;
+    read(typeIdx: number, handle: number, ptr: number, len: number): number;
+    write(typeIdx: number, handle: number, ptr: number, len: number): number;
+    cancelRead(typeIdx: number, handle: number): number;
+    cancelWrite(typeIdx: number, handle: number): number;
+    dropReadable(typeIdx: number, handle: number): void;
+    dropWritable(typeIdx: number, handle: number): void;
+    addReadable(typeIdx: number, value: unknown): number;
+    getReadable(typeIdx: number, handle: number): unknown;
+    removeReadable(typeIdx: number, handle: number): unknown;
+    addWritable(typeIdx: number, value: unknown): number;
+    getWritable(typeIdx: number, handle: number): unknown;
+    removeWritable(typeIdx: number, handle: number): unknown;
+}
+
+export interface FutureTable {
+    newFuture(typeIdx: number): number;
+    read(typeIdx: number, handle: number, ptr: number): number;
+    write(typeIdx: number, handle: number, ptr: number): number;
+    cancelRead(typeIdx: number, handle: number): number;
+    cancelWrite(typeIdx: number, handle: number): number;
+    dropReadable(typeIdx: number, handle: number): void;
+    dropWritable(typeIdx: number, handle: number): void;
+    addReadable(typeIdx: number, value: unknown): number;
+    getReadable(typeIdx: number, handle: number): unknown;
+    removeReadable(typeIdx: number, handle: number): unknown;
+    addWritable(typeIdx: number, value: unknown): number;
+    getWritable(typeIdx: number, handle: number): unknown;
+    removeWritable(typeIdx: number, handle: number): unknown;
+}
+
+export interface ErrorContextTable {
+    newErrorContext(ptr: number, len: number): number;
+    debugMessage(handle: number, ptr: number): void;
+    drop(handle: number): void;
+    add(value: unknown): number;
+    get(handle: number): unknown;
+    remove(handle: number): unknown;
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes
