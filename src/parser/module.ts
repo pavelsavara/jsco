@@ -31,7 +31,7 @@ export async function parseModule(
 function toWasmResponse(
     src: Source,
     size: number,
-    resolveWhenDoneReading: (_: any) => void
+    resolveWhenDoneReading: (_: unknown) => void
 ) {
     let remaining = size;
     const pull = async (controller: ReadableByteStreamController): Promise<void> => {

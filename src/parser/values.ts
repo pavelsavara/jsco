@@ -10,7 +10,7 @@ import { ComponentOuterAliasKind } from '../model/aliases';
 import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, CoreType, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
+import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
 import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 import { readAlias } from './alias';
@@ -36,12 +36,6 @@ export function readU32(source: SyncSource): number {
     );
 }
 
-export async function readNameAsync(source: SyncSource): Promise<string> {
-    const length = await readU32(source);
-    const content = await source.readExact(length);
-    return textDecoder.decode(content) as any;
-}
-
 export function readStringArray(src: SyncSource): string[] {
 
     const count = readU32(src);
@@ -55,7 +49,7 @@ export function readStringArray(src: SyncSource): string[] {
 export function readName(source: SyncSource): string {
     const length = readU32(source);
     const content = source.readExact(length);
-    return textDecoder.decode(content) as any;
+    return textDecoder.decode(content)!;
 }
 
 export function parseAsExternalKind(k1: number): ExternalKind {
@@ -278,7 +272,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
     const declarations: InstanceTypeDeclaration[] = [];
     for (let i = 0; i < count; i++) {
         const type = src.read();
-        let declaration: any;
+        let declaration: InstanceTypeDeclaration;
         switch (type) {
             case 0x00: {
                 declaration = {
@@ -590,13 +584,13 @@ export function readCanonicalOption(src: SyncSource): CanonicalOption {
     }
 }
 
-export function readComponentType(src: SyncSource): any {
+export function readComponentType(src: SyncSource): ComponentTypeDefined | ComponentTypeResource | ComponentTypeFunc | ComponentTypeComponent | ComponentTypeInstance {
     const type = src.read();
     switch (type) {
         case 0x3F: {
             return {
                 tag: ModelTag.ComponentTypeResource,
-                rep: readU32(src),
+                rep: readU32(src) as unknown as ValType,
                 dtor: readDestructor(src)
             };
         }
@@ -608,10 +602,11 @@ export function readComponentType(src: SyncSource): any {
             };
         }
         case 0x41: {
-            return {
+            throw new Error('ComponentTypeComponent is not currently supported in readComponentType');
+            /*return {
                 tag: ModelTag.ComponentTypeComponent,
                 declarations: undefined,
-            };
+            };*/
         }
         case 0x42: {
             return {
@@ -669,7 +664,7 @@ export function readNamedValues(src: SyncSource): NamedValue[] {
     return values;
 }
 
-export function readComponentFuncResult(src: SyncSource): ComponentFuncResult | undefined {
+export function readComponentFuncResult(src: SyncSource): ComponentFuncResult {
     const type = src.read();
     switch (type) {
         case 0x00:
