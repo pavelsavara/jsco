@@ -198,16 +198,73 @@ describe('wasi:cli/stdout', () => {
             expect(chunks[1]).toEqual(new Uint8Array([4, 5, 6]));
         });
 
-        it('discards data when no stdout configured', async () => {
-            const stdout = createStdout();
-            const pair = createStreamPair<Uint8Array>();
-            const future = stdout.writeViaStream(pair.readable);
+        it('writes to console.log when no stdout configured', async () => {
+            const logs: string[] = [];
+            // eslint-disable-next-line no-console
+            const origLog = console.log;
+            // eslint-disable-next-line no-console
+            console.log = (...args: string[]) => logs.push(args.join(' '));
 
-            await pair.write(new Uint8Array([1, 2, 3]));
-            pair.close();
+            try {
+                const stdout = createStdout();
+                const pair = createStreamPair<Uint8Array>();
+                const future = stdout.writeViaStream(pair.readable);
 
-            // Should resolve without error even though data is discarded
-            await future;
+                await pair.write(new TextEncoder().encode('Hello World\n'));
+                pair.close();
+
+                await future;
+                expect(logs).toContain('Hello World');
+            } finally {
+                // eslint-disable-next-line no-console
+                console.log = origLog;
+            }
+        });
+
+        it('console.log fallback handles partial lines', async () => {
+            const logs: string[] = [];
+            // eslint-disable-next-line no-console
+            const origLog = console.log;
+            // eslint-disable-next-line no-console
+            console.log = (...args: string[]) => logs.push(args.join(' '));
+
+            try {
+                const stdout = createStdout();
+                const pair = createStreamPair<Uint8Array>();
+                const future = stdout.writeViaStream(pair.readable);
+
+                await pair.write(new TextEncoder().encode('no newline'));
+                pair.close();
+
+                await future;
+                expect(logs).toContain('no newline');
+            } finally {
+                // eslint-disable-next-line no-console
+                console.log = origLog;
+            }
+        });
+
+        it('console.log fallback splits multiple lines', async () => {
+            const logs: string[] = [];
+            // eslint-disable-next-line no-console
+            const origLog = console.log;
+            // eslint-disable-next-line no-console
+            console.log = (...args: string[]) => logs.push(args.join(' '));
+
+            try {
+                const stdout = createStdout();
+                const pair = createStreamPair<Uint8Array>();
+                const future = stdout.writeViaStream(pair.readable);
+
+                await pair.write(new TextEncoder().encode('line1\nline2\nline3\n'));
+                pair.close();
+
+                await future;
+                expect(logs).toEqual(['line1', 'line2', 'line3']);
+            } finally {
+                // eslint-disable-next-line no-console
+                console.log = origLog;
+            }
         });
 
         it('empty stream — future resolves normally', async () => {
@@ -309,15 +366,27 @@ describe('wasi:cli/stderr', () => {
             expect(stderrChunks).toEqual([new Uint8Array([3, 4])]);
         });
 
-        it('discards data when no stderr configured', async () => {
-            const stderr = createStderr();
-            const pair = createStreamPair<Uint8Array>();
-            const future = stderr.writeViaStream(pair.readable);
+        it('writes to console.error when no stderr configured', async () => {
+            const logs: string[] = [];
+            // eslint-disable-next-line no-console
+            const origError = console.error;
+            // eslint-disable-next-line no-console
+            console.error = (...args: string[]) => logs.push(args.join(' '));
 
-            await pair.write(new Uint8Array([1]));
-            pair.close();
+            try {
+                const stderr = createStderr();
+                const pair = createStreamPair<Uint8Array>();
+                const future = stderr.writeViaStream(pair.readable);
 
-            await future;
+                await pair.write(new TextEncoder().encode('ERROR msg\n'));
+                pair.close();
+
+                await future;
+                expect(logs).toContain('ERROR msg');
+            } finally {
+                // eslint-disable-next-line no-console
+                console.error = origError;
+            }
         });
     });
 });

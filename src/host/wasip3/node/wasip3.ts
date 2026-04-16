@@ -11,6 +11,7 @@ import { createHost as createBrowserHost } from '../index';
 import { createNodeSocketsTypes, createNodeIpNameLookup } from './sockets';
 import { addNodeMounts } from './filesystem-node';
 import { initFilesystem, createPreopens, createFilesystemTypes } from '../filesystem';
+import { nodeStdioDefaults } from './stdio-node';
 import { serve as serveImpl } from './http-server';
 import type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
 
@@ -23,9 +24,25 @@ export * from '../index';
  * Calls the browser `createHost()` for all shared interfaces, then
  * replaces browser socket stubs with real Node.js TCP/UDP/DNS.
  * When `config.mounts` is present, adds real filesystem mount preopens.
+ * Defaults stdin/stdout/stderr to process streams when not explicitly provided.
  */
 export function createHost(config?: WasiP3Config): WasiP3Imports {
-    const host = createBrowserHost(config);
+    // Only inject Node.js process streams when user didn't provide their own
+    const nodeConfig: WasiP3Config = { ...config };
+    if (!nodeConfig.stdin) {
+        const { stdin } = nodeStdioDefaults();
+        nodeConfig.stdin = stdin;
+    }
+    if (!nodeConfig.stdout) {
+        const { stdout } = nodeStdioDefaults();
+        nodeConfig.stdout = stdout;
+    }
+    if (!nodeConfig.stderr) {
+        const { stderr } = nodeStdioDefaults();
+        nodeConfig.stderr = stderr;
+    }
+
+    const host = createBrowserHost(nodeConfig);
     // Replace browser socket stubs with real Node.js implementations
     host['wasi:sockets/types'] = createNodeSocketsTypes();
     host['wasi:sockets/ip-name-lookup'] = createNodeIpNameLookup();

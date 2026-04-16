@@ -57,14 +57,17 @@ export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
  * Create the wasi:cli/stdout interface.
  *
  * `writeViaStream(data)` consumes a readable stream from the guest and writes
- * its contents to config.stdout. Returns a future that resolves when done.
+ * its contents to config.stdout. When no stdout stream is configured, chunks
+ * are decoded as UTF-8 and sent to `console.log` (browser default).
  */
 export function createStdout(config?: WasiP3Config): typeof WasiCliStdout {
     const stdoutStream = config?.stdout;
 
+    // eslint-disable-next-line no-console
+    const fallback = stdoutStream ? undefined : console.log;
     return {
         writeViaStream(data: WasiStreamReadable<Uint8Array>): Promise<void> {
-            return pumpToWritable(data, stdoutStream);
+            return pumpToWritable(data, stdoutStream, fallback);
         },
     };
 }
@@ -72,30 +75,53 @@ export function createStdout(config?: WasiP3Config): typeof WasiCliStdout {
 /**
  * Create the wasi:cli/stderr interface.
  *
- * Same as stdout but writes to config.stderr.
+ * Same as stdout but writes to config.stderr / console.error.
  */
 export function createStderr(config?: WasiP3Config): typeof WasiCliStderr {
     const stderrStream = config?.stderr;
 
+    // eslint-disable-next-line no-console
+    const fallback = stderrStream ? undefined : console.error;
     return {
         writeViaStream(data: WasiStreamReadable<Uint8Array>): Promise<void> {
-            return pumpToWritable(data, stderrStream);
+            return pumpToWritable(data, stderrStream, fallback);
         },
     };
 }
 
 /**
  * Consume a WasiStreamReadable and write all chunks to a WritableStream.
- * If no output stream is configured, the data is discarded.
+ * If no output stream is configured, chunks are decoded as UTF-8 text
+ * and sent to the `fallbackLog` function (e.g. console.log / console.error).
  */
 async function pumpToWritable(
     data: WasiStreamReadable<Uint8Array>,
-    output?: WritableStream<Uint8Array>,
+    output: WritableStream<Uint8Array> | undefined,
+    fallbackLog: ((...args: string[]) => void) | undefined,
 ): Promise<void> {
     if (!output) {
-        // Discard all data
-        for await (const _chunk of data) {
-            // intentionally empty — drain the stream
+        if (!fallbackLog) {
+            // No output and no fallback — discard all data
+            for await (const _chunk of data) {
+                // intentionally empty — drain the stream
+            }
+            return;
+        }
+        const decoder = new TextDecoder();
+        let buffer = '';
+        for await (const chunk of data) {
+            buffer += decoder.decode(chunk, { stream: true });
+            // Flush complete lines immediately
+            let nl: number;
+            while ((nl = buffer.indexOf('\n')) !== -1) {
+                fallbackLog(buffer.slice(0, nl));
+                buffer = buffer.slice(nl + 1);
+            }
+        }
+        // Flush remaining partial line
+        buffer += decoder.decode();
+        if (buffer.length > 0) {
+            fallbackLog(buffer);
         }
         return;
     }
