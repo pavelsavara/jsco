@@ -176,7 +176,7 @@ class FsDescriptor {
         const future: WasiFuture<Result<void, ErrorCode>> = (async () => {
             try {
                 let currentOffset = offset;
-                for (;;) {
+                for (; ;) {
                     let chunk: Uint8Array;
                     try {
                         chunk = backend.read(path, currentOffset, READ_CHUNK_SIZE);

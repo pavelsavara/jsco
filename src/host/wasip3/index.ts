@@ -58,6 +58,7 @@ import {
     createTerminalStdin, createTerminalStdout, createTerminalStderr,
 } from './stdio';
 import { initFilesystem, createPreopens, createFilesystemTypes } from './filesystem';
+import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
 export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
@@ -131,9 +132,9 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
         'wasi:clocks/types': createClocksTypes(),
         'wasi:filesystem/preopens': createPreopens(fsState),
         'wasi:filesystem/types': createFilesystemTypes(fsState),
-        'wasi:http/client': stubInterface() as unknown as typeof WasiHttpClient,
-        'wasi:http/handler': stubInterface() as unknown as typeof WasiHttpHandler,
-        'wasi:http/types': stubInterface() as unknown as typeof WasiHttpTypes,
+        'wasi:http/client': createHttpClient(config),
+        'wasi:http/handler': createHttpHandler(),
+        'wasi:http/types': createHttpTypes(config),
         'wasi:random/insecure-seed': createInsecureSeed(),
         'wasi:random/insecure': createInsecure(config?.limits),
         'wasi:random/random': createRandom(config?.limits),

@@ -249,11 +249,13 @@ describe('filesystem — Descriptor', () => {
         });
 
         test('readDirectory streams multiple entries', async () => {
-            const root = getRoot({ fs: new Map([
-                ['a.txt', 'a'],
-                ['b.txt', 'b'],
-                ['c.txt', 'c'],
-            ]) });
+            const root = getRoot({
+                fs: new Map([
+                    ['a.txt', 'a'],
+                    ['b.txt', 'b'],
+                    ['c.txt', 'c'],
+                ])
+            });
             const [stream] = root.readDirectory();
             const entries = await collectStream(stream);
             const names = entries.map((e: any) => e.name).sort();

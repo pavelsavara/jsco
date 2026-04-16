@@ -105,14 +105,39 @@ describe('createHost', () => {
             const host = createHost();
             expect(host['wasi:filesystem/types'].Descriptor).toBeDefined();
         });
+
+        it('wasi:http/types.Fields is defined', () => {
+            const host = createHost();
+            expect(host['wasi:http/types'].Fields).toBeDefined();
+        });
+
+        it('wasi:http/types.Request is defined', () => {
+            const host = createHost();
+            expect(host['wasi:http/types'].Request).toBeDefined();
+        });
+
+        it('wasi:http/types.Response is defined', () => {
+            const host = createHost();
+            expect(host['wasi:http/types'].Response).toBeDefined();
+        });
+
+        it('wasi:http/types.RequestOptions is defined', () => {
+            const host = createHost();
+            expect(host['wasi:http/types'].RequestOptions).toBeDefined();
+        });
+
+        it('wasi:http/client.send is a function', () => {
+            const host = createHost();
+            expect(typeof host['wasi:http/client'].send).toBe('function');
+        });
+
+        it('wasi:http/handler.handle is a function', () => {
+            const host = createHost();
+            expect(typeof host['wasi:http/handler'].handle).toBe('function');
+        });
     });
 
     describe('stub interfaces still throw not-implemented', () => {
-        it('wasi:http/client.send throws', () => {
-            const host = createHost();
-            expect(() => (host['wasi:http/client'] as Record<string, Function>)['send']({})).toThrow(/not implemented/);
-        });
-
         it('wasi:sockets/types accessed property is a function that throws when called', () => {
             const host = createHost();
             const iface = host['wasi:sockets/types'] as Record<string, Function>;
