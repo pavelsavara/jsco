@@ -545,6 +545,9 @@ class FsDescriptor {
 
 // ──────────────────── Factory functions ────────────────────
 
+/** @internal Used by node/filesystem-node.ts */
+export { FsDescriptor as _FsDescriptor };
+
 export interface FilesystemState {
     backend: MemoryVfsBackend;
     preopens: Array<[FsDescriptor, string]>;
