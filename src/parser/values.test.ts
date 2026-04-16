@@ -398,7 +398,7 @@ describe('values.ts', () => {
         });
 
         test('component type', async () => {
-            const src = await syncSrc([0x41]);
+            const src = await syncSrc([0x41, ...encU32(0)]); // 0 declarations
             const result = readComponentType(src);
             expect(result.tag).toBe(ModelTag.ComponentTypeComponent);
         });

@@ -15,7 +15,6 @@ import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, resolveCanonicalOptions } from './types';
 import camelCase from 'just-camel-case';
-import { PROMISING } from '../utils/constants';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
     const cached = rctx.componentFunctionCache.get(rargs.element);
@@ -91,7 +90,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
     const liftingBinder = createFunctionLifting(localResolved, sectionFunType);
 
-    const noJspi = rctx.resolved.noJspi;
+    const wrapLift = rctx.resolved.wrapLift;
 
     return {
         callerElement: rargs.callerElement,
@@ -115,17 +114,10 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             };
             const functionResult = await coreFunctionResolution.binder(bctx, args);
 
-            // JSPI: wrap the core function with promising() so that the WASM stack
-            // can suspend when an async (Suspending-wrapped) import is called.
-            // Only the component export entry point needs this — NOT all core exports.
-            // noJspi can be true (disable all), an array of export names to exclude, or false/undefined (enable all).
             let coreFn = functionResult.result as WasmFunction;
             const exportName = bargs.arguments?.[0] as string | undefined;
-            const shouldWrapJspi = noJspi === true ? false
-                : Array.isArray(noJspi) ? (exportName !== undefined && !noJspi.includes(exportName))
-                    : true;
-            if (shouldWrapJspi) {
-                coreFn = (WebAssembly as any)[PROMISING](coreFn);
+            if (wrapLift) {
+                coreFn = wrapLift(coreFn, exportName) as WasmFunction;
             }
 
             const jsFunction = liftingBinder(bctx, coreFn);

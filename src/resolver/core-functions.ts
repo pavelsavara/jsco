@@ -18,8 +18,6 @@ import { getCanonicalResourceId, createAllocator } from './context';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
 import type { TCabiRealloc } from './binding/types';
 import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
-import { hasJspi } from '../utils/jspi';
-import { SUSPENDING } from '../utils/constants';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -85,6 +83,8 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
         ? resolveCoreFunction(rctx, { element: getCoreFunction(rctx, canonOpts.reallocIndex as CoreFuncIndex), callerElement: canonicalFunctionLowerElem })
         : undefined;
 
+    const wrapLower = rctx.resolved.wrapLower;
+
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLowerElem,
@@ -110,15 +110,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
 
             const wasmFunction = loweringBinder(effectiveBctx, functionResult.result as JsFunction);
 
-            // JSPI: wrap the lowering trampoline with Suspending so that when
-            // the host function blocks (returns a promise via JspiBlockSignal),
-            // the WASM stack is suspended until the promise resolves.
-            // Only wrap when JSPI is available AND not disabled via noJspi option.
-            const noJspi = rctx.resolved.noJspi;
-            const shouldWrapSuspending = hasJspi() && noJspi !== true;
-            const finalFunction = shouldWrapSuspending
-                ? new (WebAssembly as any)[SUSPENDING](wasmFunction)
-                : wasmFunction;
+            const finalFunction = wrapLower ? wrapLower(wasmFunction) : wasmFunction;
 
             const binderResult = {
                 result: finalFunction
@@ -209,7 +201,7 @@ function resolveAliasedFuncType(
         for (const exp of instance.exports) {
             if (exp.name.name === alias.name && exp.kind === ComponentExternalKind.Func) {
                 const targetFunc = rctx.indexes.componentFunctions[exp.index];
-                if (targetFunc) {
+                if (targetFunc && targetFunc.tag !== ModelTag.ComponentExport) {
                     // Recurse: the target may be a CanonicalFunctionLift (terminal)
                     // or another ComponentAliasInstanceExport (chain continues)
                     return resolveLoweredFuncType(rctx, targetFunc);
@@ -284,7 +276,6 @@ function isTypeCreatingDeclaration(decl: InstanceTypeDeclaration): boolean {
 // Guard against applying own/borrow fixups multiple times when the same instance
 // type is processed by multiple calls to registerInstanceLocalTypes (which happens
 // when multiple functions alias from the same instance).
-const fixedUpOwnBorrow = new WeakSet<ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow>();
 
 function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTypeInstance, instanceIndex: number): void {
     if (isDebug && (rctx.resolved.verbose?.resolver ?? 0) >= LogLevel.Detailed) {
@@ -339,7 +330,7 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
                         resolved = value;
                         // Track for Phase 2 fixup — .value references a local type index.
                         // Skip if already fixed up by a previous call for the same instance.
-                        if (!fixedUpOwnBorrow.has(value as ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow)) {
+                        if (!rctx.resolved.fixedUpOwnBorrow.has(value as ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow)) {
                             ownBorrowFixups.push({ type: value as ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow, localValueIdx: value.value });
                         }
                         break;
@@ -412,7 +403,7 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
         const canonicalId = localCanonicalIds.get(fixup.localValueIdx);
         if (canonicalId !== undefined) {
             fixup.type.value = canonicalId;
-            fixedUpOwnBorrow.add(fixup.type);
+            rctx.resolved.fixedUpOwnBorrow.add(fixup.type);
         }
     }
 

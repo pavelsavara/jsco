@@ -13,17 +13,34 @@ import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../model/imports';
-import type { ComponentTypeInstance } from '../model/types';
-import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER } from '../utils/constants';
+import type { ComponentTypeInstance, ComponentTypeResource } from '../model/types';
+import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER, PROMISING, SUSPENDING } from '../utils/constants';
+import { hasJspi } from '../utils/jspi';
+
+function createJspiWrappers(noJspi?: boolean | string[]): { wrapLift?: (fn: Function, exportName?: string) => Function; wrapLower?: (fn: Function) => Function } {
+    if (!hasJspi() || noJspi === true) return {};
+    return {
+        wrapLift: (fn, exportName) => {
+            const shouldWrap = Array.isArray(noJspi)
+                ? (exportName !== undefined && !noJspi.includes(exportName))
+                : true;
+            return shouldWrap ? (WebAssembly as any)[PROMISING](fn) : fn;
+        },
+        wrapLower: (fn) => new (WebAssembly as any)[SUSPENDING](fn),
+    };
+}
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
     const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
     const verbose = { ...defaultVerbosity, ...(options as any)[VERBOSE] };
     const logger = (options as any)[LOGGER] ?? defaultLogger;
+    const jspiWrappers = createJspiWrappers(options[NO_JSPI]);
     const rctx: ResolverContext = {
         resolved: {
-            noJspi: options[NO_JSPI],
+            wrapLift: jspiWrappers.wrapLift,
+            wrapLower: jspiWrappers.wrapLower,
+            fixedUpOwnBorrow: new WeakSet(),
             usesNumberForInt64: options[USE_NUMBER_FOR_INT64] === true,
             useNumberForInt64Methods: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? options[USE_NUMBER_FOR_INT64] : undefined,
             numberModeLiftingCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
@@ -65,78 +82,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
         },
     };
 
-    const indexes = rctx.indexes;
-    for (const section of sections) {
-        const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
-        bucket.push(section);
-
-        if (section.tag === ModelTag.ComponentTypeResource) {
-            rctx.indexes.componentTypeResource.push({ ...section } as any);
-        }
-
-        // ComponentImport contributions to sort index spaces.
-        // Each import kind contributes to its respective sort, and we track the
-        // mapping from import index → sort index for kinds that need it at bind time.
-        if (section.tag === ModelTag.ComponentImport) {
-            const imp = section as ComponentImport;
-            if (imp.ty.tag === ModelTag.ComponentTypeRefInstance) {
-                // Instance import → instance sort.
-                // The ty.value is a type sort index pointing to a ComponentTypeInstance.
-                const instanceType = indexes.componentTypes[imp.ty.value];
-                if (instanceType) {
-                    const instanceIndex = indexes.componentInstances.length;
-                    // Shallow clone: the same object lives in componentTypes[] too.
-                    // setSelfIndex runs on both arrays, so a shared reference would
-                    // get its selfSortIndex clobbered by whichever array runs last.
-                    indexes.componentInstances.push({ ...instanceType } as ComponentTypeInstance);
-                    const importIndex = indexes.componentImports.length - 1;
-                    rctx.importToInstanceIndex.set(importIndex, instanceIndex);
-                }
-            }
-            if (imp.ty.tag === ModelTag.ComponentTypeRefComponent) {
-                // Component import → instance sort (for JS binding, imported components
-                // are provided as objects with exports, equivalent to instances).
-                // Also pushed to componentSections (component sort) so
-                // ComponentInstanceInstantiate.component_index can reference it.
-                const instanceIndex = indexes.componentInstances.length;
-                const componentType = indexes.componentTypes[imp.ty.value];
-                if (componentType) {
-                    indexes.componentInstances.push({ ...componentType } as ComponentTypeInstance);
-                } else {
-                    // No type definition found — create a placeholder instance entry
-                    indexes.componentInstances.push({ tag: ModelTag.ComponentTypeInstance, declarations: [] } as any);
-                }
-                indexes.componentSections.push(imp as any);
-                const importIndex = indexes.componentImports.length - 1;
-                rctx.importToInstanceIndex.set(importIndex, instanceIndex);
-            }
-            // Func imports contribute to the component function index space.
-            // CanonicalFunctionLower.func_index references imported functions by index.
-            if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
-                indexes.componentFunctions.push(imp);
-            }
-        }
-
-        // Component model spec: export definitions extend the index space of their kind.
-        // An (export "name" (instance N)) creates a new entry in the instance index space, etc.
-        if (section.tag === ModelTag.ComponentExport) {
-            const exp = section as ComponentExport;
-            switch (exp.kind) {
-                case ComponentExternalKind.Instance:
-                    indexes.componentInstances.push(exp as any);
-                    break;
-                case ComponentExternalKind.Func:
-                    indexes.componentFunctions.push(exp as any);
-                    break;
-                case ComponentExternalKind.Type:
-                    indexes.componentTypes.push(exp as any);
-                    break;
-                case ComponentExternalKind.Component:
-                    indexes.componentSections.push(exp as any);
-                    break;
-            }
-        }
-    }
+    populateIndexes(rctx, sections);
     // Previously merged into componentTypes, but this is incorrect: the TYPE sort should
     // only contain entries from section id 7 (type definitions) and type aliases.
     // ComponentInstanceInstantiate.component_index references componentSections (COMPONENT sort),
@@ -191,67 +137,87 @@ export function createScopedResolverContext(parentRctx: ResolverContext, section
         },
     };
 
-    const indexes = scopedRctx.indexes;
+    populateIndexes(scopedRctx, sections);
+    setSelfIndex(scopedRctx);
+    buildCanonicalResourceIds(scopedRctx);
+    scopedRctx.resolved.resolvedTypes = buildResolvedTypeMap(scopedRctx);
+    return scopedRctx;
+}
+
+/** Populate index spaces from parsed sections. Shared by createResolverContext and createScopedResolverContext. */
+function populateIndexes(rctx: ResolverContext, sections: Iterable<TaggedElement>): void {
+    const indexes = rctx.indexes;
     for (const section of sections) {
-        const bucket = bucketByTag(scopedRctx, section.tag, false, (section as any).kind);
+        const bucket = bucketByTag(rctx, section.tag, false, (section as any).kind);
         bucket.push(section);
 
         if (section.tag === ModelTag.ComponentTypeResource) {
-            indexes.componentTypeResource.push({ ...section } as any);
+            indexes.componentTypeResource.push({ ...section } as ComponentTypeResource);
         }
 
+        // ComponentImport contributions to sort index spaces.
+        // Each import kind contributes to its respective sort, and we track the
+        // mapping from import index → sort index for kinds that need it at bind time.
         if (section.tag === ModelTag.ComponentImport) {
             const imp = section as ComponentImport;
             if (imp.ty.tag === ModelTag.ComponentTypeRefInstance) {
+                // Instance import → instance sort.
+                // The ty.value is a type sort index pointing to a ComponentTypeInstance.
                 const instanceType = indexes.componentTypes[imp.ty.value];
                 if (instanceType) {
                     const instanceIndex = indexes.componentInstances.length;
+                    // Shallow clone: the same object lives in componentTypes[] too.
+                    // setSelfIndex runs on both arrays, so a shared reference would
+                    // get its selfSortIndex clobbered by whichever array runs last.
                     indexes.componentInstances.push({ ...instanceType } as ComponentTypeInstance);
                     const importIndex = indexes.componentImports.length - 1;
-                    scopedRctx.importToInstanceIndex.set(importIndex, instanceIndex);
+                    rctx.importToInstanceIndex.set(importIndex, instanceIndex);
                 }
             }
             if (imp.ty.tag === ModelTag.ComponentTypeRefComponent) {
+                // Component import → instance sort (for JS binding, imported components
+                // are provided as objects with exports, equivalent to instances).
+                // Also pushed to componentSections (component sort) so
+                // ComponentInstanceInstantiate.component_index can reference it.
                 const instanceIndex = indexes.componentInstances.length;
                 const componentType = indexes.componentTypes[imp.ty.value];
                 if (componentType) {
                     indexes.componentInstances.push({ ...componentType } as ComponentTypeInstance);
                 } else {
-                    indexes.componentInstances.push({ tag: ModelTag.ComponentTypeInstance, declarations: [] } as any);
+                    // No type definition found — create a placeholder instance entry
+                    indexes.componentInstances.push({ tag: ModelTag.ComponentTypeInstance, declarations: [] } as ComponentTypeInstance);
                 }
-                indexes.componentSections.push(imp as any);
+                indexes.componentSections.push(imp);
                 const importIndex = indexes.componentImports.length - 1;
-                scopedRctx.importToInstanceIndex.set(importIndex, instanceIndex);
+                rctx.importToInstanceIndex.set(importIndex, instanceIndex);
             }
+            // Func imports contribute to the component function index space.
+            // CanonicalFunctionLower.func_index references imported functions by index.
             if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
                 indexes.componentFunctions.push(imp);
             }
         }
 
         // Component model spec: export definitions extend the index space of their kind.
+        // An (export "name" (instance N)) creates a new entry in the instance index space, etc.
         if (section.tag === ModelTag.ComponentExport) {
             const exp = section as ComponentExport;
             switch (exp.kind) {
                 case ComponentExternalKind.Instance:
-                    indexes.componentInstances.push(exp as any);
+                    indexes.componentInstances.push(exp);
                     break;
                 case ComponentExternalKind.Func:
-                    indexes.componentFunctions.push(exp as any);
+                    indexes.componentFunctions.push(exp);
                     break;
                 case ComponentExternalKind.Type:
-                    indexes.componentTypes.push(exp as any);
+                    indexes.componentTypes.push(exp);
                     break;
                 case ComponentExternalKind.Component:
-                    indexes.componentSections.push(exp as any);
+                    indexes.componentSections.push(exp);
                     break;
             }
         }
     }
-
-    setSelfIndex(scopedRctx);
-    buildCanonicalResourceIds(scopedRctx);
-    scopedRctx.resolved.resolvedTypes = buildResolvedTypeMap(scopedRctx);
-    return scopedRctx;
 }
 
 export function setSelfIndex(rctx: ResolverContext) {

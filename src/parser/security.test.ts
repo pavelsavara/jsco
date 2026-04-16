@@ -1085,10 +1085,11 @@ describe('parser security', () => {
         });
 
         test('component type tag is accepted', async () => {
-            // 0x41 = component type (no declarations to read)
+            // 0x41 = component type with 0 declarations
             const wasm = componentWithSection(7, [
                 0x01,
                 0x41, // component type
+                0x00, // 0 declarations
             ]);
             const model = await parse(wasm);
             expect(model.length).toBe(1);

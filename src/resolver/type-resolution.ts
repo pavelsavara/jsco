@@ -103,6 +103,8 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
     for (let i = 0; i < rctx.indexes.componentTypes.length; i++) {
         const type = rctx.indexes.componentTypes[i];
         if (!type) throw new Error(`buildResolvedTypeMap: missing component type at index ${i}`);
+        // ComponentExport entries in the type space are index-space accounting only
+        if (type.tag === ModelTag.ComponentExport) continue;
         const resolved = resolveType(rctx, type, new Set());
         if (resolved) {
             map.set(i as ComponentTypeIndex, resolved);
@@ -145,6 +147,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
                         usesNumberForInt64: false,
                         verbose: defaultVerbosity,
                         logger: _noopLogger,
+                        fixedUpOwnBorrow: new WeakSet(),
                     };
                     map.set(i as ComponentTypeIndex, deepResolveType(rctxLocal, resolved));
                 }
@@ -167,6 +170,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
         usesNumberForInt64: false,
         verbose: defaultVerbosity,
         logger: _noopLogger,
+        fixedUpOwnBorrow: new WeakSet(),
     };
     for (const [idx, resolved] of map) {
         map.set(idx, deepResolveType(globalRctx, resolved));

@@ -5,7 +5,7 @@ import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } fro
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { CoreInstance, ComponentInstance } from '../model/instances';
-import { ComponentTypeResource, ComponentType } from '../model/types';
+import { ComponentTypeResource, ComponentType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
 import { CoreModule, ComponentSection } from '../parser/types';
 import { TaggedElement } from '../model/tags';
 import { JsImports } from './api-types';
@@ -85,17 +85,23 @@ export type IndexedModel = {
 
     componentImports: ComponentImport[]
     componentExports: ComponentExport[]
-    componentInstances: ComponentInstance[],
+    componentInstances: (ComponentInstance | ComponentExport)[],
     componentTypeResource: ComponentTypeResource[],
-    componentFunctions: ComponentFunction[],
-    componentTypes: ComponentType[],
-    componentSections: ComponentSection[]// append to componentTypes
+    componentFunctions: (ComponentFunction | ComponentExport)[],
+    componentTypes: (ComponentType | ComponentExport)[],
+    componentSections: (ComponentSection | ComponentImport | ComponentExport)[]// append to componentTypes
 }
 
 /** Subset of ResolverContext retained for binding/call time. Separate object so
  *  binder closures don't keep the heavy IndexedModel alive. */
 export type ResolvedContext = {
-    noJspi?: boolean | string[]
+    /** Optional wrapper for canon.lift exports (e.g. JSPI promising). Applied at bind time. */
+    wrapLift?: (fn: Function, exportName?: string) => Function
+    /** Optional wrapper for canon.lower imports (e.g. JSPI Suspending). Applied at bind time. */
+    wrapLower?: (fn: Function) => Function
+    /** Guards against applying own/borrow fixups multiple times when the same instance
+     *  type is processed by multiple calls to registerInstanceLocalTypes. */
+    fixedUpOwnBorrow: WeakSet<ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow>
     liftingCache: Map<unknown, unknown>
     loweringCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
@@ -208,6 +214,10 @@ export type BinderArgs = {
     debugStack?: string[]
 }
 
-export type BinderRes = {
-    result: unknown
+export type BinderRes<T = unknown> = {
+    result: T
 }
+
+export type CoreInstanceBinderRes = BinderRes<Record<string, WebAssembly.ExportValue>>
+export type FunctionBinderRes = BinderRes<Function>
+export type ModuleBinderRes = BinderRes<WebAssembly.Module>

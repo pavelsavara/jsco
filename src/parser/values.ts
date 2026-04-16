@@ -10,7 +10,7 @@ import { ComponentOuterAliasKind } from '../model/aliases';
 import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
+import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, ComponentTypeDeclaration, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
 import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
 import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 import { readAlias } from './alias';
@@ -311,6 +311,58 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
     return declarations;
 }
 
+export function readComponentTypeDeclarations(src: SyncSource): ComponentTypeDeclaration[] {
+    const count = readU32(src);
+    const declarations: ComponentTypeDeclaration[] = [];
+    for (let i = 0; i < count; i++) {
+        const type = src.read();
+        let declaration: ComponentTypeDeclaration;
+        switch (type) {
+            case 0x00: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationCoreType,
+                    value: readCoreType(src),
+                };
+                break;
+            }
+            case 0x01: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationType,
+                    value: readComponentType(src),
+                };
+                break;
+            }
+            case 0x02: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationAlias,
+                    value: readAlias(src),
+                };
+                break;
+            }
+            case 0x03: {
+                declaration = {
+                    tag: ModelTag.ComponentImport,
+                    name: readComponentExternName(src),
+                    ty: readComponentTypeRef(src),
+                };
+                break;
+            }
+            case 0x04: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationExport,
+                    name: readComponentExternName(src),
+                    ty: readComponentTypeRef(src),
+                };
+                break;
+            }
+            default:
+                throw new Error(`unknown component type declaration kind: 0x${type.toString(16)}`);
+        }
+        declarations.push(declaration);
+    }
+    return declarations;
+}
+
 export function readComponentExternName(src: SyncSource): ComponentExternName {
     const type = readU32(src);
 
@@ -602,11 +654,10 @@ export function readComponentType(src: SyncSource): ComponentTypeDefined | Compo
             };
         }
         case 0x41: {
-            throw new Error('ComponentTypeComponent is not currently supported in readComponentType');
-            /*return {
+            return {
                 tag: ModelTag.ComponentTypeComponent,
-                declarations: undefined,
-            };*/
+                declarations: readComponentTypeDeclarations(src),
+            };
         }
         case 0x42: {
             return {
