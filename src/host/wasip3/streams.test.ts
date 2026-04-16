@@ -6,7 +6,7 @@ import {
     createStreamPair,
     collectStream,
     collectBytes,
-} from './stream-bridge';
+} from './streams';
 
 describe('StreamBridge', () => {
     // ─── 1.2 Happy path ─────────────────────────────────────────────

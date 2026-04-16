@@ -3,6 +3,7 @@
 import { u32 } from './core';
 import { CoreFuncIndex, ComponentFuncIndex, ComponentTypeIndex } from './indices';
 import { IndexedElement, ModelTag } from './tags';
+import type { ComponentValType } from './types';
 
 /// Represents options for component functions.
 export type CanonicalOption =

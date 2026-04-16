@@ -35,14 +35,18 @@ import type {
     WasiSocketsIpNameLookup,
     WasiSocketsTypes,
 } from '../../../wit/wasip3/types/index';
+import { WasiP3Config } from './wasip3';
+
+export type { HandleTable, HandleId, HandleTableConfig } from './resources';
+export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './streams';
+export type { WasiResult } from './result';
+export type { WasiP3Config, MountConfig, NetworkConfig, AllocationLimits } from './types';
 
 // Re-export infrastructure
-export { createHandleTable } from './handle-table';
-export type { HandleTable, HandleId, HandleTableConfig } from './handle-table';
-export { readableFromStream, readableFromAsyncIterable, createStreamPair, collectStream, collectBytes } from './stream-bridge';
-export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './stream-bridge';
-export { ok, err, WasiError } from './result-helpers';
-export type { WasiResult } from './result-helpers';
+export { createHandleTable } from './resources';
+export { readableFromStream, readableFromAsyncIterable, createStreamPair, collectStream, collectBytes } from './streams';
+export { ok, err, WasiError } from './result';
+export { NETWORK_DEFAULTS, ALLOCATION_DEFAULTS } from './types';
 
 // Re-export WIT types for consumers
 export type {
@@ -95,7 +99,8 @@ function stubInterface(): Record<string, (...args: unknown[]) => never> {
  * **Stub implementation** — every interface method throws "not implemented".
  * Will be replaced with real implementations incrementally.
  */
-export function createHost(): WasiP3Imports {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function createHost(config: WasiP3Config): WasiP3Imports {
     return {
         'wasi:cli/environment': stubInterface() as unknown as typeof WasiCliEnvironment,
         'wasi:cli/exit': stubInterface() as unknown as typeof WasiCliExit,

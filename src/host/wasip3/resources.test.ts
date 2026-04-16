@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createHandleTable } from './handle-table';
-import type { HandleTable, HandleId } from './handle-table';
+import { createHandleTable } from './resources';
+import type { HandleId } from './resources';
 
 describe('HandleTable', () => {
     // ─── 1.1 Happy path ─────────────────────────────────────────────
@@ -174,7 +174,7 @@ describe('HandleTable', () => {
 
         it('get with 1.0 (integer-valued float) returns the value', () => {
             const table = createHandleTable<string>();
-            table.alloc('first');  // handle 0
+            table.alloc('first'); // handle 0
             table.alloc('second'); // handle 1
             // 1.0 === 1 in JS, so (1.0 | 0) === 1
             expect(table.get(1.0)).toBe('second');

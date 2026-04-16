@@ -53,6 +53,8 @@ function externalizeSiblingModules() {
     const srcDir = path.resolve('./src');
     const wasip2Entry = path.resolve('./src/host/wasip2/wasip2.ts');
     const wasip2NodeEntry = path.resolve('./src/host/wasip2/node/wasip2.ts');
+    const wasip3Entry = path.resolve('./src/host/wasip3/wasip3.ts');
+    const wasip3NodeEntry = path.resolve('./src/host/wasip3/node/wasip3.ts');
     return {
         name: 'externalize-sibling-modules',
         resolveId(source, importer) {
@@ -70,6 +72,12 @@ function externalizeSiblingModules() {
             }
             if (resolvedTs === wasip2NodeEntry) {
                 return { id: './wasip2-node.js', external: true };
+            }
+            if (resolvedTs === wasip3Entry) {
+                return { id: './wasip3.js', external: true };
+            }
+            if (resolvedTs === wasip3NodeEntry) {
+                return { id: './wasip3-node.js', external: true };
             }
             // Only externalize ./index from top-level src/ files
             if ((source === './index' || source === './index.js') && importerDir === srcDir) {
@@ -202,6 +210,66 @@ const wasip2NodeTypes = {
     ],
 };
 
+// WASIp3 — browser-compatible host module
+const wasip3 = {
+    treeshake: !isDebug,
+    input: './src/host/wasip3/wasip3.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip3.js`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
+// WASIp3 — Node.js-specific extensions
+const wasip3Node = {
+    treeshake: !isDebug,
+    input: './src/host/wasip3/node/wasip3.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip3-node.js`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
+const wasip3Types = {
+    input: './src/host/wasip3/wasip3.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip3.d.ts`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+        }
+    ],
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
+};
+
 export default defineConfig([
     jsco,
     jscoTypes,
@@ -209,6 +277,9 @@ export default defineConfig([
     wasip2Types,
     wasip2Node,
     wasip2NodeTypes,
+    wasip3,
+    wasip3Types,
+    wasip3Node,
 ]);
 
 

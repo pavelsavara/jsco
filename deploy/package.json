@@ -20,6 +20,13 @@
         "./wasip2-node": {
             "types": "./wasip2-node.d.ts",
             "import": "./wasip2-node.js"
+        },
+        "./wasip3": {
+            "types": "./wasip3.d.ts",
+            "import": "./wasip3.js"
+        },
+        "./wasip3-node": {
+            "import": "./wasip3-node.js"
         }
     },
     "repository": {
