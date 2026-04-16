@@ -135,15 +135,41 @@ describe('createHost', () => {
             const host = createHost();
             expect(typeof host['wasi:http/handler'].handle).toBe('function');
         });
-    });
 
-    describe('stub interfaces still throw not-implemented', () => {
-        it('wasi:sockets/types accessed property is a function that throws when called', () => {
+        it('wasi:sockets/types.TcpSocket is a class', () => {
             const host = createHost();
-            const iface = host['wasi:sockets/types'] as Record<string, Function>;
-            // Proxy returns a function for any property access; calling it throws
-            expect(typeof iface['TcpSocket']).toBe('function');
-            expect(() => iface['TcpSocket']()).toThrow(/not implemented/);
+            const types = host['wasi:sockets/types'] as unknown as { TcpSocket: Function; UdpSocket: Function };
+            expect(typeof types.TcpSocket).toBe('function');
+        });
+
+        it('wasi:sockets/types.UdpSocket is a class', () => {
+            const host = createHost();
+            const types = host['wasi:sockets/types'] as unknown as { TcpSocket: Function; UdpSocket: Function };
+            expect(typeof types.UdpSocket).toBe('function');
+        });
+
+        it('wasi:sockets/types.TcpSocket.create throws not-supported in browser stubs', () => {
+            const host = createHost();
+            const types = host['wasi:sockets/types'] as unknown as { TcpSocket: { create(af: string): never } };
+            try {
+                types.TcpSocket.create('ipv4');
+                fail('should throw');
+            } catch (e) {
+                expect((e as { tag: string }).tag).toBe('not-supported');
+            }
+        });
+
+        it('wasi:sockets/ip-name-lookup.resolveAddresses throws not-supported in browser stubs', async () => {
+            const host = createHost();
+            const lookup = host['wasi:sockets/ip-name-lookup'] as unknown as {
+                resolveAddresses(name: string): Promise<never>;
+            };
+            try {
+                await lookup.resolveAddresses('example.com');
+                fail('should throw');
+            } catch (e) {
+                expect((e as { tag: string }).tag).toBe('not-supported');
+            }
         });
     });
 

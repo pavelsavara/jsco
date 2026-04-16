@@ -59,6 +59,7 @@ import {
 } from './stdio';
 import { initFilesystem, createPreopens, createFilesystemTypes } from './filesystem';
 import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
+import { createSocketsTypes, createIpNameLookup } from './sockets';
 export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
@@ -91,26 +92,10 @@ export type {
     WasiSocketsTypes,
 };
 
-const NOT_IMPLEMENTED = 'WASIp3 host: not implemented';
-
-function notImplemented(): never {
-    throw new Error(NOT_IMPLEMENTED);
-}
-
-function stubInterface(): Record<string, (...args: unknown[]) => never> {
-    return new Proxy({} as Record<string, (...args: unknown[]) => never>, {
-        get(_target, prop) {
-            if (typeof prop === 'symbol') return undefined;
-            return notImplemented;
-        },
-    });
-}
-
 /**
  * Create a WASIp3 host import object.
  *
- * Stages 2-4 interfaces (random, clocks, cli, stdio, terminals) are
- * fully implemented. Remaining interfaces throw "not implemented".
+ * All interfaces are implemented. Sockets throw `not-supported` in the browser.
  */
 export function createHost(config?: WasiP3Config): WasiP3Imports {
     const fsState = initFilesystem(config);
@@ -138,7 +123,7 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
         'wasi:random/insecure-seed': createInsecureSeed(),
         'wasi:random/insecure': createInsecure(config?.limits),
         'wasi:random/random': createRandom(config?.limits),
-        'wasi:sockets/ip-name-lookup': stubInterface() as unknown as typeof WasiSocketsIpNameLookup,
-        'wasi:sockets/types': stubInterface() as unknown as typeof WasiSocketsTypes,
+        'wasi:sockets/ip-name-lookup': createIpNameLookup(),
+        'wasi:sockets/types': createSocketsTypes(),
     };
 }
