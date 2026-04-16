@@ -74,6 +74,25 @@ describe('createHost', () => {
             const host = createHost();
             expect(typeof host['wasi:clocks/monotonic-clock'].now()).toBe('bigint');
         });
+
+        it('wasi:cli/stdin.readViaStream returns stream+future pair', () => {
+            const host = createHost();
+            const [stream, future] = host['wasi:cli/stdin'].readViaStream();
+            expect(stream[Symbol.asyncIterator]).toBeDefined();
+            expect(future).toBeInstanceOf(Promise);
+        });
+
+        it('wasi:cli/stdout.writeViaStream returns a promise', () => {
+            const host = createHost();
+            const pair = { async *[Symbol.asyncIterator]() { /* empty */ } };
+            const future = host['wasi:cli/stdout'].writeViaStream(pair);
+            expect(future).toBeInstanceOf(Promise);
+        });
+
+        it('wasi:cli/terminal-stdin.getTerminalStdin returns undefined', () => {
+            const host = createHost();
+            expect(host['wasi:cli/terminal-stdin'].getTerminalStdin()).toBeUndefined();
+        });
     });
 
     describe('stub interfaces still throw not-implemented', () => {

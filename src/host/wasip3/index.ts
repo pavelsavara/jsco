@@ -52,6 +52,11 @@ export { NETWORK_DEFAULTS, ALLOCATION_DEFAULTS } from './types';
 import { createRandom, createInsecure, createInsecureSeed } from './random';
 import { createMonotonicClock, createSystemClock, createTimezone, createClocksTypes } from './clocks';
 import { createEnvironment, createExit, createCliTypes } from './cli';
+import {
+    createStdin, createStdout, createStderr,
+    createTerminalInput, createTerminalOutput,
+    createTerminalStdin, createTerminalStdout, createTerminalStderr,
+} from './stdio';
 export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
@@ -102,21 +107,21 @@ function stubInterface(): Record<string, (...args: unknown[]) => never> {
 /**
  * Create a WASIp3 host import object.
  *
- * Stage 2 interfaces (random, clocks, cli/environment, cli/exit, cli/types) are
+ * Stages 2-4 interfaces (random, clocks, cli, stdio, terminals) are
  * fully implemented. Remaining interfaces throw "not implemented".
  */
 export function createHost(config?: WasiP3Config): WasiP3Imports {
     return {
         'wasi:cli/environment': createEnvironment(config),
         'wasi:cli/exit': createExit(),
-        'wasi:cli/stderr': stubInterface() as unknown as typeof WasiCliStderr,
-        'wasi:cli/stdin': stubInterface() as unknown as typeof WasiCliStdin,
-        'wasi:cli/stdout': stubInterface() as unknown as typeof WasiCliStdout,
-        'wasi:cli/terminal-input': stubInterface() as unknown as typeof WasiCliTerminalInput,
-        'wasi:cli/terminal-output': stubInterface() as unknown as typeof WasiCliTerminalOutput,
-        'wasi:cli/terminal-stderr': stubInterface() as unknown as typeof WasiCliTerminalStderr,
-        'wasi:cli/terminal-stdin': stubInterface() as unknown as typeof WasiCliTerminalStdin,
-        'wasi:cli/terminal-stdout': stubInterface() as unknown as typeof WasiCliTerminalStdout,
+        'wasi:cli/stderr': createStderr(config),
+        'wasi:cli/stdin': createStdin(config),
+        'wasi:cli/stdout': createStdout(config),
+        'wasi:cli/terminal-input': createTerminalInput(),
+        'wasi:cli/terminal-output': createTerminalOutput(),
+        'wasi:cli/terminal-stderr': createTerminalStderr(),
+        'wasi:cli/terminal-stdin': createTerminalStdin(),
+        'wasi:cli/terminal-stdout': createTerminalStdout(),
         'wasi:cli/types': createCliTypes(),
         'wasi:clocks/monotonic-clock': createMonotonicClock(),
         'wasi:clocks/system-clock': createSystemClock(),

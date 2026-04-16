@@ -1,0 +1,407 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
+import {
+    createStdin, createStdout, createStderr,
+    createTerminalStdin, createTerminalStdout, createTerminalStderr,
+} from './stdio';
+import { createStreamPair, readableFromAsyncIterable, collectBytes } from './streams';
+
+describe('wasi:cli/stdin', () => {
+    describe('readViaStream', () => {
+        it('returns [WasiStreamWritable, WasiFuture]', () => {
+            const stdin = createStdin();
+            const [stream, future] = stdin.readViaStream();
+            expect(stream).toBeDefined();
+            expect(stream[Symbol.asyncIterator]).toBeDefined();
+            expect(future).toBeInstanceOf(Promise);
+        });
+
+        it('yields configured stdin data', async () => {
+            const data = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
+            const inputStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(data);
+                    controller.close();
+                },
+            });
+
+            const stdin = createStdin({ stdin: inputStream });
+            const [stream, future] = stdin.readViaStream();
+
+            const collected = await collectBytes(stream);
+            expect(collected).toEqual(data);
+
+            const result = await future;
+            expect(result.tag).toBe('ok');
+        });
+
+        it('yields multiple chunks in order', async () => {
+            const chunk1 = new Uint8Array([1, 2, 3]);
+            const chunk2 = new Uint8Array([4, 5, 6]);
+            const inputStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(chunk1);
+                    controller.enqueue(chunk2);
+                    controller.close();
+                },
+            });
+
+            const stdin = createStdin({ stdin: inputStream });
+            const [stream, future] = stdin.readViaStream();
+
+            const collected = await collectBytes(stream);
+            expect(collected).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6]));
+
+            const result = await future;
+            expect(result.tag).toBe('ok');
+        });
+
+        it('empty stdin — stream yields nothing, future resolves ok', async () => {
+            const stdin = createStdin();
+            const [stream, future] = stdin.readViaStream();
+
+            const collected = await collectBytes(stream);
+            expect(collected.length).toBe(0);
+
+            const result = await future;
+            expect(result.tag).toBe('ok');
+        });
+
+        it('empty ReadableStream — stream yields nothing, future resolves ok', async () => {
+            const inputStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.close();
+                },
+            });
+
+            const stdin = createStdin({ stdin: inputStream });
+            const [stream, future] = stdin.readViaStream();
+
+            const collected = await collectBytes(stream);
+            expect(collected.length).toBe(0);
+
+            const result = await future;
+            expect(result.tag).toBe('ok');
+        });
+
+        it('stdin stream error — future resolves with err', async () => {
+            const inputStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(new Uint8Array([1, 2]));
+                    controller.error(new Error('pipe broken'));
+                },
+            });
+
+            const stdin = createStdin({ stdin: inputStream });
+            const [stream, future] = stdin.readViaStream();
+
+            // Reading may throw when the error propagates
+            const chunks: Uint8Array[] = [];
+            try {
+                for await (const chunk of stream) {
+                    chunks.push(chunk);
+                }
+            } catch {
+                // Expected — stream errored
+            }
+
+            const result = await future;
+            expect(result.tag).toBe('err');
+            if (result.tag === 'err') {
+                expect(result.val).toBe('io');
+            }
+        });
+
+        it('large stdin data — streams without full buffering', async () => {
+            const chunkCount = 100;
+            const chunkSize = 1024;
+            let enqueueCount = 0;
+
+            const inputStream = new ReadableStream<Uint8Array>({
+                pull(controller) {
+                    if (enqueueCount >= chunkCount) {
+                        controller.close();
+                        return;
+                    }
+                    const chunk = new Uint8Array(chunkSize);
+                    chunk.fill(enqueueCount & 0xff);
+                    controller.enqueue(chunk);
+                    enqueueCount++;
+                },
+            });
+
+            const stdin = createStdin({ stdin: inputStream });
+            const [stream, future] = stdin.readViaStream();
+
+            const collected = await collectBytes(stream);
+            expect(collected.length).toBe(chunkCount * chunkSize);
+
+            const result = await future;
+            expect(result.tag).toBe('ok');
+        });
+    });
+});
+
+describe('wasi:cli/stdout', () => {
+    describe('writeViaStream', () => {
+        it('returns a Promise (WasiFuture)', () => {
+            const stdout = createStdout();
+            const pair = createStreamPair<Uint8Array>();
+            pair.close();
+            const future = stdout.writeViaStream(pair.readable);
+            expect(future).toBeInstanceOf(Promise);
+        });
+
+        it('writes data to configured stdout', async () => {
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) {
+                    chunks.push(new Uint8Array(chunk));
+                },
+            });
+
+            const stdout = createStdout({ stdout: outputStream });
+
+            const pair = createStreamPair<Uint8Array>();
+            const future = stdout.writeViaStream(pair.readable);
+
+            await pair.write(new Uint8Array([72, 101, 108, 108, 111]));
+            pair.close();
+
+            await future;
+
+            expect(chunks.length).toBe(1);
+            expect(chunks[0]).toEqual(new Uint8Array([72, 101, 108, 108, 111]));
+        });
+
+        it('writes multiple chunks to stdout in order', async () => {
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) {
+                    chunks.push(new Uint8Array(chunk));
+                },
+            });
+
+            const stdout = createStdout({ stdout: outputStream });
+
+            const pair = createStreamPair<Uint8Array>();
+            const future = stdout.writeViaStream(pair.readable);
+
+            await pair.write(new Uint8Array([1, 2, 3]));
+            await pair.write(new Uint8Array([4, 5, 6]));
+            pair.close();
+
+            await future;
+
+            expect(chunks.length).toBe(2);
+            expect(chunks[0]).toEqual(new Uint8Array([1, 2, 3]));
+            expect(chunks[1]).toEqual(new Uint8Array([4, 5, 6]));
+        });
+
+        it('discards data when no stdout configured', async () => {
+            const stdout = createStdout();
+            const pair = createStreamPair<Uint8Array>();
+            const future = stdout.writeViaStream(pair.readable);
+
+            await pair.write(new Uint8Array([1, 2, 3]));
+            pair.close();
+
+            // Should resolve without error even though data is discarded
+            await future;
+        });
+
+        it('empty stream — future resolves normally', async () => {
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) {
+                    chunks.push(new Uint8Array(chunk));
+                },
+            });
+
+            const stdout = createStdout({ stdout: outputStream });
+
+            const pair = createStreamPair<Uint8Array>();
+            pair.close();
+
+            await stdout.writeViaStream(pair.readable);
+
+            expect(chunks.length).toBe(0);
+        });
+
+        it('accepts data from readableFromAsyncIterable', async () => {
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) {
+                    chunks.push(new Uint8Array(chunk));
+                },
+            });
+
+            const stdout = createStdout({ stdout: outputStream });
+
+            async function* generate() {
+                yield new Uint8Array([10, 20]);
+                yield new Uint8Array([30, 40]);
+            }
+
+            const readable = readableFromAsyncIterable(generate());
+            await stdout.writeViaStream(readable);
+
+            expect(chunks.length).toBe(2);
+            expect(chunks[0]).toEqual(new Uint8Array([10, 20]));
+            expect(chunks[1]).toEqual(new Uint8Array([30, 40]));
+        });
+    });
+});
+
+describe('wasi:cli/stderr', () => {
+    describe('writeViaStream', () => {
+        it('writes data to configured stderr', async () => {
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) {
+                    chunks.push(new Uint8Array(chunk));
+                },
+            });
+
+            const stderr = createStderr({ stderr: outputStream });
+
+            const pair = createStreamPair<Uint8Array>();
+            const future = stderr.writeViaStream(pair.readable);
+
+            await pair.write(new Uint8Array([69, 82, 82])); // "ERR"
+            pair.close();
+
+            await future;
+
+            expect(chunks.length).toBe(1);
+            expect(chunks[0]).toEqual(new Uint8Array([69, 82, 82]));
+        });
+
+        it('stderr and stdout are independent', async () => {
+            const stdoutChunks: Uint8Array[] = [];
+            const stderrChunks: Uint8Array[] = [];
+
+            const stdoutStream = new WritableStream<Uint8Array>({
+                write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+            });
+            const stderrStream = new WritableStream<Uint8Array>({
+                write(chunk) { stderrChunks.push(new Uint8Array(chunk)); },
+            });
+
+            const { createStdout: createOut, createStderr: createErr } = await import('./stdio');
+            const stdout = createOut({ stdout: stdoutStream });
+            const stderr = createErr({ stderr: stderrStream });
+
+            const outPair = createStreamPair<Uint8Array>();
+            const errPair = createStreamPair<Uint8Array>();
+
+            const outFuture = stdout.writeViaStream(outPair.readable);
+            const errFuture = stderr.writeViaStream(errPair.readable);
+
+            await outPair.write(new Uint8Array([1, 2]));
+            await errPair.write(new Uint8Array([3, 4]));
+            outPair.close();
+            errPair.close();
+
+            await Promise.all([outFuture, errFuture]);
+
+            expect(stdoutChunks).toEqual([new Uint8Array([1, 2])]);
+            expect(stderrChunks).toEqual([new Uint8Array([3, 4])]);
+        });
+
+        it('discards data when no stderr configured', async () => {
+            const stderr = createStderr();
+            const pair = createStreamPair<Uint8Array>();
+            const future = stderr.writeViaStream(pair.readable);
+
+            await pair.write(new Uint8Array([1]));
+            pair.close();
+
+            await future;
+        });
+    });
+});
+
+describe('wasi:cli/stdin + stdout multi-step', () => {
+    it('read stdin while writing stdout — no interference', async () => {
+        const inputData = new Uint8Array([10, 20, 30]);
+        const inputStream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(inputData);
+                controller.close();
+            },
+        });
+
+        const stdoutChunks: Uint8Array[] = [];
+        const outputStream = new WritableStream<Uint8Array>({
+            write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+        });
+
+        const { createStdin: createIn, createStdout: createOut } = await import('./stdio');
+        const stdin = createIn({ stdin: inputStream });
+        const stdout = createOut({ stdout: outputStream });
+
+        // Read stdin
+        const [stdinStream, stdinFuture] = stdin.readViaStream();
+
+        // Write to stdout concurrently
+        const outPair = createStreamPair<Uint8Array>();
+        const stdoutFuture = stdout.writeViaStream(outPair.readable);
+        await outPair.write(new Uint8Array([40, 50]));
+        outPair.close();
+
+        // Collect stdin
+        const stdinData = await collectBytes(stdinStream);
+        const stdinResult = await stdinFuture;
+
+        await stdoutFuture;
+
+        expect(stdinData).toEqual(inputData);
+        expect(stdinResult.tag).toBe('ok');
+        expect(stdoutChunks).toEqual([new Uint8Array([40, 50])]);
+    });
+
+    it('write UTF-8 multibyte characters split across chunks', async () => {
+        const collected: Uint8Array[] = [];
+        const outputStream = new WritableStream<Uint8Array>({
+            write(chunk) { collected.push(new Uint8Array(chunk)); },
+        });
+
+        const { createStdout: createOut } = await import('./stdio');
+        const stdout = createOut({ stdout: outputStream });
+
+        // "日" = U+65E5 = [0xE6, 0x97, 0xA5] in UTF-8
+        // Split across two chunks
+        const pair = createStreamPair<Uint8Array>();
+        const future = stdout.writeViaStream(pair.readable);
+
+        await pair.write(new Uint8Array([0xE6, 0x97]));
+        await pair.write(new Uint8Array([0xA5]));
+        pair.close();
+
+        await future;
+
+        // All bytes arrive
+        const allBytes = new Uint8Array(collected.reduce((a, c) => a + c.length, 0));
+        let off = 0;
+        for (const c of collected) { allBytes.set(c, off); off += c.length; }
+        expect(allBytes).toEqual(new Uint8Array([0xE6, 0x97, 0xA5]));
+    });
+});
+
+describe('wasi:cli/terminal-*', () => {
+    it('getTerminalStdin returns undefined (non-TTY)', () => {
+        const ts = createTerminalStdin();
+        expect(ts.getTerminalStdin()).toBeUndefined();
+    });
+
+    it('getTerminalStdout returns undefined (non-TTY)', () => {
+        const ts = createTerminalStdout();
+        expect(ts.getTerminalStdout()).toBeUndefined();
+    });
+
+    it('getTerminalStderr returns undefined (non-TTY)', () => {
+        const ts = createTerminalStderr();
+        expect(ts.getTerminalStderr()).toBeUndefined();
+    });
+});
