@@ -190,6 +190,7 @@ function consumeValue(arg: string, prefix: string, args: string[], i: number): {
         }
         return { val: next, nextI: i + 1 };
     }
+    /* istanbul ignore next -- unreachable guard */
     return undefined as never; // should not be called unless arg starts with prefix
 }
 
@@ -390,6 +391,7 @@ export function parseCliArgs(args: string[]): CliParseResult {
 
 // ─── CLI Entry Point ───
 
+/* istanbul ignore next -- CLI entry point: uses import.meta.url, process.exit, dynamic imports; untestable in Jest */
 export async function cliMain(): Promise<void> {
     // detect that we are running in nodejs
     if (typeof process === 'undefined' || process.versions == null || process.versions.node == null) return;

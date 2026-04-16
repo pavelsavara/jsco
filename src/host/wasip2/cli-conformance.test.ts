@@ -25,10 +25,6 @@ function component(name: string): string {
     return path.join(wasmDir, `${name}.component.wasm`);
 }
 
-function hasComponent(name: string): boolean {
-    return existsSync(component(name));
-}
-
 interface RunOptions {
     args?: string[];
     env?: Record<string, string>;
