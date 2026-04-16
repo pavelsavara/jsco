@@ -26,6 +26,7 @@
             "import": "./wasip3.js"
         },
         "./wasip3-node": {
+            "types": "./wasip3-node.d.ts",
             "import": "./wasip3-node.js"
         }
     },

@@ -8,7 +8,7 @@ import { ExternalKind } from '../model/core';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StringEncoding } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StreamTable, FutureTable, ErrorContextTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
@@ -421,6 +421,57 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
     };
 }
 
+function notYetImplemented(name: string): never {
+    throw new Error(`${name} is not yet implemented`);
+}
+
+function createStreamTable(): StreamTable {
+    return {
+        newStream() { return notYetImplemented('stream.new'); },
+        read() { return notYetImplemented('stream.read'); },
+        write() { return notYetImplemented('stream.write'); },
+        cancelRead() { return notYetImplemented('stream.cancel-read'); },
+        cancelWrite() { return notYetImplemented('stream.cancel-write'); },
+        dropReadable() { notYetImplemented('stream.drop-readable'); },
+        dropWritable() { notYetImplemented('stream.drop-writable'); },
+        addReadable() { return notYetImplemented('stream.add-readable'); },
+        getReadable() { return notYetImplemented('stream.get-readable'); },
+        removeReadable() { return notYetImplemented('stream.remove-readable'); },
+        addWritable() { return notYetImplemented('stream.add-writable'); },
+        getWritable() { return notYetImplemented('stream.get-writable'); },
+        removeWritable() { return notYetImplemented('stream.remove-writable'); },
+    };
+}
+
+function createFutureTable(): FutureTable {
+    return {
+        newFuture() { return notYetImplemented('future.new'); },
+        read() { return notYetImplemented('future.read'); },
+        write() { return notYetImplemented('future.write'); },
+        cancelRead() { return notYetImplemented('future.cancel-read'); },
+        cancelWrite() { return notYetImplemented('future.cancel-write'); },
+        dropReadable() { notYetImplemented('future.drop-readable'); },
+        dropWritable() { notYetImplemented('future.drop-writable'); },
+        addReadable() { return notYetImplemented('future.add-readable'); },
+        getReadable() { return notYetImplemented('future.get-readable'); },
+        removeReadable() { return notYetImplemented('future.remove-readable'); },
+        addWritable() { return notYetImplemented('future.add-writable'); },
+        getWritable() { return notYetImplemented('future.get-writable'); },
+        removeWritable() { return notYetImplemented('future.remove-writable'); },
+    };
+}
+
+function createErrorContextTable(): ErrorContextTable {
+    return {
+        newErrorContext() { return notYetImplemented('error-context.new'); },
+        debugMessage() { notYetImplemented('error-context.debug-message'); },
+        drop() { notYetImplemented('error-context.drop'); },
+        add() { return notYetImplemented('error-context.add'); },
+        get() { return notYetImplemented('error-context.get'); },
+        remove() { return notYetImplemented('error-context.remove'); },
+    };
+}
+
 export function createBindingContext(componentImports: JsImports, resolved: ResolvedContext): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
@@ -433,6 +484,9 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         memory,
         allocator,
         resources,
+        streams: createStreamTable(),
+        futures: createFutureTable(),
+        errorContexts: createErrorContextTable(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,

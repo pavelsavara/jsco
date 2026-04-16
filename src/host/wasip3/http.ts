@@ -185,6 +185,22 @@ class HttpFields {
         return f;
     }
 
+    /** @internal Create from incoming request headers (no forbidden header check). */
+    static fromIncomingList(entries: Array<[FieldName, FieldValue]>, limits?: HttpLimits): HttpFields {
+        const f = new HttpFields(limits);
+        for (const [name, value] of entries) {
+            validateFieldName(name);
+            validateFieldValue(value);
+            const entrySize = name.length + value.length;
+            if (f.totalSize + entrySize > f.limits.maxHeadersBytes) {
+                throw Object.assign(new Error('headers size exceeded'), { tag: 'size-exceeded' } as HeaderError);
+            }
+            f.totalSize += entrySize;
+            f.entries.push([name.toLowerCase(), name, value]);
+        }
+        return f;
+    }
+
     get(name: FieldName): Array<FieldValue> {
         const lower = name.toLowerCase();
         const result: FieldValue[] = [];
@@ -583,6 +599,12 @@ class HttpResponse {
 
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
     }
+
+    /** @internal Access for serve() implementation. */
+    get _internalStatusCode(): StatusCode { return this._statusCode; }
+    get _internalHeaders(): HttpFields { return this._headers; }
+    get _internalContents(): WasiStreamReadable<Uint8Array> | undefined { return this._contents; }
+    get _internalCompletionResolve(): (value: Result<void, ErrorCode>) => void { return this._completionResolve; }
 }
 
 // ──────────────────── HTTP Client: send() ────────────────────
@@ -793,3 +815,15 @@ export function createHttpHandler(): typeof WasiHttpHandler {
         },
     } as unknown as typeof WasiHttpHandler;
 }
+
+// ──────────────────── Internal exports for HTTP server ────────────────────
+
+/** @internal Used by node/http-server.ts */
+export {
+    HttpFields as _HttpFields,
+    HttpRequest as _HttpRequest,
+    HttpResponse as _HttpResponse,
+    getHttpLimits as _getHttpLimits,
+};
+export type { HttpLimits as _HttpLimits };
+export type { Result as _HttpResult, ErrorCode as _HttpErrorCode, Method as _HttpMethod, Scheme as _HttpScheme };

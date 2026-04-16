@@ -63,9 +63,10 @@ function runJsco(wasmFile: string, opts: RunOptions = {}): { stdout: string; std
     try {
         const stdout = execFileSync(nodeExe, cliArgs, {
             encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
             timeout: opts.timeout ?? 30_000,
             input: opts.stdin,
-            env: { ...process.env, NODE_NO_WARNINGS: '1' },
+            env: { ...process.env, NODE_NO_WARNINGS: '1', RUST_BACKTRACE: '1' },
             maxBuffer: 20 * 1024 * 1024,
         });
         return { stdout, stderr: '', status: 0 };

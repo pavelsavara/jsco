@@ -68,14 +68,14 @@ function socketAddressPort(addr: IpSocketAddress): number {
 
 function parseIpv4(str: string): Ipv4Address {
     const parts = str.split('.').map(Number);
-    return [parts[0], parts[1], parts[2], parts[3]];
+    return [parts[0]!, parts[1]!, parts[2]!, parts[3]!];
 }
 
 function parseIpv6(str: string): Ipv6Address {
     // Handle ::1 and full forms
     const expanded = expandIpv6(str);
     const parts = expanded.split(':').map(s => parseInt(s, 16));
-    return [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7]];
+    return [parts[0]!, parts[1]!, parts[2]!, parts[3]!, parts[4]!, parts[5]!, parts[6]!, parts[7]!];
 }
 
 function expandIpv6(str: string): string {

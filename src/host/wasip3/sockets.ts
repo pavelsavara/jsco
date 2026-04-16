@@ -17,7 +17,6 @@ import type {
 type IpAddressFamily = 'ipv4' | 'ipv6';
 type Ipv4Address = [number, number, number, number];
 type Ipv6Address = [number, number, number, number, number, number, number, number];
-type Ipv6Address = [number, number, number, number, number, number, number, number];
 type IpSocketAddress =
     | { tag: 'ipv4'; val: { port: number; address: Ipv4Address } }
     | { tag: 'ipv6'; val: { port: number; flowInfo: number; address: Ipv6Address; scopeId: number } };

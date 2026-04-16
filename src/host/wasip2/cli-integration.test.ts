@@ -26,8 +26,9 @@ function runJsco(args: string[]): { stdout: string; stderr: string; status: numb
             ...args,
         ], {
             encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
             timeout: 30_000,
-            env: { ...process.env, NODE_NO_WARNINGS: '1' },
+            env: { ...process.env, NODE_NO_WARNINGS: '1', RUST_BACKTRACE: '1' },
         });
         return { stdout, stderr: '', status: 0 };
     } catch (e: unknown) {

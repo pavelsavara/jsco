@@ -579,9 +579,9 @@ export function initFilesystem(config?: WasiP3Config): FilesystemState {
  */
 export function createPreopens(state: FilesystemState): typeof WasiFilesystemPreopens {
     return {
-        getDirectories(): Array<[InstanceType<typeof WasiFilesystemTypes.Descriptor>, string]> {
+        getDirectories(): Array<[WasiFilesystemTypes.Descriptor, string]> {
             // Cast FsDescriptor to the WIT Descriptor type
-            return state.preopens as unknown as Array<[InstanceType<typeof WasiFilesystemTypes.Descriptor>, string]>;
+            return state.preopens as unknown as Array<[WasiFilesystemTypes.Descriptor, string]>;
         },
     };
 }
