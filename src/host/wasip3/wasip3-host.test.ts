@@ -57,27 +57,26 @@ describe('createHost', () => {
         });
     });
 
-    describe('stub behavior — calling any function throws not-implemented', () => {
-        it('wasi:cli/environment.getEnvironment throws', () => {
+    describe('implemented interfaces work', () => {
+        it('wasi:cli/environment.getEnvironment returns array', () => {
             const host = createHost();
-            expect(() => host['wasi:cli/environment'].getEnvironment()).toThrow(/not implemented/);
+            expect(host['wasi:cli/environment'].getEnvironment()).toEqual([]);
         });
 
-        it('wasi:cli/exit.exit throws', () => {
+        it('wasi:random/random.getRandomBytes returns bytes', () => {
             const host = createHost();
-            expect(() => host['wasi:cli/exit'].exit({ tag: 'ok', val: undefined })).toThrow(/not implemented/);
+            const bytes = host['wasi:random/random'].getRandomBytes(16n);
+            expect(bytes).toBeInstanceOf(Uint8Array);
+            expect(bytes.length).toBe(16);
         });
 
-        it('wasi:random/random.getRandomBytes throws', () => {
+        it('wasi:clocks/monotonic-clock.now returns bigint', () => {
             const host = createHost();
-            expect(() => host['wasi:random/random'].getRandomBytes(16n)).toThrow(/not implemented/);
+            expect(typeof host['wasi:clocks/monotonic-clock'].now()).toBe('bigint');
         });
+    });
 
-        it('wasi:clocks/monotonic-clock.now throws', () => {
-            const host = createHost();
-            expect(() => host['wasi:clocks/monotonic-clock'].now()).toThrow(/not implemented/);
-        });
-
+    describe('stub interfaces still throw not-implemented', () => {
         it('wasi:filesystem/preopens.getDirectories throws', () => {
             const host = createHost();
             expect(() => host['wasi:filesystem/preopens'].getDirectories()).toThrow(/not implemented/);
@@ -94,12 +93,6 @@ describe('createHost', () => {
             // Proxy returns a function for any property access; calling it throws
             expect(typeof iface['TcpSocket']).toBe('function');
             expect(() => iface['TcpSocket']()).toThrow(/not implemented/);
-        });
-
-        it('any arbitrary property access on an interface throws', () => {
-            const host = createHost();
-            const iface = host['wasi:cli/environment'] as Record<string, Function>;
-            expect(() => iface['nonExistentMethod']()).toThrow(/not implemented/);
         });
     });
 

@@ -35,7 +35,7 @@ import type {
     WasiSocketsIpNameLookup,
     WasiSocketsTypes,
 } from '../../../wit/wasip3/types/index';
-import { WasiP3Config } from './wasip3';
+import type { WasiP3Config } from './types';
 
 export type { HandleTable, HandleId, HandleTableConfig } from './resources';
 export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './streams';
@@ -47,6 +47,12 @@ export { createHandleTable } from './resources';
 export { readableFromStream, readableFromAsyncIterable, createStreamPair, collectStream, collectBytes } from './streams';
 export { ok, err, WasiError } from './result';
 export { NETWORK_DEFAULTS, ALLOCATION_DEFAULTS } from './types';
+
+// Implementation modules
+import { createRandom, createInsecure, createInsecureSeed } from './random';
+import { createMonotonicClock, createSystemClock, createTimezone, createClocksTypes } from './clocks';
+import { createEnvironment, createExit, createCliTypes } from './cli';
+export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
 export type {
@@ -96,14 +102,13 @@ function stubInterface(): Record<string, (...args: unknown[]) => never> {
 /**
  * Create a WASIp3 host import object.
  *
- * **Stub implementation** — every interface method throws "not implemented".
- * Will be replaced with real implementations incrementally.
+ * Stage 2 interfaces (random, clocks, cli/environment, cli/exit, cli/types) are
+ * fully implemented. Remaining interfaces throw "not implemented".
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function createHost(config: WasiP3Config): WasiP3Imports {
+export function createHost(config?: WasiP3Config): WasiP3Imports {
     return {
-        'wasi:cli/environment': stubInterface() as unknown as typeof WasiCliEnvironment,
-        'wasi:cli/exit': stubInterface() as unknown as typeof WasiCliExit,
+        'wasi:cli/environment': createEnvironment(config),
+        'wasi:cli/exit': createExit(),
         'wasi:cli/stderr': stubInterface() as unknown as typeof WasiCliStderr,
         'wasi:cli/stdin': stubInterface() as unknown as typeof WasiCliStdin,
         'wasi:cli/stdout': stubInterface() as unknown as typeof WasiCliStdout,
@@ -112,19 +117,19 @@ export function createHost(config: WasiP3Config): WasiP3Imports {
         'wasi:cli/terminal-stderr': stubInterface() as unknown as typeof WasiCliTerminalStderr,
         'wasi:cli/terminal-stdin': stubInterface() as unknown as typeof WasiCliTerminalStdin,
         'wasi:cli/terminal-stdout': stubInterface() as unknown as typeof WasiCliTerminalStdout,
-        'wasi:cli/types': stubInterface() as unknown as typeof WasiCliTypes,
-        'wasi:clocks/monotonic-clock': stubInterface() as unknown as typeof WasiClocksMonotonicClock,
-        'wasi:clocks/system-clock': stubInterface() as unknown as typeof WasiClocksSystemClock,
-        'wasi:clocks/timezone': stubInterface() as unknown as typeof WasiClocksTimezone,
-        'wasi:clocks/types': stubInterface() as unknown as typeof WasiClocksTypes,
+        'wasi:cli/types': createCliTypes(),
+        'wasi:clocks/monotonic-clock': createMonotonicClock(),
+        'wasi:clocks/system-clock': createSystemClock(),
+        'wasi:clocks/timezone': createTimezone(),
+        'wasi:clocks/types': createClocksTypes(),
         'wasi:filesystem/preopens': stubInterface() as unknown as typeof WasiFilesystemPreopens,
         'wasi:filesystem/types': stubInterface() as unknown as typeof WasiFilesystemTypes,
         'wasi:http/client': stubInterface() as unknown as typeof WasiHttpClient,
         'wasi:http/handler': stubInterface() as unknown as typeof WasiHttpHandler,
         'wasi:http/types': stubInterface() as unknown as typeof WasiHttpTypes,
-        'wasi:random/insecure-seed': stubInterface() as unknown as typeof WasiRandomInsecureSeed,
-        'wasi:random/insecure': stubInterface() as unknown as typeof WasiRandomInsecure,
-        'wasi:random/random': stubInterface() as unknown as typeof WasiRandomRandom,
+        'wasi:random/insecure-seed': createInsecureSeed(),
+        'wasi:random/insecure': createInsecure(config?.limits),
+        'wasi:random/random': createRandom(config?.limits),
         'wasi:sockets/ip-name-lookup': stubInterface() as unknown as typeof WasiSocketsIpNameLookup,
         'wasi:sockets/types': stubInterface() as unknown as typeof WasiSocketsTypes,
     };
