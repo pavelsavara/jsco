@@ -3,10 +3,14 @@
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';
 import { join, extname } from 'path';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = join(__dirname, '..', '..');
+
+// Detect which build output directory exists (debug preferred, release fallback)
+const distSubdir = existsSync(join(root, 'dist', 'debug')) ? 'debug' : 'release';
 
 const mimeTypes = {
     '.html': 'text/html',
@@ -18,7 +22,12 @@ const mimeTypes = {
 
 const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    const filePath = join(root, url.pathname === '/' ? 'tests/browser/index.html' : url.pathname);
+    // Rewrite /dist/<file> to /dist/<debug|release>/<file>
+    let pathname = url.pathname;
+    if (pathname.startsWith('/dist/') && !pathname.startsWith('/dist/debug/') && !pathname.startsWith('/dist/release/')) {
+        pathname = '/dist/' + distSubdir + pathname.slice('/dist'.length);
+    }
+    const filePath = join(root, pathname === '/' ? 'tests/browser/index.html' : pathname);
 
     try {
         const data = await readFile(filePath);

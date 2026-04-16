@@ -7,7 +7,9 @@
 
 <body>
     <script type="module">
-        import { instantiateWasiComponent } from '/dist/release/index.js';
+        import { createComponent } from '/dist/index.js';
+        import { instantiateWasiComponent, setCreateComponent } from '/dist/wasip2.js';
+        setCreateComponent(createComponent);
 
         window.__testResults = {};
         try {
