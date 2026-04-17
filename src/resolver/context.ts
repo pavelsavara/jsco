@@ -437,6 +437,8 @@ type StreamEntry = {
     waitingReader?: (chunk: Uint8Array | null) => void;
     /** Callbacks to invoke when data arrives or stream closes (for waitable-set integration). */
     onReady?: (() => void)[];
+    /** Deferred read: guest buffer awaiting data after stream.read returned BLOCKED. */
+    pendingRead?: { ptr: number, len: number };
 };
 
 function createStreamTable(memory: MemoryView, allocHandle: () => number): StreamTable {
@@ -542,11 +544,10 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                 }
             }
             if (offset > 0) {
-                const status = entry.closed && entry.chunks.length === 0
-                    ? STREAM_STATUS_DROPPED : STREAM_STATUS_COMPLETED;
-                return (offset << 4) | status;
+                return (offset << 4) | STREAM_STATUS_COMPLETED;
             }
             if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            entry.pendingRead = { ptr, len };
             return STREAM_BLOCKED;
         },
 
@@ -654,6 +655,34 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             }
             if (!entry.onReady) entry.onReady = [];
             entry.onReady.push(callback);
+        },
+
+        fulfillPendingRead(handle: number): number {
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (!entry || !entry.pendingRead) return (0 << 4) | STREAM_STATUS_COMPLETED;
+            const { ptr, len } = entry.pendingRead;
+            entry.pendingRead = undefined;
+            // Copy available data into the guest's deferred buffer
+            let offset = 0;
+            while (entry.chunks.length > 0 && offset < len) {
+                const chunk = entry.chunks[0]!;
+                const needed = len - offset;
+                if (chunk.length <= needed) {
+                    memory.getViewU8(ptr + offset, chunk.length).set(chunk);
+                    offset += chunk.length;
+                    entry.chunks.shift();
+                } else {
+                    memory.getViewU8(ptr + offset, needed).set(chunk.subarray(0, needed));
+                    offset += needed;
+                    entry.chunks[0] = chunk.subarray(needed);
+                }
+            }
+            if (offset > 0) {
+                return (offset << 4) | STREAM_STATUS_COMPLETED;
+            }
+            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
     };
 }
@@ -1066,6 +1095,9 @@ function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, fu
         if (eventCode === EVENT_SUBTASK) {
             const se = subtaskTable.getEntry(handle);
             return se ? se.state : 0;
+        }
+        if (eventCode === _EVENT_STREAM_READ) {
+            return streamTable.fulfillPendingRead(handle);
         }
         return (0 << 4) | STREAM_STATUS_COMPLETED;
     }

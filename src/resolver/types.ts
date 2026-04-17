@@ -232,6 +232,8 @@ export interface StreamTable {
     hasData(baseHandle: number): boolean;
     /** Register a callback for when data arrives or stream closes. */
     onReady(baseHandle: number, callback: () => void): void;
+    /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
+    fulfillPendingRead(handle: number): number;
 }
 
 export interface FutureTable {

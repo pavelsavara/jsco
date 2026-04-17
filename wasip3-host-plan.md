@@ -450,3 +450,10 @@ IVfsBackend {
 - Verify minification: reserved names, const enum inlining
 - Run full test suite: lint, build, unit tests, integration tests, browser tests
 - Update README with P3 host usage examples
+
+## Stage 12: Feedback
+review the wasip3 implementation
+- are there any functionalities missing ?
+- are there any security issues ?
+- review design and architecture and provide feedback
+- propose improvements

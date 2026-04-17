@@ -141,4 +141,86 @@ describe('WASIp3 integration tests', () => {
             await run.run();
         }));
     });
+
+    describe('cli — extended', () => {
+        test('p3_cli_much_stdout — repeated writes to stdout', () => runWithVerbose(verbose, async () => {
+            const capture = captureStream();
+            const imports = mergeHosts(
+                createWasiP2Host({
+                    args: ['p3_cli_much_stdout.component', 'x', '1000'],
+                    stdout: (bytes: Uint8Array) => { /* swallow P2 stdout */ void bytes; },
+                }),
+                createP3Host({
+                    args: ['p3_cli_much_stdout.component', 'x', '1000'],
+                    stdout: capture.stream,
+                }),
+            );
+            const component = await createComponent(
+                WASM_DIR + 'p3_cli_much_stdout.component.wasm',
+                verboseOptions(verbose),
+            );
+            const instance = await component.instantiate(imports);
+            const run = instance.exports[RUN_EXPORT] as any;
+            expect(run).toBeDefined();
+            await run.run();
+            // Guest writes "x" 1000 times
+            expect(capture.text().length).toBe(1000);
+            expect(capture.text()).toBe('x'.repeat(1000));
+        }));
+
+        test('p3_cli_read_stdin — reads "hello!" from stdin', () => runWithVerbose(verbose, async () => {
+            const stdinData = new TextEncoder().encode('hello!');
+            const stdinStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(stdinData);
+                    controller.close();
+                },
+            });
+            const imports = mergeHosts(
+                createWasiP2Host(),
+                createP3Host({ stdin: stdinStream }),
+            );
+            const component = await createComponent(
+                WASM_DIR + 'p3_cli_read_stdin.component.wasm',
+                verboseOptions(verbose),
+            );
+            const instance = await component.instantiate(imports);
+            const run = instance.exports[RUN_EXPORT] as any;
+            expect(run).toBeDefined();
+            await run.run();
+        }));
+
+        test('p3_cli_hello_stdout_post_return — writes after run returns', () => runWithVerbose(verbose, async () => {
+            const capture = captureStream();
+            const imports = mergeHosts(
+                createWasiP2Host(),
+                createP3Host({ stdout: capture.stream }),
+            );
+            const component = await createComponent(
+                WASM_DIR + 'p3_cli_hello_stdout_post_return.component.wasm',
+                verboseOptions(verbose),
+            );
+            const instance = await component.instantiate(imports);
+            const run = instance.exports[RUN_EXPORT] as any;
+            expect(run).toBeDefined();
+            await run.run();
+            // At minimum, the first write should have completed before run() returns
+            expect(capture.text()).toContain('hello, world');
+        }));
+
+        test('p3_cli_random_limits — random bytes with size arg', () => runWithVerbose(verbose, async () => {
+            const imports = mergeHosts(
+                createWasiP2Host({ args: ['p3_cli_random_limits.component', 'random', '128'] }),
+                createP3Host({ args: ['p3_cli_random_limits.component', 'random', '128'] }),
+            );
+            const component = await createComponent(
+                WASM_DIR + 'p3_cli_random_limits.component.wasm',
+                verboseOptions(verbose),
+            );
+            const instance = await component.instantiate(imports);
+            const run = instance.exports[RUN_EXPORT] as any;
+            expect(run).toBeDefined();
+            await run.run();
+        }));
+    });
 });
