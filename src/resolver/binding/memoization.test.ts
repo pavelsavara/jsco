@@ -98,7 +98,9 @@ describeDebugOnly('memoization keys', () => {
             const type2 = prim(PrimitiveValType.U32);
             const lowerer1 = createLowering(rctx, type1);
             const lowerer2 = createLowering(rctx, type2);
-            expect(lowerer1).not.toBe(lowerer2);
+            // Primitive lowerings are now stateless singletons, so both calls
+            // return the same top-level function reference even with different keys
+            expect(lowerer1).toBe(lowerer2);
         });
     });
 

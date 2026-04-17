@@ -14,7 +14,8 @@ import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
-import { _f32, _i32, _f64, _i64, _i32_64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from '../../utils/shared';
+import { _f32, _i32, _f64, _i64, _i32_64, bigIntReplacer } from '../../utils/shared';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering } from '../../execute/lower';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -228,131 +229,73 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
 }
 
 function createBoolLowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        return args[0] !== 0;
-    };
-    fn.spill = 1;
-    return fn;
+    (boolLowering as any).spill = 1;
+    return boolLowering;
 }
 
 function createS8Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return (num << 24) >> 24;
-    };
-    fn.spill = 1;
-    return fn;
+    (s8Lowering as any).spill = 1;
+    return s8Lowering;
 }
 
 function createU8Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return num & 0xFF;
-    };
-    fn.spill = 1;
-    return fn;
+    (u8Lowering as any).spill = 1;
+    return u8Lowering;
 }
 
 function createS16Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return (num << 16) >> 16;
-    };
-    fn.spill = 1;
-    return fn;
+    (s16Lowering as any).spill = 1;
+    return s16Lowering;
 }
 
 function createU16Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return num & 0xFFFF;
-    };
-    fn.spill = 1;
-    return fn;
+    (u16Lowering as any).spill = 1;
+    return u16Lowering;
 }
 
 function createS32Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return num | 0;
-    };
-    fn.spill = 1;
-    return fn;
+    (s32Lowering as any).spill = 1;
+    return s32Lowering;
 }
 
 function createU32Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const num = args[0] as number;
-        return num >>> 0;
-    };
-    fn.spill = 1;
-    return fn;
+    (u32Lowering as any).spill = 1;
+    return u32Lowering;
 }
 
 function createS64LoweringBigInt(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        return args[0];
-    };
-    fn.spill = 1;
-    return fn;
+    (s64LoweringBigInt as any).spill = 1;
+    return s64LoweringBigInt;
 }
 
 function createS64LoweringNumber(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        return Number(args[0] as bigint);
-    };
-    fn.spill = 1;
-    return fn;
+    (s64LoweringNumber as any).spill = 1;
+    return s64LoweringNumber;
 }
 
 function createU64LoweringBigInt(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        // WASM returns i64 as signed BigInt — reinterpret as unsigned
-        return BigInt.asUintN(64, args[0] as bigint);
-    };
-    fn.spill = 1;
-    return fn;
+    (u64LoweringBigInt as any).spill = 1;
+    return u64LoweringBigInt;
 }
 
 function createU64LoweringNumber(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        return Number(args[0] as bigint);
-    };
-    fn.spill = 1;
-    return fn;
+    (u64LoweringNumber as any).spill = 1;
+    return u64LoweringNumber;
 }
 
 function createF32Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const v = Math.fround(args[0] as number);
-        // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
-        if (v !== v) return canonicalNaN32;
-        return v;
-    };
-    fn.spill = 1;
-    return fn;
+    (f32Lowering as any).spill = 1;
+    return f32Lowering;
 }
 
 function createF64Lowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const v = +(args[0] as number);
-        // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
-        if (v !== v) return canonicalNaN64;
-        return v;
-    };
-    fn.spill = 1;
-    return fn;
+    (f64Lowering as any).spill = 1;
+    return f64Lowering;
 }
 
 function createCharLowering(): LoweringToJs {
-    const fn = (_: BindingContext, ...args: WasmValue[]) => {
-        const i = args[0] as number;
-        if (i >= 0x110000) throw new Error(`Invalid char codepoint: ${i} >= 0x110000`);
-        if (i >= 0xD800 && i <= 0xDFFF) throw new Error(`Invalid char codepoint: surrogate ${i}`);
-        return String.fromCodePoint(i);
-    };
-    fn.spill = 1;
-    return fn;
+    (charLowering as any).spill = 1;
+    return charLowering;
 }
 
 function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
