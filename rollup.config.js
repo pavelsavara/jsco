@@ -334,8 +334,6 @@ const wasip3NodeTypes = {
 };
 
 export default defineConfig([
-    jsco,
-    jscoTypes,
     wasip2,
     wasip2Types,
     wasip2Node,
@@ -346,6 +344,8 @@ export default defineConfig([
     wasip3Types,
     wasip3Node,
     wasip3NodeTypes,
+    jsco,
+    jscoTypes,
 ]);
 
 
