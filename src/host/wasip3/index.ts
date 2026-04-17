@@ -60,6 +60,7 @@ import {
 import { initFilesystem, createPreopens, createFilesystemTypes } from './filesystem';
 import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
 import { createSocketsTypes, createIpNameLookup } from './sockets';
+import { JsImports } from '../../resolver/api-types';
 export { WasiExit } from './cli';
 
 // Re-export WIT types for consumers
@@ -92,17 +93,7 @@ export type {
     WasiSocketsTypes,
 };
 
-/**
- * Create a WASIp3 host import object.
- *
- * All interfaces are implemented. Sockets throw `not-supported` in the browser.
- *
- * Both unversioned (`wasi:cli/stdin`) and versioned (`wasi:cli/stdin@0.2.0`
- * through `@0.2.11`) keys are registered so components compiled with any
- * WASI P2 version also work. The versioned aliases are not reflected in the
- * `WasiP3Imports` type to keep the type surface clean.
- */
-export function createHost(config?: WasiP3Config): WasiP3Imports {
+export function createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports {
     const fsState = initFilesystem(config);
 
     const result: Record<string, unknown> = {};
@@ -138,5 +129,5 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
     register('wasi:sockets/ip-name-lookup', createIpNameLookup());
     register('wasi:sockets/types', createSocketsTypes());
 
-    return result as unknown as WasiP3Imports;
+    return result as unknown as WasiP3Imports & JsImports;
 }

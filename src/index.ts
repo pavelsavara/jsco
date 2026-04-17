@@ -8,7 +8,7 @@ import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
 import { GIT_HASH, CONFIGURATION } from './utils/constants';
-import { cliMain } from './utils/args';
+import { cliMain } from './main';
 
 export type { WasmComponent, WasmComponentInstance } from './resolver/api-types';
 export { instantiateComponent, createComponent } from './resolver';

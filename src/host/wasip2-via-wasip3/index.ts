@@ -11,6 +11,7 @@
  */
 
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP2Imports } from '../../../wit/wasip2/types/index';
 import type {
     WasiError,
     WasiPollable,
@@ -26,6 +27,7 @@ import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
 import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
 import { adaptHttpTypes, adaptOutgoingHandler } from './http';
 import type { HttpMethod, HttpScheme } from './http';
+import { JsImports } from '../../resolver/api-types';
 
 // Re-export types for consumers
 export type {
@@ -43,8 +45,8 @@ export type {
  *
  * Both unversioned and versioned (`@0.2.0` through `@0.2.11`) keys are registered.
  */
-export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): Record<string, Record<string, Function>> {
-    const result: Record<string, Record<string, Function>> = {};
+export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports {
+    const result: Record<string, unknown> = {};
     const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
     const wasiPrefix = 'wasi:';
     const methodPrefix = '[method]';
@@ -423,5 +425,5 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): Record<string, Reco
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
     });
 
-    return result;
+    return result as unknown as WasiP2Imports & JsImports;
 }

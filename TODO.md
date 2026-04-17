@@ -63,3 +63,4 @@
 - write article on how it works
 - multi-memory https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/core.rs
 - implement WASIp3 (async model with native WASM stack switching, replaces JSPI workaround)
+- review setConfiguration and ./utils/debug-names

@@ -12,7 +12,7 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
-import { INSTANTIATE } from '../utils/constants';
+import { EXPORTS, INSTANTIATE } from '../utils/constants';
 
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
@@ -124,6 +124,7 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     const resolved = rctx.resolved;
     let firstInstantiation = true;
     const component = {
+        [EXPORTS]: () => ['TODO'],
         [INSTANTIATE]: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
