@@ -14,7 +14,8 @@ import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
-import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from '../../utils/shared';
+import { _f32, _i32, _f64, _i64, bigIntReplacer } from '../../utils/shared';
+import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16 } from '../../execute/lift';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -287,117 +288,59 @@ function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDe
 }
 
 function createBoolLifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        out[offset] = srcJsValue ? 1 : 0;
-        return 1;
-    };
+    return boolLifting;
 }
 
 function createS8Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = (num << 24) >> 24;
-        return 1;
-    };
+    return s8Lifting;
 }
 
 function createU8Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = num & 0xFF;
-        return 1;
-    };
+    return u8Lifting;
 }
 
 function createS16Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = (num << 16) >> 16;
-        return 1;
-    };
+    return s16Lifting;
 }
 
 function createU16Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = num & 0xFFFF;
-        return 1;
-    };
+    return u16Lifting;
 }
 
 function createS32Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = num | 0;
-        return 1;
-    };
+    return s32Lifting;
 }
 
 function createU32Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        const num = srcJsValue as number;
-        out[offset] = num >>> 0;
-        return 1;
-    };
+    return u32Lifting;
 }
 
 function createS64LiftingNumber(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        out[offset] = srcJsValue;
-        return 1;
-    };
+    return s64LiftingNumber;
 }
 
 function createS64LiftingBigInt(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        out[offset] = srcJsValue;
-        return 1;
-    };
+    return s64LiftingBigInt;
 }
 
 function createU64LiftingNumber(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        out[offset] = srcJsValue;
-        return 1;
-    };
+    return u64LiftingNumber;
 }
 
 function createU64LiftingBigInt(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        out[offset] = srcJsValue;
-        return 1;
-    };
+    return u64LiftingBigInt;
 }
 
 function createF32Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f32, got ${typeof srcJsValue}`);
-        const num = Math.fround(srcJsValue);
-        // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
-        out[offset] = num !== num ? canonicalNaN32 : num;
-        return 1;
-    };
+    return f32Lifting;
 }
 
 function createF64Lifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f64, got ${typeof srcJsValue}`);
-        const num = +srcJsValue;
-        // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
-        out[offset] = num !== num ? canonicalNaN64 : num;
-        return 1;
-    };
+    return f64Lifting;
 }
 
 function createCharLifting(): LiftingFromJs {
-    return (_, srcJsValue, out, offset) => {
-        if (typeof srcJsValue !== 'string') throw new TypeError(`expected a string for char, got ${typeof srcJsValue}`);
-        const cp = srcJsValue.codePointAt(0)!;
-        // Spec: char_to_i32 — surrogates are not valid Unicode scalar values
-        if (cp >= 0xD800 && cp <= 0xDFFF) throw new Error(`Invalid char: surrogate codepoint ${cp}`);
-        out[offset] = cp;
-        return 1;
-    };
+    return charLifting;
 }
 
 function createStringLifting(encoding: StringEncoding): LiftingFromJs {
@@ -411,54 +354,11 @@ function createStringLifting(encoding: StringEncoding): LiftingFromJs {
 }
 
 function createStringLiftingUtf8(): LiftingFromJs {
-    return (ctx, srcJsValue, out, offset) => {
-        const str = srcJsValue as string;
-        if (typeof str !== 'string') throw new TypeError('expected a string');
-        if (str.length === 0) {
-            out[offset] = 0;
-            out[offset + 1] = 0;
-            return 2;
-        }
-        // Pre-compute exact UTF-8 byte length to avoid growing realloc calls.
-        // The WASI preview1 adapter's cabi_import_realloc only supports shrinking,
-        // and also expects adjacent string allocations (e.g., for "key=value\0"
-        // env vars), so we must allocate the exact size in a single call.
-        const encoded = ctx.utf8Encoder.encode(str);
-        const byteLen = encoded.byteLength;
-        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 1, byteLen);
-        validateAllocResult(ctx, ptr, 1, byteLen);
-        ctx.memory.getViewU8(ptr, byteLen as WasmSize).set(encoded);
-        out[offset] = ptr;
-        out[offset + 1] = byteLen;
-        return 2;
-    };
+    return stringLiftingUtf8;
 }
 
 function createStringLiftingUtf16(): LiftingFromJs {
-    return (ctx, srcJsValue, out, offset) => {
-        const str = srcJsValue as string;
-        if (typeof str !== 'string') throw new TypeError('expected a string');
-        if (str.length === 0) {
-            out[offset] = 0;
-            out[offset + 1] = 0;
-            return 2;
-        }
-        // UTF-16: each code unit is 2 bytes, alignment = 2
-        const codeUnits = str.length;
-        const byteLen = codeUnits * 2;
-        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2, byteLen);
-        validateAllocResult(ctx, ptr, 2, byteLen);
-        const view = ctx.memory.getViewU8(ptr, byteLen as WasmSize);
-        for (let i = 0; i < codeUnits; i++) {
-            const cu = str.charCodeAt(i);
-            view[i * 2] = cu & 0xFF;
-            view[i * 2 + 1] = (cu >> 8) & 0xFF;
-        }
-        // Return pointer and code unit count (not byte count)
-        out[offset] = ptr;
-        out[offset + 1] = codeUnits;
-        return 2;
-    };
+    return stringLiftingUtf16;
 }
 
 // --- Memory store helpers (for list element storage) ---
