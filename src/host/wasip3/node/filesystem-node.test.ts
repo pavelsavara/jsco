@@ -347,9 +347,13 @@ describe('NodeFsBackend', () => {
         // Symlinks require elevated privileges on Windows and may not work in all CI environments
         const symlinkSupported = (() => {
             try {
-                const t = path.join(os.tmpdir(), `symlink-probe-${process.pid}`);
-                fs.symlinkSync('.', t);
-                fs.unlinkSync(t);
+                const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'symprobe-'));
+                const probeTarget = path.join(probeDir, 'target');
+                const probeLink = path.join(probeDir, 'link');
+                fs.writeFileSync(probeTarget, '');
+                fs.symlinkSync('target', probeLink);
+                fs.readlinkSync(probeLink);
+                fs.rmSync(probeDir, { recursive: true });
                 return true;
             } catch { return false; }
         })();

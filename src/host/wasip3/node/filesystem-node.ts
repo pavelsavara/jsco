@@ -357,7 +357,16 @@ export class NodeFsBackend implements IVfsBackend {
 
     readlinkAt(dirPath: string[], name: string): string {
         try {
-            const hostPath = this.resolve([...dirPath, name]);
+            // Use lexical resolution (not realpath) — readlink needs the symlink path itself,
+            // not its resolved target. safeResolve follows symlinks via realpathSync, which
+            // would resolve to the target and cause EINVAL when readlinkSync is called.
+            const hostDir = this.resolve(dirPath);
+            const hostPath = nodePath.join(hostDir, name);
+            // Verify containment lexically
+            const normalizedRoot = nodePath.resolve(this.hostRoot);
+            if (!hostPath.startsWith(normalizedRoot + nodePath.sep) && hostPath !== normalizedRoot) {
+                throw new VfsError('access', 'path escapes mount');
+            }
             return fs.readlinkSync(hostPath, 'utf8');
         } catch (e) { mapNodeError(e); }
     }
