@@ -176,7 +176,7 @@ function createAsyncLiftWrapper(
     bctx: BindingContext,
     coreFn: WasmFunction,
     callbackWasm: WasmFunction,
-    syncLiftingBinder: (ctx: BindingContext, fn: WasmFunction) => Function,
+    _syncLiftingBinder: (ctx: BindingContext, fn: WasmFunction) => Function,
 ): Function {
     // Callback return code constants
     const EXIT = 0;

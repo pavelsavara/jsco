@@ -344,10 +344,18 @@ describe('NodeFsBackend', () => {
     // ─── symlinkAt / readlinkAt ───
 
     describe('symlinks', () => {
-        // Symlinks require elevated privileges on Windows
-        const itUnlessWin = process.platform === 'win32' ? test.skip : test;
+        // Symlinks require elevated privileges on Windows and may not work in all CI environments
+        const symlinkSupported = (() => {
+            try {
+                const t = path.join(os.tmpdir(), `symlink-probe-${process.pid}`);
+                fs.symlinkSync('.', t);
+                fs.unlinkSync(t);
+                return true;
+            } catch { return false; }
+        })();
+        const itIfSymlinks = symlinkSupported ? test : test.skip;
 
-        itUnlessWin('create and read symlink', () => {
+        itIfSymlinks('create and read symlink', () => {
             fs.writeFileSync(path.join(tempDir, 'target.txt'), 'data');
             backend.symlinkAt([], 'target.txt', 'link.txt');
             const target = backend.readlinkAt([], 'link.txt');

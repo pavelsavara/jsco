@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initFilesystem, createPreopens, createFilesystemTypes } from './filesystem';
+import { initFilesystem, createPreopens } from './filesystem';
 import { collectStream, collectBytes } from './streams';
 import type { WasiStreamReadable } from './streams';
 
