@@ -141,3 +141,22 @@ export function stringLiftingUtf16(ctx: BindingContext, srcJsValue: JsValue, out
     out[offset + 1] = codeUnits;
     return 2;
 }
+
+// --- Resource lifting functions ---
+
+export type ResourceLiftPlan = { resourceTypeIdx: number };
+
+export function ownLifting(plan: ResourceLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.resources.add(plan.resourceTypeIdx, srcJsValue);
+    return 1;
+}
+
+export function borrowLifting(plan: ResourceLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.resources.add(plan.resourceTypeIdx, srcJsValue);
+    return 1;
+}
+
+export function borrowLiftingDirect(_plan: ResourceLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = srcJsValue;
+    return 1;
+}

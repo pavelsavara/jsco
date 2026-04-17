@@ -15,7 +15,7 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { _f32, _i32, _f64, _i64, _i32_64, bigIntReplacer } from '../../utils/shared';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering } from '../../execute/lower';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect } from '../../execute/lower';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -334,49 +334,13 @@ function createStringLowering(encoding: StringEncoding): LoweringToJs {
 }
 
 function createStringLoweringUtf8(): LoweringToJs {
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const pointer = (args[0] as number) >>> 0 as WasmPointer;
-        const len = (args[1] as number) >>> 0 as WasmSize;
-        if (len as number > 0) {
-            // Validate bounds
-            const memorySize = ctx.memory.getMemory().buffer.byteLength;
-            if ((pointer as number) + (len as number) > memorySize) {
-                throw new Error(`string pointer out of bounds: ptr=${pointer} len=${len} memory_size=${memorySize}`);
-            }
-        }
-        // TextDecoder with fatal:true validates UTF-8 and decodes in a single native pass
-        const view = ctx.memory.getView(pointer, len);
-        const res = ctx.utf8Decoder.decode(view);
-        return res;
-    };
-    fn.spill = 2;
-    return fn;
+    (stringLoweringUtf8 as any).spill = 2;
+    return stringLoweringUtf8;
 }
 
 function createStringLoweringUtf16(): LoweringToJs {
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const pointer = (args[0] as number) >>> 0 as WasmPointer;
-        const codeUnits = (args[1] as number) >>> 0 as WasmSize;
-        if (codeUnits as number > 0) {
-            const byteLen = (codeUnits as number) * 2;
-            // Validate pointer alignment (UTF-16 = 2-byte alignment)
-            if ((pointer as number) & 1) {
-                throw new Error(`UTF-16 string pointer not aligned: ptr=${pointer}`);
-            }
-            // Validate bounds
-            const memorySize = ctx.memory.getMemory().buffer.byteLength;
-            if ((pointer as number) + byteLen > memorySize) {
-                throw new Error(`string pointer out of bounds: ptr=${pointer} byte_len=${byteLen} memory_size=${memorySize}`);
-            }
-        }
-        const byteLen = (codeUnits as number) * 2;
-        const view = ctx.memory.getView(pointer, byteLen as WasmSize);
-        const u16 = new Uint16Array(view.buffer, view.byteOffset, codeUnits as number);
-        validateUtf16(u16);
-        return String.fromCharCode(...u16);
-    };
-    fn.spill = 2;
-    return fn;
+    (stringLoweringUtf16 as any).spill = 2;
+    return stringLoweringUtf16;
 }
 
 // --- Memory load helpers (for list element loading) ---
@@ -892,11 +856,8 @@ function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefined
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const handle = args[0] as number;
-        return ctx.resources.remove(resourceTypeIdx, handle);
-    };
-    fn.spill = 1;
+    const fn = ownLowering.bind(null, { resourceTypeIdx });
+    (fn as any).spill = 1;
     return fn;
 }
 
@@ -907,17 +868,12 @@ function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeD
     // Canonical ABI: lift_borrow — if cx.inst is t.rt.impl (own-instance resource),
     // the value is already the rep, not a handle.
     if (rctx.ownInstanceResources.has(resourceTypeIdx)) {
-        const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
-            return args[0];
-        };
-        fn.spill = 1;
+        const fn = borrowLoweringDirect.bind(null, { resourceTypeIdx });
+        (fn as any).spill = 1;
         return fn;
     }
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const handle = args[0] as number;
-        return ctx.resources.get(resourceTypeIdx, handle);
-    };
-    fn.spill = 1;
+    const fn = borrowLowering.bind(null, { resourceTypeIdx });
+    (fn as any).spill = 1;
     return fn;
 }
 

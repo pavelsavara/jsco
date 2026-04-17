@@ -15,7 +15,7 @@ import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { _f32, _i32, _f64, _i64, bigIntReplacer } from '../../utils/shared';
-import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16 } from '../../execute/lift';
+import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect } from '../../execute/lift';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -873,10 +873,7 @@ function createOwnLifting(rctx: ResolvedContext, ownModel: ComponentTypeDefinedO
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
-    return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
-        return 1;
-    };
+    return ownLifting.bind(null, { resourceTypeIdx });
 }
 
 function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LiftingFromJs {
@@ -886,15 +883,9 @@ function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDe
     // Canonical ABI: lower_borrow — if cx.inst is t.rt.impl (own-instance resource),
     // pass the rep directly without creating a handle.
     if (rctx.ownInstanceResources.has(resourceTypeIdx)) {
-        return (_ctx, srcJsValue, out, offset) => {
-            out[offset] = srcJsValue;
-            return 1;
-        };
+        return borrowLiftingDirect.bind(null, { resourceTypeIdx });
     }
-    return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.resources.add(resourceTypeIdx, srcJsValue);
-        return 1;
-    };
+    return borrowLifting.bind(null, { resourceTypeIdx });
 }
 
 // --- Stream lifting (JS AsyncIterable → i32 handle) ---
