@@ -5,7 +5,7 @@ import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } fro
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';
 import { CoreInstance, ComponentInstance } from '../model/instances';
-import { ComponentTypeResource, ComponentType } from '../model/types';
+import { ComponentTypeResource, ComponentType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
 import { CoreModule, ComponentSection } from '../parser/types';
 import { TaggedElement } from '../model/tags';
 import { JsImports } from './api-types';
@@ -27,6 +27,8 @@ export type ResolvedCanonicalOptions = {
     memoryIndex?: number;
     reallocIndex?: number;
     postReturnIndex?: number;
+    async?: boolean;
+    callbackIndex?: number;
 }
 
 export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCanonicalOptions {
@@ -34,6 +36,8 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
     let memoryIndex: number | undefined;
     let reallocIndex: number | undefined;
     let postReturnIndex: number | undefined;
+    let isAsync = false;
+    let callbackIndex: number | undefined;
 
     for (const opt of options) {
         switch (opt.tag) {
@@ -55,10 +59,16 @@ export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCan
             case ModelTag.CanonicalOptionPostReturn:
                 postReturnIndex = opt.value;
                 break;
+            case ModelTag.CanonicalOptionAsync:
+                isAsync = true;
+                break;
+            case ModelTag.CanonicalOptionCallback:
+                callbackIndex = opt.value;
+                break;
         }
     }
 
-    return { stringEncoding, memoryIndex, reallocIndex, postReturnIndex };
+    return { stringEncoding, memoryIndex, reallocIndex, postReturnIndex, async: isAsync, callbackIndex };
 }
 
 export type ComponentFactoryOptions = {
@@ -85,17 +95,23 @@ export type IndexedModel = {
 
     componentImports: ComponentImport[]
     componentExports: ComponentExport[]
-    componentInstances: ComponentInstance[],
+    componentInstances: (ComponentInstance | ComponentExport)[],
     componentTypeResource: ComponentTypeResource[],
-    componentFunctions: ComponentFunction[],
-    componentTypes: ComponentType[],
-    componentSections: ComponentSection[]// append to componentTypes
+    componentFunctions: (ComponentFunction | ComponentExport)[],
+    componentTypes: (ComponentType | ComponentExport)[],
+    componentSections: (ComponentSection | ComponentImport | ComponentExport)[]// append to componentTypes
 }
 
 /** Subset of ResolverContext retained for binding/call time. Separate object so
  *  binder closures don't keep the heavy IndexedModel alive. */
 export type ResolvedContext = {
-    noJspi?: boolean | string[]
+    /** Optional wrapper for canon.lift exports (e.g. JSPI promising). Applied at bind time. */
+    wrapLift?: (fn: Function, exportName?: string) => Function
+    /** Optional wrapper for canon.lower imports (e.g. JSPI Suspending). Applied at bind time. */
+    wrapLower?: (fn: Function) => Function
+    /** Guards against applying own/borrow fixups multiple times when the same instance
+     *  type is processed by multiple calls to registerInstanceLocalTypes. */
+    fixedUpOwnBorrow: WeakSet<ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow>
     liftingCache: Map<unknown, unknown>
     loweringCache: Map<unknown, unknown>
     resolvedTypes: Map<ComponentTypeIndex, ResolvedType>
@@ -176,6 +192,10 @@ export type BindingContext = {
     memory: MemoryView;
     allocator: Allocator;
     resources: ResourceTable;
+    streams: StreamTable;
+    futures: FutureTable;
+    subtasks: SubtaskTable;
+    errorContexts: ErrorContextTable;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
     abort: () => void;
@@ -185,6 +205,96 @@ export type BindingContext = {
     postReturnFn?: Function;
     verbose?: Verbosity;
     logger?: LogFn;
+    waitableSets: WaitableSetTable;
+    /** Per-task async context slots (used by context.get/set canonical builtins). */
+    taskContextSlots: number[];
+    /** Backpressure counter for async component model flow control. */
+    backpressure: number;
+}
+
+export interface StreamTable {
+    newStream(typeIdx: number): bigint;
+    read(typeIdx: number, handle: number, ptr: number, len: number): number;
+    write(typeIdx: number, handle: number, ptr: number, len: number): number;
+    cancelRead(typeIdx: number, handle: number): number;
+    cancelWrite(typeIdx: number, handle: number): number;
+    dropReadable(typeIdx: number, handle: number): void;
+    dropWritable(typeIdx: number, handle: number): void;
+    addReadable(typeIdx: number, value: unknown): number;
+    getReadable(typeIdx: number, handle: number): unknown;
+    removeReadable(typeIdx: number, handle: number): unknown;
+    addWritable(typeIdx: number, value: unknown): number;
+    getWritable(typeIdx: number, handle: number): unknown;
+    removeWritable(typeIdx: number, handle: number): unknown;
+    /** Check if a base handle belongs to this stream table. */
+    hasStream(baseHandle: number): boolean;
+    /** Check if a stream has data available for reading. */
+    hasData(baseHandle: number): boolean;
+    /** Register a callback for when data arrives or stream closes. */
+    onReady(baseHandle: number, callback: () => void): void;
+    /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
+    fulfillPendingRead(handle: number): number;
+}
+
+export interface FutureTable {
+    newFuture(typeIdx: number): bigint;
+    read(typeIdx: number, handle: number, ptr: number, bctx?: BindingContext): number;
+    write(typeIdx: number, handle: number, ptr: number): number;
+    cancelRead(typeIdx: number, handle: number): number;
+    cancelWrite(typeIdx: number, handle: number): number;
+    dropReadable(typeIdx: number, handle: number): void;
+    dropWritable(typeIdx: number, handle: number): void;
+    addReadable(typeIdx: number, value: unknown, storer?: FutureStorer): number;
+    getReadable(typeIdx: number, handle: number): unknown;
+    removeReadable(typeIdx: number, handle: number): unknown;
+    addWritable(typeIdx: number, value: unknown): number;
+    getWritable(typeIdx: number, handle: number): unknown;
+    removeWritable(typeIdx: number, handle: number): unknown;
+    /** Get the internal entry for waitable-set integration. */
+    getEntry(handle: number): { resolved: boolean, onResolve?: (() => void)[] } | undefined;
+}
+
+/** Callback to store a resolved future value into WASM memory at the given pointer. */
+export type FutureStorer = (ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void;
+
+/** Subtask state per the canonical ABI spec. */
+export const enum SubtaskState {
+    STARTING = 0,
+    STARTED = 1,
+    RETURNED = 2,
+}
+
+export interface SubtaskTable {
+    /** Create a subtask from a Promise. Returns the subtask handle. */
+    create(promise: Promise<unknown>): number;
+    /** Get the subtask entry for waitable-set integration. */
+    getEntry(handle: number): SubtaskEntry | undefined;
+    /** Drop a completed subtask. */
+    drop(handle: number): void;
+}
+
+export interface SubtaskEntry {
+    state: SubtaskState;
+    resolved: boolean;
+    /** Callbacks to invoke when this subtask resolves (for waitable-set integration). */
+    onResolve?: (() => void)[];
+}
+
+export interface ErrorContextTable {
+    newErrorContext(ptr: number, len: number): number;
+    debugMessage(handle: number, ptr: number): void;
+    drop(handle: number): void;
+    add(value: unknown): number;
+    get(handle: number): unknown;
+    remove(handle: number): unknown;
+}
+
+export interface WaitableSetTable {
+    newSet(): number;
+    wait(setId: number, ptr: number): number | Promise<number>;
+    poll(setId: number, ptr: number): number;
+    drop(setId: number): void;
+    join(waitableHandle: number, setId: number): void;
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes
@@ -208,6 +318,10 @@ export type BinderArgs = {
     debugStack?: string[]
 }
 
-export type BinderRes = {
-    result: unknown
+export type BinderRes<T = unknown> = {
+    result: T
 }
+
+export type CoreInstanceBinderRes = BinderRes<Record<string, WebAssembly.ExportValue>>
+export type FunctionBinderRes = BinderRes<Function>
+export type ModuleBinderRes = BinderRes<WebAssembly.Module>

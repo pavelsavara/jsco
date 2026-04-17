@@ -79,9 +79,11 @@ jobs:
           fi
         }
         fail=0
-        check_size dist/release/index.js       92160  "index.js (90 KB)"       || fail=1
+        check_size dist/release/index.js       122880  "index.js (120 KB)"       || fail=1
         check_size dist/release/wasip2.js       46080  "wasip2.js (45 KB)"      || fail=1
         check_size dist/release/wasip2-node.js  16384  "wasip2-node.js (16 KB)" || fail=1
+        check_size dist/release/wasip3.js       30720  "wasip3.js (30 KB)"      || fail=1
+        check_size dist/release/wasip3-node.js  46080  "wasip3-node.js (45 KB)" || fail=1
         if [ "$fail" -eq 1 ]; then exit 1; fi
         echo "✓ All bundle sizes OK"
 

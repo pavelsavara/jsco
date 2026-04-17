@@ -9,7 +9,7 @@ import type {
     ComponentTypeDefinedRecord, ComponentTypeDefinedVariant, ComponentTypeDefinedList,
     ComponentTypeDefinedTuple, ComponentTypeDefinedFlags, ComponentTypeDefinedEnum,
     ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedOwn,
-    ComponentTypeDefinedBorrow, ComponentTypeDefinedPrimitive, ComponentFuncResult,
+    ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture, ComponentTypeDefinedPrimitive, ComponentFuncResult,
     NamedValue, InstanceTypeDeclaration, ComponentTypeDeclaration,
     CoreType, CoreTypeFunc, CoreTypeModule, ModuleTypeDeclaration,
 } from '../model/types';
@@ -214,7 +214,10 @@ function printSection(lines: string[], section: WITSection, c: WatCounters, dept
         case ModelTag.ComponentTypeDefinedOption:
         case ModelTag.ComponentTypeDefinedResult:
         case ModelTag.ComponentTypeDefinedOwn:
-        case ModelTag.ComponentTypeDefinedBorrow: {
+        case ModelTag.ComponentTypeDefinedBorrow:
+        case ModelTag.ComponentTypeDefinedStream:
+        case ModelTag.ComponentTypeDefinedFuture:
+        case ModelTag.ComponentTypeDefinedErrorContext: {
             const idx = c.type++;
             const typeStr = printComponentType(section as ComponentType, c, depth);
             lines.push(`${ind}(type (;${idx};) ${typeStr})`);
@@ -416,6 +419,16 @@ function printDefinedType(t: ComponentTypeDefined): string {
             return `(own ${(t as ComponentTypeDefinedOwn).value})`;
         case ModelTag.ComponentTypeDefinedBorrow:
             return `(borrow ${(t as ComponentTypeDefinedBorrow).value})`;
+        case ModelTag.ComponentTypeDefinedStream: {
+            const s = t as ComponentTypeDefinedStream;
+            return s.value ? `(stream ${printValType(s.value)})` : '(stream)';
+        }
+        case ModelTag.ComponentTypeDefinedFuture: {
+            const f = t as ComponentTypeDefinedFuture;
+            return f.value ? `(future ${printValType(f.value)})` : '(future)';
+        }
+        case ModelTag.ComponentTypeDefinedErrorContext:
+            return 'error-context';
         default:
             return `;; unknown defined type tag=${(t as any).tag}`;
     }

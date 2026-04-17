@@ -42,7 +42,8 @@ export function getComponentFunction(rctx: ResolverContext, index: ComponentFunc
             (isDebug ? ` Available: [${rctx.indexes.componentFunctions.map((f, i) => `${i}:${modelTagName(f.tag)}`).join(', ')}]` : ''));
     const result = rctx.indexes.componentFunctions[index];
     if (!result) throw new Error(`ComponentFuncIndex ${index} out of bounds`);
-    return result;
+    // Array holds ComponentFunction | ComponentExport; callers dispatch on .tag
+    return result as ComponentFunction;
 }
 
 export function getComponentInstance(rctx: ResolverContext, index: ComponentInstanceIndex): ComponentInstance {
@@ -51,7 +52,8 @@ export function getComponentInstance(rctx: ResolverContext, index: ComponentInst
             (isDebug ? ` Available: [${rctx.indexes.componentInstances.map((i2, idx) => `${idx}:${modelTagName(i2.tag)}`).join(', ')}]` : ''));
     const result = rctx.indexes.componentInstances[index];
     if (!result) throw new Error(`ComponentInstanceIndex ${index} out of bounds`);
-    return result;
+    // Array holds ComponentInstance | ComponentExport; callers dispatch on .tag
+    return result as ComponentInstance;
 }
 
 export function getComponentType(rctx: ResolverContext, index: ComponentTypeIndex): ComponentType {
@@ -60,7 +62,8 @@ export function getComponentType(rctx: ResolverContext, index: ComponentTypeInde
             (isDebug ? ` Available: [${rctx.indexes.componentTypes.map((t, i) => `${i}:${modelTagName(t.tag)}`).join(', ')}]` : ''));
     const result = rctx.indexes.componentTypes[index];
     if (!result) throw new Error(`ComponentTypeIndex ${index} out of bounds`);
-    return result;
+    // Array holds ComponentType | ComponentExport; callers dispatch on .tag
+    return result as ComponentType;
 }
 
 export type { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../model/indices';

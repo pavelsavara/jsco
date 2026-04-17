@@ -264,6 +264,8 @@ export type ComponentFuncResultNamed = {
 
 /// Represents a type of a function in a WebAssembly component.
 export type ComponentFuncType = {
+    /// Whether the function is async (0x43) or sync (0x40).
+    async_?: boolean,
     /// The function parameters.
     params: NamedValue[],
     /// The function result.
@@ -293,6 +295,9 @@ export type ComponentTypeDefined =
     | ComponentTypeDefinedResult
     | ComponentTypeDefinedOwn
     | ComponentTypeDefinedBorrow
+    | ComponentTypeDefinedStream
+    | ComponentTypeDefinedFuture
+    | ComponentTypeDefinedErrorContext
 
 /// The type is one of the primitive value types.
 export type ComponentTypeDefinedPrimitive = IndexedElement & {
@@ -360,4 +365,21 @@ export type ComponentTypeDefinedOwn = IndexedElement & {
 export type ComponentTypeDefinedBorrow = IndexedElement & {
     tag: ModelTag.ComponentTypeDefinedBorrow,
     value: u32,
+}
+
+/// A stream type with an optional element type.
+export type ComponentTypeDefinedStream = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedStream,
+    value?: ComponentValType,
+}
+
+/// A future type with an optional element type.
+export type ComponentTypeDefinedFuture = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedFuture,
+    value?: ComponentValType,
+}
+
+/// An error-context handle type.
+export type ComponentTypeDefinedErrorContext = IndexedElement & {
+    tag: ModelTag.ComponentTypeDefinedErrorContext,
 }

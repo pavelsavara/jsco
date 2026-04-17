@@ -398,7 +398,7 @@ describe('values.ts', () => {
         });
 
         test('component type', async () => {
-            const src = await syncSrc([0x41]);
+            const src = await syncSrc([0x41, ...encU32(0)]); // 0 declarations
             const result = readComponentType(src);
             expect(result.tag).toBe(ModelTag.ComponentTypeComponent);
         });
@@ -539,6 +539,18 @@ describe('values.ts', () => {
             expect(result.tag).toBe(ModelTag.CanonicalOptionPostReturn);
         });
 
+        test('Async', async () => {
+            const src = await syncSrc([0x06]);
+            expect(readCanonicalOption(src).tag).toBe(ModelTag.CanonicalOptionAsync);
+        });
+
+        test('Callback', async () => {
+            const src = await syncSrc([0x07, ...encU32(5)]);
+            const result = readCanonicalOption(src);
+            expect(result.tag).toBe(ModelTag.CanonicalOptionCallback);
+            expect((result as any).value).toBe(5);
+        });
+
         test('unknown throws', async () => {
             const src = await syncSrc([0xFF]);
             expect(() => readCanonicalOption(src)).toThrow('Unrecognized type in readCanonicalOption');
@@ -597,6 +609,201 @@ describe('values.ts', () => {
             expect(result.tag).toBe(ModelTag.CanonicalFunctionResourceRep);
         });
 
+        test('task.cancel', async () => {
+            const src = await syncSrc([0x05]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionTaskCancel);
+        });
+
+        test('subtask.cancel (async=false)', async () => {
+            const src = await syncSrc([0x06, 0x00]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionSubtaskCancel);
+            expect((result as any).async).toBe(false);
+        });
+
+        test('subtask.cancel (async=true)', async () => {
+            const src = await syncSrc([0x06, 0x01]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionSubtaskCancel);
+            expect((result as any).async).toBe(true);
+        });
+
+        test('backpressure.set', async () => {
+            const src = await syncSrc([0x08]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionBackpressureSet);
+        });
+
+        test('task.return', async () => {
+            const src = await syncSrc([0x09, 0x00, 0x7A, ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionTaskReturn);
+            expect((result as any).results).toBeDefined();
+        });
+
+        test('task.return void', async () => {
+            const src = await syncSrc([0x09, 0x01, 0x00, ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionTaskReturn);
+        });
+
+        test('context.get', async () => {
+            const src = await syncSrc([0x0a, 0x7F, ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionContextGet);
+            expect((result as any).valtype).toBe(0x7F);
+        });
+
+        test('context.set', async () => {
+            const src = await syncSrc([0x0b, 0x7F, ...encU32(1)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionContextSet);
+        });
+
+        test('thread.yield (non-cancellable)', async () => {
+            const src = await syncSrc([0x0c, 0x00]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionThreadYield);
+            expect((result as any).cancellable).toBe(false);
+        });
+
+        test('subtask.drop', async () => {
+            const src = await syncSrc([0x0d]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionSubtaskDrop);
+        });
+
+        test('stream.new', async () => {
+            const src = await syncSrc([0x0e, ...encU32(5)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionStreamNew);
+            expect((result as any).type).toBe(5);
+        });
+
+        test('stream.read', async () => {
+            const src = await syncSrc([0x0f, ...encU32(5), ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionStreamRead);
+        });
+
+        test('stream.write', async () => {
+            const src = await syncSrc([0x10, ...encU32(5), ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionStreamWrite);
+        });
+
+        test('stream.cancel-read (async)', async () => {
+            const src = await syncSrc([0x11, ...encU32(5), 0x01]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionStreamCancelRead);
+            expect((result as any).async).toBe(true);
+        });
+
+        test('stream.cancel-write', async () => {
+            const src = await syncSrc([0x12, ...encU32(5), 0x00]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionStreamCancelWrite);
+            expect((result as any).async).toBe(false);
+        });
+
+        test('stream.drop-readable', async () => {
+            const src = await syncSrc([0x13, ...encU32(5)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionStreamDropReadable);
+        });
+
+        test('stream.drop-writable', async () => {
+            const src = await syncSrc([0x14, ...encU32(5)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionStreamDropWritable);
+        });
+
+        test('future.new', async () => {
+            const src = await syncSrc([0x15, ...encU32(3)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionFutureNew);
+            expect((result as any).type).toBe(3);
+        });
+
+        test('future.read', async () => {
+            const src = await syncSrc([0x16, ...encU32(3), ...encU32(0)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureRead);
+        });
+
+        test('future.write', async () => {
+            const src = await syncSrc([0x17, ...encU32(3), ...encU32(0)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureWrite);
+        });
+
+        test('future.cancel-read', async () => {
+            const src = await syncSrc([0x18, ...encU32(3), 0x00]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureCancelRead);
+        });
+
+        test('future.cancel-write', async () => {
+            const src = await syncSrc([0x19, ...encU32(3), 0x01]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureCancelWrite);
+        });
+
+        test('future.drop-readable', async () => {
+            const src = await syncSrc([0x1a, ...encU32(3)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureDropReadable);
+        });
+
+        test('future.drop-writable', async () => {
+            const src = await syncSrc([0x1b, ...encU32(3)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionFutureDropWritable);
+        });
+
+        test('error-context.new', async () => {
+            const src = await syncSrc([0x1c, ...encU32(0)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionErrorContextNew);
+        });
+
+        test('error-context.debug-message', async () => {
+            const src = await syncSrc([0x1d, ...encU32(0)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionErrorContextDebugMessage);
+        });
+
+        test('error-context.drop', async () => {
+            const src = await syncSrc([0x1e]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionErrorContextDrop);
+        });
+
+        test('waitable-set.new', async () => {
+            const src = await syncSrc([0x1f]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionWaitableSetNew);
+        });
+
+        test('waitable-set.wait', async () => {
+            const src = await syncSrc([0x20, 0x01, ...encU32(0)]);
+            const result = readCanonicalFunction(src);
+            expect(result.tag).toBe(ModelTag.CanonicalFunctionWaitableSetWait);
+            expect((result as any).cancellable).toBe(true);
+        });
+
+        test('waitable-set.poll', async () => {
+            const src = await syncSrc([0x21, 0x00, ...encU32(0)]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionWaitableSetPoll);
+        });
+
+        test('waitable-set.drop', async () => {
+            const src = await syncSrc([0x22]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionWaitableSetDrop);
+        });
+
+        test('waitable.join', async () => {
+            const src = await syncSrc([0x23]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionWaitableJoin);
+        });
+
+        test('backpressure.inc', async () => {
+            const src = await syncSrc([0x24]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionBackpressureInc);
+        });
+
+        test('backpressure.dec', async () => {
+            const src = await syncSrc([0x25]);
+            expect(readCanonicalFunction(src).tag).toBe(ModelTag.CanonicalFunctionBackpressureDec);
+        });
+
         test('unknown type throws', async () => {
             const src = await syncSrc([0xFF]);
             expect(() => readCanonicalFunction(src)).toThrow('Unrecognized type in readCanonicalFunction');
@@ -630,6 +837,40 @@ describe('values.ts', () => {
             const src = await syncSrc([...encU32(0)]);
             const result = readComponentTypeDefined(src, 0x69);
             expect(result.tag).toBe(ModelTag.ComponentTypeDefinedOwn);
+        });
+
+        test('error-context', async () => {
+            const src = await syncSrc([]);
+            const result = readComponentTypeDefined(src, 0x64);
+            expect(result.tag).toBe(ModelTag.ComponentTypeDefinedErrorContext);
+        });
+
+        test('future with type', async () => {
+            const src = await syncSrc([0x01, 0x7A]); // present, u32
+            const result = readComponentTypeDefined(src, 0x65);
+            expect(result.tag).toBe(ModelTag.ComponentTypeDefinedFuture);
+            expect((result as any).value).toBeDefined();
+        });
+
+        test('future without type', async () => {
+            const src = await syncSrc([0x00]); // none
+            const result = readComponentTypeDefined(src, 0x65);
+            expect(result.tag).toBe(ModelTag.ComponentTypeDefinedFuture);
+            expect((result as any).value).toBeUndefined();
+        });
+
+        test('stream with type', async () => {
+            const src = await syncSrc([0x01, 0x7A]); // present, u32
+            const result = readComponentTypeDefined(src, 0x66);
+            expect(result.tag).toBe(ModelTag.ComponentTypeDefinedStream);
+            expect((result as any).value).toBeDefined();
+        });
+
+        test('stream without type', async () => {
+            const src = await syncSrc([0x00]); // none
+            const result = readComponentTypeDefined(src, 0x66);
+            expect(result.tag).toBe(ModelTag.ComponentTypeDefinedStream);
+            expect((result as any).value).toBeUndefined();
         });
 
         test('result', async () => {

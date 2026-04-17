@@ -10,8 +10,8 @@ import { ComponentOuterAliasKind } from '../model/aliases';
 import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeDefined, ComponentValType, CoreType, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
-import { CanonicalFunction, CanonicalOption } from '../model/canonicals';
+import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, ComponentTypeDeclaration, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
+import { CanonicalFunction, CanonicalOption, TaskReturnResults } from '../model/canonicals';
 import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
 import { readAlias } from './alias';
 import { ComponentStartFunction } from '../model/start';
@@ -36,12 +36,6 @@ export function readU32(source: SyncSource): number {
     );
 }
 
-export async function readNameAsync(source: SyncSource): Promise<string> {
-    const length = await readU32(source);
-    const content = await source.readExact(length);
-    return textDecoder.decode(content) as any;
-}
-
 export function readStringArray(src: SyncSource): string[] {
 
     const count = readU32(src);
@@ -55,7 +49,7 @@ export function readStringArray(src: SyncSource): string[] {
 export function readName(source: SyncSource): string {
     const length = readU32(source);
     const content = source.readExact(length);
-    return textDecoder.decode(content) as any;
+    return textDecoder.decode(content)!;
 }
 
 export function parseAsExternalKind(k1: number): ExternalKind {
@@ -278,7 +272,7 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
     const declarations: InstanceTypeDeclaration[] = [];
     for (let i = 0; i < count; i++) {
         const type = src.read();
-        let declaration: any;
+        let declaration: InstanceTypeDeclaration;
         switch (type) {
             case 0x00: {
                 declaration = {
@@ -311,6 +305,58 @@ export function readInstanceTypeDeclarations(src: SyncSource): InstanceTypeDecla
             }
             default:
                 throw new Error(`unknown instance type declaration kind: 0x${type.toString(16)}`);
+        }
+        declarations.push(declaration);
+    }
+    return declarations;
+}
+
+export function readComponentTypeDeclarations(src: SyncSource): ComponentTypeDeclaration[] {
+    const count = readU32(src);
+    const declarations: ComponentTypeDeclaration[] = [];
+    for (let i = 0; i < count; i++) {
+        const type = src.read();
+        let declaration: ComponentTypeDeclaration;
+        switch (type) {
+            case 0x00: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationCoreType,
+                    value: readCoreType(src),
+                };
+                break;
+            }
+            case 0x01: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationType,
+                    value: readComponentType(src),
+                };
+                break;
+            }
+            case 0x02: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationAlias,
+                    value: readAlias(src),
+                };
+                break;
+            }
+            case 0x03: {
+                declaration = {
+                    tag: ModelTag.ComponentImport,
+                    name: readComponentExternName(src),
+                    ty: readComponentTypeRef(src),
+                };
+                break;
+            }
+            case 0x04: {
+                declaration = {
+                    tag: ModelTag.ComponentTypeDeclarationExport,
+                    name: readComponentExternName(src),
+                    ty: readComponentTypeRef(src),
+                };
+                break;
+            }
+            default:
+                throw new Error(`unknown component type declaration kind: 0x${type.toString(16)}`);
         }
         declarations.push(declaration);
     }
@@ -362,6 +408,23 @@ export function readComponentTypeDefined(src: SyncSource, type: number): Compone
             return {
                 tag: ModelTag.ComponentTypeDefinedOwn,
                 value: readU32(src),
+            };
+        }
+        case 0x64: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedErrorContext,
+            };
+        }
+        case 0x65: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedFuture,
+                value: readOptionalComponentValType(src),
+            };
+        }
+        case 0x66: {
+            return {
+                tag: ModelTag.ComponentTypeDefinedStream,
+                value: readOptionalComponentValType(src),
             };
         }
         case 0x6a: {
@@ -512,6 +575,33 @@ export function readInstantiationArgKind(src: SyncSource): InstantiationArgKind 
     return InstantiationArgKind.Instance;
 }
 
+function readAsyncFlag(src: SyncSource): boolean {
+    const flag = src.read();
+    if (flag === 0x00) return false;
+    if (flag === 0x01) return true;
+    throw new Error(`invalid async flag: ${flag}`);
+}
+
+function readCancelFlag(src: SyncSource): boolean {
+    const flag = src.read();
+    if (flag === 0x00) return false;
+    if (flag === 0x01) return true;
+    throw new Error(`invalid cancel flag: ${flag}`);
+}
+
+function readTaskReturnResults(src: SyncSource): TaskReturnResults {
+    const tag = src.read();
+    if (tag === 0x00) {
+        return { type: readComponentValType(src) };
+    }
+    if (tag === 0x01) {
+        const zero = src.read();
+        if (zero !== 0x00) throw new Error(`expected 0x00 after task.return tag 0x01, got ${zero}`);
+        return {};
+    }
+    throw new Error(`invalid task.return result tag: ${tag}`);
+}
+
 export function readCanonicalFunction(src: SyncSource): CanonicalFunction {
     const type = src.read();
     switch (type) {
@@ -547,6 +637,138 @@ export function readCanonicalFunction(src: SyncSource): CanonicalFunction {
         case 0x04: return {
             tag: ModelTag.CanonicalFunctionResourceRep,
             resource: readU32(src),
+        };
+        case 0x05: return {
+            tag: ModelTag.CanonicalFunctionTaskCancel,
+        };
+        case 0x06: return {
+            tag: ModelTag.CanonicalFunctionSubtaskCancel,
+            async: readAsyncFlag(src),
+        };
+        case 0x08: return {
+            tag: ModelTag.CanonicalFunctionBackpressureSet,
+        };
+        case 0x09: return {
+            tag: ModelTag.CanonicalFunctionTaskReturn,
+            results: readTaskReturnResults(src),
+            options: readCanonicalOptions(src),
+        };
+        case 0x0a: return {
+            tag: ModelTag.CanonicalFunctionContextGet,
+            valtype: src.read(),
+            index: readU32(src),
+        };
+        case 0x0b: return {
+            tag: ModelTag.CanonicalFunctionContextSet,
+            valtype: src.read(),
+            index: readU32(src),
+        };
+        case 0x0c: return {
+            tag: ModelTag.CanonicalFunctionThreadYield,
+            cancellable: readCancelFlag(src),
+        };
+        case 0x0d: return {
+            tag: ModelTag.CanonicalFunctionSubtaskDrop,
+        };
+        case 0x0e: return {
+            tag: ModelTag.CanonicalFunctionStreamNew,
+            type: readU32(src),
+        };
+        case 0x0f: return {
+            tag: ModelTag.CanonicalFunctionStreamRead,
+            type: readU32(src),
+            options: readCanonicalOptions(src),
+        };
+        case 0x10: return {
+            tag: ModelTag.CanonicalFunctionStreamWrite,
+            type: readU32(src),
+            options: readCanonicalOptions(src),
+        };
+        case 0x11: return {
+            tag: ModelTag.CanonicalFunctionStreamCancelRead,
+            type: readU32(src),
+            async: readAsyncFlag(src),
+        };
+        case 0x12: return {
+            tag: ModelTag.CanonicalFunctionStreamCancelWrite,
+            type: readU32(src),
+            async: readAsyncFlag(src),
+        };
+        case 0x13: return {
+            tag: ModelTag.CanonicalFunctionStreamDropReadable,
+            type: readU32(src),
+        };
+        case 0x14: return {
+            tag: ModelTag.CanonicalFunctionStreamDropWritable,
+            type: readU32(src),
+        };
+        case 0x15: return {
+            tag: ModelTag.CanonicalFunctionFutureNew,
+            type: readU32(src),
+        };
+        case 0x16: return {
+            tag: ModelTag.CanonicalFunctionFutureRead,
+            type: readU32(src),
+            options: readCanonicalOptions(src),
+        };
+        case 0x17: return {
+            tag: ModelTag.CanonicalFunctionFutureWrite,
+            type: readU32(src),
+            options: readCanonicalOptions(src),
+        };
+        case 0x18: return {
+            tag: ModelTag.CanonicalFunctionFutureCancelRead,
+            type: readU32(src),
+            async: readAsyncFlag(src),
+        };
+        case 0x19: return {
+            tag: ModelTag.CanonicalFunctionFutureCancelWrite,
+            type: readU32(src),
+            async: readAsyncFlag(src),
+        };
+        case 0x1a: return {
+            tag: ModelTag.CanonicalFunctionFutureDropReadable,
+            type: readU32(src),
+        };
+        case 0x1b: return {
+            tag: ModelTag.CanonicalFunctionFutureDropWritable,
+            type: readU32(src),
+        };
+        case 0x1c: return {
+            tag: ModelTag.CanonicalFunctionErrorContextNew,
+            options: readCanonicalOptions(src),
+        };
+        case 0x1d: return {
+            tag: ModelTag.CanonicalFunctionErrorContextDebugMessage,
+            options: readCanonicalOptions(src),
+        };
+        case 0x1e: return {
+            tag: ModelTag.CanonicalFunctionErrorContextDrop,
+        };
+        case 0x1f: return {
+            tag: ModelTag.CanonicalFunctionWaitableSetNew,
+        };
+        case 0x20: return {
+            tag: ModelTag.CanonicalFunctionWaitableSetWait,
+            cancellable: readCancelFlag(src),
+            memory: readU32(src),
+        };
+        case 0x21: return {
+            tag: ModelTag.CanonicalFunctionWaitableSetPoll,
+            cancellable: readCancelFlag(src),
+            memory: readU32(src),
+        };
+        case 0x22: return {
+            tag: ModelTag.CanonicalFunctionWaitableSetDrop,
+        };
+        case 0x23: return {
+            tag: ModelTag.CanonicalFunctionWaitableJoin,
+        };
+        case 0x24: return {
+            tag: ModelTag.CanonicalFunctionBackpressureInc,
+        };
+        case 0x25: return {
+            tag: ModelTag.CanonicalFunctionBackpressureDec,
         };
         default: throw new Error(`Unrecognized type in readCanonicalFunction: ${type}`);
     }
@@ -586,23 +808,32 @@ export function readCanonicalOption(src: SyncSource): CanonicalOption {
             tag: ModelTag.CanonicalOptionPostReturn,
             value: readU32(src),
         };
+        case 0x06: return {
+            tag: ModelTag.CanonicalOptionAsync,
+        };
+        case 0x07: return {
+            tag: ModelTag.CanonicalOptionCallback,
+            value: readU32(src),
+        };
         default: throw new Error(`Unrecognized type in readCanonicalOption = ${type}.`);
     }
 }
 
-export function readComponentType(src: SyncSource): any {
+export function readComponentType(src: SyncSource): ComponentTypeDefined | ComponentTypeResource | ComponentTypeFunc | ComponentTypeComponent | ComponentTypeInstance {
     const type = src.read();
     switch (type) {
         case 0x3F: {
             return {
                 tag: ModelTag.ComponentTypeResource,
-                rep: readU32(src),
+                rep: readU32(src) as unknown as ValType,
                 dtor: readDestructor(src)
             };
         }
-        case 0x40: {
+        case 0x40:
+        case 0x43: {
             return {
                 tag: ModelTag.ComponentTypeFunc,
+                async_: type === 0x43,
                 params: readNamedValues(src),
                 results: readComponentFuncResult(src),
             };
@@ -610,7 +841,7 @@ export function readComponentType(src: SyncSource): any {
         case 0x41: {
             return {
                 tag: ModelTag.ComponentTypeComponent,
-                declarations: undefined,
+                declarations: readComponentTypeDeclarations(src),
             };
         }
         case 0x42: {
@@ -669,7 +900,7 @@ export function readNamedValues(src: SyncSource): NamedValue[] {
     return values;
 }
 
-export function readComponentFuncResult(src: SyncSource): ComponentFuncResult | undefined {
+export function readComponentFuncResult(src: SyncSource): ComponentFuncResult {
     const type = src.read();
     switch (type) {
         case 0x00:

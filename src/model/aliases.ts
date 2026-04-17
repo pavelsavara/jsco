@@ -1,6 +1,22 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep } from './canonicals';
+import {
+    CanonicalFunctionLift, CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep,
+    CanonicalFunctionBackpressureSet, CanonicalFunctionBackpressureInc, CanonicalFunctionBackpressureDec,
+    CanonicalFunctionTaskReturn, CanonicalFunctionTaskCancel,
+    CanonicalFunctionContextGet, CanonicalFunctionContextSet,
+    CanonicalFunctionThreadYield,
+    CanonicalFunctionSubtaskCancel, CanonicalFunctionSubtaskDrop,
+    CanonicalFunctionStreamNew, CanonicalFunctionStreamRead, CanonicalFunctionStreamWrite,
+    CanonicalFunctionStreamCancelRead, CanonicalFunctionStreamCancelWrite,
+    CanonicalFunctionStreamDropReadable, CanonicalFunctionStreamDropWritable,
+    CanonicalFunctionFutureNew, CanonicalFunctionFutureRead, CanonicalFunctionFutureWrite,
+    CanonicalFunctionFutureCancelRead, CanonicalFunctionFutureCancelWrite,
+    CanonicalFunctionFutureDropReadable, CanonicalFunctionFutureDropWritable,
+    CanonicalFunctionErrorContextNew, CanonicalFunctionErrorContextDebugMessage, CanonicalFunctionErrorContextDrop,
+    CanonicalFunctionWaitableSetNew, CanonicalFunctionWaitableSetWait, CanonicalFunctionWaitableSetPoll, CanonicalFunctionWaitableSetDrop,
+    CanonicalFunctionWaitableJoin,
+} from './canonicals';
 import { u32, ExternalKind } from './core';
 import { ComponentExternalKind } from './exports';
 import { ComponentImport } from './imports';
@@ -58,6 +74,38 @@ export type CoreFunction =
     | CanonicalFunctionResourceDrop
     | CanonicalFunctionResourceNew
     | CanonicalFunctionResourceRep
+    | CanonicalFunctionBackpressureSet
+    | CanonicalFunctionBackpressureInc
+    | CanonicalFunctionBackpressureDec
+    | CanonicalFunctionTaskReturn
+    | CanonicalFunctionTaskCancel
+    | CanonicalFunctionContextGet
+    | CanonicalFunctionContextSet
+    | CanonicalFunctionThreadYield
+    | CanonicalFunctionSubtaskCancel
+    | CanonicalFunctionSubtaskDrop
+    | CanonicalFunctionStreamNew
+    | CanonicalFunctionStreamRead
+    | CanonicalFunctionStreamWrite
+    | CanonicalFunctionStreamCancelRead
+    | CanonicalFunctionStreamCancelWrite
+    | CanonicalFunctionStreamDropReadable
+    | CanonicalFunctionStreamDropWritable
+    | CanonicalFunctionFutureNew
+    | CanonicalFunctionFutureRead
+    | CanonicalFunctionFutureWrite
+    | CanonicalFunctionFutureCancelRead
+    | CanonicalFunctionFutureCancelWrite
+    | CanonicalFunctionFutureDropReadable
+    | CanonicalFunctionFutureDropWritable
+    | CanonicalFunctionErrorContextNew
+    | CanonicalFunctionErrorContextDebugMessage
+    | CanonicalFunctionErrorContextDrop
+    | CanonicalFunctionWaitableSetNew
+    | CanonicalFunctionWaitableSetWait
+    | CanonicalFunctionWaitableSetPoll
+    | CanonicalFunctionWaitableSetDrop
+    | CanonicalFunctionWaitableJoin
 
 /// The alias is to an outer item.
 export type ComponentAliasOuter = {
