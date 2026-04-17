@@ -264,6 +264,8 @@ export type ComponentFuncResultNamed = {
 
 /// Represents a type of a function in a WebAssembly component.
 export type ComponentFuncType = {
+    /// Whether the function is async (0x43) or sync (0x40).
+    async_?: boolean,
     /// The function parameters.
     params: NamedValue[],
     /// The function result.

@@ -8,7 +8,7 @@ import { ExternalKind } from '../model/core';
 import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
-import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StreamTable, FutureTable, ErrorContextTable, StringEncoding } from './types';
+import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, SubtaskState, ErrorContextTable, WaitableSetTable, StringEncoding } from './types';
 import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
@@ -425,39 +425,393 @@ function notYetImplemented(name: string): never {
     throw new Error(`${name} is not yet implemented`);
 }
 
-function createStreamTable(): StreamTable {
+// --- Stream/Future status codes per canonical ABI ---
+const STREAM_STATUS_COMPLETED = 0;
+const STREAM_STATUS_DROPPED = 1;
+const STREAM_BLOCKED = 0xFFFFFFFF;
+
+type StreamEntry = {
+    chunks: Uint8Array[];
+    closed: boolean;
+    /** Resolve function when an async reader is waiting for data/close. */
+    waitingReader?: (chunk: Uint8Array | null) => void;
+    /** Callbacks to invoke when data arrives or stream closes (for waitable-set integration). */
+    onReady?: (() => void)[];
+};
+
+function createStreamTable(memory: MemoryView, allocHandle: () => number): StreamTable {
+    // Handle numbering: even = readable, odd = writable. Base = handle & ~1.
+    const entries = new Map<number, StreamEntry>();
+    const jsReadables = new Map<number, unknown>();
+    const jsWritables = new Map<number, unknown>();
+
+    function baseHandle(handle: number): number { return handle & ~1; }
+
+    /** Signal that data arrived or stream closed — notify waitable-set watchers. */
+    function signalReady(entry: StreamEntry): void {
+        if (entry.onReady) {
+            for (const cb of entry.onReady) cb();
+        }
+    }
+
+    /** Pump an async iterable into a stream entry's buffer in the background. */
+    function pumpIterable(iterable: AsyncIterable<Uint8Array>, entry: StreamEntry): void {
+        const iter = iterable[Symbol.asyncIterator]();
+        function pump(): void {
+            iter.next().then((result) => {
+                if (result.done) {
+                    entry.closed = true;
+                    if (entry.waitingReader) {
+                        entry.waitingReader(null);
+                    }
+                    signalReady(entry);
+                } else {
+                    if (entry.waitingReader) {
+                        entry.waitingReader(result.value);
+                    } else {
+                        entry.chunks.push(result.value);
+                    }
+                    signalReady(entry);
+                    pump(); // continue pumping
+                }
+            }, () => {
+                // Error in iterable — close the stream
+                entry.closed = true;
+                if (entry.waitingReader) {
+                    entry.waitingReader(null);
+                }
+                signalReady(entry);
+            });
+        }
+        pump();
+    }
+
+    /** Build an async-iterable backed by the stream entry's internal buffer. */
+    function makeAsyncIterable(entry: StreamEntry): AsyncIterable<Uint8Array> {
+        return {
+            [Symbol.asyncIterator]() {
+                return {
+                    next(): Promise<IteratorResult<Uint8Array>> {
+                        if (entry.chunks.length > 0) {
+                            return Promise.resolve({ value: entry.chunks.shift()!, done: false });
+                        }
+                        if (entry.closed) {
+                            return Promise.resolve({ value: undefined as any, done: true });
+                        }
+                        return new Promise<IteratorResult<Uint8Array>>((resolve) => {
+                            entry.waitingReader = (chunk) => {
+                                entry.waitingReader = undefined;
+                                if (chunk === null) {
+                                    resolve({ value: undefined as any, done: true });
+                                } else {
+                                    resolve({ value: chunk, done: false });
+                                }
+                            };
+                        });
+                    },
+                };
+            },
+        };
+    }
+
     return {
-        newStream() { return notYetImplemented('stream.new'); },
-        read() { return notYetImplemented('stream.read'); },
-        write() { return notYetImplemented('stream.write'); },
-        cancelRead() { return notYetImplemented('stream.cancel-read'); },
-        cancelWrite() { return notYetImplemented('stream.cancel-write'); },
-        dropReadable() { notYetImplemented('stream.drop-readable'); },
-        dropWritable() { notYetImplemented('stream.drop-writable'); },
-        addReadable() { return notYetImplemented('stream.add-readable'); },
-        getReadable() { return notYetImplemented('stream.get-readable'); },
-        removeReadable() { return notYetImplemented('stream.remove-readable'); },
-        addWritable() { return notYetImplemented('stream.add-writable'); },
-        getWritable() { return notYetImplemented('stream.get-writable'); },
-        removeWritable() { return notYetImplemented('stream.remove-writable'); },
+        newStream(_typeIdx: number): bigint {
+            const readHandle = allocHandle();
+            const writHandle = readHandle + 1;
+            entries.set(readHandle, { chunks: [], closed: false });
+            return BigInt(writHandle) << 32n | BigInt(readHandle);
+        },
+
+        read(_typeIdx: number, handle: number, ptr: number, len: number): number {
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            // Copy available data into WASM linear memory
+            let offset = 0;
+            while (entry.chunks.length > 0 && offset < len) {
+                const chunk = entry.chunks[0]!;
+                const needed = len - offset;
+                if (chunk.length <= needed) {
+                    memory.getViewU8(ptr + offset, chunk.length).set(chunk);
+                    offset += chunk.length;
+                    entry.chunks.shift();
+                } else {
+                    memory.getViewU8(ptr + offset, needed).set(chunk.subarray(0, needed));
+                    offset += needed;
+                    entry.chunks[0] = chunk.subarray(needed);
+                }
+            }
+            if (offset > 0) {
+                const status = entry.closed && entry.chunks.length === 0
+                    ? STREAM_STATUS_DROPPED : STREAM_STATUS_COMPLETED;
+                return (offset << 4) | status;
+            }
+            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            return STREAM_BLOCKED;
+        },
+
+        write(_typeIdx: number, handle: number, ptr: number, len: number): number {
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (len > 0) {
+                // Copy data from WASM linear memory
+                const src = memory.getViewU8(ptr, len);
+                const copy = new Uint8Array(src);
+                if (entry.waitingReader) {
+                    entry.waitingReader(copy);
+                } else {
+                    entry.chunks.push(copy);
+                }
+            }
+            return (len << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        cancelRead(_typeIdx: number, _handle: number): number {
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        cancelWrite(_typeIdx: number, _handle: number): number {
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        dropReadable(_typeIdx: number, handle: number): void {
+            const base = baseHandle(handle);
+            jsReadables.delete(handle);
+            const entry = entries.get(base);
+            if (entry) entry.closed = true;
+        },
+
+        dropWritable(_typeIdx: number, handle: number): void {
+            const base = baseHandle(handle);
+            jsWritables.delete(handle);
+            const entry = entries.get(base);
+            if (entry) {
+                entry.closed = true;
+                if (entry.waitingReader) {
+                    entry.waitingReader(null);
+                }
+            }
+        },
+
+        addReadable(_typeIdx: number, value: unknown): number {
+            const readHandle = allocHandle();
+            const entry: StreamEntry = { chunks: [], closed: false };
+            entries.set(readHandle, entry);
+            jsReadables.set(readHandle, value);
+            // If the value is an async iterable, pump it into the buffer
+            if (value && typeof (value as any)[Symbol.asyncIterator] === 'function') {
+                pumpIterable(value as AsyncIterable<Uint8Array>, entry);
+            }
+            return readHandle;
+        },
+        getReadable(_typeIdx: number, handle: number): unknown {
+            return jsReadables.get(handle);
+        },
+        removeReadable(_typeIdx: number, handle: number): unknown {
+            const val = jsReadables.get(handle);
+            if (val) {
+                jsReadables.delete(handle);
+                return val;
+            }
+            // For stream.new()-created handles, create an async iterable from the buffer
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (entry) return makeAsyncIterable(entry);
+            return undefined;
+        },
+        addWritable(_typeIdx: number, value: unknown): number {
+            const writHandle = allocHandle() + 1;
+            entries.set(writHandle & ~1, { chunks: [], closed: false });
+            jsWritables.set(writHandle, value);
+            return writHandle;
+        },
+        getWritable(_typeIdx: number, handle: number): unknown {
+            return jsWritables.get(handle);
+        },
+        removeWritable(_typeIdx: number, handle: number): unknown {
+            const val = jsWritables.get(handle);
+            jsWritables.delete(handle);
+            return val;
+        },
+
+        hasStream(baseHandle: number): boolean {
+            return entries.has(baseHandle);
+        },
+
+        hasData(baseHandle: number): boolean {
+            const entry = entries.get(baseHandle);
+            if (!entry) return false;
+            return entry.chunks.length > 0 || entry.closed;
+        },
+
+        onReady(baseHandle: number, callback: () => void): void {
+            const entry = entries.get(baseHandle);
+            if (!entry) return;
+            if (entry.chunks.length > 0 || entry.closed) {
+                callback();
+                return;
+            }
+            if (!entry.onReady) entry.onReady = [];
+            entry.onReady.push(callback);
+        },
     };
 }
 
-function createFutureTable(): FutureTable {
+type FutureEntry = {
+    resolved: boolean;
+    /** Whether the Promise was rejected (error case). */
+    rejected?: boolean;
+    /** Stored bytes from future.write, copied back on future.read. */
+    data?: Uint8Array;
+    /** Resolved JS value from the Promise (for storer-based encoding). */
+    resolvedValue?: unknown;
+    /** Storer callback to encode resolved value into WASM memory. */
+    storer?: FutureStorer;
+    /** Pending read: ptr and bctx saved when future.read returns BLOCKED. */
+    pendingRead?: { ptr: number, bctx: BindingContext };
+    /** Callbacks to invoke when this future resolves (for waitable-set integration). */
+    onResolve?: (() => void)[];
+};
+
+function createFutureTable(memory: MemoryView, allocHandle: () => number): FutureTable {
+    const entries = new Map<number, FutureEntry>();
+    const jsReadables = new Map<number, unknown>();
+    const jsWritables = new Map<number, unknown>();
+
+    function resolveEntry(base: number, entry: FutureEntry): void {
+        entry.resolved = true;
+        // If there's a pending read, write the resolved value to guest memory now
+        if (entry.pendingRead && entry.storer) {
+            entry.storer(entry.pendingRead.bctx, entry.pendingRead.ptr, entry.resolvedValue, entry.rejected);
+            entry.pendingRead = undefined;
+        }
+        if (entry.onResolve) {
+            for (const cb of entry.onResolve) cb();
+            entry.onResolve = undefined;
+        }
+    }
+
     return {
-        newFuture() { return notYetImplemented('future.new'); },
-        read() { return notYetImplemented('future.read'); },
-        write() { return notYetImplemented('future.write'); },
-        cancelRead() { return notYetImplemented('future.cancel-read'); },
-        cancelWrite() { return notYetImplemented('future.cancel-write'); },
-        dropReadable() { notYetImplemented('future.drop-readable'); },
-        dropWritable() { notYetImplemented('future.drop-writable'); },
-        addReadable() { return notYetImplemented('future.add-readable'); },
-        getReadable() { return notYetImplemented('future.get-readable'); },
-        removeReadable() { return notYetImplemented('future.remove-readable'); },
-        addWritable() { return notYetImplemented('future.add-writable'); },
-        getWritable() { return notYetImplemented('future.get-writable'); },
-        removeWritable() { return notYetImplemented('future.remove-writable'); },
+        newFuture(_typeIdx: number): bigint {
+            const readHandle = allocHandle();
+            const writHandle = readHandle + 1;
+            entries.set(readHandle, { resolved: false });
+            return BigInt(writHandle) << 32n | BigInt(readHandle);
+        },
+
+        read(_typeIdx: number, handle: number, ptr: number, bctx?: BindingContext): number {
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (!entry.resolved) {
+                // Save the target pointer and context for deferred writing.
+                // When the Promise resolves, resolveEntry will write data to this ptr.
+                if (bctx && entry.storer) {
+                    entry.pendingRead = { ptr, bctx };
+                }
+                return STREAM_BLOCKED;
+            }
+            // Already resolved — write immediately
+            if (entry.storer && bctx) {
+                entry.storer(bctx, ptr, entry.resolvedValue, entry.rejected);
+            } else if (entry.data && entry.data.length > 0) {
+                // Fallback: copy stored raw bytes
+                memory.getViewU8(ptr, entry.data.length).set(entry.data);
+            }
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        write(_typeIdx: number, handle: number, ptr: number): number {
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            // For now, store a reasonable amount of bytes from WASM memory.
+            // The exact size depends on the type T, but we store a safe maximum
+            // and let future.read copy them back.
+            if (ptr !== 0) {
+                // Store up to 256 bytes (generous for most future types)
+                const copyLen = Math.min(256, memory.getMemory().buffer.byteLength - ptr);
+                if (copyLen > 0) {
+                    entry.data = new Uint8Array(memory.getViewU8(ptr, copyLen));
+                }
+            }
+            resolveEntry(base, entry);
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        cancelRead(_typeIdx: number, _handle: number): number {
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        cancelWrite(_typeIdx: number, _handle: number): number {
+            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        dropReadable(_typeIdx: number, handle: number): void {
+            jsReadables.delete(handle);
+        },
+
+        dropWritable(_typeIdx: number, handle: number): void {
+            jsWritables.delete(handle);
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (entry && !entry.resolved) {
+                resolveEntry(base, entry);
+            }
+        },
+
+        addReadable(_typeIdx: number, value: unknown, storer?: FutureStorer): number {
+            const readHandle = allocHandle();
+            const entry: FutureEntry = { resolved: false, storer };
+            entries.set(readHandle, entry);
+            jsReadables.set(readHandle, value);
+            // If the value is a Promise, track its resolution and capture the resolved value
+            if (value && typeof (value as any).then === 'function') {
+                (value as Promise<unknown>).then(
+                    (resolvedValue) => {
+                        entry.resolvedValue = resolvedValue;
+                        resolveEntry(readHandle, entry);
+                    },
+                    (rejectedValue) => {
+                        entry.resolvedValue = rejectedValue;
+                        entry.rejected = true;
+                        resolveEntry(readHandle, entry);
+                    },
+                );
+            } else {
+                // Non-Promise values are immediately resolved
+                entry.resolvedValue = value;
+                entry.resolved = true;
+            }
+            return readHandle;
+        },
+        getReadable(_typeIdx: number, handle: number): unknown {
+            return jsReadables.get(handle);
+        },
+        removeReadable(_typeIdx: number, handle: number): unknown {
+            const val = jsReadables.get(handle);
+            jsReadables.delete(handle);
+            return val;
+        },
+        addWritable(_typeIdx: number, value: unknown): number {
+            const writHandle = allocHandle() + 1;
+            entries.set(writHandle & ~1, { resolved: false });
+            jsWritables.set(writHandle, value);
+            return writHandle;
+        },
+        getWritable(_typeIdx: number, handle: number): unknown {
+            return jsWritables.get(handle);
+        },
+        removeWritable(_typeIdx: number, handle: number): unknown {
+            const val = jsWritables.get(handle);
+            jsWritables.delete(handle);
+            return val;
+        },
+        getEntry(handle: number): FutureEntry | undefined {
+            const base = handle & ~1;
+            return entries.get(base);
+        },
     };
 }
 
@@ -472,11 +826,271 @@ function createErrorContextTable(): ErrorContextTable {
     };
 }
 
+function createSubtaskTable(allocHandle: () => number): SubtaskTable {
+    const entries = new Map<number, SubtaskEntry>();
+
+    return {
+        create(promise: Promise<unknown>): number {
+            const handle = allocHandle();
+            const entry: SubtaskEntry = {
+                state: SubtaskState.STARTED,
+                resolved: false,
+            };
+            entries.set(handle, entry);
+
+            promise.then(
+                () => {
+                    entry.state = SubtaskState.RETURNED;
+                    entry.resolved = true;
+                    if (entry.onResolve) {
+                        for (const cb of entry.onResolve) cb();
+                        entry.onResolve = undefined;
+                    }
+                },
+                () => {
+                    entry.state = SubtaskState.RETURNED;
+                    entry.resolved = true;
+                    if (entry.onResolve) {
+                        for (const cb of entry.onResolve) cb();
+                        entry.onResolve = undefined;
+                    }
+                }
+            );
+
+            return handle;
+        },
+
+        getEntry(handle: number): SubtaskEntry | undefined {
+            return entries.get(handle);
+        },
+
+        drop(handle: number): void {
+            entries.delete(handle);
+        },
+    };
+}
+
+// Event codes for waitable-set events: (event_code, payload1, payload2)
+const _EVENT_STREAM_READ = 2;
+const _EVENT_STREAM_WRITE = 3;
+const EVENT_FUTURE_READ = 4;
+const EVENT_FUTURE_WRITE = 5;
+const EVENT_SUBTASK = 1;
+
+function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, futureTable: FutureTable, subtaskTable: SubtaskTable): WaitableSetTable {
+    let nextSetId = 1; // Must start at 1 — WASM uses NonZeroU32
+    // Each set tracks which handles are joined and pending operations
+    const sets = new Map<number, Set<number>>();
+    // Map handle → { eventCode, resolve callback }
+    const pendingWaitables = new Map<number, { eventCode: number, ready: boolean, resolvers: (() => void)[] }>();
+
+    return {
+        newSet(): number {
+            const id = nextSetId++;
+            sets.set(id, new Set());
+            return id;
+        },
+
+        wait(setId: number, ptr: number): number | Promise<number> {
+            const set = sets.get(setId);
+            if (!set) return 0;
+
+            // Check for already-ready events
+            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            for (const handle of set) {
+                const waitable = pendingWaitables.get(handle);
+                if (waitable && waitable.ready) {
+                    readyEvents.push({
+                        eventCode: waitable.eventCode,
+                        handle,
+                        returnCode: returnCodeFor(handle, waitable.eventCode),
+                    });
+                    waitable.ready = false;
+                }
+            }
+            if (readyEvents.length > 0) {
+                return writeEvents(ptr, readyEvents);
+            }
+
+            // No events ready — return a Promise that resolves when one becomes ready
+            return new Promise<number>((resolve) => {
+                let settled = false;
+                for (const handle of set) {
+                    const waitable = pendingWaitables.get(handle);
+                    if (waitable) {
+                        waitable.resolvers.push(() => {
+                            if (settled) return;
+                            settled = true;
+                            // Re-check and write events
+                            const events: { eventCode: number, handle: number, returnCode: number }[] = [];
+                            for (const h of set) {
+                                const w = pendingWaitables.get(h);
+                                if (w && w.ready) {
+                                    events.push({
+                                        eventCode: w.eventCode,
+                                        handle: h,
+                                        returnCode: returnCodeFor(h, w.eventCode),
+                                    });
+                                    w.ready = false;
+                                }
+                            }
+                            resolve(writeEvents(ptr, events));
+                        });
+                    }
+                }
+            });
+        },
+
+        poll(setId: number, ptr: number): number {
+            const set = sets.get(setId);
+            if (!set) return 0;
+
+            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            for (const handle of set) {
+                const waitable = pendingWaitables.get(handle);
+                if (waitable && waitable.ready) {
+                    readyEvents.push({
+                        eventCode: waitable.eventCode,
+                        handle,
+                        returnCode: returnCodeFor(handle, waitable.eventCode),
+                    });
+                    waitable.ready = false;
+                }
+            }
+            return writeEvents(ptr, readyEvents);
+        },
+
+        drop(setId: number): void {
+            const set = sets.get(setId);
+            if (set) {
+                for (const handle of set) {
+                    pendingWaitables.delete(handle);
+                }
+                sets.delete(setId);
+            }
+        },
+
+        join(waitableHandle: number, setId: number): void {
+            // setId=0 means "disjoin" — remove handle from any set
+            if (setId === 0) {
+                for (const [, s] of sets) {
+                    s.delete(waitableHandle);
+                }
+                pendingWaitables.delete(waitableHandle);
+                return;
+            }
+            const set = sets.get(setId);
+            if (!set) return;
+            set.add(waitableHandle);
+            // Register this handle as a pending waitable
+            if (!pendingWaitables.has(waitableHandle)) {
+                // Check subtask table first (subtask handles use even allocations)
+                const subtaskEntry = subtaskTable.getEntry(waitableHandle);
+
+                // Determine event type based on handle parity:
+                // Even handles are readable, odd are writable
+                const isWritable = (waitableHandle & 1) !== 0;
+
+                // Check both stream and future tables to determine the event type
+                // and wire up readiness tracking. Handles are unique across tables
+                // thanks to the shared allocator.
+                const futureEntry = !subtaskEntry ? futureTable.getEntry(waitableHandle & ~1) : undefined;
+                const isStream = !subtaskEntry && !futureEntry && streamTable.hasStream(waitableHandle & ~1);
+
+                let eventCode: number;
+                if (subtaskEntry) {
+                    eventCode = EVENT_SUBTASK;
+                } else if (isStream) {
+                    eventCode = isWritable ? _EVENT_STREAM_WRITE : _EVENT_STREAM_READ;
+                } else {
+                    eventCode = isWritable ? EVENT_FUTURE_WRITE : EVENT_FUTURE_READ;
+                }
+
+                const entry: { eventCode: number, ready: boolean, resolvers: (() => void)[] } = {
+                    eventCode,
+                    ready: false,
+                    resolvers: [],
+                };
+                pendingWaitables.set(waitableHandle, entry);
+
+                // Wire up readiness tracking based on the table type
+                if (subtaskEntry) {
+                    if (!subtaskEntry.resolved) {
+                        if (!subtaskEntry.onResolve) subtaskEntry.onResolve = [];
+                        subtaskEntry.onResolve.push(() => {
+                            entry.ready = true;
+                            for (const cb of entry.resolvers) cb();
+                        });
+                    } else {
+                        entry.ready = true;
+                    }
+                } else if (futureEntry) {
+                    if (!futureEntry.resolved) {
+                        if (!futureEntry.onResolve) futureEntry.onResolve = [];
+                        futureEntry.onResolve.push(() => {
+                            entry.ready = true;
+                            for (const cb of entry.resolvers) cb();
+                        });
+                    } else {
+                        entry.ready = true;
+                    }
+                } else if (isStream) {
+                    // Wire up async readiness for streams
+                    const streamReady = streamTable.hasData(waitableHandle & ~1);
+                    if (streamReady) {
+                        entry.ready = true;
+                    } else {
+                        streamTable.onReady(waitableHandle & ~1, () => {
+                            entry.ready = true;
+                            for (const cb of entry.resolvers) cb();
+                        });
+                    }
+                }
+            }
+        },
+    };
+
+    function writeEvents(ptr: number, events: { eventCode: number, handle: number, returnCode: number }[]): number {
+        if (events.length === 0) return 0;
+        const view = memory.getView(ptr, events.length * 12);
+        for (let i = 0; i < events.length; i++) {
+            const e = events[i]!;
+            view.setInt32(i * 12, e.eventCode, true);
+            view.setInt32(i * 12 + 4, e.handle, true);
+            view.setInt32(i * 12 + 8, e.returnCode, true);
+        }
+        return events.length;
+    }
+
+    function returnCodeFor(handle: number, eventCode: number): number {
+        if (eventCode === EVENT_SUBTASK) {
+            const se = subtaskTable.getEntry(handle);
+            return se ? se.state : 0;
+        }
+        return (0 << 4) | STREAM_STATUS_COMPLETED;
+    }
+}
+
 export function createBindingContext(componentImports: JsImports, resolved: ResolvedContext): BindingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
     const resources = createResourceTable(resolved.verbose, resolved.logger);
+
+    // Shared handle allocator: all stream/future handles come from a single
+    // counter so they never overlap. This is required by the canonical ABI
+    // where stream and future handles share a single "waitables" table.
+    // Must start at 2 (first even > 0) — WASM uses NonZeroU32 for handles.
+    let sharedNextHandle = 2;
+    function allocHandle(): number {
+        const h = sharedNextHandle;
+        sharedNextHandle += 2; // even = readable, odd = writable
+        return h;
+    }
+
+    const streamTable = createStreamTable(memory, allocHandle);
+    const futureTable = createFutureTable(memory, allocHandle);
+    const subtaskTable = createSubtaskTable(allocHandle);
 
     const ctx: BindingContext = {
         componentImports,
@@ -484,13 +1098,17 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         memory,
         allocator,
         resources,
-        streams: createStreamTable(),
-        futures: createFutureTable(),
+        streams: streamTable,
+        futures: futureTable,
+        subtasks: subtaskTable,
         errorContexts: createErrorContextTable(),
+        waitableSets: createWaitableSetTable(memory, streamTable, futureTable, subtaskTable),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
         logger: resolved.logger,
+        taskContextSlots: [0, 0],
+        backpressure: 0,
         abort: () => {
             // Per Component Model spec: poisoning the instance prevents all future
             // export calls from executing. checkNotPoisoned() in the lifting
@@ -558,13 +1176,16 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
                 : rctx.indexes.componentSections;//append later
         case ModelTag.ComponentTypeDefinedBorrow:
         case ModelTag.ComponentTypeDefinedEnum:
+        case ModelTag.ComponentTypeDefinedErrorContext:
         case ModelTag.ComponentTypeDefinedFlags:
+        case ModelTag.ComponentTypeDefinedFuture:
         case ModelTag.ComponentTypeDefinedList:
         case ModelTag.ComponentTypeDefinedOption:
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedPrimitive:
         case ModelTag.ComponentTypeDefinedRecord:
         case ModelTag.ComponentTypeDefinedResult:
+        case ModelTag.ComponentTypeDefinedStream:
         case ModelTag.ComponentTypeDefinedTuple:
         case ModelTag.ComponentTypeDefinedVariant:
             return rctx.indexes.componentTypes;
@@ -603,6 +1224,38 @@ export function bucketByTag(rctx: ResolverContext, tag: ModelTag, read: boolean,
         case ModelTag.CanonicalFunctionResourceDrop:
         case ModelTag.CanonicalFunctionResourceNew:
         case ModelTag.CanonicalFunctionResourceRep:
+        case ModelTag.CanonicalFunctionBackpressureSet:
+        case ModelTag.CanonicalFunctionBackpressureInc:
+        case ModelTag.CanonicalFunctionBackpressureDec:
+        case ModelTag.CanonicalFunctionTaskReturn:
+        case ModelTag.CanonicalFunctionTaskCancel:
+        case ModelTag.CanonicalFunctionContextGet:
+        case ModelTag.CanonicalFunctionContextSet:
+        case ModelTag.CanonicalFunctionThreadYield:
+        case ModelTag.CanonicalFunctionSubtaskCancel:
+        case ModelTag.CanonicalFunctionSubtaskDrop:
+        case ModelTag.CanonicalFunctionStreamNew:
+        case ModelTag.CanonicalFunctionStreamRead:
+        case ModelTag.CanonicalFunctionStreamWrite:
+        case ModelTag.CanonicalFunctionStreamCancelRead:
+        case ModelTag.CanonicalFunctionStreamCancelWrite:
+        case ModelTag.CanonicalFunctionStreamDropReadable:
+        case ModelTag.CanonicalFunctionStreamDropWritable:
+        case ModelTag.CanonicalFunctionFutureNew:
+        case ModelTag.CanonicalFunctionFutureRead:
+        case ModelTag.CanonicalFunctionFutureWrite:
+        case ModelTag.CanonicalFunctionFutureCancelRead:
+        case ModelTag.CanonicalFunctionFutureCancelWrite:
+        case ModelTag.CanonicalFunctionFutureDropReadable:
+        case ModelTag.CanonicalFunctionFutureDropWritable:
+        case ModelTag.CanonicalFunctionErrorContextNew:
+        case ModelTag.CanonicalFunctionErrorContextDebugMessage:
+        case ModelTag.CanonicalFunctionErrorContextDrop:
+        case ModelTag.CanonicalFunctionWaitableSetNew:
+        case ModelTag.CanonicalFunctionWaitableSetWait:
+        case ModelTag.CanonicalFunctionWaitableSetPoll:
+        case ModelTag.CanonicalFunctionWaitableSetDrop:
+        case ModelTag.CanonicalFunctionWaitableJoin:
             return rctx.indexes.coreFunctions;
         default:
             throw new Error(`unexpected section tag: ${tag}`);

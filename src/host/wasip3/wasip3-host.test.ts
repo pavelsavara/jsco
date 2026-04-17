@@ -41,11 +41,25 @@ describe('createHost', () => {
             }
         });
 
-        it('returns exactly the expected keys (no extras)', () => {
+        it('returns exactly the expected keys (no extras beyond versioned aliases)', () => {
             const host = createHost();
             const keys = Object.keys(host).sort();
-            const expected = [...ALL_INTERFACE_KEYS].sort();
-            expect(keys).toEqual(expected);
+            // Unversioned keys must all be present
+            for (const key of ALL_INTERFACE_KEYS) {
+                expect(keys).toContain(key);
+            }
+            // Every key is either an unversioned interface key or a versioned alias of one
+            for (const key of keys) {
+                const base = key.replace(/@0\.3\.0-rc-2026-03-15$/, '');
+                expect(ALL_INTERFACE_KEYS).toContain(base as any);
+            }
+        });
+
+        it('versioned aliases point to the same object as unversioned', () => {
+            const host = createHost() as unknown as Record<string, unknown>;
+            for (const key of ALL_INTERFACE_KEYS) {
+                expect(host[key + '@0.3.0-rc-2026-03-15']).toBe(host[key]);
+            }
         });
 
         it('each interface value is an object', () => {

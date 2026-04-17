@@ -13,7 +13,8 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, ResolvedContext, ResolverRes, resolveCanonicalOptions } from './types';
+import { Resolver, ResolvedContext, ResolverRes, BindingContext, resolveCanonicalOptions } from './types';
+import type { WasmPointer, WasmSize } from './binding/types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -91,6 +92,14 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     const liftingBinder = createFunctionLifting(localResolved, sectionFunType);
 
     const wrapLift = rctx.resolved.wrapLift;
+    const isAsyncWithCallback = canonOpts.async === true && canonOpts.callbackIndex !== undefined;
+
+    // For async canon.lift with callback: resolve the callback core function
+    let callbackResolution: ResolverRes | undefined;
+    if (isAsyncWithCallback) {
+        const callbackFunc = getCoreFunction(rctx, canonOpts.callbackIndex as CoreFuncIndex);
+        callbackResolution = resolveCoreFunction(rctx, { element: callbackFunc, callerElement: canonicalFunctionLift });
+    }
 
     return {
         callerElement: rargs.callerElement,
@@ -116,6 +125,24 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
             let coreFn = functionResult.result as WasmFunction;
             const exportName = bargs.arguments?.[0] as string | undefined;
+
+            if (isAsyncWithCallback && callbackResolution) {
+                const cbResult = await callbackResolution.binder(bctx, {
+                    callerArgs: bargs,
+                    debugStack: bargs.debugStack,
+                });
+                let callbackWasm = cbResult.result as WasmFunction;
+                // Wrap both core function and callback with JSPI Promising
+                // so that inner WASM calls to Suspending host functions work.
+                // We await the Promise to extract the i32 status code.
+                if (wrapLift) {
+                    coreFn = wrapLift(coreFn, exportName) as WasmFunction;
+                    callbackWasm = wrapLift(callbackWasm) as WasmFunction;
+                }
+                const jsFunction = createAsyncLiftWrapper(bctx, coreFn, callbackWasm, liftingBinder);
+                return { result: jsFunction };
+            }
+
             if (wrapLift) {
                 coreFn = wrapLift(coreFn, exportName) as WasmFunction;
             }
@@ -129,6 +156,89 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         }, rargs.element.tag + ':' + rargs.element.selfSortIndex)
     };
 };
+
+/**
+ * Create a JS wrapper for an async canon.lift export with callback.
+ *
+ * The WASM guest:
+ *   1. Calls start_task() which invokes callback(EVENT_NONE=0, 0, 0)
+ *   2. The callback return code encodes status:
+ *      - 0 = exit (task done)
+ *      - 1 = yield (call callback again immediately)
+ *      - 2 | (waitable_set_id << 4) = wait on the waitable set
+ *   3. The host waits for events, then calls callback(event_code, handle, return_code)
+ *   4. Repeat until callback returns 0
+ *
+ * The core function signature: (...flat_params) → i32 status
+ * The status is the initial callback return (from start_task).
+ */
+function createAsyncLiftWrapper(
+    bctx: BindingContext,
+    coreFn: WasmFunction,
+    callbackWasm: WasmFunction,
+    syncLiftingBinder: (ctx: BindingContext, fn: WasmFunction) => Function,
+): Function {
+    // Callback return code constants
+    const EXIT = 0;
+    const YIELD = 1;
+    // 2 | (ws_id << 4) = WAIT
+
+    const EVENT_BUF_EVENTS = 16;
+    const EVENT_BUF_SIZE = 12 * EVENT_BUF_EVENTS;
+
+    // Create the sync lifting wrapper for the core function. This handles
+    // JS→WASM parameter conversion and WASM→JS result conversion.
+    // For async functions, the core function returns a status i32, not the
+    // actual result. The sync wrapper will interpret that i32 as the "result"
+    // — we intercept it before the result conversion path runs.
+    // Actually, we call coreFn directly for async since the return semantics differ.
+
+    return async function asyncLiftTrampoline(...args: unknown[]) {
+        // For now, call coreFn directly (async exports may not have params in
+        // the standard lifting sense — the core function takes flat params + returns status).
+        // TODO: properly lift parameters for async functions with arguments
+        // coreFn may be JSPI Promising-wrapped, so await to extract the i32 status.
+        let status: number = await coreFn(...args) as number;
+
+        // Async event loop
+        let eventPtr = 0;
+        let eventBufAllocated = false;
+
+        while (status !== EXIT) {
+            if (status === YIELD) {
+                // Yield: immediately call callback again
+                status = await callbackWasm(0, 0, 0) as number;
+                continue;
+            }
+
+            // WAIT: status = 2 | (ws_id << 4)
+            const waitableSetId = status >>> 4;
+
+            // Allocate event buffer if not yet done
+            if (!eventBufAllocated && bctx.allocator.isInitialized()) {
+                eventPtr = bctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
+                eventBufAllocated = true;
+            }
+
+            // Wait for events on the waitable set
+            const numEvents = await bctx.waitableSets.wait(waitableSetId, eventPtr);
+            if (numEvents === 0) {
+                // No events — break out (shouldn't happen normally)
+                break;
+            }
+
+            // Deliver events to the callback one at a time
+            const view = bctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
+            for (let i = 0; i < numEvents; i++) {
+                const eventCode = view.getInt32(i * 12, true);
+                const handle = view.getInt32(i * 12 + 4, true);
+                const returnCode = view.getInt32(i * 12 + 8, true);
+                status = await callbackWasm(eventCode, handle, returnCode) as number;
+                if (status === EXIT) break;
+            }
+        }
+    };
+}
 
 export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanceExport> = (rctx, rargs) => {
     const componentAliasInstanceExport = rargs.element;

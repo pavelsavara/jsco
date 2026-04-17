@@ -4,6 +4,7 @@ import { initializeAsserts } from '../../utils/assert';
 initializeAsserts();
 
 import { ModelTag } from '../../model/tags';
+import { PrimitiveValType } from '../../model/types';
 import { ResolverContext, BindingContext } from '../types';
 import { createResourceTable } from '../context';
 import { resolveCanonicalResourceType } from '../type-resolution';
@@ -681,7 +682,7 @@ describeDebugOnly('stream<T> lifting and lowering', () => {
     });
 
     test('JS async iterable lifts to [handle]', () => {
-        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lifter = createLifting(rctx.resolved, streamModel as any);
         const iterable = { [Symbol.asyncIterator]: () => ({}) };
         const result = lifter(bctx, iterable);
@@ -690,7 +691,7 @@ describeDebugOnly('stream<T> lifting and lowering', () => {
     });
 
     test('handle lowers to original async iterable', () => {
-        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lowerer = createLowering(rctx.resolved, streamModel as any);
         const iterable = { [Symbol.asyncIterator]: () => ({}) };
         const handle = (bctx.streams as any).addReadable(0, iterable);
@@ -715,7 +716,7 @@ describeDebugOnly('future<T> lifting and lowering', () => {
     });
 
     test('JS promise lifts to [handle]', () => {
-        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lifter = createLifting(rctx.resolved, futureModel as any);
         const promise = Promise.resolve(42);
         const result = lifter(bctx, promise);
@@ -724,7 +725,7 @@ describeDebugOnly('future<T> lifting and lowering', () => {
     });
 
     test('handle lowers to original promise', () => {
-        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: 0x7A } };
+        const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lowerer = createLowering(rctx.resolved, futureModel as any);
         const promise = Promise.resolve(42);
         const handle = (bctx.futures as any).addReadable(0, promise);

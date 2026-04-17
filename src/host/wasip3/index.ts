@@ -96,34 +96,47 @@ export type {
  * Create a WASIp3 host import object.
  *
  * All interfaces are implemented. Sockets throw `not-supported` in the browser.
+ *
+ * Both unversioned (`wasi:cli/stdin`) and versioned (`wasi:cli/stdin@0.2.0`
+ * through `@0.2.11`) keys are registered so components compiled with any
+ * WASI P2 version also work. The versioned aliases are not reflected in the
+ * `WasiP3Imports` type to keep the type surface clean.
  */
 export function createHost(config?: WasiP3Config): WasiP3Imports {
     const fsState = initFilesystem(config);
-    return {
-        'wasi:cli/environment': createEnvironment(config),
-        'wasi:cli/exit': createExit(),
-        'wasi:cli/stderr': createStderr(config),
-        'wasi:cli/stdin': createStdin(config),
-        'wasi:cli/stdout': createStdout(config),
-        'wasi:cli/terminal-input': createTerminalInput(),
-        'wasi:cli/terminal-output': createTerminalOutput(),
-        'wasi:cli/terminal-stderr': createTerminalStderr(),
-        'wasi:cli/terminal-stdin': createTerminalStdin(),
-        'wasi:cli/terminal-stdout': createTerminalStdout(),
-        'wasi:cli/types': createCliTypes(),
-        'wasi:clocks/monotonic-clock': createMonotonicClock(),
-        'wasi:clocks/system-clock': createSystemClock(),
-        'wasi:clocks/timezone': createTimezone(),
-        'wasi:clocks/types': createClocksTypes(),
-        'wasi:filesystem/preopens': createPreopens(fsState),
-        'wasi:filesystem/types': createFilesystemTypes(fsState),
-        'wasi:http/client': createHttpClient(config),
-        'wasi:http/handler': createHttpHandler(),
-        'wasi:http/types': createHttpTypes(config),
-        'wasi:random/insecure-seed': createInsecureSeed(),
-        'wasi:random/insecure': createInsecure(config?.limits),
-        'wasi:random/random': createRandom(config?.limits),
-        'wasi:sockets/ip-name-lookup': createIpNameLookup(),
-        'wasi:sockets/types': createSocketsTypes(),
-    };
+
+    const result: Record<string, unknown> = {};
+    const p3version = '0.3.0-rc-2026-03-15';
+    function register(key: string, value: unknown) {
+        result[key] = value;
+        result[key + '@' + p3version] = value;
+    }
+
+    register('wasi:cli/environment', createEnvironment(config));
+    register('wasi:cli/exit', createExit());
+    register('wasi:cli/stderr', createStderr(config));
+    register('wasi:cli/stdin', createStdin(config));
+    register('wasi:cli/stdout', createStdout(config));
+    register('wasi:cli/terminal-input', createTerminalInput());
+    register('wasi:cli/terminal-output', createTerminalOutput());
+    register('wasi:cli/terminal-stderr', createTerminalStderr());
+    register('wasi:cli/terminal-stdin', createTerminalStdin());
+    register('wasi:cli/terminal-stdout', createTerminalStdout());
+    register('wasi:cli/types', createCliTypes());
+    register('wasi:clocks/monotonic-clock', createMonotonicClock());
+    register('wasi:clocks/system-clock', createSystemClock());
+    register('wasi:clocks/timezone', createTimezone());
+    register('wasi:clocks/types', createClocksTypes());
+    register('wasi:filesystem/preopens', createPreopens(fsState));
+    register('wasi:filesystem/types', createFilesystemTypes(fsState));
+    register('wasi:http/client', createHttpClient(config));
+    register('wasi:http/handler', createHttpHandler());
+    register('wasi:http/types', createHttpTypes(config));
+    register('wasi:random/insecure-seed', createInsecureSeed());
+    register('wasi:random/insecure', createInsecure(config?.limits));
+    register('wasi:random/random', createRandom(config?.limits));
+    register('wasi:sockets/ip-name-lookup', createIpNameLookup());
+    register('wasi:sockets/types', createSocketsTypes());
+
+    return result as unknown as WasiP3Imports;
 }

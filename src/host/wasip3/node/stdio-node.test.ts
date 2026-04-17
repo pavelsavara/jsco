@@ -165,8 +165,7 @@ describe('Node.js stdin ReadableStream wrapper', () => {
         const collected = await collectBytes(stream);
         expect(dec.decode(collected)).toBe('hello');
 
-        const result = await future;
-        expect(result.tag).toBe('ok');
+        await future;
     });
 
     test('reads multiple chunks in order', async () => {
@@ -183,8 +182,7 @@ describe('Node.js stdin ReadableStream wrapper', () => {
         const collected = await collectBytes(stream);
         expect(dec.decode(collected)).toBe('aaabbb');
 
-        const result = await future;
-        expect(result.tag).toBe('ok');
+        await future;
     });
 
     test('empty stdin', async () => {
@@ -198,8 +196,7 @@ describe('Node.js stdin ReadableStream wrapper', () => {
         const collected = await collectBytes(stream);
         expect(collected.length).toBe(0);
 
-        const result = await future;
-        expect(result.tag).toBe('ok');
+        await future;
     });
 });
 

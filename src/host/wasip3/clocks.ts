@@ -21,16 +21,16 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
             return 1_000n; // 1 microsecond in nanoseconds
         },
 
-        waitUntil(when: bigint): Promise<void> {
+        waitUntil(when: bigint): Promise<void> | void {
             const nowNs = BigInt(Math.round(performance.now() * 1_000_000));
             const delayNs = when - nowNs;
-            if (delayNs <= 0n) return Promise.resolve();
+            if (delayNs <= 0n) return;
             const delayMs = Number(delayNs) / 1_000_000;
             return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
         },
 
-        waitFor(howLong: bigint): Promise<void> {
-            if (howLong <= 0n) return Promise.resolve();
+        waitFor(howLong: bigint): Promise<void> | void {
+            if (howLong <= 0n) return;
             const delayMs = Number(howLong) / 1_000_000;
             return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
         },

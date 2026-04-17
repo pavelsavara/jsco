@@ -11,6 +11,7 @@ import {
     CanonicalFunctionFutureCancelRead, CanonicalFunctionFutureCancelWrite,
     CanonicalFunctionFutureDropReadable, CanonicalFunctionFutureDropWritable,
     CanonicalFunctionErrorContextNew, CanonicalFunctionErrorContextDebugMessage, CanonicalFunctionErrorContextDrop,
+    CanonicalFunctionContextGet, CanonicalFunctionContextSet,
 } from '../model/canonicals';
 import { ComponentExternalKind } from '../model/exports';
 import { ComponentImport } from '../model/imports';
@@ -26,7 +27,7 @@ import type { ResolvedType } from './type-resolution';
 import { getCanonicalResourceId, createAllocator } from './context';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
 import type { TCabiRealloc } from './binding/types';
-import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
+import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions, SubtaskState } from './types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -63,19 +64,29 @@ export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
         case ModelTag.CanonicalFunctionBackpressureSet:
         case ModelTag.CanonicalFunctionBackpressureInc:
         case ModelTag.CanonicalFunctionBackpressureDec:
+            result = resolveCanonicalFunctionBackpressure(rctx, rargs); break;
         case ModelTag.CanonicalFunctionTaskReturn:
-        case ModelTag.CanonicalFunctionTaskCancel:
+            result = resolveCanonicalFunctionTaskReturn(rctx, rargs); break;
         case ModelTag.CanonicalFunctionContextGet:
+            result = resolveCanonicalFunctionContextGet(rctx, rargs as any); break;
         case ModelTag.CanonicalFunctionContextSet:
+            result = resolveCanonicalFunctionContextSet(rctx, rargs as any); break;
+        case ModelTag.CanonicalFunctionTaskCancel:
         case ModelTag.CanonicalFunctionThreadYield:
         case ModelTag.CanonicalFunctionSubtaskCancel:
-        case ModelTag.CanonicalFunctionSubtaskDrop:
-        case ModelTag.CanonicalFunctionWaitableSetNew:
-        case ModelTag.CanonicalFunctionWaitableSetWait:
-        case ModelTag.CanonicalFunctionWaitableSetPoll:
-        case ModelTag.CanonicalFunctionWaitableSetDrop:
-        case ModelTag.CanonicalFunctionWaitableJoin:
             result = resolveCanonicalFunctionNotImplemented(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionSubtaskDrop:
+            result = resolveCanonicalFunctionSubtaskDrop(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionWaitableSetNew:
+            result = resolveCanonicalFunctionWaitableSetNew(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionWaitableSetWait:
+            result = resolveCanonicalFunctionWaitableSetWait(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionWaitableSetPoll:
+            result = resolveCanonicalFunctionWaitableSetPoll(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionWaitableSetDrop:
+            result = resolveCanonicalFunctionWaitableSetDrop(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionWaitableJoin:
+            result = resolveCanonicalFunctionWaitableJoin(rctx, rargs); break;
         default: throw new Error(`"${(coreInstance as any).tag}" not implemented`);
     }
     rctx.coreFunctionCache.set(rargs.element, result);
@@ -126,6 +137,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
         : undefined;
 
     const wrapLower = rctx.resolved.wrapLower;
+    const isAsyncLower = canonOpts.async;
 
     return {
         callerElement: rargs.callerElement,
@@ -148,6 +160,36 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 const customAllocator = createAllocator();
                 customAllocator.initialize(reallocFn);
                 effectiveBctx = { ...bctx, allocator: customAllocator };
+            }
+
+            if (isAsyncLower) {
+                // Async canon.lower: wrap JS function to capture its Promise,
+                // then return a subtask handle to the guest instead of blocking.
+                let capturedPromise: Promise<unknown> | undefined;
+                const jsFunction = functionResult.result as JsFunction;
+                const wrappedJsFunction: JsFunction = (...fnArgs: unknown[]) => {
+                    const result = jsFunction(...fnArgs);
+                    if (result instanceof Promise) {
+                        capturedPromise = result;
+                        return undefined;
+                    }
+                    return result;
+                };
+                const wasmFunction = loweringBinder(effectiveBctx, wrappedJsFunction);
+
+                const asyncLowerTrampoline = (...wasmArgs: unknown[]): number => {
+                    capturedPromise = undefined;
+                    wasmFunction(...wasmArgs);
+                    if (capturedPromise) {
+                        // Async: create a subtask, return packed state|handle
+                        const handle = effectiveBctx.subtasks.create(capturedPromise);
+                        return SubtaskState.STARTED | (handle << 4);
+                    }
+                    // Synchronous completion (host returned non-Promise)
+                    return SubtaskState.RETURNED;
+                };
+
+                return { result: asyncLowerTrampoline };
             }
 
             const wasmFunction = loweringBinder(effectiveBctx, functionResult.result as JsFunction);
@@ -364,6 +406,9 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
                     case ModelTag.ComponentTypeDefinedOption:
                     case ModelTag.ComponentTypeDefinedResult:
                     case ModelTag.ComponentTypeDefinedPrimitive:
+                    case ModelTag.ComponentTypeDefinedStream:
+                    case ModelTag.ComponentTypeDefinedFuture:
+                    case ModelTag.ComponentTypeDefinedErrorContext:
                     case ModelTag.ComponentTypeFunc:
                         resolved = value;
                         break;
@@ -639,7 +684,7 @@ export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutur
         element: elem,
         binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number, ptr: number) => {
-                return bctx.futures.read(elem.type, handle, ptr);
+                return bctx.futures.read(elem.type, handle, ptr, bctx);
             };
             return { result: fn };
         }, `future.read:${elem.selfSortIndex}`)
@@ -757,6 +802,154 @@ export const resolveCanonicalFunctionErrorContextDrop: Resolver<CanonicalFunctio
             };
             return { result: fn };
         }, `error-context.drop:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Async task canonical built-ins ---
+
+/** context.get — returns the value in the Nth context slot (per-task TLS). */
+const resolveCanonicalFunctionContextGet: Resolver<CanonicalFunctionContextGet> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    const slotIndex = elem.index;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = () => {
+                return bctx.taskContextSlots[slotIndex] ?? 0;
+            };
+            return { result: fn };
+        }, `context.get:${elem.selfSortIndex}`)
+    };
+};
+
+/** context.set — stores a value in the Nth context slot (per-task TLS). */
+const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    const slotIndex = elem.index;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (value: number) => {
+                bctx.taskContextSlots[slotIndex] = value;
+            };
+            return { result: fn };
+        }, `context.set:${elem.selfSortIndex}`)
+    };
+};
+
+/** backpressure — inc/dec/set the backpressure counter (no-op for now). */
+const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            let fn: Function;
+            if (elem.tag === ModelTag.CanonicalFunctionBackpressureInc) {
+                fn = () => { bctx.backpressure++; };
+            } else if (elem.tag === ModelTag.CanonicalFunctionBackpressureDec) {
+                fn = () => { bctx.backpressure--; };
+            } else {
+                // backpressure.set (legacy) — treat 0 as dec, non-0 as inc
+                fn = (value: number) => { bctx.backpressure += value ? 1 : -1; };
+            }
+            return { result: fn };
+        }, `backpressure:${elem.selfSortIndex}`)
+    };
+};
+
+/** task.return — delivers the result of an async export to the caller. For now, a no-op stub. */
+const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (): Promise<BinderRes> => {
+            const fn = (..._args: number[]) => {
+                // task.return delivers the result. In our synchronous-ish execution model,
+                // the result is returned via the normal lifting path. This is a no-op.
+            };
+            return { result: fn };
+        }, `task.return:${elem.selfSortIndex}`)
+    };
+};
+
+// --- Waitable-set canonical built-ins ---
+
+const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = () => bctx.waitableSets.newSet();
+            return { result: fn };
+        }, `waitable-set.new:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number, ptr: number) => bctx.waitableSets.wait(setId, ptr);
+            return { result: fn };
+        }, `waitable-set.wait:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number, ptr: number) => bctx.waitableSets.poll(setId, ptr);
+            return { result: fn };
+        }, `waitable-set.poll:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number) => bctx.waitableSets.drop(setId);
+            return { result: fn };
+        }, `waitable-set.drop:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (waitableHandle: number, setId: number) => bctx.waitableSets.join(waitableHandle, setId);
+            return { result: fn };
+        }, `waitable.join:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+    const elem = rargs.element;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number) => {
+                bctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
+                bctx.subtasks.drop(handle);
+            };
+            return { result: fn };
+        }, `subtask.drop:${elem.selfSortIndex}`)
     };
 };
 

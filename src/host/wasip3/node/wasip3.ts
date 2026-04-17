@@ -42,20 +42,28 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
         nodeConfig.stderr = stderr;
     }
 
-    const host = createBrowserHost(nodeConfig);
+    const host = createBrowserHost(nodeConfig) as unknown as Record<string, unknown>;
+
+    // Helper: override both unversioned and versioned alias
+    const p3version = '0.3.0-rc-2026-03-15';
+    function override(key: string, value: unknown) {
+        host[key] = value;
+        host[key + '@' + p3version] = value;
+    }
+
     // Replace browser socket stubs with real Node.js implementations
-    host['wasi:sockets/types'] = createNodeSocketsTypes();
-    host['wasi:sockets/ip-name-lookup'] = createNodeIpNameLookup();
+    override('wasi:sockets/types', createNodeSocketsTypes());
+    override('wasi:sockets/ip-name-lookup', createNodeIpNameLookup());
 
     // Wire real filesystem mounts
     if (config?.mounts && config.mounts.length > 0) {
         const fsState = initFilesystem(config);
         addNodeMounts(fsState, config.mounts, config.limits);
-        host['wasi:filesystem/preopens'] = createPreopens(fsState);
-        host['wasi:filesystem/types'] = createFilesystemTypes(fsState);
+        override('wasi:filesystem/preopens', createPreopens(fsState));
+        override('wasi:filesystem/types', createFilesystemTypes(fsState));
     }
 
-    return host;
+    return host as unknown as WasiP3Imports;
 }
 
 /**

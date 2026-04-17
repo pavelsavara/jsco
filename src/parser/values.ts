@@ -829,9 +829,11 @@ export function readComponentType(src: SyncSource): ComponentTypeDefined | Compo
                 dtor: readDestructor(src)
             };
         }
-        case 0x40: {
+        case 0x40:
+        case 0x43: {
             return {
                 tag: ModelTag.ComponentTypeFunc,
+                async_: type === 0x43,
                 params: readNamedValues(src),
                 results: readComponentFuncResult(src),
             };

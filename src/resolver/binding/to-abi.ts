@@ -16,7 +16,7 @@ import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, 
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { _f32, _i32, _f64, _i64, canonicalNaN32, canonicalNaN64, bigIntReplacer } from './shared';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK } from '../../utils/constants';
+import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
@@ -706,8 +706,25 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             };
         }
         case ModelTag.ComponentTypeDefinedFuture: {
+            // Create a storer for the future's inner type so future.read can
+            // encode the resolved JS value into WASM linear memory.
+            let futureStorer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
+            if (type.value !== undefined) {
+                const innerType = resolveValTypePure(type.value);
+                const innerMemStorer = createMemoryStorer(innerType, stringEncoding, canonicalResourceIds, ownInstanceResources);
+                if (innerType.tag === ModelTag.ComponentTypeDefinedResult) {
+                    futureStorer = (ctx, ptr, value, rejected) => {
+                        const wrapped = rejected
+                            ? { [TAG]: ERR, [VAL]: value }
+                            : { [TAG]: OK, [VAL]: value };
+                        innerMemStorer(ctx, ptr, wrapped);
+                    };
+                } else {
+                    futureStorer = innerMemStorer;
+                }
+            }
             return (ctx, ptr, jsValue) => {
-                const handle = ctx.futures.addReadable(0, jsValue);
+                const handle = ctx.futures.addReadable(0, jsValue, futureStorer);
                 ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
             };
         }
@@ -991,9 +1008,29 @@ function createStreamLifting(_rctx: ResolvedContext, _streamModel: ComponentType
 
 // --- Future lifting (JS Promise → i32 handle) ---
 
-function createFutureLifting(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LiftingFromJs {
+function createFutureLifting(rctx: ResolvedContext, futureModel: ComponentTypeDefinedFuture): LiftingFromJs {
+    // Create a storer for the future's inner type so future.read can
+    // encode the resolved JS value into WASM linear memory.
+    let storer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
+    if (futureModel.value !== undefined) {
+        const innerType = deepResolveType(rctx, resolveValType(rctx, futureModel.value));
+        const memStorer = createMemoryStorer(innerType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
+        // When the inner type is a result, the CM convention maps
+        // ok → Promise resolve, err → Promise reject.
+        // We reconstruct the result object from the resolve/reject outcome.
+        if (innerType.tag === ModelTag.ComponentTypeDefinedResult) {
+            storer = (ctx, ptr, value, rejected) => {
+                const wrapped = rejected
+                    ? { [TAG]: ERR, [VAL]: value }
+                    : { [TAG]: OK, [VAL]: value };
+                memStorer(ctx, ptr, wrapped);
+            };
+        } else {
+            storer = memStorer;
+        }
+    }
     return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.futures.addReadable(0, srcJsValue);
+        out[offset] = ctx.futures.addReadable(0, srcJsValue, storer);
         return 1;
     };
 }

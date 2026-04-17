@@ -14,13 +14,10 @@ import type { WasiP3Config } from './types';
 import type { WasiStreamReadable, WasiStreamWritable } from './streams';
 import { createStreamPair, readableFromStream } from './streams';
 
-type ErrorCode = 'io' | 'illegal-byte-sequence' | 'pipe';
-type Result<T, E> = { tag: 'ok'; val: T } | { tag: 'err'; val: E };
-
 /**
  * Create the wasi:cli/stdin interface.
  *
- * `readViaStream()` returns a `[WasiStreamWritable<u8>, WasiFuture<Result>]` pair.
+ * `readViaStream()` returns a `[WasiStreamWritable<u8>, WasiFuture<void>]` pair.
  * The writable end is where the runtime receives bytes from stdin.
  * The host pushes config.stdin data into it and signals completion via the future.
  */
@@ -28,11 +25,11 @@ export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
     const stdinStream = config?.stdin;
 
     return {
-        readViaStream(): [WasiStreamWritable<Uint8Array>, Promise<Result<void, ErrorCode>>] {
+        readViaStream(): [WasiStreamWritable<Uint8Array>, Promise<void>] {
             const pair = createStreamPair<Uint8Array>();
 
             // Pump stdin data into the writable end, then signal completion
-            const future = (async (): Promise<Result<void, ErrorCode>> => {
+            const future = (async (): Promise<void> => {
                 try {
                     if (stdinStream) {
                         const readable = readableFromStream(stdinStream);
@@ -41,10 +38,9 @@ export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
                         }
                     }
                     pair.close();
-                    return { tag: 'ok', val: undefined };
                 } catch (e) {
                     pair.error(e);
-                    return { tag: 'err', val: 'io' };
+                    throw e;
                 }
             })();
 

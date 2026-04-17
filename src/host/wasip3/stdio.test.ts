@@ -31,8 +31,7 @@ describe('wasi:cli/stdin', () => {
             const collected = await collectBytes(stream);
             expect(collected).toEqual(data);
 
-            const result = await future;
-            expect(result.tag).toBe('ok');
+            await future;
         });
 
         it('yields multiple chunks in order', async () => {
@@ -52,8 +51,7 @@ describe('wasi:cli/stdin', () => {
             const collected = await collectBytes(stream);
             expect(collected).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6]));
 
-            const result = await future;
-            expect(result.tag).toBe('ok');
+            await future;
         });
 
         it('empty stdin — stream yields nothing, future resolves ok', async () => {
@@ -63,8 +61,7 @@ describe('wasi:cli/stdin', () => {
             const collected = await collectBytes(stream);
             expect(collected.length).toBe(0);
 
-            const result = await future;
-            expect(result.tag).toBe('ok');
+            await future;
         });
 
         it('empty ReadableStream — stream yields nothing, future resolves ok', async () => {
@@ -80,8 +77,7 @@ describe('wasi:cli/stdin', () => {
             const collected = await collectBytes(stream);
             expect(collected.length).toBe(0);
 
-            const result = await future;
-            expect(result.tag).toBe('ok');
+            await future;
         });
 
         it('stdin stream error — future resolves with err', async () => {
@@ -105,11 +101,7 @@ describe('wasi:cli/stdin', () => {
                 // Expected — stream errored
             }
 
-            const result = await future;
-            expect(result.tag).toBe('err');
-            if (result.tag === 'err') {
-                expect(result.val).toBe('io');
-            }
+            await expect(future).rejects.toThrow();
         });
 
         it('large stdin data — streams without full buffering', async () => {
@@ -136,8 +128,7 @@ describe('wasi:cli/stdin', () => {
             const collected = await collectBytes(stream);
             expect(collected.length).toBe(chunkCount * chunkSize);
 
-            const result = await future;
-            expect(result.tag).toBe('ok');
+            await future;
         });
     });
 });
@@ -421,12 +412,11 @@ describe('wasi:cli/stdin + stdout multi-step', () => {
 
         // Collect stdin
         const stdinData = await collectBytes(stdinStream);
-        const stdinResult = await stdinFuture;
 
         await stdoutFuture;
 
         expect(stdinData).toEqual(inputData);
-        expect(stdinResult.tag).toBe('ok');
+        await stdinFuture;
         expect(stdoutChunks).toEqual([new Uint8Array([40, 50])]);
     });
 
