@@ -1,8 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
-import { createWasiP3Host, WasiP3Config } from './host/wasip3';
-import { serve, WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
+import type { WasiP3Config } from './host/wasip3';
+import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
+import { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve } from './dynamic';
 import { createComponent } from './resolver';
 import { CliOptions, CliParseResult, getHelpText, parseCliArgs } from './utils/args';
 import { EXPORTS, INSTANTIATE } from './utils/constants';
@@ -45,19 +45,20 @@ export async function cliMain(): Promise<void> {
     if (!parsedArgs.componentUrl) {
         process.exit(1);
     }
-    await mainImpl(parsedArgs);
+    await main(parsedArgs);
 }
 
-export async function mainImpl({ command, componentUrl, options }: CliParseResult) {
+export async function main({ command, componentUrl, options }: CliParseResult) {
     try {
         const config = createConfig(options);
         const component = await createComponent(componentUrl!, options);
         const exports = component[EXPORTS]();
         const wsiP2Rx = /^wasi:cli\/.*@0\.2/;
         const isWasiP2 = exports.find(s => wsiP2Rx.test(s));
+        const { createWasiP3Host } = await loadWasiP3Host();
         const wasiP3Host = createWasiP3Host(config);
         const imports = isWasiP2
-            ? createWasiP2ViaP3Adapter(wasiP3Host)
+            ? (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(wasiP3Host)
             : wasiP3Host;
         const instance = await component[INSTANTIATE](imports);
 
@@ -77,7 +78,7 @@ export async function mainImpl({ command, componentUrl, options }: CliParseResul
             const handlerExport = instance.exports[handlerExportName] as WasiHttpHandlerExport | undefined;
             if (!handlerExport) throw new Error('Component does not export wasi:incoming-handler/handle');
 
-            await serve(handlerExport, config);
+            await (await loadWasiP3Serve()).serve(handlerExport, config);
         } else {
             throw new Error(`Unknown command: ${command}`);
         }

@@ -13,19 +13,7 @@ import { cliMain } from './main';
 export type { WasmComponent, WasmComponentInstance } from './resolver/api-types';
 export { instantiateComponent, createComponent } from './resolver';
 export { LogLevel, setLogger } from './utils/assert';
-
-/**
- * Dynamically load the WASIp3 host module.
- *
- * On Node.js, loads `wasip3-node` (full bundle with real TCP/UDP/DNS).
- * In the browser, loads `wasip3` (browser-compatible stubs for sockets).
- */
-export async function loadWasip3Host() {
-    if (typeof process !== 'undefined' && process.versions?.node) {
-        return import('./host/wasip3/node/wasip3');
-    }
-    return import('./host/wasip3/wasip3');
-}
+export { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve } from './dynamic';
 
 export function getBuildInfo() {
     return {

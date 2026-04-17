@@ -5,7 +5,7 @@
 // Import from '@pavelsavara/jsco/wasip3'
 
 // Public API
-export { createHost, WasiExit } from '.';
+export { createWasiP3Host, WasiExit } from '.';
 export type { WasiP3Config, MountConfig, NetworkConfig, AllocationLimits } from './types';
 
 // Re-export WIT types for consumers

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createHost } from './index';
+import { createWasiP3Host as createHost } from './index';
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 
 /** All interface keys that WasiP3Imports must contain. */

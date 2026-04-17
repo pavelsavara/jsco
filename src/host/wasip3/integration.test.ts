@@ -10,7 +10,7 @@
 
 import { createComponent } from '../../resolver';
 import { createWasiP2Host } from '../wasip2/index';
-import { createHost as createP3Host } from './index';
+import { createWasiP3Host as createP3Host } from './index';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
