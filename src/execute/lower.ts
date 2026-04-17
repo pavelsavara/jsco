@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { BindingContext } from '../resolver/types';
-import type { WasmPointer, WasmSize, WasmValue, JsValue } from './types';
+import type { LoweringToJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
 import { canonicalNaN32, canonicalNaN64 } from '../utils/shared';
 import { validateUtf16 } from './validation';
 
@@ -135,4 +135,57 @@ export function borrowLowering(plan: ResourceLowerPlan, ctx: BindingContext, ...
 
 export function borrowLoweringDirect(_plan: ResourceLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
     return args[0];
+}
+
+// --- Enum lowering ---
+
+export type EnumLowerPlan = { members: string[] };
+
+export function enumLowering(plan: EnumLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const disc = args[0] as number;
+    if (disc >= plan.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.members.length}`);
+    return plan.members[disc];
+}
+
+// --- Flags lowering ---
+
+export type FlagsLowerPlan = { wordCount: number, memberNames: string[] };
+
+export function flagsLowering(plan: FlagsLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const result: Record<string, boolean> = {};
+    for (let i = 0; i < plan.memberNames.length; i++) {
+        const word = args[i >>> 5] as number;
+        result[plan.memberNames[i]!] = !!(word & (1 << (i & 31)));
+    }
+    return result;
+}
+
+// --- Record lowering ---
+
+export type RecordLowerPlan = { fields: { name: string, lowerer: LoweringToJs, spill: number }[] };
+
+export function recordLowering(plan: RecordLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const result: Record<string, unknown> = {};
+    let offset = 0;
+    for (let i = 0; i < plan.fields.length; i++) {
+        const fl = plan.fields[i]!;
+        result[fl.name] = fl.lowerer(ctx, ...args.slice(offset, offset + fl.spill));
+        offset += fl.spill;
+    }
+    return result;
+}
+
+// --- Tuple lowering ---
+
+export type TupleLowerPlan = { elements: { lowerer: LoweringToJs, spill: number }[] };
+
+export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const result = new Array(plan.elements.length);
+    let offset = 0;
+    for (let i = 0; i < plan.elements.length; i++) {
+        const el = plan.elements[i]!;
+        result[i] = el.lowerer(ctx, ...args.slice(offset, offset + el.spill));
+        offset += el.spill;
+    }
+    return result;
 }

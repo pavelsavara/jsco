@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { BindingContext } from '../resolver/types';
-import type { WasmPointer, WasmSize, WasmValue, JsValue } from './types';
+import type { LiftingFromJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
 import { canonicalNaN32, canonicalNaN64 } from '../utils/shared';
 import { validateAllocResult } from './validation';
 
@@ -159,4 +159,63 @@ export function borrowLifting(plan: ResourceLiftPlan, ctx: BindingContext, srcJs
 export function borrowLiftingDirect(_plan: ResourceLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
+}
+
+// --- Enum lifting ---
+
+export type EnumLiftPlan = { nameToIndex: Map<string, number> };
+
+export function enumLifting(plan: EnumLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    const idx = plan.nameToIndex.get(srcJsValue as string);
+    if (idx === undefined) throw new Error(`Unknown enum value: ${srcJsValue}`);
+    out[offset] = idx;
+    return 1;
+}
+
+// --- Flags lifting ---
+
+export type FlagsLiftPlan = { wordCount: number, memberNames: string[] };
+
+export function flagsLifting(plan: FlagsLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
+    const flags = srcJsValue as Record<string, boolean>;
+    for (let w = 0; w < plan.wordCount; w++) {
+        let word = 0;
+        for (let b = 0; b < 32 && w * 32 + b < plan.memberNames.length; b++) {
+            if (flags[plan.memberNames[w * 32 + b]!]) word |= (1 << (b & 31));
+        }
+        out[offset + w] = word;
+    }
+    return plan.wordCount;
+}
+
+// --- Record lifting ---
+
+export type RecordLiftPlan = { fields: { name: string, lifter: LiftingFromJs }[] };
+
+export function recordLifting(plan: RecordLiftPlan, ctx: BindingContext, srcJsRecord: JsValue, out: WasmValue[], offset: number): number {
+    if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
+    let pos = 0;
+    for (let i = 0; i < plan.fields.length; i++) {
+        const l = plan.fields[i]!;
+        pos += l.lifter(ctx, srcJsRecord[l.name], out, offset + pos);
+    }
+    return pos;
+}
+
+// --- Tuple lifting ---
+
+export type TupleLiftPlan = { elementLifters: LiftingFromJs[] };
+
+export function tupleLifting(plan: TupleLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+    if (srcJsValue.length !== plan.elementLifters.length) {
+        throw new Error(`Expected tuple of ${plan.elementLifters.length} elements, got ${srcJsValue.length}`);
+    }
+    let pos = 0;
+    for (let i = 0; i < plan.elementLifters.length; i++) {
+        const lifter = plan.elementLifters[i]!;
+        pos += lifter(ctx, srcJsValue[i], out, offset + pos);
+    }
+    return pos;
 }

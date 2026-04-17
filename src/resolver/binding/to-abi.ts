@@ -15,7 +15,7 @@ import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { _f32, _i32, _f64, _i64, bigIntReplacer } from '../../utils/shared';
-import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect } from '../../execute/lift';
+import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting } from '../../execute/lift';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -271,20 +271,12 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
 }
 
 function createRecordLifting(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LiftingFromJs {
-    const lifters: { name: string, lifter: LiftingFromJs }[] = [];
+    const fields: { name: string, lifter: LiftingFromJs }[] = [];
     for (const member of recordModel.members) {
         const lifter = createLifting(rctx, member.type);
-        lifters.push({ name: camelCase(member.name), lifter });
+        fields.push({ name: camelCase(member.name), lifter });
     }
-    return (ctx, srcJsRecord, out, offset) => {
-        if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
-        let pos = 0;
-        for (let i = 0; i < lifters.length; i++) {
-            const l = lifters[i]!;
-            pos += l.lifter(ctx, srcJsRecord[l.name], out, offset + pos);
-        }
-        return pos;
-    };
+    return recordLifting.bind(null, { fields });
 }
 
 function createBoolLifting(): LiftingFromJs {
@@ -820,12 +812,7 @@ function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValu
 
 function createEnumLifting(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LiftingFromJs {
     const nameToIndex = new Map(enumModel.members.map((name, i) => [name, i]));
-    return (_, srcJsValue, out, offset) => {
-        const idx = nameToIndex.get(srcJsValue as string);
-        if (idx === undefined) throw new Error(`Unknown enum value: ${srcJsValue}`);
-        out[offset] = idx;
-        return 1;
-    };
+    return enumLifting.bind(null, { nameToIndex });
 }
 
 // --- Flags lifting ---
@@ -833,38 +820,14 @@ function createEnumLifting(_rctx: ResolvedContext, enumModel: ComponentTypeDefin
 function createFlagsLifting(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LiftingFromJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
     const memberNames = flagsModel.members.map(m => camelCase(m));
-
-    return (_, srcJsValue, out, offset) => {
-        if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
-        const flags = srcJsValue as Record<string, boolean>;
-        for (let w = 0; w < wordCount; w++) {
-            let word = 0;
-            for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                if (flags[memberNames[w * 32 + b]!]) word |= (1 << (b & 31));
-            }
-            out[offset + w] = word;
-        }
-        return wordCount;
-    };
+    return flagsLifting.bind(null, { wordCount, memberNames });
 }
 
 // --- Tuple lifting ---
 
 function createTupleLifting(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LiftingFromJs {
     const elementLifters = tupleModel.members.map(m => createLifting(rctx, m));
-
-    return (ctx, srcJsValue, out, offset) => {
-        if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
-        if (srcJsValue.length !== elementLifters.length) {
-            throw new Error(`Expected tuple of ${elementLifters.length} elements, got ${srcJsValue.length}`);
-        }
-        let pos = 0;
-        for (let i = 0; i < elementLifters.length; i++) {
-            const lifter = elementLifters[i]!;
-            pos += lifter(ctx, srcJsValue[i], out, offset + pos);
-        }
-        return pos;
-    };
+    return tupleLifting.bind(null, { elementLifters });
 }
 
 // --- Resource handle lifting ---

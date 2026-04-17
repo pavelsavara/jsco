@@ -15,7 +15,7 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { _f32, _i32, _f64, _i64, _i32_64, bigIntReplacer } from '../../utils/shared';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect } from '../../execute/lower';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering } from '../../execute/lower';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -299,27 +299,17 @@ function createCharLowering(): LoweringToJs {
 }
 
 function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
-    const fieldLowerers: { name: string, lowerer: LoweringToJs }[] = [];
+    const fields: { name: string, lowerer: LoweringToJs, spill: number }[] = [];
     for (const member of recordModel.members) {
         const lowerer = createLowering(rctx, member.type);
-        fieldLowerers.push({ name: camelCase(member.name), lowerer });
+        fields.push({ name: camelCase(member.name), lowerer, spill: (lowerer as any).spill });
     }
     let totalSpill = 0;
-    for (const fl of fieldLowerers) {
-        totalSpill += (fl.lowerer as any).spill;
+    for (const fl of fields) {
+        totalSpill += fl.spill;
     }
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const result: Record<string, unknown> = {};
-        let offset = 0;
-        for (let i = 0; i < fieldLowerers.length; i++) {
-            const fl = fieldLowerers[i]!;
-            const spill = (fl.lowerer as any).spill;
-            result[fl.name] = fl.lowerer(ctx, ...args.slice(offset, offset + spill));
-            offset += spill;
-        }
-        return result;
-    };
-    fn.spill = totalSpill;
+    const fn = recordLowering.bind(null, { fields });
+    (fn as any).spill = totalSpill;
     return fn;
 }
 
@@ -800,12 +790,8 @@ function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): Wasm
 // --- Enum lowering ---
 
 function createEnumLowering(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
-    const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
-        const disc = args[0] as number;
-        if (disc >= enumModel.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${enumModel.members.length}`);
-        return enumModel.members[disc];
-    };
-    fn.spill = 1;
+    const fn = enumLowering.bind(null, { members: enumModel.members });
+    (fn as any).spill = 1;
     return fn;
 }
 
@@ -814,39 +800,24 @@ function createEnumLowering(_rctx: ResolvedContext, enumModel: ComponentTypeDefi
 function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
     const memberNames = flagsModel.members.map(m => camelCase(m));
-
-    const fn = (_ctx: BindingContext, ...args: WasmValue[]) => {
-        const result: Record<string, boolean> = {};
-        for (let i = 0; i < memberNames.length; i++) {
-            const word = args[i >>> 5] as number;
-            result[memberNames[i]!] = !!(word & (1 << (i & 31)));
-        }
-        return result;
-    };
-    fn.spill = wordCount;
+    const fn = flagsLowering.bind(null, { wordCount, memberNames });
+    (fn as any).spill = wordCount;
     return fn;
 }
 
 // --- Tuple lowering ---
 
 function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
-    const elementLowerers = tupleModel.members.map(m => createLowering(rctx, m));
+    const elements = tupleModel.members.map(m => {
+        const lowerer = createLowering(rctx, m);
+        return { lowerer, spill: (lowerer as any).spill as number };
+    });
 
     let totalSpill = 0;
-    for (const l of elementLowerers) totalSpill += (l as any).spill;
+    for (const el of elements) totalSpill += el.spill;
 
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const result = new Array(elementLowerers.length);
-        let offset = 0;
-        for (let i = 0; i < elementLowerers.length; i++) {
-            const lowerer = elementLowerers[i]!;
-            const spill = (lowerer as any).spill;
-            result[i] = lowerer(ctx, ...args.slice(offset, offset + spill));
-            offset += spill;
-        }
-        return result;
-    };
-    fn.spill = totalSpill;
+    const fn = tupleLowering.bind(null, { elements });
+    (fn as any).spill = totalSpill;
     return fn;
 }
 
