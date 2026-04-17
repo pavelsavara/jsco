@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { bigIntReplacer } from './shared';
+import { bigIntReplacer } from '../../utils/shared';
 
 describe('shared.ts', () => {
     describe('bigIntReplacer', () => {
