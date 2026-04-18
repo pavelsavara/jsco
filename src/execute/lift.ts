@@ -340,6 +340,29 @@ export function variantLifting(plan: VariantLiftPlan, ctx: BindingContext, srcJs
     return plan.totalSize;
 }
 
+// --- Stream lifting (JS AsyncIterable → i32 handle) ---
+
+export function streamLifting(ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.streams.addReadable(0, srcJsValue);
+    return 1;
+}
+
+// --- Future lifting (JS Promise → i32 handle) ---
+
+export type FutureLiftPlan = { storer?: (ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void };
+
+export function futureLifting(plan: FutureLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
+    return 1;
+}
+
+// --- Error-context lifting (JS Error → i32 handle) ---
+
+export function errorContextLifting(ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.errorContexts.add(srcJsValue);
+    return 1;
+}
+
 /**
  * Coerce a value from one flat type to another during lifting (JS→WASM).
  * Follows the spec's lower_flat_variant coercion table.

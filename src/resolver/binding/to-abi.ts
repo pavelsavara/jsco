@@ -15,7 +15,7 @@ import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { bigIntReplacer } from '../../utils/shared';
-import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, variantLifting } from '../../execute/lift';
+import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../../execute/lift';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -740,10 +740,7 @@ function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDe
 // --- Stream lifting (JS AsyncIterable → i32 handle) ---
 
 function createStreamLifting(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LiftingFromJs {
-    return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.streams.addReadable(0, srcJsValue);
-        return 1;
-    };
+    return streamLifting;
 }
 
 // --- Future lifting (JS Promise → i32 handle) ---
@@ -769,17 +766,11 @@ function createFutureLifting(rctx: ResolvedContext, futureModel: ComponentTypeDe
             storer = memStorer;
         }
     }
-    return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.futures.addReadable(0, srcJsValue, storer);
-        return 1;
-    };
+    return futureLifting.bind(null, { storer });
 }
 
 // --- Error-context lifting (JS Error → i32 handle) ---
 
 function createErrorContextLifting(): LiftingFromJs {
-    return (ctx, srcJsValue, out, offset) => {
-        out[offset] = ctx.errorContexts.add(srcJsValue);
-        return 1;
-    };
+    return errorContextLifting;
 }

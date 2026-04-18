@@ -15,7 +15,7 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { bigIntReplacer } from '../../utils/shared';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, variantLowering } from '../../execute/lower';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../../execute/lower';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -747,32 +747,23 @@ function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeD
 // --- Stream lowering (i32 handle → JS AsyncIterable) ---
 
 function createStreamLowering(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LoweringToJs {
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const handle = args[0] as number;
-        return ctx.streams.removeReadable(0, handle);
-    };
-    fn.spill = 1;
+    const fn = streamLowering;
+    (fn as any).spill = 1;
     return fn;
 }
 
 // --- Future lowering (i32 handle → JS Promise) ---
 
 function createFutureLowering(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LoweringToJs {
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const handle = args[0] as number;
-        return ctx.futures.removeReadable(0, handle);
-    };
-    fn.spill = 1;
+    const fn = futureLowering;
+    (fn as any).spill = 1;
     return fn;
 }
 
 // --- Error-context lowering (i32 handle → JS Error) ---
 
 function createErrorContextLowering(): LoweringToJs {
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const handle = args[0] as number;
-        return ctx.errorContexts.remove(handle);
-    };
-    fn.spill = 1;
+    const fn = errorContextLowering;
+    (fn as any).spill = 1;
     return fn;
 }

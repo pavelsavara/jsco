@@ -300,6 +300,27 @@ export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...
     return { [TAG]: c.name };
 }
 
+// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+
+export function streamLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.streams.removeReadable(0, handle);
+}
+
+// --- Future lowering (i32 handle → JS Promise) ---
+
+export function futureLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.futures.removeReadable(0, handle);
+}
+
+// --- Error-context lowering (i32 handle → JS Error) ---
+
+export function errorContextLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.errorContexts.remove(handle);
+}
+
 /**
  * Coerce a value from the joined flat type to the case's natural flat type during lowering (WASM→JS).
  * Follows the spec's lift_flat_variant CoerceValueIter.
