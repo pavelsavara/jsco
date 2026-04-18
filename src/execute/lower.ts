@@ -2,8 +2,11 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { LoweringToJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import { canonicalNaN32, canonicalNaN64 } from '../utils/shared';
-import { validateUtf16 } from './validation';
+import type { MemoryLoader } from '../resolver/binding/to-js';
+import { FlatType } from '../resolver/calling-convention';
+import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
+import { validateUtf16, validatePointerAlignment } from './validation';
+import { TAG, VAL, OK, ERR } from '../utils/constants';
 
 // --- Primitive lowering functions (WASM flat args → JS values) ---
 // These are stateless top-level functions with no captured state.
@@ -188,4 +191,140 @@ export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args
         offset += el.spill;
     }
     return result;
+}
+
+// --- List lowering ---
+
+export type ListLowerPlan = { elemSize: number, elemAlign: number, elemLoader: MemoryLoader };
+
+export function listLowering(plan: ListLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const ptr = (args[0] as number) >>> 0;
+    const len = (args[1] as number) >>> 0;
+    if (len > 0) {
+        // Validate list pointer alignment
+        validatePointerAlignment(ptr, plan.elemAlign, 'list');
+        // Validate bounds
+        const memorySize = ctx.memory.getMemory().buffer.byteLength;
+        if (ptr + len * plan.elemSize > memorySize) {
+            throw new Error(`list pointer out of bounds: ptr=${ptr} len=${len} elem_size=${plan.elemSize} memory_size=${memorySize}`);
+        }
+    }
+    const result = new Array(len);
+    for (let i = 0; i < len; i++) {
+        result[i] = plan.elemLoader(ctx, ptr + i * plan.elemSize);
+    }
+    return result;
+}
+
+// --- Option lowering ---
+
+export type OptionLowerPlan = { innerLowerer: LoweringToJs, innerSpill: number };
+
+export function optionLowering(plan: OptionLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const discriminant = args[0] as number;
+    if (discriminant > 1) throw new Error(`Invalid option discriminant: ${discriminant}`);
+    if (discriminant === 0) return null;
+    const payload = args.slice(1, 1 + plan.innerSpill);
+    return plan.innerLowerer(ctx, ...payload);
+}
+
+// --- Result lowering ---
+
+export type ResultLowerPlan = {
+    okLowerer?: LoweringToJs, errLowerer?: LoweringToJs,
+    payloadJoined: FlatType[],
+    okFlatTypes: FlatType[], errFlatTypes: FlatType[],
+    okNeedsCoercion: boolean, errNeedsCoercion: boolean,
+};
+
+export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const discriminant = args[0] as number;
+    if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
+    const payload = args.slice(1, 1 + plan.payloadJoined.length);
+    if (discriminant === 0) {
+        if (plan.okNeedsCoercion) {
+            for (let i = 0; i < plan.okFlatTypes.length; i++) {
+                const joinedFT = plan.payloadJoined[i];
+                const okFT = plan.okFlatTypes[i];
+                if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
+                    payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
+                }
+            }
+        }
+        const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
+        return { [TAG]: OK, [VAL]: val };
+    } else {
+        if (plan.errNeedsCoercion) {
+            for (let i = 0; i < plan.errFlatTypes.length; i++) {
+                const joinedFT = plan.payloadJoined[i];
+                const errFT = plan.errFlatTypes[i];
+                if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
+                    payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
+                }
+            }
+        }
+        const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;
+        return { [TAG]: ERR, [VAL]: val };
+    }
+}
+
+// --- Variant lowering ---
+
+export type VariantCaseLowerPlan = {
+    name: string, lowerer?: LoweringToJs,
+    caseFlatTypes: FlatType[], needsCoercion: boolean,
+};
+
+export type VariantLowerPlan = {
+    cases: VariantCaseLowerPlan[], payloadJoined: FlatType[],
+};
+
+export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const disc = args[0] as number;
+    const c = plan.cases[disc];
+    if (!c) throw new Error(`Invalid variant discriminant: ${disc}`);
+    if (c.lowerer) {
+        // Coerce payload args from joined flat types to case's natural flat types
+        const payload = args.slice(1, 1 + c.caseFlatTypes.length);
+        if (c.needsCoercion) {
+            for (let i = 0; i < c.caseFlatTypes.length; i++) {
+                const have = plan.payloadJoined[i];
+                const want = c.caseFlatTypes[i];
+                if (have !== undefined && want !== undefined && have !== want) {
+                    payload[i] = coerceFlatLower(payload[i] as WasmValue, have, want);
+                }
+            }
+        }
+        return { [TAG]: c.name, [VAL]: c.lowerer(ctx, ...payload) };
+    }
+    return { [TAG]: c.name };
+}
+
+/**
+ * Coerce a value from the joined flat type to the case's natural flat type during lowering (WASM→JS).
+ * Follows the spec's lift_flat_variant CoerceValueIter.
+ */
+export function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
+    // (i32, f32): decode_i32_as_float
+    if (have === FlatType.I32 && want === FlatType.F32) {
+        _i32[0] = value as number;
+        return _f32[0] as number;
+    }
+    // (i64, i32): wrap_i64_to_i32 — use shared buffer to avoid BigInt.asUintN allocation
+    if (have === FlatType.I64 && want === FlatType.I32) {
+        _i64[0] = value as bigint;
+        return _i32_64[0]! >>> 0;
+    }
+    // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
+    if (have === FlatType.I64 && want === FlatType.F32) {
+        _i64[0] = value as bigint;
+        _i32[0] = _i32_64[0]!;
+        return _f32[0] as number;
+    }
+    // (i64, f64): decode_i64_as_float
+    if (have === FlatType.I64 && want === FlatType.F64) {
+        _i64[0] = value as bigint;
+        return _f64[0] as number;
+    }
+    return value;
 }

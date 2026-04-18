@@ -14,8 +14,8 @@ import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, WasmFunction, WasmPointer, JsFunction, WasmSize, WasmValue } from './types';
 import { validatePointerAlignment, validateUtf16 } from './validation';
-import { _f32, _i32, _f64, _i64, _i32_64, bigIntReplacer } from '../../utils/shared';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering } from '../../execute/lower';
+import { bigIntReplacer } from '../../utils/shared';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, variantLowering } from '../../execute/lower';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -623,26 +623,8 @@ function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefin
     const elemSize = sizeOf(elementType);
     const elemAlign = alignOf(elementType);
     const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64);
-
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const ptr = (args[0] as number) >>> 0;
-        const len = (args[1] as number) >>> 0;
-        if (len > 0) {
-            // Validate list pointer alignment
-            validatePointerAlignment(ptr, elemAlign, 'list');
-            // Validate bounds
-            const memorySize = ctx.memory.getMemory().buffer.byteLength;
-            if (ptr + len * elemSize > memorySize) {
-                throw new Error(`list pointer out of bounds: ptr=${ptr} len=${len} elem_size=${elemSize} memory_size=${memorySize}`);
-            }
-        }
-        const result = new Array(len);
-        for (let i = 0; i < len; i++) {
-            result[i] = elemLoader(ctx, ptr + i * elemSize);
-        }
-        return result;
-    };
-    fn.spill = 2;
+    const fn = listLowering.bind(null, { elemSize, elemAlign, elemLoader });
+    (fn as any).spill = 2;
     return fn;
 }
 
@@ -651,15 +633,8 @@ function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefin
 function createOptionLowering(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
     const innerLowerer = createLowering(rctx, optionModel.value);
     const innerSpill = (innerLowerer as any).spill as number;
-
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const discriminant = args[0] as number;
-        if (discriminant > 1) throw new Error(`Invalid option discriminant: ${discriminant}`);
-        if (discriminant === 0) return null;
-        const payload = args.slice(1, 1 + innerSpill);
-        return innerLowerer(ctx, ...payload);
-    };
-    fn.spill = 1 + innerSpill;
+    const fn = optionLowering.bind(null, { innerLowerer, innerSpill });
+    (fn as any).spill = 1 + innerSpill;
     return fn;
 }
 
@@ -669,7 +644,6 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
     const okLowerer = resultModel.ok ? createLowering(rctx, resultModel.ok) : undefined;
     const errLowerer = resultModel.err ? createLowering(rctx, resultModel.err) : undefined;
 
-    // Compute joined flat types for the result
     const resolved = deepResolveType(rctx, resultModel) as ComponentTypeDefinedResult;
     const joinedFlatTypes = flattenType(resolved);
     const payloadJoined = joinedFlatTypes.slice(1);
@@ -680,44 +654,14 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
     const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const discriminant = args[0] as number;
-        if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
-        const payload = args.slice(1, 1 + payloadJoined.length);
-        if (discriminant === 0) {
-            if (okNeedsCoercion) {
-                for (let i = 0; i < okFlatTypes.length; i++) {
-                    const joinedFT = payloadJoined[i];
-                    const okFT = okFlatTypes[i];
-                    if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
-                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
-                    }
-                }
-            }
-            const val = okLowerer ? okLowerer(ctx, ...payload.slice(0, okFlatTypes.length)) : undefined;
-            return { [TAG]: OK, [VAL]: val };
-        } else {
-            if (errNeedsCoercion) {
-                for (let i = 0; i < errFlatTypes.length; i++) {
-                    const joinedFT = payloadJoined[i];
-                    const errFT = errFlatTypes[i];
-                    if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
-                        payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
-                    }
-                }
-            }
-            const val = errLowerer ? errLowerer(ctx, ...payload.slice(0, errFlatTypes.length)) : undefined;
-            return { [TAG]: ERR, [VAL]: val };
-        }
-    };
-    fn.spill = totalSpill;
+    const fn = resultLowering.bind(null, { okLowerer, errLowerer, payloadJoined, okFlatTypes, errFlatTypes, okNeedsCoercion, errNeedsCoercion });
+    (fn as any).spill = totalSpill;
     return fn;
 }
 
 // --- Variant lowering ---
 
 function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
-    // Compute the joined flat types per the spec's flatten_variant
     const joinedFlatTypes = flattenVariant(deepResolveType(rctx, variantModel) as ComponentTypeDefinedVariant);
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSpill = joinedFlatTypes.length;
@@ -734,57 +678,9 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
         };
     });
 
-    const fn = (ctx: BindingContext, ...args: WasmValue[]) => {
-        const disc = args[0] as number;
-        const c = cases[disc];
-        if (!c) throw new Error(`Invalid variant discriminant: ${disc}`);
-        if (c.lowerer) {
-            // Coerce payload args from joined flat types to case's natural flat types
-            const payload = args.slice(1, 1 + c.caseFlatTypes.length);
-            if (c.needsCoercion) {
-                for (let i = 0; i < c.caseFlatTypes.length; i++) {
-                    const have = payloadJoined[i];
-                    const want = c.caseFlatTypes[i];
-                    if (have !== undefined && want !== undefined && have !== want) {
-                        payload[i] = coerceFlatLower(payload[i] as WasmValue, have, want);
-                    }
-                }
-            }
-            return { [TAG]: c.name, [VAL]: c.lowerer(ctx, ...payload) };
-        }
-        return { [TAG]: c.name };
-    };
-    fn.spill = totalSpill;
+    const fn = variantLowering.bind(null, { cases, payloadJoined });
+    (fn as any).spill = totalSpill;
     return fn;
-}
-
-/**
- * Coerce a value from the joined flat type to the case's natural flat type during lowering (WASM→JS).
- * Follows the spec's lift_flat_variant CoerceValueIter.
- */
-function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
-    // (i32, f32): decode_i32_as_float
-    if (have === FlatType.I32 && want === FlatType.F32) {
-        _i32[0] = value as number;
-        return _f32[0] as number;
-    }
-    // (i64, i32): wrap_i64_to_i32 — use shared buffer to avoid BigInt.asUintN allocation
-    if (have === FlatType.I64 && want === FlatType.I32) {
-        _i64[0] = value as bigint;
-        return _i32_64[0]! >>> 0;
-    }
-    // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
-    if (have === FlatType.I64 && want === FlatType.F32) {
-        _i64[0] = value as bigint;
-        _i32[0] = _i32_64[0]!;
-        return _f32[0] as number;
-    }
-    // (i64, f64): decode_i64_as_float
-    if (have === FlatType.I64 && want === FlatType.F64) {
-        _i64[0] = value as bigint;
-        return _f64[0] as number;
-    }
-    return value;
 }
 
 // --- Enum lowering ---
