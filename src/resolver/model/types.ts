@@ -1,6 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { TCabiRealloc, WasmPointer, WasmSize } from '../../marshal/model/types';
+import type { TCabiRealloc, WasmPointer, WasmSize, MarshalingContext } from '../../marshal/model/types';
+export type { MarshalingContext as BindingContext } from '../../marshal/model/types';
 import type { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../../parser/model/aliases';
 import type { ComponentExport } from '../../parser/model/exports';
 import type { ComponentImport } from '../../parser/model/imports';
@@ -144,34 +145,6 @@ export type ResourceTable = {
     lendCount(resourceTypeIdx: number, handle: number): number;
 }
 
-export type BindingContext = {
-    componentImports: JsImports;
-    instances: InstanceTable;
-    memory: MemoryView;
-    allocator: Allocator;
-    resources: ResourceTable;
-    streams: StreamTable;
-    futures: FutureTable;
-    subtasks: SubtaskTable;
-    errorContexts: ErrorContextTable;
-    utf8Decoder: TextDecoder;
-    utf8Encoder: TextEncoder;
-    abort: () => void;
-    debugStack?: string[];
-    poisoned?: boolean;
-    inExport?: boolean;
-    postReturnFn?: Function;
-    verbose?: Verbosity;
-    logger?: LogFn;
-    waitableSets: WaitableSetTable;
-    /** Per-task async context slots (used by context.get/set canonical builtins). */
-    taskContextSlots: number[];
-    /** Backpressure counter for async component model flow control. */
-    backpressure: number;
-    /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
-    pendingBackgroundTasks: Promise<unknown>[];
-}
-
 export interface StreamTable {
     newStream(typeIdx: number): bigint;
     read(typeIdx: number, handle: number, ptr: number, len: number): number;
@@ -198,7 +171,7 @@ export interface StreamTable {
 
 export interface FutureTable {
     newFuture(typeIdx: number): bigint;
-    read(typeIdx: number, handle: number, ptr: number, bctx?: BindingContext): number;
+    read(typeIdx: number, handle: number, ptr: number, mctx?: MarshalingContext): number;
     write(typeIdx: number, handle: number, ptr: number): number;
     cancelRead(typeIdx: number, handle: number): number;
     cancelWrite(typeIdx: number, handle: number): number;
@@ -215,7 +188,7 @@ export interface FutureTable {
 }
 
 /** Callback to store a resolved future value into WASM memory at the given pointer. */
-export type FutureStorer = (ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void;
+export type FutureStorer = (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void;
 
 /** Subtask state per the canonical ABI spec. */
 export const enum SubtaskState {
@@ -258,7 +231,7 @@ export interface WaitableSetTable {
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes
-export type Binder = (bctx: BindingContext, args: BinderArgs) => Promise<BinderRes>
+export type Binder = (mctx: MarshalingContext, args: BinderArgs) => Promise<BinderRes>
 
 export type ResolverArgs<TModelElement> = {
     callerElement: TaggedElement | undefined

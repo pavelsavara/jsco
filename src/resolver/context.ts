@@ -697,8 +697,8 @@ type FutureEntry = {
     resolvedValue?: unknown;
     /** Storer callback to encode resolved value into WASM memory. */
     storer?: FutureStorer;
-    /** Pending read: ptr and bctx saved when future.read returns BLOCKED. */
-    pendingRead?: { ptr: number, bctx: BindingContext };
+    /** Pending read: ptr and mctx saved when future.read returns BLOCKED. */
+    pendingRead?: { ptr: number, mctx: BindingContext };
     /** Callbacks to invoke when this future resolves (for waitable-set integration). */
     onResolve?: (() => void)[];
 };
@@ -712,7 +712,7 @@ function createFutureTable(memory: MemoryView, allocHandle: () => number): Futur
         entry.resolved = true;
         // If there's a pending read, write the resolved value to guest memory now
         if (entry.pendingRead && entry.storer) {
-            entry.storer(entry.pendingRead.bctx, entry.pendingRead.ptr, entry.resolvedValue, entry.rejected);
+            entry.storer(entry.pendingRead.mctx, entry.pendingRead.ptr, entry.resolvedValue, entry.rejected);
             entry.pendingRead = undefined;
         }
         if (entry.onResolve) {
@@ -729,21 +729,21 @@ function createFutureTable(memory: MemoryView, allocHandle: () => number): Futur
             return BigInt(writHandle) << 32n | BigInt(readHandle);
         },
 
-        read(_typeIdx: number, handle: number, ptr: number, bctx?: BindingContext): number {
+        read(_typeIdx: number, handle: number, ptr: number, mctx?: BindingContext): number {
             const base = handle & ~1;
             const entry = entries.get(base);
             if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
             if (!entry.resolved) {
                 // Save the target pointer and context for deferred writing.
                 // When the Promise resolves, resolveEntry will write data to this ptr.
-                if (bctx && entry.storer) {
-                    entry.pendingRead = { ptr, bctx };
+                if (mctx && entry.storer) {
+                    entry.pendingRead = { ptr, mctx };
                 }
                 return STREAM_BLOCKED;
             }
             // Already resolved — write immediately
-            if (entry.storer && bctx) {
-                entry.storer(bctx, ptr, entry.resolvedValue, entry.rejected);
+            if (entry.storer && mctx) {
+                entry.storer(mctx, ptr, entry.resolvedValue, entry.rejected);
             } else if (entry.data && entry.data.length > 0) {
                 // Fallback: copy stored raw bytes
                 memory.getViewU8(ptr, entry.data.length).set(entry.data);

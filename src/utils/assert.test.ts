@@ -74,7 +74,7 @@ describe('assert.ts', () => {
     describeDebugOnly('withDebugTrace', () => {
         test('wraps binder to add label to debugStack', async () => {
             const calls: any[] = [];
-            const binder = async (_bctx: any, bargs: any) => {
+            const binder = async (_mctx: any, bargs: any) => {
                 calls.push(bargs);
                 return 'result';
             };
@@ -85,7 +85,7 @@ describe('assert.ts', () => {
         });
 
         test('handles missing debugStack on bargs', async () => {
-            const binder = async (_bctx: any, bargs: any) => bargs.debugStack;
+            const binder = async (_mctx: any, bargs: any) => bargs.debugStack;
             const traced = withDebugTrace(binder, 'label');
             const debugStack = await (traced as any)({}, { foo: 1 });
             expect(debugStack).toEqual(['label']);

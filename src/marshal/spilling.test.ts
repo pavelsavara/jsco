@@ -38,7 +38,7 @@ function createMockRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMockBctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMockmctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(4096);
     let nextAlloc = 64; // Start after some offset to catch ptr=0 bugs
 
@@ -121,7 +121,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: JS args → flat WASM args → JS result', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const lifter = createFunctionLifting(rctx.resolved, smallFunc);
 
             // Mock WASM function that adds its two u32 args
@@ -134,7 +134,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: preserves u32 identity for single args', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const singleParam = makeFunc(1, prim(PrimitiveValType.U32));
             const lifter = createFunctionLifting(rctx.resolved, singleParam);
 
@@ -146,7 +146,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lowering trampoline: flat WASM args → JS args → WASM result', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const lowerer = createFunctionLowering(rctx.resolved, smallFunc);
 
             // Mock JS function
@@ -167,7 +167,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: no result returns undefined', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const lifter = createFunctionLifting(rctx.resolved, voidFunc);
 
             let called = false;
@@ -181,7 +181,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lowering trampoline: void result returns undefined', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const lowerer = createFunctionLowering(rctx.resolved, voidFunc);
 
             let received: number | undefined;
@@ -202,7 +202,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: JS args → memory ptr → WASM reads from memory', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const lifter = createFunctionLifting(rctx.resolved, largeFunc);
 
             // Mock WASM function receives 1 arg (the pointer), reads 18 u32s from memory
@@ -225,7 +225,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: spilled params are 4-byte aligned u32s', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const lifter = createFunctionLifting(rctx.resolved, largeFunc);
 
             // Verify individual values at their memory offsets
@@ -245,7 +245,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lowering trampoline: memory ptr → JS receives expanded args', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const lowerer = createFunctionLowering(rctx.resolved, largeFunc);
 
             let receivedArgs: number[] = [];
@@ -302,7 +302,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: WASM returns ptr → JS reads record from memory', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func = makeRecordResultFunc(rctx);
             const lifter = createFunctionLifting(rctx.resolved, func);
 
@@ -322,7 +322,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting trampoline: WASM result ptr with zero values', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func = makeRecordResultFunc(rctx);
             const lifter = createFunctionLifting(rctx.resolved, func);
 
@@ -341,7 +341,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lowering trampoline: JS returns record → written to retptr', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func = makeRecordResultFunc(rctx);
             const lowerer = createFunctionLowering(rctx.resolved, func);
 
@@ -364,7 +364,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lowering trampoline: retptr record with large values', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func = makeRecordResultFunc(rctx);
             const lowerer = createFunctionLowering(rctx.resolved, func);
 
@@ -411,7 +411,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('lifting: JS → spilled params → WASM → spilled result → JS', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func = makeBothSpilledFunc(rctx);
             const lifter = createFunctionLifting(rctx.resolved, func);
 
@@ -441,7 +441,7 @@ describeDebugOnly('function trampolines', () => {
     describe('edge cases', () => {
         test('exactly 16 params stays flat (not spilled)', () => {
             const rctx = createMockRctx();
-            const { ctx } = createMockBctx();
+            const { ctx } = createMockmctx();
             const func16 = makeFunc(16, prim(PrimitiveValType.U32));
             const lifter = createFunctionLifting(rctx.resolved, func16);
 
@@ -461,7 +461,7 @@ describeDebugOnly('function trampolines', () => {
 
         test('17 params triggers spill', () => {
             const rctx = createMockRctx();
-            const { ctx, buffer } = createMockBctx();
+            const { ctx, buffer } = createMockmctx();
             const func17 = makeFunc(17, prim(PrimitiveValType.U32));
             const lifter = createFunctionLifting(rctx.resolved, func17);
 

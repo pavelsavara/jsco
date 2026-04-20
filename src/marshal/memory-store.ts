@@ -1,66 +1,66 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { BindingContext } from '../resolver/types';
+import type { MarshalingContext, MemoryStorer } from './model/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
 import type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
 export type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
 import { validateAllocResult } from './validation';
-import { TAG, VAL, OK } from '../utils/constants';
+import { TAG, VAL, OK, ERR } from '../utils/constants';
 
 // --- Primitive memory storers ---
 
-export function boolStorer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function boolStorer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, val ? 1 : 0);
 }
 
-export function s8Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function s8Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setInt8(0, val as number);
 }
 
-export function u8Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function u8Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, (val as number) & 0xFF);
 }
 
-export function s16Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function s16Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setInt16(0, val as number, true);
 }
 
-export function u16Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function u16Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, (val as number) & 0xFFFF, true);
 }
 
-export function s32Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function s32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, val as number, true);
 }
 
-export function u32Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function u32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as number) >>> 0, true);
 }
 
-export function s64Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function s64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val), true);
 }
 
-export function u64Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function u64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true);
 }
 
-export function f32Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function f32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'number') throw new TypeError(`expected a number for f32, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val, true);
 }
 
-export function f64Storer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function f64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'number') throw new TypeError(`expected a number for f64, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val, true);
 }
 
-export function charStorer(ctx: BindingContext, ptr: number, val: JsValue): void {
+export function charStorer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'string') throw new TypeError(`expected a string for char, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, val.codePointAt(0)!, true);
 }
 
-export function stringStorer(plan: StringStorerPlan, ctx: BindingContext, ptr: number, val: JsValue): void {
+export function stringStorer(plan: StringStorerPlan, ctx: MarshalingContext, ptr: number, val: JsValue): void {
     const tmp: WasmValue[] = [0, 0];
     plan.lifter(ctx, val, tmp, 0);
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
@@ -71,7 +71,7 @@ export function stringStorer(plan: StringStorerPlan, ctx: BindingContext, ptr: n
 // --- Compound memory storers ---
 
 
-export function recordStorer(plan: RecordStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function recordStorer(plan: RecordStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for record, got ${jsValue === null ? 'null' : typeof jsValue}`);
     for (let i = 0; i < plan.fields.length; i++) {
         const f = plan.fields[i]!;
@@ -79,7 +79,7 @@ export function recordStorer(plan: RecordStorerPlan, ctx: BindingContext, ptr: n
     }
 }
 
-export function listStorer(plan: ListStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function listStorer(plan: ListStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
     const len = jsValue.length;
     let listPtr = 0;
@@ -96,7 +96,7 @@ export function listStorer(plan: ListStorerPlan, ctx: BindingContext, ptr: numbe
     dv.setInt32(4, len, true);
 }
 
-export function optionStorer(plan: OptionStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function optionStorer(plan: OptionStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue === null || jsValue === undefined) {
         dv.setUint8(0, 0);
@@ -106,7 +106,7 @@ export function optionStorer(plan: OptionStorerPlan, ctx: BindingContext, ptr: n
     }
 }
 
-export function resultStorerBoth(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function resultStorerBoth(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
@@ -120,7 +120,7 @@ export function resultStorerBoth(plan: ResultStorerPlan, ctx: BindingContext, pt
     }
 }
 
-export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
@@ -133,7 +133,7 @@ export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: BindingContext, 
     }
 }
 
-export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
@@ -146,7 +146,7 @@ export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: BindingContext,
     }
 }
 
-export function resultStorerVoid(_plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function resultStorerVoid(_plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG];
@@ -154,7 +154,7 @@ export function resultStorerVoid(_plan: ResultStorerPlan, ctx: BindingContext, p
     dv.setUint8(0, tag === OK ? 0 : 1);
 }
 
-export function variantStorerDisc1(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function variantStorerDisc1(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -165,7 +165,7 @@ export function variantStorerDisc1(plan: VariantStorerPlan, ctx: BindingContext,
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function variantStorerDisc2(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function variantStorerDisc2(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -176,7 +176,7 @@ export function variantStorerDisc2(plan: VariantStorerPlan, ctx: BindingContext,
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function variantStorerDisc4(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function variantStorerDisc4(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -187,25 +187,25 @@ export function variantStorerDisc4(plan: VariantStorerPlan, ctx: BindingContext,
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function enumStorerDisc1(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function enumStorerDisc1(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, idx);
 }
 
-export function enumStorerDisc2(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function enumStorerDisc2(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, idx, true);
 }
 
-export function enumStorerDisc4(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function enumStorerDisc4(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, idx, true);
 }
 
-export function flagsStorer(plan: FlagsStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function flagsStorer(plan: FlagsStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
     const flags = jsValue as Record<string, boolean>;
     for (let w = 0; w < plan.wordCount; w++) {
@@ -218,7 +218,7 @@ export function flagsStorer(plan: FlagsStorerPlan, ctx: BindingContext, ptr: num
     }
 }
 
-export function tupleStorer(plan: TupleStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function tupleStorer(plan: TupleStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected an array for tuple, got ${jsValue === null ? 'null' : 'undefined'}`);
     if (jsValue.length !== plan.members.length) {
         throw new Error(`Expected tuple of ${plan.members.length} elements, got ${jsValue.length}`);
@@ -231,33 +231,47 @@ export function tupleStorer(plan: TupleStorerPlan, ctx: BindingContext, ptr: num
 
 // --- Resource memory storers ---
 
-export function ownResourceStorer(plan: OwnResourceStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function ownResourceStorer(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.resources.add(plan.resourceTypeIdx, jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function borrowResourceStorer(plan: OwnResourceStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function borrowResourceStorer(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.resources.add(plan.resourceTypeIdx, jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function borrowResourceDirectStorer(_plan: OwnResourceStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function borrowResourceDirectStorer(_plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, jsValue as number, true);
 }
 
 // --- Stream/Future/ErrorContext memory storers ---
 
-export function streamStorer(ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function streamStorer(ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.streams.addReadable(0, jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function futureMemStorer(plan: FutureStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function futureMemStorer(plan: FutureStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.futures.addReadable(0, jsValue, plan.futureStorer);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function errorContextStorer(ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+/**
+ * Wrap a MemoryStorer so that resolved/rejected values are tagged as result ok/err
+ * before being stored. Used for future<result<T, E>> types where the CM convention
+ * maps ok → Promise resolve, err → Promise reject.
+ */
+export function createResultWrappingStorer(memStorer: MemoryStorer): (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void {
+    return (ctx, ptr, value, rejected) => {
+        const wrapped = rejected
+            ? { [TAG]: ERR, [VAL]: value }
+            : { [TAG]: OK, [VAL]: value };
+        memStorer(ctx, ptr, wrapped);
+    };
+}
+
+export function errorContextStorer(ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.errorContexts.add(jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }

@@ -1,7 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { LiftingFromJs, LoweringToJs, WasmValue } from './types';
-import type { MemoryStorer } from '../../binder/to-abi';
+import type { LiftingFromJs, LoweringToJs, WasmValue, MemoryStorer } from './types';
 import type { MemoryLoader } from '../../binder/to-js';
 import type { FlatType } from '../../resolver/calling-convention';
 

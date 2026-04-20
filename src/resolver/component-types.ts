@@ -127,12 +127,12 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
     const result: ResolverRes = {
         callerElement: rargs.callerElement,
         element: componentSection,
-        binder: withDebugTrace(async (bctx, bargs) => {
+        binder: withDebugTrace(async (mctx, bargs) => {
             // Create an isolated binding context for this ComponentSection scope.
             // Nested sections have their own local index spaces (core instances,
             // functions, etc.) that would collide with the parent's if they shared
             // the same binding context.
-            const scopedBctx = createBindingContext(bargs.imports ?? {}, scopedRctx.resolved);
+            const scopedmctx = createBindingContext(bargs.imports ?? {}, scopedRctx.resolved);
 
             // Phase 1: Bind imports — wire up component args from the parent's instantiation.
             for (const importResolution of importResolutions) {
@@ -141,7 +141,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
                     callerArgs: bargs,
                     debugStack: bargs.debugStack,
                 };
-                await importResolution.binder(scopedBctx, args);
+                await importResolution.binder(scopedmctx, args);
             }
 
             // Phase 2: Instantiate core instances — WASM modules within this section.
@@ -149,7 +149,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
                 const args: BinderArgs = {
                     debugStack: bargs.debugStack,
                 };
-                await coreInstanceResolution.binder(scopedBctx, args);
+                await coreInstanceResolution.binder(scopedmctx, args);
             }
 
             // Phase 3: Bind exports — resolve exported functions/instances.
@@ -164,7 +164,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
                 };
                 debugStack(args, args, callerElement.tag + ':' + callerElement.name.name);
 
-                const argResult = await exportResolution.binder(scopedBctx, args);
+                const argResult = await exportResolution.binder(scopedmctx, args);
 
                 // Both Func and Instance export binders return { [name]: value }.
                 // Merge them into the exports map without adding another naming layer.

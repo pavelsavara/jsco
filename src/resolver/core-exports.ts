@@ -16,13 +16,13 @@ export const resolveComponentAliasCoreInstanceExport: Resolver<ComponentAliasCor
     return {
         callerElement: rargs.callerElement,
         element: componentAliasCoreInstanceExport,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, bargs): Promise<BinderRes> => {
             const args: BinderArgs = {
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
 
-            const moduleResult = await coreModuleResolution.binder(bctx, args);
+            const moduleResult = await coreModuleResolution.binder(mctx, args);
             const result = (moduleResult.result as Record<string, ExportResult>)[componentAliasCoreInstanceExport.name];
             const binderResult = {
                 result

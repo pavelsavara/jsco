@@ -53,7 +53,7 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
             case ExternalKind.Memory: {
                 // Memory exports reference a core memory alias which tracks the source
                 // core instance and export name. Resolve from the source instance's exports
-                // rather than the global bctx.memory singleton — this handles components
+                // rather than the global mctx.memory singleton — this handles components
                 // with multiple core modules where memory flows between them.
                 const coreMemoryAlias = rctx.indexes.coreMemories[exp.index];
                 if (!coreMemoryAlias) throw new Error(`CoreInstanceFromExports: core memory ${exp.index} not found`);
@@ -65,8 +65,8 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 exportResolutions.push({
                     element: exp as unknown as TaggedElement,
                     callerElement: exp as unknown as TaggedElement,
-                    binder: withDebugTrace(async (bctx, bargs) => {
-                        const sourceResult = await sourceResolution.binder(bctx, bargs);
+                    binder: withDebugTrace(async (mctx, bargs) => {
+                        const sourceResult = await sourceResolution.binder(mctx, bargs);
                         const sourceExports = sourceResult.result as Record<string, unknown>;
                         return { result: sourceExports[sourceExportName] };
                     }, `memory:${exp.index}:from-instance-${sourceInstanceIndex}:${sourceExportName}`)
@@ -78,9 +78,9 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 exportResolutions.push({
                     element: exp as unknown as TaggedElement,
                     callerElement: exp as unknown as TaggedElement,
-                    binder: withDebugTrace(async (bctx, _bargs) => {
+                    binder: withDebugTrace(async (mctx, _bargs) => {
                         // Globals from core instances — look up in the binding context
-                        const globals = bctx.instances.coreInstances
+                        const globals = mctx.instances.coreInstances
                             .flatMap(inst => Object.entries((inst?.result as Record<string, unknown>) ?? {}))
                             .filter(([, v]) => v instanceof WebAssembly.Global);
                         return { result: globals[exp.index]?.[1] };
@@ -96,7 +96,7 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
     return {
         element: coreInstanceFromExports,
         callerElement: rargs.callerElement,
-        binder: withDebugTrace(async (bctx, bargs) => {
+        binder: withDebugTrace(async (mctx, bargs) => {
             const exports: Record<string, unknown> = {};
             for (const exportResolution of exportResolutions) {
                 const callerElement = exportResolution.callerElement as unknown as Export;
@@ -108,7 +108,7 @@ export const resolveCoreInstanceFromExports: Resolver<CoreInstanceFromExports> =
                 };
                 debugStack(args, args, callerElement.kind + ':' + callerElement.name);
 
-                const argResult = await exportResolution.binder(bctx, args);
+                const argResult = await exportResolution.binder(mctx, args);
                 exports[callerElement.name] = argResult.result;
             }
             const binderResult: BinderRes = {
@@ -145,8 +145,8 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
     return {
         element: coreInstanceInstantiate,
         callerElement: rargs.callerElement,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
-            let binderResult = bctx.instances.coreInstances[coreInstanceIndex];
+        binder: withDebugTrace(async (mctx, bargs): Promise<BinderRes> => {
+            let binderResult = mctx.instances.coreInstances[coreInstanceIndex];
             if (binderResult) {
                 // Core instances are deduplicated by index — multiple references to the same
                 // core instance return the cached result. The canonical ABI guarantees that
@@ -154,7 +154,7 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
                 return binderResult;
             }
             binderResult = {} as BinderRes;
-            bctx.instances.coreInstances[coreInstanceIndex] = binderResult;
+            mctx.instances.coreInstances[coreInstanceIndex] = binderResult;
 
             const wasmImports: Record<string, WebAssembly.ModuleImports> = {};
             for (const argResolution of argResolutions) {
@@ -168,7 +168,7 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
                 };
                 debugStack(args, args, callerElement.index + ':' + callerElement.name);
 
-                const argResult = await argResolution.binder(bctx, args);
+                const argResult = await argResolution.binder(mctx, args);
                 wasmImports[callerElement.name] = argResult.result as WebAssembly.ModuleImports;
             }
 
@@ -176,7 +176,7 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
-            const moduleResult = await coreModuleResolution.binder(bctx, args);
+            const moduleResult = await coreModuleResolution.binder(mctx, args);
             const module = moduleResult.result as WebAssembly.Module;
             const instance = await rctx.wasmInstantiate(module, wasmImports);
             // console.log('rctx.wasmInstantiate ' + coreInstanceIndex, Object.keys(instance.exports));
@@ -188,7 +188,7 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
             // options are plumbed through the canonical options in the resolver.
             const memory = exports['memory'] as WebAssembly.Memory;
             if (memory) {
-                bctx.memory.initialize(memory);
+                mctx.memory.initialize(memory);
             }
             // Prefer cabi_realloc (standard canonical ABI name).
             // Fall back to cabi_import_realloc only if the allocator hasn't
@@ -196,11 +196,11 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
             // realloc from overwriting the main module's allocator.
             const cabi_realloc = exports['cabi_realloc'] as TCabiRealloc | undefined;
             if (cabi_realloc) {
-                bctx.allocator.initialize(cabi_realloc);
-            } else if (!bctx.allocator.isInitialized()) {
+                mctx.allocator.initialize(cabi_realloc);
+            } else if (!mctx.allocator.isInitialized()) {
                 const cabi_import_realloc = exports['cabi_import_realloc'] as TCabiRealloc | undefined;
                 if (cabi_import_realloc) {
-                    bctx.allocator.initialize(cabi_import_realloc);
+                    mctx.allocator.initialize(cabi_import_realloc);
                 }
             }
 
