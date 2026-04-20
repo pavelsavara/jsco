@@ -1,5 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
+import { EXPORTS, INSTANTIATE } from '../../utils/constants';
 
 export type JsInterface = Record<string, Function>;
 export type JsInterfaceCollection = Record<string, JsInterface>;
@@ -23,6 +24,7 @@ export type ResolutionStats = {
 }
 
 export type WasmComponent<TJSExports> = {
-    instantiate: WasmComponentFactory<TJSExports>
+    [INSTANTIATE]: WasmComponentFactory<TJSExports>
+    [EXPORTS]: () => string[]
 }
 export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>
