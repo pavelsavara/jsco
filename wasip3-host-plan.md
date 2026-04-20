@@ -437,6 +437,105 @@ IVfsBackend {
 
 ---
 
+## Stage 10.5: WASIp2-via-WASIp3 Node Adapter
+
+### Goals
+- Create `src/host/wasip2-via-wasip3/node/` as a thin wrapper providing P2 Node.js APIs (filesystem mounts, sockets, HTTP server) backed by the P3 Node.js host
+- Replace `src/host/wasip2/node/` as the Node.js extension for P2 components
+- Top-level rollup entry producing `wasip2-via-wasip3-node.js` that inlines the browser adapter code + adds Node.js extensions
+- Migrate all `src/host/wasip2/node/` tests to the adapter path
+- Migrate `src/host/wasip2/cli-conformance.test.ts` and `src/host/wasip2/cli-integration.test.ts` to a top-level test location
+- Migrate `src/index.test.ts` to use P3 host + adapter instead of direct wasip2 imports
+
+### Architecture
+
+```
+wasip2-via-wasip3-node.js (self-contained bundle)
+├── Browser adapter (inlined from wasip2-via-wasip3/)
+│   └── createWasiP2ViaP3Adapter(p3) → WasiP2Imports
+└── Node.js extensions
+    ├── createNodeFilesystem(mounts) → adapter to P3 NodeFsBackend
+    ├── createHttpServer(handler, config) → adapter to P3 serve()
+    └── runServe(instance, addr, network)
+```
+
+The node adapter delegates to `wasip3-node.js` for real implementations:
+- Filesystem mounts → `wasip3/node/filesystem-node.ts` `NodeFsBackend` + `addNodeMounts()`
+- HTTP server → `wasip3/node/http-server.ts` `serve()`
+- Sockets → `wasip3/node/sockets.ts` (already wired through the browser adapter via P3 host)
+
+### Entry Point
+
+- `src/host/wasip2-via-wasip3/node/index.ts` → `dist/release/wasip2-via-wasip3-node.js` + `wasip2-via-wasip3-node.d.ts`
+
+### Public API
+
+```
+wasip2-via-wasip3-node.js exports:
+  // Re-exports from browser adapter
+  createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports
+
+  // Node.js extensions (thin wrappers over wasip3-node)
+  createNodeFilesystem(mounts: MountConfig[]): FilesystemState
+  createHttpServer(handler: IncomingHandlerFn, config?: HttpServerConfig): WasiHttpServer
+  runServe(instance: ServeInstance, addr?: string, network?: NetworkConfig): Promise<void>
+```
+
+### Tasks
+- Create `src/host/wasip2-via-wasip3/node/index.ts` — node adapter entry point, re-exports browser adapter + adds Node.js wrappers
+- Add rollup entry for `wasip2-via-wasip3-node.js` and `wasip2-via-wasip3-node.d.ts` (inlines browser adapter, externalizes wasip3-node)
+- Add `externalizeSiblingModules` handling for the new entry
+- Update `deploy/package.json` exports map with `./wasip2-via-wasip3-node`
+- Migrate `src/host/wasip2/node/filesystem-node.test.ts` → `src/host/wasip2-via-wasip3/node/filesystem-node.test.ts` (unit tests mock P3 host, integration tests use real P3 host + adapter chain)
+- Migrate `src/host/wasip2/node/http-server.test.ts` → `src/host/wasip2-via-wasip3/node/http-server.test.ts` (same approach)
+- Migrate `src/host/wasip2/node/sockets.test.ts` → `src/host/wasip2-via-wasip3/node/sockets.test.ts` (same approach)
+- Migrate `src/host/wasip2/cli-conformance.test.ts` → `tests/cli-conformance.test.ts` (update to verify P3 path works)
+- Migrate `src/host/wasip2/cli-integration.test.ts` → `tests/cli-integration.test.ts` (update paths)
+- Migrate `src/index.test.ts` to use P3 host + `createWasiP2ViaP3Adapter()` instead of direct wasip2 imports
+- Switch `src/utils/args.ts` to import `NetworkConfig` and `NETWORK_DEFAULTS` from `src/host/wasip3/types.ts` instead of `src/host/wasip2/types.ts`
+- Verify build produces `dist/release/wasip2-via-wasip3-node.js` and `wasip2-via-wasip3-node.d.ts`
+
+### Tests
+- `src/host/wasip2-via-wasip3/node/filesystem-node.test.ts` — filesystem mount CRUD, path escape, read-only, symlink security (via adapter chain)
+- `src/host/wasip2-via-wasip3/node/http-server.test.ts` — HTTP server start/stop, request/response round-trip, streaming body, error handling (via adapter chain)
+- `src/host/wasip2-via-wasip3/node/sockets.test.ts` — TCP/UDP state machine, connect/listen/send/receive, DNS lookup (via adapter chain)
+- `tests/cli-conformance.test.ts` — wasmtime reference binaries via `dist/debug/index.js`
+- `tests/cli-integration.test.ts` — CLI tool behavior (--help, run, etc.)
+- Updated `src/index.test.ts` — basic component instantiation via P3 host + adapter
+
+---
+
+## Stage 10.8: Remove WASIp2 Direct Host
+
+### Goals
+- Remove all code in `src/host/wasip2/` — the P2-via-P3 adapter + P3 host is now the only P2 implementation
+- Remove the `wasip2.js` and `wasip2-node.js` rollup entries and deploy exports
+- Clean up all remaining imports that reference `src/host/wasip2/`
+
+### Prerequisites
+- Stage 10.5 complete: all wasip2/node tests migrated, cli tests moved, args.ts switched to P3 types
+- All tests passing through the adapter path
+
+### Tasks
+- Remove `src/host/wasip2/` directory (all files including node/)
+- Remove rollup entries: `wasip2`, `wasip2Types`, `wasip2Node`, `wasip2NodeTypes` from `rollup.config.js`
+- Remove `externalizeSiblingModules` handling for `wasip2` and `wasip2-node` entries
+- Remove `deploy/package.json` exports for `./wasip2` and `./wasip2-node`
+- Remove `instantiateWasiComponent` — users should use `createComponent()` + P3 host directly
+- Remove `WasiExit` import from former wasip2/api — use `WasiError`/`WasiExit` from wasip3/result.ts
+- Clean up `src/dynamic.ts` — remove any stale type imports from `wit/wasip2/` if unused
+- Remove `wit/wasip2/` type definitions if they are no longer referenced by `wasip2-via-wasip3/` (check: the adapter imports from `wit/wasip2/types/` for the return type — keep those if still needed)
+- Run lint, build, and full test suite to verify nothing is broken
+- Verify `dist/release/` no longer contains `wasip2.js`, `wasip2.d.ts`, `wasip2-node.js`, `wasip2-node.d.ts`
+
+### Verification
+- `npx eslint src/` — 0 errors, 0 warnings
+- `npm run build` — succeeds, no wasip2.js / wasip2-node.js in dist/
+- All tests pass (no test imports from `src/host/wasip2/`)
+- `deploy/package.json` has no `./wasip2` or `./wasip2-node` exports
+
+---
+
 ## Stage 11: Polish & Documentation
 
 ### Goals
