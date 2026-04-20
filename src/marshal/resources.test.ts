@@ -10,7 +10,7 @@ import { createResourceTable } from '../resolver/context';
 import { resolveCanonicalResourceType } from '../resolver/type-resolution';
 import { createLifting as _createLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
-import type { WasmValue } from './types';
+import type { WasmValue } from './model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience

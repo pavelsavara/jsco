@@ -8,13 +8,13 @@ import { CoreFuncIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLifting } from '../binder';
-import { WasmFunction } from '../marshal/types';
+import { WasmFunction } from '../marshal/model/types';
 import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, BindingContext, resolveCanonicalOptions } from './types';
-import type { WasmPointer, WasmSize } from '../marshal/types';
+import type { WasmPointer, WasmSize } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {

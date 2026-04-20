@@ -1,8 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { BindingContext } from '../resolver/types';
-import type { LoweringToJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import type { MemoryLoader } from '../binder/to-js';
+import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
+import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan } from './model/lower-plans';
+export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan } from './model/lower-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
 import { validateUtf16, validatePointerAlignment } from './validation';
@@ -124,8 +125,6 @@ export function stringLoweringUtf16(ctx: BindingContext, ...args: WasmValue[]): 
 
 // --- Resource lowering functions ---
 
-export type ResourceLowerPlan = { resourceTypeIdx: number };
-
 export function ownLowering(plan: ResourceLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const handle = args[0] as number;
     return ctx.resources.remove(plan.resourceTypeIdx, handle);
@@ -142,8 +141,6 @@ export function borrowLoweringDirect(_plan: ResourceLowerPlan, _ctx: BindingCont
 
 // --- Enum lowering ---
 
-export type EnumLowerPlan = { members: string[] };
-
 export function enumLowering(plan: EnumLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;
     if (disc >= plan.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.members.length}`);
@@ -151,8 +148,6 @@ export function enumLowering(plan: EnumLowerPlan, _ctx: BindingContext, ...args:
 }
 
 // --- Flags lowering ---
-
-export type FlagsLowerPlan = { wordCount: number, memberNames: string[] };
 
 export function flagsLowering(plan: FlagsLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, boolean> = {};
@@ -164,8 +159,6 @@ export function flagsLowering(plan: FlagsLowerPlan, _ctx: BindingContext, ...arg
 }
 
 // --- Record lowering ---
-
-export type RecordLowerPlan = { fields: { name: string, lowerer: LoweringToJs, spill: number }[] };
 
 export function recordLowering(plan: RecordLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, unknown> = {};
@@ -180,8 +173,6 @@ export function recordLowering(plan: RecordLowerPlan, ctx: BindingContext, ...ar
 
 // --- Tuple lowering ---
 
-export type TupleLowerPlan = { elements: { lowerer: LoweringToJs, spill: number }[] };
-
 export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const result = new Array(plan.elements.length);
     let offset = 0;
@@ -194,8 +185,6 @@ export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args
 }
 
 // --- List lowering ---
-
-export type ListLowerPlan = { elemSize: number, elemAlign: number, elemLoader: MemoryLoader };
 
 export function listLowering(plan: ListLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const ptr = (args[0] as number) >>> 0;
@@ -218,8 +207,6 @@ export function listLowering(plan: ListLowerPlan, ctx: BindingContext, ...args: 
 
 // --- Option lowering ---
 
-export type OptionLowerPlan = { innerLowerer: LoweringToJs, innerSpill: number };
-
 export function optionLowering(plan: OptionLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid option discriminant: ${discriminant}`);
@@ -229,12 +216,6 @@ export function optionLowering(plan: OptionLowerPlan, ctx: BindingContext, ...ar
 }
 
 // --- Result lowering ---
-
-export type ResultLowerPlan = {
-    okLowerer?: LoweringToJs, errLowerer?: LoweringToJs,
-    payloadJoined: FlatType[],
-    okFlatTypes: FlatType[], errFlatTypes: FlatType[],
-};
 
 export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
@@ -277,15 +258,6 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext
 }
 
 // --- Variant lowering ---
-
-export type VariantCaseLowerPlan = {
-    name: string, lowerer?: LoweringToJs,
-    caseFlatTypes: FlatType[], needsCoercion: boolean,
-};
-
-export type VariantLowerPlan = {
-    cases: VariantCaseLowerPlan[], payloadJoined: FlatType[],
-};
 
 export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;

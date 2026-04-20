@@ -15,13 +15,8 @@ import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
 import { getComponentFunction, getComponentInstance } from './indices';
 import { BinderArgs, BinderRes, BindingContext, Resolver, ResolverRes } from './types';
-
-export type ComponentInstanceData = {
-    instanceIndex: number;
-    imports: Record<string, unknown>;
-    exports: Record<string, unknown>;
-    types: Record<string, unknown>;
-}
+import type { ComponentInstanceData } from './model/component-instances';
+export type { ComponentInstanceData } from './model/component-instances';
 
 type ComponentInstanceBinderRes = BinderRes & { result: ComponentInstanceData };
 

@@ -1,8 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { BindingContext } from '../resolver/types';
-import type { WasmPointer, WasmSize, JsValue } from './types';
-import type { MemoryLoader } from '../binder/to-js';
+import type { WasmPointer, WasmSize, JsValue } from './model/types';
+import type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
+export type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { TAG, VAL, OK, ERR } from '../utils/constants';
 
@@ -105,8 +106,6 @@ export function stringLoaderUtf8(ctx: BindingContext, ptr: number): string {
 
 // --- Compound memory loaders ---
 
-export type RecordLoaderPlan = { fields: { name: string, offset: number, loader: MemoryLoader }[] };
-
 export function recordLoader(plan: RecordLoaderPlan, ctx: BindingContext, ptr: number): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (let i = 0; i < plan.fields.length; i++) {
@@ -115,8 +114,6 @@ export function recordLoader(plan: RecordLoaderPlan, ctx: BindingContext, ptr: n
     }
     return result;
 }
-
-export type ListLoaderPlan = { elemSize: number, elemAlign: number, elemLoader: MemoryLoader };
 
 export function listLoader(plan: ListLoaderPlan, ctx: BindingContext, ptr: number): unknown[] {
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
@@ -136,8 +133,6 @@ export function listLoader(plan: ListLoaderPlan, ctx: BindingContext, ptr: numbe
     return result;
 }
 
-export type OptionLoaderPlan = { payloadOffset: number, payloadLoader: MemoryLoader };
-
 export function optionLoader(plan: OptionLoaderPlan, ctx: BindingContext, ptr: number): unknown {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     const disc = dv.getUint8(0);
@@ -145,8 +140,6 @@ export function optionLoader(plan: OptionLoaderPlan, ctx: BindingContext, ptr: n
     if (disc === 0) return null;
     return plan.payloadLoader(ctx, ptr + plan.payloadOffset);
 }
-
-export type ResultLoaderPlan = { payloadOffset: number, okLoader?: MemoryLoader, errLoader?: MemoryLoader };
 
 export function resultLoaderBoth(plan: ResultLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
@@ -175,12 +168,6 @@ export function resultLoaderVoid(plan: ResultLoaderPlan, ctx: BindingContext, pt
     return disc === 0 ? { [TAG]: OK, [VAL]: undefined } : { [TAG]: ERR, [VAL]: undefined };
 }
 
-export type VariantLoaderPlan = {
-    payloadOffset: number,
-    caseLoaders: (MemoryLoader | undefined)[],
-    caseNames: string[], numCases: number,
-};
-
 export function variantLoaderDisc1(plan: VariantLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
@@ -205,8 +192,6 @@ export function variantLoaderDisc4(plan: VariantLoaderPlan, ctx: BindingContext,
     return { [TAG]: plan.caseNames[disc] };
 }
 
-export type EnumLoaderPlan = { memberNames: string[], numMembers: number };
-
 export function enumLoaderDisc1(plan: EnumLoaderPlan, ctx: BindingContext, ptr: number): string {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc >= plan.numMembers) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.numMembers}`);
@@ -225,8 +210,6 @@ export function enumLoaderDisc4(plan: EnumLoaderPlan, ctx: BindingContext, ptr: 
     return plan.memberNames[disc]!;
 }
 
-export type FlagsLoaderPlan = { wordCount: number, memberNames: string[] };
-
 export function flagsLoader(plan: FlagsLoaderPlan, ctx: BindingContext, ptr: number): Record<string, boolean> {
     const result: Record<string, boolean> = {};
     for (let w = 0; w < plan.wordCount; w++) {
@@ -239,8 +222,6 @@ export function flagsLoader(plan: FlagsLoaderPlan, ctx: BindingContext, ptr: num
     return result;
 }
 
-export type TupleLoaderPlan = { members: { offset: number, loader: MemoryLoader }[] };
-
 export function tupleLoader(plan: TupleLoaderPlan, ctx: BindingContext, ptr: number): unknown[] {
     const result = new Array(plan.members.length);
     for (let i = 0; i < plan.members.length; i++) {
@@ -251,8 +232,6 @@ export function tupleLoader(plan: TupleLoaderPlan, ctx: BindingContext, ptr: num
 }
 
 // --- Resource memory loaders ---
-
-export type OwnResourceLoaderPlan = { resourceTypeIdx: number };
 
 export function ownResourceLoader(plan: OwnResourceLoaderPlan, ctx: BindingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);

@@ -12,7 +12,7 @@ import { getCanonicalResourceId } from '../resolver/context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
-import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, JsValue, WasmFunction, JsFunction } from '../marshal/types';
+import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, JsValue, WasmFunction, JsFunction } from '../marshal/model/types';
 import { liftFlatFlat, liftFlatSpilled, liftSpilledFlat, liftSpilledSpilled } from '../marshal/trampoline-lift';
 import type { FunctionLiftPlan } from '../marshal/trampoline-lift';
 import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, resultLiftingCoerced, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../marshal/lift';

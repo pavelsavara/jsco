@@ -10,7 +10,7 @@ import { createResourceTable } from '../resolver/context';
 import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
 import { createLowering, createFunctionLowering } from '../binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
-import { WasmPointer, WasmSize, WasmValue } from './types';
+import { WasmPointer, WasmSize, WasmValue } from './model/types';
 import { deepResolveType } from '../resolver/calling-convention';
 import { describeDebugOnly } from '../test-utils/debug-only';
 

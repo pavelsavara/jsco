@@ -2,25 +2,12 @@
 
 import isDebug from 'env:isDebug';
 import type { BindingContext } from '../resolver/types';
-import type { LiftingFromJs, WasmPointer, WasmSize, WasmFunction, WasmValue } from './types';
-import type { LoweringToJs } from './types';
-import type { MemoryStorer } from '../binder/to-abi';
-import type { MemoryLoader } from '../binder/to-js';
+import type { WasmPointer, WasmSize, WasmFunction, WasmValue } from './model/types';
+import type { FunctionLiftPlan } from './model/lift-plans';
+export type { FunctionLiftPlan } from './model/lift-plans';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
-
-export type FunctionLiftPlan = {
-    paramLifters: LiftingFromJs[],
-    paramStorers: MemoryStorer[],
-    resultLowerers: LoweringToJs[],
-    resultLoader: MemoryLoader | undefined,
-    spilledParamOffsets: number[],
-    spilledParamsTotalSize: number,
-    spilledParamsMaxAlign: number,
-    totalFlatParams: number,
-    i64ParamPositions: number[],
-};
 
 function processFlatResult(plan: FunctionLiftPlan, ctx: BindingContext, rawWasm: any): any {
     let result: any;

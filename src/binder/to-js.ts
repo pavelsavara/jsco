@@ -12,7 +12,7 @@ import { getCanonicalResourceId } from '../resolver/context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
-import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/types';
+import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/model/types';
 import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../marshal/trampoline-lower';
 import type { FunctionLowerPlan } from '../marshal/trampoline-lower';
 import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, resultLoweringCoerced, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../marshal/lower';

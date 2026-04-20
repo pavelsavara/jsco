@@ -10,7 +10,7 @@ import { createResourceTable } from '../resolver/context';
 import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
-import { WasmPointer, WasmSize, WasmValue } from '../marshal/types';
+import { WasmPointer, WasmSize, WasmValue } from '../marshal/model/types';
 import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from '../marshal/validation';
 import { describeDebugOnly } from '../test-utils/debug-only';
 

@@ -6,7 +6,7 @@ import { CoreInstanceIndex } from '../parser/model/indices';
 import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArg, InstantiationArgKind } from '../parser/model/instances';
 import { ModelTag, TaggedElement } from '../parser/model/tags';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
-import { TCabiRealloc } from '../marshal/types';
+import { TCabiRealloc } from '../marshal/model/types';
 import { resolveCoreFunction } from './core-functions';
 import { resolveCoreModule } from './core-module';
 import { getCoreInstance, getCoreModule } from './indices';

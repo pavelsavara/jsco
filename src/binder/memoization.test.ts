@@ -5,7 +5,7 @@ import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../parser
 import { ResolvedContext, BindingContext, StringEncoding } from '../resolver/types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
-import type { WasmValue } from '../marshal/types';
+import type { WasmValue } from '../marshal/model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience

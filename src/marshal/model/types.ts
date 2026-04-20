@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { BindingContext } from '../resolver/types';
+import { BindingContext } from '../../resolver/types';
 
 export type WasmPointer = number;
 export type WasmNumber = number | bigint;

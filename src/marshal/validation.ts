@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { BindingContext } from '../resolver/types';
-import { WasmPointer } from './types';
+import { WasmPointer } from './model/types';
 
 /**
  * Validate a pointer returned by realloc per canonical ABI spec.

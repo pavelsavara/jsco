@@ -2,21 +2,11 @@
 
 import isDebug from 'env:isDebug';
 import type { BindingContext } from '../resolver/types';
-import type { LiftingFromJs, JsFunction, WasmValue } from './types';
-import type { MemoryStorer } from '../binder/to-abi';
-import type { MemoryLoader } from '../binder/to-js';
+import type { JsFunction } from './model/types';
+import type { FunctionLowerPlan } from './model/lower-plans';
+export type { FunctionLowerPlan } from './model/lower-plans';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
-
-export type FunctionLowerPlan = {
-    paramLowerers: Function[],
-    paramLoaders: MemoryLoader[],
-    resultLifters: LiftingFromJs[],
-    resultStorer: MemoryStorer | undefined,
-    spilledParamOffsets: number[],
-    resultBuf: WasmValue[],
-    resultIsI64: boolean,
-};
 
 // --- Flat params, Flat result ---
 

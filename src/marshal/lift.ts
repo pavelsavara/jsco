@@ -1,8 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { BindingContext } from '../resolver/types';
-import type { LiftingFromJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import type { MemoryStorer } from '../binder/to-abi';
+import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
+import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantLiftPlan, FutureLiftPlan } from './model/lift-plans';
+export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan, FutureLiftPlan } from './model/lift-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
 import { validateAllocResult } from './validation';
@@ -147,8 +148,6 @@ export function stringLiftingUtf16(ctx: BindingContext, srcJsValue: JsValue, out
 
 // --- Resource lifting functions ---
 
-export type ResourceLiftPlan = { resourceTypeIdx: number };
-
 export function ownLifting(plan: ResourceLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.resources.add(plan.resourceTypeIdx, srcJsValue);
     return 1;
@@ -166,8 +165,6 @@ export function borrowLiftingDirect(_plan: ResourceLiftPlan, _ctx: BindingContex
 
 // --- Enum lifting ---
 
-export type EnumLiftPlan = { nameToIndex: Map<string, number> };
-
 export function enumLifting(plan: EnumLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const idx = plan.nameToIndex.get(srcJsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${srcJsValue}`);
@@ -176,8 +173,6 @@ export function enumLifting(plan: EnumLiftPlan, _ctx: BindingContext, srcJsValue
 }
 
 // --- Flags lifting ---
-
-export type FlagsLiftPlan = { wordCount: number, memberNames: string[] };
 
 export function flagsLifting(plan: FlagsLiftPlan, _ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
@@ -194,8 +189,6 @@ export function flagsLifting(plan: FlagsLiftPlan, _ctx: BindingContext, srcJsVal
 
 // --- Record lifting ---
 
-export type RecordLiftPlan = { fields: { name: string, lifter: LiftingFromJs }[] };
-
 export function recordLifting(plan: RecordLiftPlan, ctx: BindingContext, srcJsRecord: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
     let pos = 0;
@@ -207,8 +200,6 @@ export function recordLifting(plan: RecordLiftPlan, ctx: BindingContext, srcJsRe
 }
 
 // --- Tuple lifting ---
-
-export type TupleLiftPlan = { elementLifters: LiftingFromJs[] };
 
 export function tupleLifting(plan: TupleLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
@@ -224,8 +215,6 @@ export function tupleLifting(plan: TupleLiftPlan, ctx: BindingContext, srcJsValu
 }
 
 // --- List lifting ---
-
-export type ListLiftPlan = { elemSize: number, elemAlign: number, elemStorer: MemoryStorer };
 
 export function listLifting(plan: ListLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected an array for list, got ${srcJsValue === null ? 'null' : 'undefined'}`);
@@ -251,8 +240,6 @@ export function listLifting(plan: ListLiftPlan, ctx: BindingContext, srcJsValue:
 
 // --- Option lifting ---
 
-export type OptionLiftPlan = { innerLifter: LiftingFromJs, totalSize: number };
-
 export function optionLifting(plan: OptionLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out.fill(0, offset, offset + plan.totalSize);
     if (srcJsValue === null || srcJsValue === undefined) {
@@ -264,12 +251,6 @@ export function optionLifting(plan: OptionLiftPlan, ctx: BindingContext, srcJsVa
 }
 
 // --- Result lifting ---
-
-export type ResultLiftPlan = {
-    okLifter?: LiftingFromJs, errLifter?: LiftingFromJs,
-    totalSize: number, payloadJoined: FlatType[],
-    okFlatTypes: FlatType[], errFlatTypes: FlatType[],
-};
 
 export function resultLifting(plan: ResultLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
@@ -315,16 +296,6 @@ export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: BindingContext, 
 
 // --- Variant lifting ---
 
-export type VariantCaseLiftPlan = {
-    index: number, lifter?: LiftingFromJs,
-    caseFlatTypes: FlatType[], needsCoercion: boolean,
-};
-
-export type VariantLiftPlan = {
-    totalSize: number, payloadJoined: FlatType[],
-    nameToCase: Map<string, VariantCaseLiftPlan>,
-};
-
 export function variantLifting(plan: VariantLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a variant value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     const tag = srcJsValue[TAG], val = srcJsValue[VAL];
@@ -357,8 +328,6 @@ export function streamLifting(ctx: BindingContext, srcJsValue: JsValue, out: Was
 }
 
 // --- Future lifting (JS Promise → i32 handle) ---
-
-export type FutureLiftPlan = { storer?: (ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void };
 
 export function futureLifting(plan: FutureLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
