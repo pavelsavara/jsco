@@ -1,0 +1,140 @@
+(node:45688) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip3/stdio.test.ts
+(node:55792) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44672) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36708) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/binder/cache.test.ts
+(node:48904) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/utils/assert.test.ts
+  ΓùÅ Console
+
+    console.log
+      [test] msg
+
+      at log (src/utils/assert.ts:37:58)
+
+(node:30876) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36460) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:52244) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/utils/shared.test.ts
+(node:17576) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31816) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip3/node/http-server.test.ts
+PASS src/host/wasip3/node/sockets.test.ts
+(node:47260) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/cli.test.ts
+PASS src/host/wasip3/clocks.test.ts
+(node:44396) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/binder/memoization.test.ts
+(node:44096) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip3/http.test.ts
+PASS src/host/wasip2/node/http-server.test.ts
+(node:30636) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26824) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/parser/index.test.ts
+(node:44308) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/http.test.ts
+PASS src/parser/values.test.ts
+(node:2716) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/node/filesystem-node.test.ts
+(node:46820) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/parser/security.test.ts
+PASS src/index.test.ts
+(node:39916) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/wasi-host.test.ts
+PASS src/host/wasip2/node/sockets.test.ts
+(node:13876) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31440) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26280) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/marshal/edge-cases.test.ts
+(node:49648) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:54752) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/utils/args.test.ts
+(node:27500) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30760) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/resolver/error-paths.test.ts
+(node:51572) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip3/wasip3-host.test.ts
+PASS src/marshal/primitives.test.ts
+PASS src/host/wasip2/use-number-for-int64.test.ts
+PASS src/marshal/compound-types.test.ts
+(node:43712) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/cli-integration.test.ts
+PASS src/resolver/calling-convention.test.ts
+PASS src/host/wasip2/hello-world.test.ts
+PASS src/host/wasip3/vfs.test.ts
+PASS src/utils/streaming.test.ts
+PASS src/host/wasip3/streams.test.ts
+PASS src/marshal/spilling.test.ts
+PASS src/resolver/type-validation.test.ts
+(node:16432) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip3/node/filesystem-node.test.ts
+PASS src/host/wasip2/filesystem.test.ts
+PASS src/marshal/resources.test.ts
+PASS src/resolver/binding/function-imports.test.ts
+PASS src/host/wasip3/filesystem.test.ts
+PASS src/host/wasip3/integration.test.ts
+PASS src/marshal/validation.test.ts
+PASS src/host/wasip3/node/stdio-node.test.ts
+PASS src/host/wasip2/poll.test.ts
+PASS src/host/wasip3/resources.test.ts
+PASS src/host/wasip3/sockets.test.ts
+PASS src/utils/fetch-like.test.ts
+PASS src/resolver/type-isolation.test.ts
+(node:13692) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/parser/export.test.ts
+PASS src/host/wasip3/random.test.ts
+PASS src/host/wasip3/result.test.ts
+PASS src/resolver/import-index.test.ts
+PASS src/host/wasip2/streams.test.ts
+PASS src/host/wasip3/cli.test.ts
+PASS src/resolver/types.test.ts
+PASS src/utils/debug-names.test.ts
+PASS src/resolver/import-names.test.ts
+PASS src/host/wasip2/monotonic-clock.test.ts
+PASS src/host/wasip2/wall-clock.test.ts
+PASS src/resolver/type-resolution.test.ts
+PASS src/host/wasip2/random.test.ts
+PASS src/marshal/canonical-abi.test.ts
+PASS src/host/wasip2/echo-reactor.test.ts (5.167 s)
+(node:55660) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/host/wasip2/cli-conformance.test.ts (6.631 s)
+PASS src/host/wasip2/integration.test.ts (24.558 s)
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+
+Test Suites: 64 passed, 64 total
+Tests:       80 skipped, 2360 passed, 2440 total
+Snapshots:   0 total
+Time:        26.125 s, estimated 28 s
+Ran all test suites.

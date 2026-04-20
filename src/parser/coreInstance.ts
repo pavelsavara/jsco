@@ -3,7 +3,7 @@
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readCoreInstance } from './values';
-import { CoreInstance } from '../model/instances';
+import { CoreInstance } from './model/instances';
 
 export function parseSectionCoreInstance(
     ctx: ParserContext,

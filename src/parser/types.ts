@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { IndexedElement, ModelTag, WITSection } from '../model/tags';
+import { IndexedElement, ModelTag, WITSection } from './model/tags';
 import type { LogFn, Verbosity } from '../utils/assert';
 
 export type CoreModule = IndexedElement & {

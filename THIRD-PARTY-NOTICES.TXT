@@ -1,0 +1,5 @@
+Many files and ideas are adapted from 
+- https://github.com/bytecodealliance/wasm-tools/ under Apache-2.0 license
+- https://github.com/bytecodealliance/wasmtime under Apache-2.0 license
+- https://github.com/bytecodealliance/jco under Apache-2.0 license
+- https://github.com/yskszk63/stream-wasm-parser under MIT license

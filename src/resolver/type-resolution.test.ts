@@ -3,9 +3,9 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { PrimitiveValType } from '../model/types';
-import { ComponentExternalKind } from '../model/exports';
+import { ModelTag } from '../parser/model/tags';
+import { PrimitiveValType } from '../parser/model/types';
+import { ComponentExternalKind } from '../parser/model/exports';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ResolverContext } from './types';
 

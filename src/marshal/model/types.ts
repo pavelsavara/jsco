@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { BindingContext } from '../types';
+import { BindingContext } from '../../resolver/types';
 
 export type WasmPointer = number;
 export type WasmNumber = number | bigint;
@@ -12,7 +12,6 @@ export type JsString = string;
 export type JsBoolean = boolean;
 export type JsNumber = number | bigint;
 export type JsValue = JsNumber | JsString | JsBoolean | any;
-
 
 export type FnLoweringCallToJs = (ctx: BindingContext, jsExport: JsFunction) => WasmFunction;
 export type FnLiftingCallFromJs = (ctx: BindingContext, wasmFunction: WasmFunction) => JsFunction;

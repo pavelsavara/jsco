@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag, ModelTag_Count } from '../model/tags';
-import { PrimitiveValType, PrimitiveValType_Count } from '../model/types';
+import { ModelTag, ModelTag_Count } from '../parser/model/tags';
+import { PrimitiveValType, PrimitiveValType_Count } from '../parser/model/types';
 import { CallingConvention, CallingConvention_Count } from '../resolver/calling-convention';
 import { PlanOpKind, PlanOpKind_Count } from '../resolver/binding-plan';
 import { jsco_assert, registerInitDebugNames } from './assert';

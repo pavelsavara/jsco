@@ -1,10 +1,10 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { ResolvedType } from '../type-resolution';
-import { BindingContext, StringEncoding } from '../types';
+import type { ResolvedType } from '../resolver/type-resolution';
+import { BindingContext, StringEncoding } from '../resolver/types';
 import { createMemoryStorer } from './to-abi';
 import { createMemoryLoader } from './to-js';
-import type { JsValue } from './types';
+import type { JsValue } from '../marshal/model/types';
 
 export function storeToMemory(ctx: BindingContext, ptr: number, type: ResolvedType, jsValue: JsValue, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): void {
     createMemoryStorer(type, stringEncoding, canonicalResourceIds)(ctx, ptr, jsValue);

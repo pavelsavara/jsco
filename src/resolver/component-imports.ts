@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentImport } from '../model/imports';
-import { ModelTag } from '../model/tags';
+import { ComponentImport } from '../parser/model/imports';
+import { ModelTag } from '../parser/model/tags';
 import { jsco_assert } from '../utils/assert';
 import { lookupComponentInstance } from './component-instances';
 import { stripImportPrefix } from './import-names';

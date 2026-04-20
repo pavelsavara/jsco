@@ -5,39 +5,12 @@ import { LogLevel } from '../utils/assert';
 import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from './context';
-import { BinderArgs, BindingContext, ResolvedContext, ResolverRes } from './types';
+import { BinderArgs, BindingContext, ResolvedContext } from './types';
 import { EXPORTS, ABORT } from '../utils/constants';
-
-export const enum PlanOpKind {
-    CoreInstantiate,
-    ImportBind,
-    ExportBind,
-}
-
-export const PlanOpKind_Count = PlanOpKind.ExportBind + 1;
-
-export type PlanOp =
-    | CoreInstantiateOp
-    | ImportBindOp
-    | ExportBindOp
-
-export type CoreInstantiateOp = {
-    kind: PlanOpKind.CoreInstantiate;
-    resolution: ResolverRes;
-    label: string;
-}
-
-export type ImportBindOp = {
-    kind: PlanOpKind.ImportBind;
-    resolution: ResolverRes;
-    label: string;
-}
-
-export type ExportBindOp = {
-    kind: PlanOpKind.ExportBind;
-    resolution: ResolverRes;
-    label: string;
-}
+import { PlanOpKind } from './model/binding-plan';
+import type { PlanOp } from './model/binding-plan';
+export { PlanOpKind, PlanOpKind_Count } from './model/binding-plan';
+export type { PlanOp, CoreInstantiateOp, ImportBindOp, ExportBindOp } from './model/binding-plan';
 
 export async function executePlan<TJSExports>(
     plan: PlanOp[],

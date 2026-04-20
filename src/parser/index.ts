@@ -18,7 +18,7 @@ import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';
 import { parseSectionCoreInstance } from './coreInstance';
 import { parseSectionInstance } from './instance';
-import { ModelTag, WITSection } from '../model/tags';
+import { ModelTag, WITSection } from './model/tags';
 
 export type { WITModel };
 

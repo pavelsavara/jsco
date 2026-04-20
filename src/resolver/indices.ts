@@ -1,10 +1,10 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { ComponentFunction, CoreFunction } from '../model/aliases';
-import { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../model/indices';
-import { CoreInstance, ComponentInstance } from '../model/instances';
-import { ComponentType } from '../model/types';
+import { ComponentFunction, CoreFunction } from '../parser/model/aliases';
+import { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../parser/model/indices';
+import { CoreInstance, ComponentInstance } from '../parser/model/instances';
+import { ComponentType } from '../parser/model/types';
 import { CoreModule } from '../parser/types';
 import { jsco_assert } from '../utils/assert';
 import { modelTagName } from '../utils/debug-names';
@@ -66,4 +66,4 @@ export function getComponentType(rctx: ResolverContext, index: ComponentTypeInde
     return result as ComponentType;
 }
 
-export type { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../model/indices';
+export type { CoreFuncIndex, CoreInstanceIndex, CoreModuleIndex, ComponentFuncIndex, ComponentInstanceIndex, ComponentTypeIndex } from '../parser/model/indices';

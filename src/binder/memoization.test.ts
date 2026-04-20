@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag } from '../../model/tags';
-import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../../model/types';
-import { ResolvedContext, BindingContext, StringEncoding } from '../types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../parser/model/types';
+import { ResolvedContext, BindingContext, StringEncoding } from '../resolver/types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
-import type { WasmValue } from './types';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import type { WasmValue } from '../marshal/model/types';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
@@ -98,7 +98,9 @@ describeDebugOnly('memoization keys', () => {
             const type2 = prim(PrimitiveValType.U32);
             const lowerer1 = createLowering(rctx, type1);
             const lowerer2 = createLowering(rctx, type2);
-            expect(lowerer1).not.toBe(lowerer2);
+            // Primitive lowerings are now stateless singletons, so both calls
+            // return the same top-level function reference even with different keys
+            expect(lowerer1).toBe(lowerer2);
         });
     });
 

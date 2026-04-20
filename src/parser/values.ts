@@ -3,18 +3,18 @@
 // adapted from https://github.com/yskszk63/stream-wasm-parser by yusuke suzuki under MIT License
 
 import * as leb from '@thi.ng/leb128';
-import { Export, ExternalKind, ValType, Import, TypeRef } from '../model/core';
+import { Export, ExternalKind, ValType, Import, TypeRef } from './model/core';
 import { SyncSource, Source } from '../utils/streaming';
-import { ComponentExternalKind } from '../model/exports';
-import { ComponentOuterAliasKind } from '../model/aliases';
-import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
-import { ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, ComponentTypeDeclaration, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from '../model/types';
-import { CanonicalFunction, CanonicalOption, TaskReturnResults } from '../model/canonicals';
-import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from '../model/instances';
+import { ComponentExternalKind } from './model/exports';
+import { ComponentOuterAliasKind } from './model/aliases';
+import { CoreFuncIndex, CoreModuleIndex, ComponentFuncIndex, ComponentTypeIndex } from './model/indices';
+import { ModelTag } from './model/tags';
+import { ComponentExternName, ComponentTypeRef, TypeBounds } from './model/imports';
+import { ComponentFuncResult, ComponentTypeComponent, ComponentTypeDefined, ComponentTypeFunc, ComponentTypeInstance, ComponentTypeResource, ComponentValType, CoreType, ComponentTypeDeclaration, InstanceTypeDeclaration, ModuleTypeDeclaration, NamedValue, PrimitiveValType, VariantCase } from './model/types';
+import { CanonicalFunction, CanonicalOption, TaskReturnResults } from './model/canonicals';
+import { ComponentInstantiationArg, CoreInstance, InstantiationArg, InstantiationArgKind } from './model/instances';
 import { readAlias } from './alias';
-import { ComponentStartFunction } from '../model/start';
+import { ComponentStartFunction } from './model/start';
 
 const textDecoder = new TextDecoder();
 

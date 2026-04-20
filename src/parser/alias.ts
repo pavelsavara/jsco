@@ -1,11 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { SyncSource } from '../utils/streaming';
-import { ComponentAlias, ComponentAliasInstanceExport, ComponentAliasCoreInstanceExport, ComponentAliasOuter } from '../model/aliases';
+import { ComponentAlias, ComponentAliasInstanceExport, ComponentAliasCoreInstanceExport, ComponentAliasOuter } from './model/aliases';
 import { ParserContext } from './types';
 import { readU32, parseAsExternalKind, parseAsComponentExternalKind, parseAsComponentOuterAliasKind, readName } from './values';
-import { ModelTag } from '../model/tags';
-import { ComponentInstanceIndex, CoreInstanceIndex } from '../model/indices';
+import { ModelTag } from './model/tags';
+import { ComponentInstanceIndex, CoreInstanceIndex } from './model/indices';
 
 // see also https://github.com/bytecodealliance/wasm-tools/blob/e2af293273db65712b6f31da85f7aa5eb31abfde/crates/wasmparser/src/readers/component/exports.rs#L86
 // https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#alias-definitions

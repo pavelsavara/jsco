@@ -3,8 +3,8 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { PrimitiveValType, ComponentValType } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { PrimitiveValType, ComponentValType } from '../parser/model/types';
 import {
     sizeOf, alignOf, flatCount, flattenType, alignUp,
     discriminantSize, joinFlatType, FlatType,

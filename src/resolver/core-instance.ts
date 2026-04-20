@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { Export, ExternalKind } from '../model/core';
-import { CoreInstanceIndex } from '../model/indices';
-import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArg, InstantiationArgKind } from '../model/instances';
-import { ModelTag, TaggedElement } from '../model/tags';
+import { Export, ExternalKind } from '../parser/model/core';
+import { CoreInstanceIndex } from '../parser/model/indices';
+import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, InstantiationArg, InstantiationArgKind } from '../parser/model/instances';
+import { ModelTag, TaggedElement } from '../parser/model/tags';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
-import { TCabiRealloc } from './binding/types';
+import { TCabiRealloc } from '../marshal/model/types';
 import { resolveCoreFunction } from './core-functions';
 import { resolveCoreModule } from './core-module';
 import { getCoreInstance, getCoreModule } from './indices';
