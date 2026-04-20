@@ -258,14 +258,17 @@ export function createOutputStreamFromP3(
 
         write(contents: Uint8Array): StreamResult<void> {
             if (closed) return streamClosed();
+            // Lowering trampoline may provide a plain Array for list<u8>; ensure Uint8Array for P3
+            const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents);
             // Fire-and-forget the write — P2 write is non-blocking
-            pair.write(contents).catch(() => { closed = true; });
+            pair.write(bytes).catch(() => { closed = true; });
             return streamOk(undefined);
         },
 
         blockingWriteAndFlush(contents: Uint8Array): StreamResult<void> {
             if (closed) return streamClosed();
-            const p = pair.write(contents);
+            const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents);
+            const p = pair.write(bytes);
             // For blocking variant we need to wait
             throw new JspiBlockSignal(p.then(() => { }));
         },

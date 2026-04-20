@@ -92,10 +92,16 @@ function p2DescriptorStatFromP3(stat: {
 }
 
 function extractErrorCode(e: unknown): ErrorCode {
-    if (e && typeof e === 'object' && 'tag' in e) {
-        const tagged = e as { tag: string; val?: string };
-        if (tagged.tag === 'other') return 'io';
-        return tagged.tag;
+    if (e && typeof e === 'object') {
+        if ('tag' in e) {
+            const tagged = e as { tag: string; val?: string };
+            if (tagged.tag === 'other') return 'io';
+            return tagged.tag;
+        }
+        // VfsError from P3 VFS backend (has .code instead of .tag)
+        if ('code' in e && typeof (e as { code: unknown }).code === 'string') {
+            return (e as { code: string }).code;
+        }
     }
     return 'io';
 }
@@ -142,49 +148,36 @@ export class P2DescriptorAdapter {
         }
     }
 
-    getType(): FsResult<DescriptorType> {
+    async getType(): Promise<FsResult<DescriptorType>> {
         try {
-            const result = this.p3.getType();
-            if (result instanceof Promise) {
-                // P3 is async — for P2 we need sync. This requires JSPI.
-                throw new Error('P3 getType is async — requires JSPI bridge');
-            }
+            const result = await this.p3.getType();
             return fsOk(p3DescriptorTypeToP2(result));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    stat(): FsResult<DescriptorStat> {
+    async stat(): Promise<FsResult<DescriptorStat>> {
         try {
-            const result = this.p3.stat();
-            if (result instanceof Promise) {
-                throw new Error('P3 stat is async — requires JSPI bridge');
-            }
+            const result = await this.p3.stat();
             return fsOk(p2DescriptorStatFromP3(result));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    statAt(pathFlags: PathFlags, path: string): FsResult<DescriptorStat> {
+    async statAt(pathFlags: PathFlags, path: string): Promise<FsResult<DescriptorStat>> {
         try {
-            const result = this.p3.statAt(pathFlags, path);
-            if (result instanceof Promise) {
-                throw new Error('P3 statAt is async — requires JSPI bridge');
-            }
+            const result = await this.p3.statAt(pathFlags, path);
             return fsOk(p2DescriptorStatFromP3(result));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    openAt(pathFlags: PathFlags, path: string, openFlags: OpenFlags, descFlags: DescriptorFlags): FsResult<P2DescriptorAdapter> {
+    async openAt(pathFlags: PathFlags, path: string, openFlags: OpenFlags, descFlags: DescriptorFlags): Promise<FsResult<P2DescriptorAdapter>> {
         try {
-            const result = this.p3.openAt(pathFlags, path, openFlags, descFlags);
-            if (result instanceof Promise) {
-                throw new Error('P3 openAt is async — requires JSPI bridge');
-            }
+            const result = await this.p3.openAt(pathFlags, path, openFlags, descFlags);
             return fsOk(wrapP3Descriptor(result));
         } catch (e) {
             return fsErr(extractErrorCode(e));
@@ -200,53 +193,39 @@ export class P2DescriptorAdapter {
         }
     }
 
-    createDirectoryAt(path: string): FsResult<void> {
+    async createDirectoryAt(path: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.createDirectoryAt(path);
-            if (result instanceof Promise) {
-                throw new Error('P3 createDirectoryAt is async — requires JSPI bridge');
-            }
+            await this.p3.createDirectoryAt(path);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    removeDirectoryAt(path: string): FsResult<void> {
+    async removeDirectoryAt(path: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.removeDirectoryAt(path);
-            if (result instanceof Promise) {
-                throw new Error('P3 removeDirectoryAt is async — requires JSPI bridge');
-            }
+            await this.p3.removeDirectoryAt(path);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    unlinkFileAt(path: string): FsResult<void> {
+    async unlinkFileAt(path: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.unlinkFileAt(path);
-            if (result instanceof Promise) {
-                throw new Error('P3 unlinkFileAt is async — requires JSPI bridge');
-            }
+            await this.p3.unlinkFileAt(path);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    read(length: bigint, offset: bigint): FsResult<[Uint8Array, boolean]> {
+    async read(length: bigint, offset: bigint): Promise<FsResult<[Uint8Array, boolean]>> {
         // P3 removed read() — synthesize from readViaStream
         try {
             const [stream] = this.p3.readViaStream(offset);
             const iterator = stream[Symbol.asyncIterator]();
-            // Synchronous attempt — get first chunk
-            const next = iterator.next();
-            if (next instanceof Promise) {
-                throw new Error('P3 read requires async — use readViaStream');
-            }
-            const { done, value } = next;
+            const { done, value } = await iterator.next();
             if (done || !value) return fsOk([new Uint8Array(0), true]);
             const data = value.slice(0, Number(length));
             const eof = data.length < Number(length);
@@ -256,167 +235,133 @@ export class P2DescriptorAdapter {
         }
     }
 
-    write(buffer: Uint8Array, offset: bigint): FsResult<bigint> {
+    async write(buffer: Uint8Array, offset: bigint): Promise<FsResult<bigint>> {
         // P3 removed write() — synthesize from writeViaStream
         try {
             const pair = createStreamPair<Uint8Array>();
-            void this.p3.writeViaStream(pair.readable, offset);
-            pair.write(buffer).then(() => pair.close());
+            const writeFuture = this.p3.writeViaStream(pair.readable, offset);
+            await pair.write(buffer);
+            await pair.close();
+            await writeFuture;
             return fsOk(BigInt(buffer.length));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    getFlags(): FsResult<DescriptorFlags> {
+    async getFlags(): Promise<FsResult<DescriptorFlags>> {
         try {
-            const result = this.p3.getFlags();
-            if (result instanceof Promise) {
-                throw new Error('P3 getFlags is async — requires JSPI bridge');
-            }
+            const result = await this.p3.getFlags();
             return fsOk(result);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    setSize(size: bigint): FsResult<void> {
+    async setSize(size: bigint): Promise<FsResult<void>> {
         try {
-            const result = this.p3.setSize(size);
-            if (result instanceof Promise) {
-                throw new Error('P3 setSize is async — requires JSPI bridge');
-            }
+            await this.p3.setSize(size);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    sync(): FsResult<void> {
+    async sync(): Promise<FsResult<void>> {
         try {
-            const result = this.p3.sync();
-            if (result instanceof Promise) {
-                throw new Error('P3 sync is async — requires JSPI bridge');
-            }
+            await this.p3.sync();
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    syncData(): FsResult<void> {
+    async syncData(): Promise<FsResult<void>> {
         try {
-            const result = this.p3.syncData();
-            if (result instanceof Promise) {
-                throw new Error('P3 syncData is async — requires JSPI bridge');
-            }
+            await this.p3.syncData();
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    metadataHash(): FsResult<MetadataHashValue> {
+    async metadataHash(): Promise<FsResult<MetadataHashValue>> {
         try {
-            const result = this.p3.metadataHash();
-            if (result instanceof Promise) {
-                throw new Error('P3 metadataHash is async — requires JSPI bridge');
-            }
+            const result = await this.p3.metadataHash();
             return fsOk(result);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    metadataHashAt(pathFlags: PathFlags, path: string): FsResult<MetadataHashValue> {
+    async metadataHashAt(pathFlags: PathFlags, path: string): Promise<FsResult<MetadataHashValue>> {
         try {
-            const result = this.p3.metadataHashAt(pathFlags, path);
-            if (result instanceof Promise) {
-                throw new Error('P3 metadataHashAt is async — requires JSPI bridge');
-            }
+            const result = await this.p3.metadataHashAt(pathFlags, path);
             return fsOk(result);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    renameAt(oldPath: string, newDesc: P2DescriptorAdapter, newPath: string): FsResult<void> {
+    async renameAt(oldPath: string, newDesc: P2DescriptorAdapter, newPath: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.renameAt(oldPath, newDesc.p3, newPath);
-            if (result instanceof Promise) {
-                throw new Error('P3 renameAt is async — requires JSPI bridge');
-            }
+            await this.p3.renameAt(oldPath, newDesc.p3, newPath);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    linkAt(oldPathFlags: PathFlags, oldPath: string, newDesc: P2DescriptorAdapter, newPath: string): FsResult<void> {
+    async linkAt(oldPathFlags: PathFlags, oldPath: string, newDesc: P2DescriptorAdapter, newPath: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.linkAt(oldPathFlags, oldPath, newDesc.p3, newPath);
-            if (result instanceof Promise) {
-                throw new Error('P3 linkAt is async — requires JSPI bridge');
-            }
+            await this.p3.linkAt(oldPathFlags, oldPath, newDesc.p3, newPath);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    readlinkAt(path: string): FsResult<string> {
+    async readlinkAt(path: string): Promise<FsResult<string>> {
         try {
-            const result = this.p3.readlinkAt(path);
-            if (result instanceof Promise) {
-                throw new Error('P3 readlinkAt is async — requires JSPI bridge');
-            }
+            const result = await this.p3.readlinkAt(path);
             return fsOk(result);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    symlinkAt(oldPath: string, newPath: string): FsResult<void> {
+    async symlinkAt(oldPath: string, newPath: string): Promise<FsResult<void>> {
         try {
-            const result = this.p3.symlinkAt(oldPath, newPath);
-            if (result instanceof Promise) {
-                throw new Error('P3 symlinkAt is async — requires JSPI bridge');
-            }
+            await this.p3.symlinkAt(oldPath, newPath);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    setTimes(atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
+    async setTimes(atime: NewTimestamp, mtime: NewTimestamp): Promise<FsResult<void>> {
         try {
-            const result = this.p3.setTimes(atime, mtime);
-            if (result instanceof Promise) {
-                throw new Error('P3 setTimes is async — requires JSPI bridge');
-            }
+            await this.p3.setTimes(atime, mtime);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    setTimesAt(pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): FsResult<void> {
+    async setTimesAt(pathFlags: PathFlags, path: string, atime: NewTimestamp, mtime: NewTimestamp): Promise<FsResult<void>> {
         try {
-            const result = this.p3.setTimesAt(pathFlags, path, atime, mtime);
-            if (result instanceof Promise) {
-                throw new Error('P3 setTimesAt is async — requires JSPI bridge');
-            }
+            await this.p3.setTimesAt(pathFlags, path, atime, mtime);
             return fsOk(undefined);
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
     }
 
-    isSameObject(other: P2DescriptorAdapter): boolean {
-        return this.p3 === other.p3;
+    async isSameObject(other: P2DescriptorAdapter): Promise<boolean> {
+        return await this.p3.isSameObject(other.p3);
     }
 
-    advise(_offset: bigint, _length: bigint, _advice: Advice): FsResult<void> {
+    async advise(_offset: bigint, _length: bigint, _advice: Advice): Promise<FsResult<void>> {
         return fsOk(undefined);
     }
 }
