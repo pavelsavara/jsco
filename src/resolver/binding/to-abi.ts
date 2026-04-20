@@ -12,10 +12,11 @@ import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
-import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmValue, WasmFunction, JsValue } from './types';
+import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmFunction, JsValue } from './types';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { bigIntReplacer } from '../../utils/shared';
 import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../../execute/lift';
+import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorer, variantStorer, enumStorer, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer } from '../../execute/memory-store';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -359,49 +360,20 @@ export type MemoryStorer = (ctx: BindingContext, ptr: number, jsValue: JsValue) 
 
 function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding): MemoryStorer {
     switch (prim) {
-        case PrimitiveValType.Bool:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, val ? 1 : 0); };
-        case PrimitiveValType.S8:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setInt8(0, val as number); };
-        case PrimitiveValType.U8:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, (val as number) & 0xFF); };
-        case PrimitiveValType.S16:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setInt16(0, val as number, true); };
-        case PrimitiveValType.U16:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, (val as number) & 0xFFFF, true); };
-        case PrimitiveValType.S32:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, val as number, true); };
-        case PrimitiveValType.U32:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as number) >>> 0, true); };
-        case PrimitiveValType.S64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val), true); };
-        case PrimitiveValType.U64:
-            return (ctx, ptr, val) => { ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true); };
-        case PrimitiveValType.Float32:
-            return (ctx, ptr, val) => {
-                if (typeof val !== 'number') throw new TypeError(`expected a number for f32, got ${typeof val}`);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val, true);
-            };
-        case PrimitiveValType.Float64:
-            return (ctx, ptr, val) => {
-                if (typeof val !== 'number') throw new TypeError(`expected a number for f64, got ${typeof val}`);
-                ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val, true);
-            };
-        case PrimitiveValType.Char:
-            return (ctx, ptr, val) => {
-                if (typeof val !== 'string') throw new TypeError(`expected a string for char, got ${typeof val}`);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, val.codePointAt(0)!, true);
-            };
-        case PrimitiveValType.String: {
-            const lifter = createStringLifting(encoding);
-            const tmp: WasmValue[] = [0, 0];
-            return (ctx, ptr, val) => {
-                lifter(ctx, val, tmp, 0);
-                const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
-                dv.setInt32(0, tmp[0] as number, true);
-                dv.setInt32(4, tmp[1] as number, true);
-            };
-        }
+        case PrimitiveValType.Bool: return boolStorer;
+        case PrimitiveValType.S8: return s8Storer;
+        case PrimitiveValType.U8: return u8Storer;
+        case PrimitiveValType.S16: return s16Storer;
+        case PrimitiveValType.U16: return u16Storer;
+        case PrimitiveValType.S32: return s32Storer;
+        case PrimitiveValType.U32: return u32Storer;
+        case PrimitiveValType.S64: return s64Storer;
+        case PrimitiveValType.U64: return u64Storer;
+        case PrimitiveValType.Float32: return f32Storer;
+        case PrimitiveValType.Float64: return f64Storer;
+        case PrimitiveValType.Char: return charStorer;
+        case PrimitiveValType.String:
+            return stringStorer.bind(null, { lifter: createStringLifting(encoding) });
         default:
             throw new Error('createPrimitiveStorer not implemented for ' + prim);
     }
@@ -413,60 +385,31 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
         case ModelTag.ComponentTypeDefinedPrimitive:
             return createPrimitiveStorer(type.value, stringEncoding);
         case ModelTag.ComponentTypeDefinedRecord: {
-            const fieldStorers: { name: string, offset: number, storer: MemoryStorer }[] = [];
+            const fields: { name: string, offset: number, storer: MemoryStorer }[] = [];
             let offset = 0;
             for (const member of type.members) {
                 const fieldType = resolveValTypePure(member.type);
                 const fieldAlign = alignOf(fieldType);
                 offset = alignUp(offset, fieldAlign);
                 const storer = createMemoryStorer(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources);
-                fieldStorers.push({ name: camelCase(member.name), offset, storer });
+                fields.push({ name: camelCase(member.name), offset, storer });
                 offset += sizeOf(fieldType);
             }
-            return (ctx, ptr, jsValue) => {
-                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for record, got ${jsValue === null ? 'null' : typeof jsValue}`);
-                for (let i = 0; i < fieldStorers.length; i++) {
-                    const f = fieldStorers[i]!;
-                    f.storer(ctx, ptr + f.offset, jsValue[f.name]);
-                }
-            };
+            return recordStorer.bind(null, { fields });
         }
         case ModelTag.ComponentTypeDefinedList: {
             const elemType = resolveValTypePure(type.value);
             const elemSize = sizeOf(elemType);
             const elemAlign = alignOf(elemType);
             const elemStorer = createMemoryStorer(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources);
-            return (ctx, ptr, jsValue) => {
-                if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
-                const len = jsValue.length;
-                let listPtr = 0;
-                if (len > 0) {
-                    const totalSize = len * elemSize;
-                    listPtr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, elemAlign as WasmSize, totalSize as WasmSize);
-                    validateAllocResult(ctx, listPtr as WasmPointer, elemAlign, totalSize);
-                    for (let i = 0; i < len; i++) {
-                        elemStorer(ctx, listPtr + i * elemSize, jsValue[i]);
-                    }
-                }
-                const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
-                dv.setInt32(0, listPtr, true);
-                dv.setInt32(4, len, true);
-            };
+            return listStorer.bind(null, { elemSize, elemAlign, elemStorer });
         }
         case ModelTag.ComponentTypeDefinedOption: {
             const payloadType = resolveValTypePure(type.value);
             const payloadAlign = alignOf(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
             const payloadStorer = createMemoryStorer(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources);
-            return (ctx, ptr, jsValue) => {
-                const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
-                if (jsValue === null || jsValue === undefined) {
-                    dv.setUint8(0, 0);
-                } else {
-                    dv.setUint8(0, 1);
-                    payloadStorer(ctx, ptr + payloadOffset, jsValue);
-                }
-            };
+            return optionStorer.bind(null, { payloadOffset, payloadStorer });
         }
         case ModelTag.ComponentTypeDefinedResult: {
             let payloadAlign = 1;
@@ -475,23 +418,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const payloadOffset = alignUp(1, payloadAlign);
             const okStorer = type.ok !== undefined ? createMemoryStorer(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
-            return (ctx, ptr, jsValue) => {
-                const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
-                if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
-                const tag = jsValue[TAG], val = jsValue[VAL];
-                if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
-                if (tag === OK) {
-                    dv.setUint8(0, 0);
-                    if (okStorer) {
-                        okStorer(ctx, ptr + payloadOffset, val);
-                    }
-                } else {
-                    dv.setUint8(0, 1);
-                    if (errStorer) {
-                        errStorer(ctx, ptr + payloadOffset, val);
-                    }
-                }
-            };
+            return resultStorer.bind(null, { payloadOffset, okStorer, errStorer });
         }
         case ModelTag.ComponentTypeDefinedVariant: {
             const discSize = discriminantSize(type.variants.length);
@@ -506,126 +433,65 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 c.ty !== undefined ? createMemoryStorer(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
-            return (ctx, ptr, jsValue) => {
-                if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
-                const tag = jsValue[TAG], val = jsValue[VAL];
-                if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
-                const caseIndex = nameToIndex.get(tag);
-                if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
-                const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
-                if (discSize === 1) dv.setUint8(0, caseIndex);
-                else if (discSize === 2) dv.setUint16(0, caseIndex, true);
-                else dv.setUint32(0, caseIndex, true);
-                const storer = caseStorers[caseIndex];
-                if (storer && val !== undefined) {
-                    storer(ctx, ptr + payloadOffset, val);
-                }
-            };
+            return variantStorer.bind(null, { discSize, payloadOffset, nameToIndex, caseStorers });
         }
         case ModelTag.ComponentTypeDefinedEnum: {
             const discSize = discriminantSize(type.members.length);
             const nameToIndex = new Map(type.members.map((name, i) => [name, i]));
-            return (ctx, ptr, jsValue) => {
-                const idx = nameToIndex.get(jsValue as string);
-                if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
-                const dv = ctx.memory.getView(ptr as WasmPointer, discSize as WasmSize);
-                if (discSize === 1) dv.setUint8(0, idx);
-                else if (discSize === 2) dv.setUint16(0, idx, true);
-                else dv.setUint32(0, idx, true);
-            };
+            return enumStorer.bind(null, { discSize, nameToIndex });
         }
         case ModelTag.ComponentTypeDefinedFlags: {
             const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
             const memberNames = type.members.map(m => camelCase(m));
-            return (ctx, ptr, jsValue) => {
-                if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
-                const flags = jsValue as Record<string, boolean>;
-                for (let w = 0; w < wordCount; w++) {
-                    let word = 0;
-                    for (let b = 0; b < 32 && w * 32 + b < memberNames.length; b++) {
-                        if (flags[memberNames[w * 32 + b]!]) word |= (1 << b);
-                    }
-                    const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
-                    dv.setInt32(0, word, true);
-                }
-            };
+            return flagsStorer.bind(null, { wordCount, memberNames });
         }
         case ModelTag.ComponentTypeDefinedTuple: {
-            const memberStorers: { offset: number, storer: MemoryStorer }[] = [];
+            const members: { offset: number, storer: MemoryStorer }[] = [];
             let offset = 0;
             for (const member of type.members) {
                 const memberType = resolveValTypePure(member);
                 const memberAlign = alignOf(memberType);
                 offset = alignUp(offset, memberAlign);
-                memberStorers.push({ offset, storer: createMemoryStorer(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources) });
+                members.push({ offset, storer: createMemoryStorer(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources) });
                 offset += sizeOf(memberType);
             }
-            return (ctx, ptr, jsValue) => {
-                if (jsValue == null) throw new TypeError(`expected an array for tuple, got ${jsValue === null ? 'null' : 'undefined'}`);
-                if (jsValue.length !== memberStorers.length) {
-                    throw new Error(`Expected tuple of ${memberStorers.length} elements, got ${jsValue.length}`);
-                }
-                for (let i = 0; i < memberStorers.length; i++) {
-                    const m = memberStorers[i]!;
-                    m.storer(ctx, ptr + m.offset, jsValue[i]);
-                }
-            };
+            return tupleStorer.bind(null, { members });
         }
         case ModelTag.ComponentTypeDefinedOwn: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
-            return (ctx, ptr, jsValue) => {
-                const handle = ctx.resources.add(resourceTypeIdx, jsValue);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
-            };
+            return ownResourceStorer.bind(null, { resourceTypeIdx });
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
-            // Canonical ABI: lower_borrow — if own-instance resource, write rep directly
             if (ownInstanceResources?.has(resourceTypeIdx)) {
-                return (_ctx, ptr, jsValue) => {
-                    _ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, jsValue as number, true);
-                };
+                return borrowResourceDirectStorer.bind(null, { resourceTypeIdx });
             }
-            return (ctx, ptr, jsValue) => {
-                const handle = ctx.resources.add(resourceTypeIdx, jsValue);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
-            };
+            return borrowResourceStorer.bind(null, { resourceTypeIdx });
         }
-        case ModelTag.ComponentTypeDefinedStream: {
-            return (ctx, ptr, jsValue) => {
-                const handle = ctx.streams.addReadable(0, jsValue);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
-            };
-        }
+        case ModelTag.ComponentTypeDefinedStream:
+            return streamStorer;
         case ModelTag.ComponentTypeDefinedFuture: {
             // Create a storer for the future's inner type so future.read can
             // encode the resolved JS value into WASM linear memory.
-            let futureStorer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
+            let futureInnerStorer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
             if (type.value !== undefined) {
                 const innerType = resolveValTypePure(type.value);
                 const innerMemStorer = createMemoryStorer(innerType, stringEncoding, canonicalResourceIds, ownInstanceResources);
                 if (innerType.tag === ModelTag.ComponentTypeDefinedResult) {
-                    futureStorer = (ctx, ptr, value, rejected) => {
+                    futureInnerStorer = (ctx, ptr, value, rejected) => {
                         const wrapped = rejected
                             ? { [TAG]: ERR, [VAL]: value }
                             : { [TAG]: OK, [VAL]: value };
                         innerMemStorer(ctx, ptr, wrapped);
                     };
                 } else {
-                    futureStorer = innerMemStorer;
+                    futureInnerStorer = innerMemStorer;
                 }
             }
-            return (ctx, ptr, jsValue) => {
-                const handle = ctx.futures.addReadable(0, jsValue, futureStorer);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
-            };
+            return futureMemStorer.bind(null, { futureStorer: futureInnerStorer });
         }
-        case ModelTag.ComponentTypeDefinedErrorContext: {
-            return (ctx, ptr, jsValue) => {
-                const handle = ctx.errorContexts.add(jsValue);
-                ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
-            };
-        }
+        case ModelTag.ComponentTypeDefinedErrorContext:
+            return errorContextStorer;
         default:
             throw new Error('createMemoryStorer not implemented for tag ' + type.tag);
     }
