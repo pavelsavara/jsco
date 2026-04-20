@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag, WITSection } from '../model/tags';
+import { ModelTag, WITSection } from '../parser/model/tags';
 import type { WITModel } from '../parser';
 import type { ComponentSection } from '../parser/types';
 import type {
@@ -12,27 +12,27 @@ import type {
     ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture, ComponentTypeDefinedPrimitive, ComponentFuncResult,
     NamedValue, InstanceTypeDeclaration, ComponentTypeDeclaration,
     CoreType, CoreTypeFunc, CoreTypeModule, ModuleTypeDeclaration,
-} from '../model/types';
-import type { ComponentImport, ComponentExternName, ComponentTypeRef, TypeBounds } from '../model/imports';
-import type { ComponentExport } from '../model/exports';
-import { ComponentExternalKind } from '../model/exports';
+} from '../parser/model/types';
+import type { ComponentImport, ComponentExternName, ComponentTypeRef, TypeBounds } from '../parser/model/imports';
+import type { ComponentExport } from '../parser/model/exports';
+import { ComponentExternalKind } from '../parser/model/exports';
 import type {
     ComponentAliasInstanceExport, ComponentAliasCoreInstanceExport, ComponentAliasOuter,
-} from '../model/aliases';
-import { ComponentOuterAliasKind } from '../model/aliases';
+} from '../parser/model/aliases';
+import { ComponentOuterAliasKind } from '../parser/model/aliases';
 import type {
     CanonicalFunctionLift, CanonicalFunctionLower,
     CanonicalFunctionResourceNew, CanonicalFunctionResourceDrop, CanonicalFunctionResourceRep,
     CanonicalOption,
-} from '../model/canonicals';
+} from '../parser/model/canonicals';
 import type {
     CoreInstanceInstantiate, CoreInstanceFromExports,
     ComponentInstanceInstantiate, ComponentInstanceFromExports,
     InstantiationArg, ComponentInstantiationArg,
-} from '../model/instances';
-import type { ComponentStartFunction } from '../model/start';
-import type { Export } from '../model/core';
-import { ExternalKind } from '../model/core';
+} from '../parser/model/instances';
+import type { ComponentStartFunction } from '../parser/model/start';
+import type { Export } from '../parser/model/core';
+import { ExternalKind } from '../parser/model/core';
 import { primitiveValTypeName } from './debug-names';
 
 /// Index counters for WAT comments like (;N;)

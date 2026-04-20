@@ -5,8 +5,8 @@ initializeAsserts();
 
 import * as leb from '@thi.ng/leb128';
 import { newSource } from '../utils/streaming';
-import { ModelTag } from '../model/tags';
-import { PrimitiveValType } from '../model/types';
+import { ModelTag } from './model/tags';
+import { PrimitiveValType } from './model/types';
 import {
     readU32, readName, readStringArray,
     parseAsExternalKind, readComponentExternalKind, parseAsComponentExternalKind,

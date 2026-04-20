@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../../utils/assert';
+import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
 import { memoize } from './cache';
-import { LogLevel } from '../../utils/assert';
-import { ModelTag } from '../../model/tags';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import { LogLevel } from '../utils/assert';
+import { ModelTag } from '../parser/model/tags';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 function mockFn<T extends (...args: any[]) => any>(impl: T): T & { calls: any[][] } {
     const calls: any[][] = [];
@@ -41,7 +41,7 @@ describe('memoize', () => {
         test('logs cache HIT when verbose binder >= Detailed', () => {
             const cache = new Map();
             cache.set('key1', 99);
-            const logger = mockFn((() => {}) as any);
+            const logger = mockFn((() => { }) as any);
             const verbose = {
                 parser: LogLevel.Off,
                 resolver: LogLevel.Off,
@@ -55,7 +55,7 @@ describe('memoize', () => {
 
         test('logs cache MISS when verbose binder >= Detailed', () => {
             const cache = new Map();
-            const logger = mockFn((() => {}) as any);
+            const logger = mockFn((() => { }) as any);
             const verbose = {
                 parser: LogLevel.Off,
                 resolver: LogLevel.Off,
@@ -69,7 +69,7 @@ describe('memoize', () => {
 
         test('describeKey formats tagged objects with selfSortIndex', () => {
             const cache = new Map();
-            const logger = mockFn((() => {}) as any);
+            const logger = mockFn((() => { }) as any);
             const verbose = {
                 parser: LogLevel.Off,
                 resolver: LogLevel.Off,
@@ -83,7 +83,7 @@ describe('memoize', () => {
 
         test('describeKey formats tagged objects without selfSortIndex', () => {
             const cache = new Map();
-            const logger = mockFn((() => {}) as any);
+            const logger = mockFn((() => { }) as any);
             const verbose = {
                 parser: LogLevel.Off,
                 resolver: LogLevel.Off,
@@ -97,7 +97,7 @@ describe('memoize', () => {
 
         test('no logging when verbose is undefined', () => {
             const cache = new Map();
-            const logger = mockFn((() => {}) as any);
+            const logger = mockFn((() => { }) as any);
             memoize(cache, 'key1', () => 42, undefined, logger);
             expect(logger.calls.length).toBe(0);
         });

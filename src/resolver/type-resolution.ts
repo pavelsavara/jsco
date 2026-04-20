@@ -1,42 +1,23 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentTypeIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
+import { ComponentTypeIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
 import {
-    ComponentValTypePrimitive, ComponentTypeDefinedPrimitive, ComponentTypeDefinedRecord,
-    ComponentTypeDefinedVariant, ComponentTypeDefinedList, ComponentTypeDefinedTuple,
-    ComponentTypeDefinedFlags, ComponentTypeDefinedEnum, ComponentTypeDefinedOption,
-    ComponentTypeDefinedResult, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
-    ComponentTypeDefinedStream, ComponentTypeDefinedFuture, ComponentTypeDefinedErrorContext,
-    ComponentTypeFunc, ComponentType, ComponentTypeResource, ComponentTypeInstance,
-} from '../model/types';
-import { ComponentExternalKind } from '../model/exports';
+    ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow,
+    ComponentType, ComponentTypeResource, ComponentTypeInstance,
+} from '../parser/model/types';
+import { ComponentExternalKind } from '../parser/model/exports';
 import type { ResolverContext, ResolvedContext } from './types';
 import { StringEncoding } from './types';
 import { deepResolveType } from './calling-convention';
 import { defaultVerbosity } from '../utils/assert';
 import type { LogFn } from '../utils/assert';
+import type { ResolvedType } from './model/type-resolution';
 
 const _noopLogger: LogFn = () => { /* noop */ };
 
 // A resolved type is a concrete type with no further indirection
-export type ResolvedType =
-    | ComponentValTypePrimitive
-    | ComponentTypeDefinedPrimitive
-    | ComponentTypeDefinedRecord
-    | ComponentTypeDefinedVariant
-    | ComponentTypeDefinedList
-    | ComponentTypeDefinedTuple
-    | ComponentTypeDefinedFlags
-    | ComponentTypeDefinedEnum
-    | ComponentTypeDefinedOption
-    | ComponentTypeDefinedResult
-    | ComponentTypeDefinedOwn
-    | ComponentTypeDefinedBorrow
-    | ComponentTypeDefinedStream
-    | ComponentTypeDefinedFuture
-    | ComponentTypeDefinedErrorContext
-    | ComponentTypeFunc;
+export type { ResolvedType } from './model/type-resolution';
 
 function resolveType(rctx: ResolverContext, type: ComponentType, visited: Set<ComponentType>): ResolvedType | undefined {
     if (visited.has(type)) return undefined;

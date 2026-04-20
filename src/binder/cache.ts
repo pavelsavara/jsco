@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { LogLevel } from '../../utils/assert';
-import { modelTagName } from '../../utils/debug-names';
-import type { LogFn, Verbosity } from '../../utils/assert';
+import { LogLevel } from '../utils/assert';
+import { modelTagName } from '../utils/debug-names';
+import type { LogFn, Verbosity } from '../utils/assert';
 
 function describeKey(key: unknown): string {
     if (key && typeof key === 'object' && 'tag' in key) {

@@ -3,11 +3,11 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { ComponentTypeIndex } from '../model/indices';
-import { PrimitiveValType } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentTypeIndex } from '../parser/model/indices';
+import { PrimitiveValType } from '../parser/model/types';
 import { ResolverContext, StringEncoding } from './types';
-import { createLifting } from './binding/to-abi';
+import { createLifting } from '../binder/to-abi';
 import { deepResolveType, resolveValType } from './calling-convention';
 import type { ResolvedType } from './type-resolution';
 import { describeDebugOnly } from '../test-utils/debug-only';

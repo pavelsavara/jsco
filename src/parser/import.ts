@@ -3,8 +3,8 @@
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readComponentExternName, readComponentTypeRef } from './values';
-import { ModelTag } from '../model/tags';
-import { ComponentImport } from '../model/imports';
+import { ModelTag } from './model/tags';
+import { ComponentImport } from './model/imports';
 
 export function parseSectionImport(
     ctx: ParserContext,

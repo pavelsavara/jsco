@@ -1,15 +1,15 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../../utils/assert';
+import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../../model/tags';
-import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext } from '../types';
-import { createLifting as _createLifting } from './to-abi';
-import { createLowering } from './to-js';
-import { WasmPointer, WasmSize, WasmValue } from './types';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentValType, PrimitiveValType } from '../parser/model/types';
+import { ResolverContext, BindingContext } from '../resolver/types';
+import { createLifting as _createLifting } from '../binder/to-abi';
+import { createLowering } from '../binder/to-js';
+import { WasmPointer, WasmSize, WasmValue } from './model/types';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {

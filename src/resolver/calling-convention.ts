@@ -1,43 +1,14 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentTypeIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../model/types';
+import { ComponentTypeIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../parser/model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
-
-// Canonical ABI limits
-export const MAX_FLAT_PARAMS = 16;
-export const MAX_FLAT_RESULTS = 1;
-
-export const enum CallingConvention {
-    /** Single register value (i32, i64, f32, f64) */
-    Scalar,
-    /** Multiple register values within MAX_FLAT_PARAMS/MAX_FLAT_RESULTS */
-    Flat,
-    /** Spilled to linear memory, represented by a pointer */
-    Spilled,
-}
-
-export const CallingConvention_Count = CallingConvention.Spilled + 1;
-
-/**
- * Core wasm value types for flat representation.
- * Follows the component model spec's flatten_type/join functions.
- */
-export const enum FlatType {
-    I32,
-    I64,
-    F32,
-    F64,
-}
-
-export type FunctionCallingConvention = {
-    params: CallingConvention;
-    results: CallingConvention;
-    paramFlatCount: number;
-    resultFlatCount: number;
-}
+import { CallingConvention, FlatType, MAX_FLAT_PARAMS, MAX_FLAT_RESULTS } from './model/calling-convention';
+import type { FunctionCallingConvention } from './model/calling-convention';
+export { MAX_FLAT_PARAMS, MAX_FLAT_RESULTS, CallingConvention, CallingConvention_Count, FlatType } from './model/calling-convention';
+export type { FunctionCallingConvention } from './model/calling-convention';
 
 // --- Primitive size/alignment/flat tables (indexed by PrimitiveValType) ---
 // PrimitiveValType: Bool=0, S8=1, U8=2, S16=3, U16=4, S32=5, U32=6, S64=7, U64=8, Float32=9, Float64=10, Char=11, String=12

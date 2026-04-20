@@ -2,12 +2,12 @@
 
 import isDebug from 'env:isDebug';
 import camelCase from 'just-camel-case';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
-import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInstantiate, ComponentInstantiationArg } from '../model/instances';
-import { ComponentAliasInstanceExport } from '../model/aliases';
-import { ModelTag, TaggedElement } from '../model/tags';
-import { ComponentTypeInstance } from '../model/types';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { ComponentFuncIndex, ComponentInstanceIndex } from '../parser/model/indices';
+import { ComponentInstance, ComponentInstanceFromExports, ComponentInstanceInstantiate, ComponentInstantiationArg } from '../parser/model/instances';
+import { ComponentAliasInstanceExport } from '../parser/model/aliases';
+import { ModelTag, TaggedElement } from '../parser/model/tags';
+import { ComponentTypeInstance } from '../parser/model/types';
 import { stripImportPrefix } from './import-names';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { JsImports } from './api-types';
@@ -15,13 +15,8 @@ import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
 import { getComponentFunction, getComponentInstance } from './indices';
 import { BinderArgs, BinderRes, BindingContext, Resolver, ResolverRes } from './types';
-
-export type ComponentInstanceData = {
-    instanceIndex: number;
-    imports: Record<string, unknown>;
-    exports: Record<string, unknown>;
-    types: Record<string, unknown>;
-}
+import type { ComponentInstanceData } from './model/component-instances';
+export type { ComponentInstanceData } from './model/component-instances';
 
 type ComponentInstanceBinderRes = BinderRes & { result: ComponentInstanceData };
 

@@ -2,18 +2,18 @@
 
 import isDebug from 'env:isDebug';
 import { WITModel } from '../parser';
-import { IndexedElement, ModelTag, TaggedElement } from '../model/tags';
-import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../model/aliases';
-import { ExternalKind } from '../model/core';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
+import { IndexedElement, ModelTag, TaggedElement } from '../parser/model/tags';
+import { ComponentAliasInstanceExport, ComponentOuterAliasKind } from '../parser/model/aliases';
+import { ExternalKind } from '../parser/model/core';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
 import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, SubtaskState, ErrorContextTable, WaitableSetTable, StringEncoding } from './types';
-import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
+import { TCabiRealloc, WasmPointer, WasmSize } from '../marshal/model/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
-import type { ComponentImport } from '../model/imports';
-import type { ComponentTypeInstance, ComponentTypeResource } from '../model/types';
+import type { ComponentImport } from '../parser/model/imports';
+import type { ComponentTypeInstance, ComponentTypeResource } from '../parser/model/types';
 import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER, PROMISING, SUSPENDING } from '../utils/constants';
 import { hasJspi } from '../utils/jspi';
 

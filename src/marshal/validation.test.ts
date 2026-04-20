@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { validateAllocResult, validatePointerAlignment, validateUtf16, checkNotPoisoned, checkNotReentrant } from './validation';
-import type { BindingContext } from '../types';
+import type { BindingContext } from '../resolver/types';
 
 function makeCtx(memorySize: number, opts?: Partial<BindingContext>): BindingContext {
     return {

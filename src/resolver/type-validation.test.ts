@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { validateExportType, validateImportType } from './type-validation';
-import { ModelTag } from '../model/tags';
-import { ComponentExternalKind } from '../model/exports';
-import { PrimitiveValType } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentExternalKind } from '../parser/model/exports';
+import { PrimitiveValType } from '../parser/model/types';
 import { ResolverContext } from './types';
 
 function makeMinimalRctx(overrides?: Partial<ResolverContext['indexes']>): ResolverContext {

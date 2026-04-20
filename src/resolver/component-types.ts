@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ModelTag } from '../model/tags';
-import { ComponentType } from '../model/types';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentType } from '../parser/model/types';
 import { ComponentSection } from '../parser/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { resolveComponentExport } from './component-exports';

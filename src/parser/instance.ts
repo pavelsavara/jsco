@@ -3,9 +3,9 @@
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readComponentInstantiationArgs } from './values';
-import { ComponentInstance } from '../model/instances';
-import { ModelTag } from '../model/tags';
-import { ComponentTypeIndex } from '../model/indices';
+import { ComponentInstance } from './model/instances';
+import { ModelTag } from './model/tags';
+import { ComponentTypeIndex } from './model/indices';
 import { parseSectionExport } from './export';
 
 export function parseSectionInstance(

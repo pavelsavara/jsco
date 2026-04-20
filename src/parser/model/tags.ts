@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { SkippedSection, ComponentSection, CoreModule, CustomSection } from '../parser/types';
+import { SkippedSection, ComponentSection, CoreModule, CustomSection } from '../types';
 import { ComponentAlias } from './aliases';
 import { CanonicalFunction } from './canonicals';
 import { ComponentExport } from './exports';

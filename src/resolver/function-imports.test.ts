@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../../utils/assert';
+import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../../model/tags';
-import { resolveComponentImport } from '../component-imports';
-import { ResolverContext, BindingContext, BinderArgs } from '../types';
-import { ComponentImport } from '../../model/imports';
+import { ModelTag } from '../parser/model/tags';
+import { resolveComponentImport } from './component-imports';
+import { ResolverContext, BindingContext, BinderArgs } from './types';
+import { ComponentImport } from '../parser/model/imports';
 
 function createMinimalRctx(): ResolverContext {
     return {

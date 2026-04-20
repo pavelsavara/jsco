@@ -1,20 +1,20 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
-import { CanonicalFunctionLift } from '../model/canonicals';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { CoreFuncIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
+import { ComponentAliasInstanceExport, ComponentFunction } from '../parser/model/aliases';
+import { CanonicalFunctionLift } from '../parser/model/canonicals';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { CoreFuncIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
 import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
-import { createFunctionLifting } from './binding';
-import { WasmFunction } from './binding/types';
+import { createFunctionLifting } from '../binder';
+import { WasmFunction } from '../marshal/model/types';
 import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, BindingContext, resolveCanonicalOptions } from './types';
-import type { WasmPointer, WasmSize } from './binding/types';
+import type { WasmPointer, WasmSize } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
