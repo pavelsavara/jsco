@@ -33,4 +33,7 @@ export type FunctionLowerPlan = {
     spilledParamOffsets: number[],
     resultBuf: WasmValue[],
     resultIsI64: boolean,
+    /** When true, the JS function may return a Promise that IS the future/stream value
+     *  (not a Promise to be awaited). Pass it directly to the result lifter. */
+    hasFutureOrStreamReturn: boolean,
 };

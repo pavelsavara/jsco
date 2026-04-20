@@ -32,7 +32,7 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: BindingContext, retp
 
 function handleLowerResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: any,
     processResult: (plan: FunctionLowerPlan, ctx: BindingContext, resJs: any) => any): any {
-    if (resJs instanceof Promise) {
+    if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
         return resJs.then(
             (val: any) => {
                 try { return processResult(plan, ctx, val); }
@@ -45,7 +45,7 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: 
 }
 
 function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: BindingContext, retptr: number, resJs: any): any {
-    if (resJs instanceof Promise) {
+    if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
         return resJs.then(
             (val: any) => {
                 try { return processSpilledResult(plan, ctx, retptr, val); }

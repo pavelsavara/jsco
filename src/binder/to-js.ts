@@ -78,6 +78,13 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         const resultFlatTypes = resultType ? flattenType(resultType) : [];
         const resultIsI64 = resultFlatTypes.length === 1 && resultFlatTypes[0] === FlatType.I64;
 
+        // When the return type is a future or stream, the JS function returns a Promise
+        // that IS the future/stream value — it should be passed to the lifter, not awaited.
+        const hasFutureOrStreamReturn = resultType !== undefined && (
+            resultType.tag === ModelTag.ComponentTypeDefinedFuture
+            || resultType.tag === ModelTag.ComponentTypeDefinedStream
+        );
+
         if (isDebug && (rctx.verbose?.binder ?? 0) >= LogLevel.Summary) {
             const paramNames = exportModel.params.map(p => p.name).join(', ');
             rctx.logger!('binder', LogLevel.Summary,
@@ -93,6 +100,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
             spilledParamOffsets,
             resultBuf,
             resultIsI64,
+            hasFutureOrStreamReturn,
         };
         const trampoline = callingConvention.params === CallingConvention.Spilled
             ? (callingConvention.results === CallingConvention.Spilled ? lowerSpilledSpilled : lowerSpilledFlat)

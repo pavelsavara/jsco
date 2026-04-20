@@ -1141,6 +1141,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         logger: resolved.logger,
         taskContextSlots: [0, 0],
         backpressure: 0,
+        pendingBackgroundTasks: [],
         abort: () => {
             // Per Component Model spec: poisoning the instance prevents all future
             // export calls from executing. checkNotPoisoned() in the lifting

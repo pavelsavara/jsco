@@ -237,6 +237,13 @@ function createAsyncLiftWrapper(
                 if (status === EXIT) break;
             }
         }
+        // Await any background tasks from sync canon.lower with stream/future params.
+        // These are host functions (e.g. writeViaStream) that consume streams
+        // in the background while the WASM continues writing to them.
+        if (bctx.pendingBackgroundTasks.length > 0) {
+            await Promise.all(bctx.pendingBackgroundTasks);
+            bctx.pendingBackgroundTasks.length = 0;
+        }
     };
 }
 

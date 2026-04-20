@@ -168,6 +168,8 @@ export type BindingContext = {
     taskContextSlots: number[];
     /** Backpressure counter for async component model flow control. */
     backpressure: number;
+    /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
+    pendingBackgroundTasks: Promise<unknown>[];
 }
 
 export interface StreamTable {
