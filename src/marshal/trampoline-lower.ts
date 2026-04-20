@@ -75,7 +75,7 @@ export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFu
         return handleLowerResult(plan, ctx, jsFunction(...convertedArgs), processFlatResult);
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            return handleLowerResult(plan, ctx, (e as any).promise, processFlatResult);
         }
         throw e;
     }
@@ -100,7 +100,8 @@ export function lowerFlatSpilled(plan: FunctionLowerPlan, ctx: BindingContext, j
         return handleLowerResultSpilled(plan, ctx, retptr, jsFunction(...convertedArgs));
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            const retptr = args[args.length - 1] as number;
+            return handleLowerResultSpilled(plan, ctx, retptr, (e as any).promise);
         }
         throw e;
     }
@@ -121,7 +122,7 @@ export function lowerSpilledFlat(plan: FunctionLowerPlan, ctx: BindingContext, j
         return handleLowerResult(plan, ctx, jsFunction(...convertedArgs), processFlatResult);
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            return handleLowerResult(plan, ctx, (e as any).promise, processFlatResult);
         }
         throw e;
     }
@@ -143,7 +144,8 @@ export function lowerSpilledSpilled(plan: FunctionLowerPlan, ctx: BindingContext
         return handleLowerResultSpilled(plan, ctx, retptr, jsFunction(...convertedArgs));
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            const retptr = args[args.length - 1] as number;
+            return handleLowerResultSpilled(plan, ctx, retptr, (e as any).promise);
         }
         throw e;
     }

@@ -84,9 +84,11 @@ export async function main({ command, componentUrl, options }: CliParseResult) {
         }
 
     } catch (e: unknown) {
-        // WasiExit is a normal exit — use its status code
-        if (e instanceof Error && e.name === 'WasiExit' && 'status' in e) {
-            process.exit(e.status as number);
+        // WasiExit is a normal exit — use its exit code
+        // P3 host uses `exitCode`, P2 host uses `status`
+        if (e instanceof Error && e.name === 'WasiExit') {
+            const code = 'exitCode' in e ? e.exitCode as number : 'status' in e ? e.status as number : 1;
+            process.exit(code);
         }
         // eslint-disable-next-line no-console
         console.error(e instanceof Error ? e.stack ?? e.message : e);

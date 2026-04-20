@@ -114,6 +114,9 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
         rctx.resolved.logger!('resolver', LogLevel.Summary, lines.join('\n'));
     }
 
+    // Extract export names before freeing indexes.
+    const exportNames = rctx.indexes.componentExports.map(e => e.name.name);
+
     // Free the large indexes structure — no longer needed after resolution.
     // Binder closures capture rctx.resolved (ResolvedContext) — a separate object
     // from rctx, so rctx itself (with indexes, importToInstanceIndex, etc.) is GC-eligible.
@@ -124,7 +127,7 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     const resolved = rctx.resolved;
     let firstInstantiation = true;
     const component = {
-        [EXPORTS]: () => ['TODO'],
+        [EXPORTS]: () => exportNames,
         [INSTANTIATE]: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {

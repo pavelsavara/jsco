@@ -55,7 +55,7 @@ export function createAsyncPollable(promise: Promise<void>): WasiPollable {
 }
 
 export class JspiBlockSignal {
-    constructor(public readonly promise: Promise<void>) { }
+    constructor(public readonly promise: Promise<unknown>) { }
 }
 
 export function poll(pollables: WasiPollable[]): PollResult {
@@ -71,7 +71,26 @@ export function poll(pollables: WasiPollable[]): PollResult {
     if (ready.length > 0) {
         return new Uint32Array(ready);
     }
-    pollables[0]!.block();
+    // Need to block — catch JspiBlockSignal and re-throw with the actual poll result
+    try {
+        pollables[0]!.block();
+    } catch (e) {
+        if (e instanceof JspiBlockSignal) {
+            throw new JspiBlockSignal(e.promise.then(() => {
+                const readyAfterBlock: number[] = [];
+                for (let i = 0; i < pollables.length; i++) {
+                    if (pollables[i]!.ready()) {
+                        readyAfterBlock.push(i);
+                    }
+                }
+                if (readyAfterBlock.length === 0) {
+                    throw new Error('poll() blocked but no pollables became ready');
+                }
+                return new Uint32Array(readyAfterBlock);
+            }));
+        }
+        throw e;
+    }
     const readyAfterBlock: number[] = [];
     for (let i = 0; i < pollables.length; i++) {
         if (pollables[i]!.ready()) {
@@ -195,7 +214,7 @@ export function createInputStreamFromP3(
             // Need to block until data arrives
             startPumping();
             if (nextChunkPromise && !nextChunkReady) {
-                throw new JspiBlockSignal(nextChunkPromise.then(() => { }));
+                throw new JspiBlockSignal(nextChunkPromise.then(() => this.read(len)));
             }
             return this.read(len);
         },
@@ -220,7 +239,7 @@ export function createInputStreamFromP3(
             if (closed) return streamClosed();
             startPumping();
             if (nextChunkPromise && !nextChunkReady) {
-                throw new JspiBlockSignal(nextChunkPromise.then(() => { }));
+                throw new JspiBlockSignal(nextChunkPromise.then(() => this.skip(len)));
             }
             return this.skip(len);
         },
@@ -270,7 +289,7 @@ export function createOutputStreamFromP3(
             const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents);
             const p = pair.write(bytes);
             // For blocking variant we need to wait
-            throw new JspiBlockSignal(p.then(() => { }));
+            throw new JspiBlockSignal(p.then(() => streamOk(undefined)));
         },
 
         flush(): StreamResult<void> {
@@ -294,7 +313,7 @@ export function createOutputStreamFromP3(
             if (closed) return streamClosed();
             const zeroes = new Uint8Array(Number(len));
             const p = pair.write(zeroes);
-            throw new JspiBlockSignal(p.then(() => { }));
+            throw new JspiBlockSignal(p.then(() => streamOk(undefined)));
         },
 
         splice(src: WasiInputStream, len: bigint): StreamResult<bigint> {
