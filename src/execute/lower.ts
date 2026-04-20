@@ -234,7 +234,6 @@ export type ResultLowerPlan = {
     okLowerer?: LoweringToJs, errLowerer?: LoweringToJs,
     payloadJoined: FlatType[],
     okFlatTypes: FlatType[], errFlatTypes: FlatType[],
-    okNeedsCoercion: boolean, errNeedsCoercion: boolean,
 };
 
 export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
@@ -242,25 +241,34 @@ export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...ar
     if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
     if (discriminant === 0) {
-        if (plan.okNeedsCoercion) {
-            for (let i = 0; i < plan.okFlatTypes.length; i++) {
-                const joinedFT = plan.payloadJoined[i];
-                const okFT = plan.okFlatTypes[i];
-                if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
-                    payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
-                }
+        const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
+        return { [TAG]: OK, [VAL]: val };
+    } else {
+        const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;
+        return { [TAG]: ERR, [VAL]: val };
+    }
+}
+
+export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+    const discriminant = args[0] as number;
+    if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
+    const payload = args.slice(1, 1 + plan.payloadJoined.length);
+    if (discriminant === 0) {
+        for (let i = 0; i < plan.okFlatTypes.length; i++) {
+            const joinedFT = plan.payloadJoined[i];
+            const okFT = plan.okFlatTypes[i];
+            if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
+                payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
             }
         }
         const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
         return { [TAG]: OK, [VAL]: val };
     } else {
-        if (plan.errNeedsCoercion) {
-            for (let i = 0; i < plan.errFlatTypes.length; i++) {
-                const joinedFT = plan.payloadJoined[i];
-                const errFT = plan.errFlatTypes[i];
-                if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
-                    payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
-                }
+        for (let i = 0; i < plan.errFlatTypes.length; i++) {
+            const joinedFT = plan.payloadJoined[i];
+            const errFT = plan.errFlatTypes[i];
+            if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
+                payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
             }
         }
         const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;

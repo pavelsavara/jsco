@@ -15,8 +15,8 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from './types';
 import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../../execute/trampoline-lower';
 import type { FunctionLowerPlan } from '../../execute/trampoline-lower';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../../execute/lower';
-import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoader, variantLoader, enumLoader, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../../execute/memory-load';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, resultLoweringCoerced, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../../execute/lower';
+import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoaderBoth, resultLoaderOkOnly, resultLoaderErrOnly, resultLoaderVoid, variantLoaderDisc1, variantLoaderDisc2, variantLoaderDisc4, enumLoaderDisc1, enumLoaderDisc2, enumLoaderDisc4, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../../execute/memory-load';
 import camelCase from 'just-camel-case';
 
 
@@ -352,7 +352,8 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             const payloadOffset = alignUp(1, payloadAlign);
             const okLdr = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
             const errLdr = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
-            return resultLoader.bind(null, { payloadOffset, okLoader: okLdr, errLoader: errLdr });
+            const resultLoaderFn = okLdr && errLdr ? resultLoaderBoth : okLdr ? resultLoaderOkOnly : errLdr ? resultLoaderErrOnly : resultLoaderVoid;
+            return resultLoaderFn.bind(null, { payloadOffset, okLoader: okLdr, errLoader: errLdr });
         }
         case ModelTag.ComponentTypeDefinedVariant: {
             const discSize = discriminantSize(type.variants.length);
@@ -366,13 +367,15 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             );
             const caseNames = type.variants.map(c => c.name);
             const numCases = type.variants.length;
-            return variantLoader.bind(null, { discSize, payloadOffset, caseLoaders, caseNames, numCases });
+            const variantLoaderFn = discSize === 1 ? variantLoaderDisc1 : discSize === 2 ? variantLoaderDisc2 : variantLoaderDisc4;
+            return variantLoaderFn.bind(null, { payloadOffset, caseLoaders, caseNames, numCases });
         }
         case ModelTag.ComponentTypeDefinedEnum: {
             const discSize = discriminantSize(type.members.length);
             const memberNames = type.members;
             const numMembers = type.members.length;
-            return enumLoader.bind(null, { discSize, memberNames, numMembers });
+            const enumLoaderFn = discSize === 1 ? enumLoaderDisc1 : discSize === 2 ? enumLoaderDisc2 : enumLoaderDisc4;
+            return enumLoaderFn.bind(null, { memberNames, numMembers });
         }
         case ModelTag.ComponentTypeDefinedFlags: {
             const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
@@ -451,7 +454,8 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
     const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
-    const fn = resultLowering.bind(null, { okLowerer, errLowerer, payloadJoined, okFlatTypes, errFlatTypes, okNeedsCoercion, errNeedsCoercion });
+    const resultLoweringFn = okNeedsCoercion || errNeedsCoercion ? resultLoweringCoerced : resultLowering;
+    const fn = resultLoweringFn.bind(null, { okLowerer, errLowerer, payloadJoined, okFlatTypes, errFlatTypes });
     (fn as any).spill = totalSpill;
     return fn;
 }

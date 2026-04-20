@@ -269,7 +269,6 @@ export type ResultLiftPlan = {
     okLifter?: LiftingFromJs, errLifter?: LiftingFromJs,
     totalSize: number, payloadJoined: FlatType[],
     okFlatTypes: FlatType[], errFlatTypes: FlatType[],
-    okNeedsCoercion: boolean, errNeedsCoercion: boolean,
 };
 
 export function resultLifting(plan: ResultLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
@@ -279,25 +278,35 @@ export function resultLifting(plan: ResultLiftPlan, ctx: BindingContext, srcJsVa
     out.fill(0, offset, offset + plan.totalSize);
     if (tag === OK) {
         if (plan.okLifter) plan.okLifter(ctx, val, out, offset + 1);
-        if (plan.okNeedsCoercion) {
-            for (let i = 0; i < plan.okFlatTypes.length; i++) {
-                const okFT = plan.okFlatTypes[i];
-                const joinedFT = plan.payloadJoined[i];
-                if (okFT !== undefined && joinedFT !== undefined && okFT !== joinedFT) {
-                    out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFT, joinedFT);
-                }
+    } else {
+        out[offset] = 1;
+        if (plan.errLifter) plan.errLifter(ctx, val, out, offset + 1);
+    }
+    return plan.totalSize;
+}
+
+export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
+    const tag = srcJsValue[TAG], val = srcJsValue[VAL];
+    if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
+    out.fill(0, offset, offset + plan.totalSize);
+    if (tag === OK) {
+        if (plan.okLifter) plan.okLifter(ctx, val, out, offset + 1);
+        for (let i = 0; i < plan.okFlatTypes.length; i++) {
+            const okFT = plan.okFlatTypes[i];
+            const joinedFT = plan.payloadJoined[i];
+            if (okFT !== undefined && joinedFT !== undefined && okFT !== joinedFT) {
+                out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFT, joinedFT);
             }
         }
     } else {
         out[offset] = 1;
         if (plan.errLifter) plan.errLifter(ctx, val, out, offset + 1);
-        if (plan.errNeedsCoercion) {
-            for (let i = 0; i < plan.errFlatTypes.length; i++) {
-                const errFT = plan.errFlatTypes[i];
-                const joinedFT = plan.payloadJoined[i];
-                if (errFT !== undefined && joinedFT !== undefined && errFT !== joinedFT) {
-                    out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFT, joinedFT);
-                }
+        for (let i = 0; i < plan.errFlatTypes.length; i++) {
+            const errFT = plan.errFlatTypes[i];
+            const joinedFT = plan.payloadJoined[i];
+            if (errFT !== undefined && joinedFT !== undefined && errFT !== joinedFT) {
+                out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFT, joinedFT);
             }
         }
     }

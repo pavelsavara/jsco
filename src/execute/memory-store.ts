@@ -114,55 +114,111 @@ export function optionStorer(plan: OptionStorerPlan, ctx: BindingContext, ptr: n
 
 export type ResultStorerPlan = { payloadOffset: number, okStorer?: MemoryStorer, errStorer?: MemoryStorer };
 
-export function resultStorer(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function resultStorerBoth(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     if (tag === OK) {
         dv.setUint8(0, 0);
-        if (plan.okStorer) {
-            plan.okStorer(ctx, ptr + plan.payloadOffset, val);
-        }
+        plan.okStorer!(ctx, ptr + plan.payloadOffset, val);
     } else {
         dv.setUint8(0, 1);
-        if (plan.errStorer) {
-            plan.errStorer(ctx, ptr + plan.payloadOffset, val);
-        }
+        plan.errStorer!(ctx, ptr + plan.payloadOffset, val);
     }
 }
 
+export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
+    if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
+    const tag = jsValue[TAG], val = jsValue[VAL];
+    if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
+    if (tag === OK) {
+        dv.setUint8(0, 0);
+        plan.okStorer!(ctx, ptr + plan.payloadOffset, val);
+    } else {
+        dv.setUint8(0, 1);
+    }
+}
+
+export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
+    if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
+    const tag = jsValue[TAG], val = jsValue[VAL];
+    if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
+    if (tag === OK) {
+        dv.setUint8(0, 0);
+    } else {
+        dv.setUint8(0, 1);
+        plan.errStorer!(ctx, ptr + plan.payloadOffset, val);
+    }
+}
+
+export function resultStorerVoid(_plan: ResultStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
+    if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
+    const tag = jsValue[TAG];
+    if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
+    dv.setUint8(0, tag === OK ? 0 : 1);
+}
+
 export type VariantStorerPlan = {
-    discSize: number, payloadOffset: number,
+    payloadOffset: number,
     nameToIndex: Map<string, number>,
     caseStorers: (MemoryStorer | undefined)[],
 };
 
-export function variantStorer(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function variantStorerDisc1(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue[TAG], val = jsValue[VAL];
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     const caseIndex = plan.nameToIndex.get(tag);
     if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
-    const dv = ctx.memory.getView(ptr as WasmPointer, plan.discSize as WasmSize);
-    if (plan.discSize === 1) dv.setUint8(0, caseIndex);
-    else if (plan.discSize === 2) dv.setUint16(0, caseIndex, true);
-    else dv.setUint32(0, caseIndex, true);
+    ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, caseIndex);
     const storer = plan.caseStorers[caseIndex];
-    if (storer && val !== undefined) {
-        storer(ctx, ptr + plan.payloadOffset, val);
-    }
+    if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export type EnumStorerPlan = { discSize: number, nameToIndex: Map<string, number> };
+export function variantStorerDisc2(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
+    const tag = jsValue[TAG], val = jsValue[VAL];
+    if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
+    const caseIndex = plan.nameToIndex.get(tag);
+    if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
+    ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, caseIndex, true);
+    const storer = plan.caseStorers[caseIndex];
+    if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
+}
 
-export function enumStorer(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+export function variantStorerDisc4(plan: VariantStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
+    const tag = jsValue[TAG], val = jsValue[VAL];
+    if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
+    const caseIndex = plan.nameToIndex.get(tag);
+    if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
+    ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, caseIndex, true);
+    const storer = plan.caseStorers[caseIndex];
+    if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
+}
+
+export type EnumStorerPlan = { nameToIndex: Map<string, number> };
+
+export function enumStorerDisc1(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
-    const dv = ctx.memory.getView(ptr as WasmPointer, plan.discSize as WasmSize);
-    if (plan.discSize === 1) dv.setUint8(0, idx);
-    else if (plan.discSize === 2) dv.setUint16(0, idx, true);
-    else dv.setUint32(0, idx, true);
+    ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, idx);
+}
+
+export function enumStorerDisc2(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    const idx = plan.nameToIndex.get(jsValue as string);
+    if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
+    ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, idx, true);
+}
+
+export function enumStorerDisc4(plan: EnumStorerPlan, ctx: BindingContext, ptr: number, jsValue: JsValue): void {
+    const idx = plan.nameToIndex.get(jsValue as string);
+    if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
+    ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, idx, true);
 }
 
 export type FlagsStorerPlan = { wordCount: number, memberNames: string[] };

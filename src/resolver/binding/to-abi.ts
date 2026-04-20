@@ -15,8 +15,8 @@ import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, JsValue, WasmFunction, JsFunction } from './types';
 import { liftFlatFlat, liftFlatSpilled, liftSpilledFlat, liftSpilledSpilled } from '../../execute/trampoline-lift';
 import type { FunctionLiftPlan } from '../../execute/trampoline-lift';
-import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../../execute/lift';
-import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorer, variantStorer, enumStorer, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer } from '../../execute/memory-store';
+import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, resultLiftingCoerced, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../../execute/lift';
+import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorerBoth, resultStorerOkOnly, resultStorerErrOnly, resultStorerVoid, variantStorerDisc1, variantStorerDisc2, variantStorerDisc4, enumStorerDisc1, enumStorerDisc2, enumStorerDisc4, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer } from '../../execute/memory-store';
 import camelCase from 'just-camel-case';
 import { TAG, VAL, OK, ERR } from '../../utils/constants';
 
@@ -339,7 +339,8 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             const payloadOffset = alignUp(1, payloadAlign);
             const okStorer = type.ok !== undefined ? createMemoryStorer(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
             const errStorer = type.err !== undefined ? createMemoryStorer(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined;
-            return resultStorer.bind(null, { payloadOffset, okStorer, errStorer });
+            const resultStorerFn = okStorer && errStorer ? resultStorerBoth : okStorer ? resultStorerOkOnly : errStorer ? resultStorerErrOnly : resultStorerVoid;
+            return resultStorerFn.bind(null, { payloadOffset, okStorer, errStorer });
         }
         case ModelTag.ComponentTypeDefinedVariant: {
             const discSize = discriminantSize(type.variants.length);
@@ -354,12 +355,14 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
                 c.ty !== undefined ? createMemoryStorer(resolveValTypePure(c.ty), stringEncoding, canonicalResourceIds, ownInstanceResources) : undefined
             );
             const nameToIndex = new Map(type.variants.map((c, i) => [c.name, i]));
-            return variantStorer.bind(null, { discSize, payloadOffset, nameToIndex, caseStorers });
+            const variantStorerFn = discSize === 1 ? variantStorerDisc1 : discSize === 2 ? variantStorerDisc2 : variantStorerDisc4;
+            return variantStorerFn.bind(null, { payloadOffset, nameToIndex, caseStorers });
         }
         case ModelTag.ComponentTypeDefinedEnum: {
             const discSize = discriminantSize(type.members.length);
             const nameToIndex = new Map(type.members.map((name, i) => [name, i]));
-            return enumStorer.bind(null, { discSize, nameToIndex });
+            const enumStorerFn = discSize === 1 ? enumStorerDisc1 : discSize === 2 ? enumStorerDisc2 : enumStorerDisc4;
+            return enumStorerFn.bind(null, { nameToIndex });
         }
         case ModelTag.ComponentTypeDefinedFlags: {
             const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
@@ -454,7 +457,8 @@ function createResultLifting(rctx: ResolvedContext, resultModel: ComponentTypeDe
     const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
-    return resultLifting.bind(null, { okLifter, errLifter, totalSize, payloadJoined, okFlatTypes, errFlatTypes, okNeedsCoercion, errNeedsCoercion });
+    const resultLiftingFn = okNeedsCoercion || errNeedsCoercion ? resultLiftingCoerced : resultLifting;
+    return resultLiftingFn.bind(null, { okLifter, errLifter, totalSize, payloadJoined, okFlatTypes, errFlatTypes });
 }
 
 // --- Variant lifting ---
