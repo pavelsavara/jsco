@@ -1,11 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { ComponentAliasInstanceExport, ComponentFunction } from '../model/aliases';
-import { CanonicalFunctionLift } from '../model/canonicals';
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { CoreFuncIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
+import { ComponentAliasInstanceExport, ComponentFunction } from '../parser/model/aliases';
+import { CanonicalFunctionLift } from '../parser/model/canonicals';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { CoreFuncIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
 import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLifting } from '../binder';
 import { WasmFunction } from '../marshal/types';

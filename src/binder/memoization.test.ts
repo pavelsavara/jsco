@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag } from '../model/tags';
-import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../parser/model/types';
 import { ResolvedContext, BindingContext, StringEncoding } from '../resolver/types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';

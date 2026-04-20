@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../model/aliases';
+import { ComponentFunction, CoreFunction, ComponentAliasInstanceExport as ComponentAliasInstanceExportType } from '../parser/model/aliases';
 import {
     CanonicalFunctionLower, CanonicalFunctionResourceDrop, CanonicalFunctionResourceNew, CanonicalFunctionResourceRep,
     CanonicalFunctionStreamNew, CanonicalFunctionStreamRead, CanonicalFunctionStreamWrite,
@@ -12,12 +12,12 @@ import {
     CanonicalFunctionFutureDropReadable, CanonicalFunctionFutureDropWritable,
     CanonicalFunctionErrorContextNew, CanonicalFunctionErrorContextDebugMessage, CanonicalFunctionErrorContextDrop,
     CanonicalFunctionContextGet, CanonicalFunctionContextSet,
-} from '../model/canonicals';
-import { ComponentExternalKind } from '../model/exports';
-import { ComponentImport } from '../model/imports';
-import { ComponentTypeIndex, CoreFuncIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
-import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
+} from '../parser/model/canonicals';
+import { ComponentExternalKind } from '../parser/model/exports';
+import { ComponentImport } from '../parser/model/imports';
+import { ComponentTypeIndex, CoreFuncIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../parser/model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLowering } from '../binder';
 import { JsFunction } from '../marshal/types';

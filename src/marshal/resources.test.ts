@@ -3,8 +3,8 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { PrimitiveValType } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { PrimitiveValType } from '../parser/model/types';
 import { ResolverContext, BindingContext } from '../resolver/types';
 import { createResourceTable } from '../resolver/context';
 import { resolveCanonicalResourceType } from '../resolver/type-resolution';

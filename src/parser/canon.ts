@@ -3,7 +3,7 @@
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readCanonicalFunction } from './values';
-import { CanonicalFunction } from '../model/canonicals';
+import { CanonicalFunction } from './model/canonicals';
 
 export function parseSectionCanon(
     ctx: ParserContext,

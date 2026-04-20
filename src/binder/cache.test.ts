@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { memoize } from './cache';
 import { LogLevel } from '../utils/assert';
-import { ModelTag } from '../model/tags';
+import { ModelTag } from '../parser/model/tags';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 function mockFn<T extends (...args: any[]) => any>(impl: T): T & { calls: any[][] } {

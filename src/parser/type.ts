@@ -3,7 +3,7 @@
 import { SyncSource } from '../utils/streaming';
 import { ParserContext } from './types';
 import { readU32, readComponentType } from './values';
-import { ComponentType } from '../model/types';
+import { ComponentType } from './model/types';
 
 export function parseSectionType(
     ctx: ParserContext,

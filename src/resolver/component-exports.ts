@@ -1,8 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ComponentFuncIndex, ComponentInstanceIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { ComponentFuncIndex, ComponentInstanceIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
 import { withDebugTrace, jsco_assert } from '../utils/assert';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentInstance } from './component-instances';

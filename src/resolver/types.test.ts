@@ -3,9 +3,9 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
+import { ModelTag } from '../parser/model/tags';
 import { resolveCanonicalOptions, StringEncoding } from './types';
-import type { CanonicalOption } from '../model/canonicals';
+import type { CanonicalOption } from '../parser/model/canonicals';
 
 describe('types.ts', () => {
     describe('resolveCanonicalOptions', () => {

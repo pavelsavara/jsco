@@ -3,9 +3,9 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag, WITSection } from '../model/tags';
-import { PrimitiveValType, ComponentTypeInstance, ComponentTypeFunc } from '../model/types';
-import { ComponentImport } from '../model/imports';
+import { ModelTag, WITSection } from '../parser/model/tags';
+import { PrimitiveValType, ComponentTypeInstance, ComponentTypeFunc } from '../parser/model/types';
+import { ComponentImport } from '../parser/model/imports';
 import { createResolverContext } from './context';
 
 /**

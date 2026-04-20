@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { WITModel, parse } from '.';
-import { ModelTag } from '../model/tags';
+import { ModelTag } from './model/tags';
 
 export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
     const noModules = actualModel.map((section) => {

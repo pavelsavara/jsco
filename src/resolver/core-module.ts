@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag } from '../model/tags';
+import { ModelTag } from '../parser/model/tags';
 import { CoreModule } from '../parser/types';
 import { jsco_assert } from '../utils/assert';
 import { Resolver } from './types';

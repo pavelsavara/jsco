@@ -3,8 +3,8 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { ComponentValType, PrimitiveValType } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentValType, PrimitiveValType } from '../parser/model/types';
 import { ResolverContext, BindingContext } from '../resolver/types';
 import { createLifting as _createLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';

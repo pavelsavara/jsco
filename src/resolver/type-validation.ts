@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentExport, ComponentExternalKind } from '../model/exports';
-import { ComponentImport } from '../model/imports';
-import { ModelTag } from '../model/tags';
-import { ComponentFuncType, ComponentValType } from '../model/types';
+import { ComponentExport, ComponentExternalKind } from '../parser/model/exports';
+import { ComponentImport } from '../parser/model/imports';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentFuncType, ComponentValType } from '../parser/model/types';
 import type { ResolverContext } from './types';
 
 const kindToTypeRefTag: Record<ComponentExternalKind, ModelTag | undefined> = {

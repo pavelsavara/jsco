@@ -3,8 +3,8 @@
 import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../model/tags';
-import { ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedRecord } from '../model/types';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedRecord } from '../parser/model/types';
 import { ResolverContext, BindingContext } from '../resolver/types';
 import { createFunctionLifting } from '../binder/to-abi';
 import { createFunctionLowering } from '../binder/to-js';

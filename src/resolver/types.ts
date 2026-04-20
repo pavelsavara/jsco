@@ -1,20 +1,20 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { TCabiRealloc, WasmPointer, WasmSize } from '../marshal/types';
-import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../model/aliases';
-import { ComponentExport } from '../model/exports';
-import { ComponentImport } from '../model/imports';
-import { CoreInstance, ComponentInstance } from '../model/instances';
-import { ComponentTypeResource, ComponentType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
+import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../parser/model/aliases';
+import { ComponentExport } from '../parser/model/exports';
+import { ComponentImport } from '../parser/model/imports';
+import { CoreInstance, ComponentInstance } from '../parser/model/instances';
+import { ComponentTypeResource, ComponentType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../parser/model/types';
 import { CoreModule, ComponentSection } from '../parser/types';
-import { TaggedElement } from '../model/tags';
+import { TaggedElement } from '../parser/model/tags';
 import { JsImports } from './api-types';
-import type { ComponentTypeIndex } from '../model/indices';
+import type { ComponentTypeIndex } from '../parser/model/indices';
 import type { ResolvedType } from './type-resolution';
-import type { CanonicalOption } from '../model/canonicals';
+import type { CanonicalOption } from '../parser/model/canonicals';
 import type { LogFn, Verbosity } from '../utils/assert';
 import type { ResolutionStats } from './api-types';
-import { ModelTag } from '../model/tags';
+import { ModelTag } from '../parser/model/tags';
 
 export const enum StringEncoding {
     Utf8,

@@ -1,8 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ComponentTypeIndex } from '../model/indices';
-import { ModelTag } from '../model/tags';
-import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../model/types';
+import { ComponentTypeIndex } from '../parser/model/indices';
+import { ModelTag } from '../parser/model/tags';
+import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../parser/model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
 
