@@ -55,6 +55,7 @@ function externalizeSiblingModules(options) {
     const wasip2Entry = path.resolve('./src/host/wasip2/wasip2.ts');
     const wasip2NodeEntry = path.resolve('./src/host/wasip2/node/wasip2.ts');
     const wasip2ViaP3Entry = path.resolve('./src/host/wasip2-via-wasip3/index.ts');
+    const wasip2ViaP3NodeEntry = path.resolve('./src/host/wasip2-via-wasip3/node/index.ts');
     const wasip3Entry = path.resolve('./src/host/wasip3/wasip3.ts');
     const wasip3NodeEntry = path.resolve('./src/host/wasip3/node/wasip3.ts');
     const wasip3Index = path.resolve('./src/host/wasip3/index.ts');
@@ -79,6 +80,9 @@ function externalizeSiblingModules(options) {
             }
             if (!skipExternals.has('wasip2-via-wasip3') && (resolvedTs === wasip2ViaP3Entry || resolvedIndex === wasip2ViaP3Entry)) {
                 return { id: './wasip2-via-wasip3.js', external: true };
+            }
+            if (!skipExternals.has('wasip2-via-wasip3-node') && (resolvedTs === wasip2ViaP3NodeEntry || resolvedIndex === wasip2ViaP3NodeEntry)) {
+                return { id: './wasip2-via-wasip3-node.js', external: true };
             }
             if (!skipExternals.has('wasip3')) {
                 if (resolvedTs === wasip3Entry || resolvedTs === wasip3Index || resolvedIndex === wasip3Index) {
@@ -257,6 +261,44 @@ const wasip2ViaP3Types = {
     ],
 };
 
+// WASI Preview 2 via Preview 3 adapter — Node.js extensions
+const wasip2ViaP3Node = {
+    treeshake: !isDebug,
+    input: './src/host/wasip2-via-wasip3/node/index.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip2-via-wasip3-node.js`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules({ skipExternals: ['wasip2-via-wasip3', 'wasip3'] }),
+        ...sourcePlugins,
+    ],
+};
+
+const wasip2ViaP3NodeTypes = {
+    input: './src/host/wasip2-via-wasip3/node/index.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip2-via-wasip3-node.d.ts`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+        }
+    ],
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules({ skipExternals: ['wasip2-via-wasip3', 'wasip3'] }),
+        dts(),
+    ],
+};
+
 // WASIp3 — browser-compatible host module
 const wasip3 = {
     treeshake: !isDebug,
@@ -340,6 +382,8 @@ export default defineConfig([
     wasip2NodeTypes,
     wasip2ViaP3,
     wasip2ViaP3Types,
+    wasip2ViaP3Node,
+    wasip2ViaP3NodeTypes,
     wasip3,
     wasip3Types,
     wasip3Node,

@@ -21,6 +21,14 @@
             "types": "./wasip2-node.d.ts",
             "import": "./wasip2-node.js"
         },
+        "./wasip2-via-wasip3": {
+            "types": "./wasip2-via-wasip3.d.ts",
+            "import": "./wasip2-via-wasip3.js"
+        },
+        "./wasip2-via-wasip3-node": {
+            "types": "./wasip2-via-wasip3-node.d.ts",
+            "import": "./wasip2-via-wasip3-node.js"
+        },
         "./wasip3": {
             "types": "./wasip3.d.ts",
             "import": "./wasip3.js"

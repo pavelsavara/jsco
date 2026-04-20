@@ -1,15 +1,14 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { getBuildInfo, createComponent, LogLevel } from './index';
-import { instantiateWasiComponent, setCreateComponent, createWasiP2Host } from './host/wasip2/wasip2';
+import { createWasiP3Host, WasiExit } from './host/wasip3/wasip3';
+import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
 import { GIT_HASH, CONFIGURATION } from './utils/constants';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
-import { WasiExit } from './host/wasip2/api';
 
 initializeAsserts();
-setCreateComponent(createComponent);
 
 const echoReactorWatWasm = './integration-tests/echo-reactor-wat/echo.wasm';
 const helloWorldWatWasm = './integration-tests/hello-world-wat/hello.wasm';
@@ -53,34 +52,35 @@ describe('public API', () => {
         }));
     });
 
-    describe('instantiateWasiComponent', () => {
+    describe('instantiate WASI component via P3 host + adapter', () => {
         test('produces working WASI instance with stdout', () => runWithVerbose(verbose, async () => {
             const chunks: Uint8Array[] = [];
-            const instance = await instantiateWasiComponent(
-                helloWorldWatWasm,
-                {
-                    stdout: (bytes) => { chunks.push(new Uint8Array(bytes)); },
-                },
-                undefined,
-                { noJspi: true, ...verboseOptions(verbose) },
-            );
+            const stdout = new WritableStream<Uint8Array>({
+                write(chunk) { chunks.push(new Uint8Array(chunk)); },
+            });
+            const p3 = createWasiP3Host({ stdout });
+            const p2 = createWasiP2ViaP3Adapter(p3);
+
+            const component = await createComponent(helloWorldWatWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(p2);
             const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
             expect(runNs).toBeDefined();
             try {
                 await runNs.run();
             } catch (e) {
-                if (!(e instanceof WasiExit && e.status === 0)) throw e;
+                if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
             }
-            const stdout = new TextDecoder().decode(
+            const stdoutText = new TextDecoder().decode(
                 new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
             );
-            expect(stdout).toContain('hello from jsco');
+            expect(stdoutText).toContain('hello from jsco');
         }));
     });
 
-    describe('createWasiP2Host', () => {
+    describe('createWasiP3Host + adapter', () => {
         test('returns WASI namespace map with expected keys', () => {
-            const host = createWasiP2Host();
+            const p3 = createWasiP3Host();
+            const host = createWasiP2ViaP3Adapter(p3);
             expect(host).toBeDefined();
             expect(typeof host).toBe('object');
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { NetworkConfig } from '../host/wasip2/types';
-import { NETWORK_DEFAULTS } from '../host/wasip2/types';
+import type { NetworkConfig } from '../host/wasip3/types';
+import { NETWORK_DEFAULTS } from '../host/wasip3/types';
 
 export interface FsMount {
     hostPath: string;

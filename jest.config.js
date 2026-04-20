@@ -2,7 +2,7 @@
 
 export default {
     'roots': [
-        '<rootDir>/src'
+        '<rootDir>/src',
     ],
     'testMatch': [
         '**/?(*.)+(spec|test).+(ts|js)'
