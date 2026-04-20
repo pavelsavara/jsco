@@ -31,7 +31,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalmctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }
 
@@ -45,7 +45,7 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('bool', () => {
@@ -267,7 +267,7 @@ describeDebugOnly('primitive lowering (WASM → JS)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('bool', () => {
@@ -475,7 +475,7 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
 
     test('true → usesNumberForInt64 = true, lifters pass through values (trampoline converts)', () => {
         const rctx = createMinimalRctx(true);
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
         expect(rctx.resolved.usesNumberForInt64).toBe(true);
 
         const s64Lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
@@ -500,7 +500,7 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
 
     test('true → lowerers produce Number', () => {
         const rctx = createMinimalRctx(true);
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
 
         const s64Lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.S64));
         const s64Result = s64Lowerer(mctx, 42n);
@@ -515,7 +515,7 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
 
     test('false → lifters and lowerers produce BigInt', () => {
         const rctx = createMinimalRctx(false);
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
 
         const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.S64));
         const liftResult = lifter(mctx, 42n);
@@ -529,7 +529,7 @@ describeDebugOnly('useNumberForInt64 option handling', () => {
     test('BigInt and Number caches are independent', () => {
         const bigintRctx = createMinimalRctx(false);
         const numberRctx = createMinimalRctx(true);
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
 
         // Same primitive type, but different resolvedContexts
         const bigintLifter = createLifting(bigintRctx.resolved, prim(PrimitiveValType.S64));

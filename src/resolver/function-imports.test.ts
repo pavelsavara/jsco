@@ -34,7 +34,7 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalmctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }
 
@@ -53,7 +53,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('direct key lookup', () => {
@@ -158,7 +158,7 @@ describe('ComponentTypeRefType import resolution', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('returns result undefined', async () => {
@@ -188,7 +188,7 @@ describe('ComponentTypeRefInstance import resolution', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
         mctx.instances = { coreInstances: [], componentInstances: [] };
     });
 

@@ -31,7 +31,7 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalmctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }
 
@@ -102,7 +102,7 @@ describeDebugOnly('option lifting (JS → WASM)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('null lifts to [0, 0] (None)', () => {
@@ -144,7 +144,7 @@ describeDebugOnly('option lowering (WASM → JS)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('discriminant 0 lowers to null (None)', () => {
@@ -183,7 +183,7 @@ describeDebugOnly('nested option<option<u32>>', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
         // Register inner option as a resolved type so the outer can resolve it
         // The inner option is option<u32> and when used as ComponentValTypeType
         // we need it in resolvedTypes. But here we use it inline as ComponentValTypePrimitive won't work.
@@ -253,7 +253,7 @@ describeDebugOnly('result lifting (JS → WASM)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('{tag:"ok", val:42} lifts to [0, 42]', () => {
@@ -286,7 +286,7 @@ describeDebugOnly('result lowering (WASM → JS)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('discriminant 0 with 42 lowers to {tag:"ok", val:42}', () => {
@@ -323,7 +323,7 @@ describeDebugOnly('result with no error type', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('{tag:"ok", val:42} lifts to [0, 42]', () => {
@@ -365,7 +365,7 @@ describeDebugOnly('result with no ok type (error-only)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('{tag:"ok"} lifts to [0, 0]', () => {
@@ -615,7 +615,7 @@ describeDebugOnly('variant lifting', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('{tag:"none"} lifts to [0, 0]', () => {
@@ -656,7 +656,7 @@ describeDebugOnly('variant lowering', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('discriminant 0 lowers to {tag:"none"}', () => {
@@ -693,7 +693,7 @@ describeDebugOnly('enum lifting', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('"red" lifts to [0]', () => {
@@ -730,7 +730,7 @@ describeDebugOnly('enum lowering', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('discriminant 0 lowers to "red"', () => {
@@ -767,7 +767,7 @@ describeDebugOnly('flags lifting', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('{readable:true, writable:false, executable:true} lifts to [5]', () => {
@@ -818,7 +818,7 @@ describeDebugOnly('flags lowering', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('5 lowers to {readable:true, writable:false, executable:true}', () => {
@@ -872,7 +872,7 @@ describeDebugOnly('tuple lifting', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('[-5, 200] lifts to [-5, 200]', () => {
@@ -902,7 +902,7 @@ describeDebugOnly('tuple lowering', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('(-5, 200) lowers to [-5, 200]', () => {

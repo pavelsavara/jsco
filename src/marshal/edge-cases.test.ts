@@ -38,7 +38,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalmctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }
 
@@ -103,7 +103,7 @@ describeDebugOnly('primitive lifting edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('bool coercion', () => {
@@ -323,7 +323,7 @@ describeDebugOnly('primitive lowering edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('bool edge cases', () => {
@@ -525,7 +525,7 @@ describeDebugOnly('option edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('false is Some(false) for option<bool>, not None', () => {
@@ -577,7 +577,7 @@ describeDebugOnly('result edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('result with no ok and no err (both undefined)', () => {
@@ -616,7 +616,7 @@ describeDebugOnly('variant edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('single-case variant lifts to [0, ...]', () => {
@@ -671,7 +671,7 @@ describeDebugOnly('enum edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('single-member enum', () => {
@@ -718,7 +718,7 @@ describeDebugOnly('flags edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('single flag set', () => {
@@ -800,7 +800,7 @@ describeDebugOnly('tuple edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('empty tuple lifts to []', () => {
@@ -861,7 +861,7 @@ describeDebugOnly('record edge cases', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('empty record lifts to []', () => {
@@ -1098,7 +1098,7 @@ describeDebugOnly('storeToMemory/loadFromMemory round-trips', () => {
 
     test('variant with mixed payload sizes round-trips via flat args', () => {
         const rctx = createMinimalRctx();
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
 
         const model = {
             tag: ModelTag.ComponentTypeDefinedVariant as const,
@@ -1128,7 +1128,7 @@ describeDebugOnly('storeToMemory/loadFromMemory round-trips', () => {
 describeDebugOnly('type reference (ComponentValTypeType) edge cases', () => {
     test('resolves through type reference for primitives', () => {
         const rctx = createMinimalRctx();
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
         // Register u32 as type index 5
         rctx.resolved.resolvedTypes.set(5 as any, {
             tag: ModelTag.ComponentTypeDefinedPrimitive,
@@ -1142,7 +1142,7 @@ describeDebugOnly('type reference (ComponentValTypeType) edge cases', () => {
 
     test('resolves through type reference for record', () => {
         const rctx = createMinimalRctx();
-        const mctx = createMinimalmctx();
+        const mctx = createMinimalCtx();
         const recordModel = {
             tag: ModelTag.ComponentTypeDefinedRecord,
             members: [
@@ -1165,7 +1165,7 @@ describeDebugOnly('discriminant size boundaries', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('variant discriminant boundaries', () => {
@@ -1265,7 +1265,7 @@ describeDebugOnly('nested compound types', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('option<option<u8>> — Some(Some(42))', () => {
@@ -1531,7 +1531,7 @@ describeDebugOnly('char boundary values (spec-exact)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('lifting boundaries', () => {
@@ -1630,7 +1630,7 @@ describeDebugOnly('multi-word flags (>32 members)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('33 flags: flag 32 (first in second word) lifts correctly', () => {
@@ -2323,7 +2323,7 @@ describeDebugOnly('variant lowering validation', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     test('variant lowering with out-of-range discriminant throws', () => {
@@ -2435,7 +2435,7 @@ describeDebugOnly('boundary guard errors (lifting)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('record guards', () => {
@@ -2635,7 +2635,7 @@ describeDebugOnly('boundary guard errors (lifting)', () => {
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        mctx = createMinimalmctx();
+        mctx = createMinimalCtx();
     });
 
     describe('record guards', () => {
