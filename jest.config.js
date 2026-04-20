@@ -40,6 +40,11 @@ export default {
         '!src/resolver/core-module.ts',
         '!src/resolver/context.ts',
         '!src/resolver/indices.ts',
+        // Integration-only: runtime marshalling (needs WASM linear memory / real components)
+        '!src/marshal/memory-store.ts',
+        '!src/marshal/memory-load.ts',
+        '!src/marshal/trampoline-lift.ts',
+        '!src/marshal/trampoline-lower.ts',
         // Integration-only: WASI host (tested by excluded integration tests)
         '!src/host/**',
         // Integration-only: core module parsing, custom sections, WAT printing
