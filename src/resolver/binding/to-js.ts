@@ -12,9 +12,9 @@ import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
-import { LoweringToJs, FnLoweringCallToJs, WasmFunction, JsFunction, WasmValue } from './types';
-
-import { bigIntReplacer } from '../../utils/shared';
+import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from './types';
+import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../../execute/trampoline-lower';
+import type { FunctionLowerPlan } from '../../execute/trampoline-lower';
 import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../../execute/lower';
 import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoader, variantLoader, enumLoader, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../../execute/memory-load';
 import camelCase from 'just-camel-case';
@@ -36,7 +36,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
             const lowerer = createLowering(rctx, param.type);
             paramLowerers.push(lowerer);
         }
-        const resultLifters: Function[] = [];
+        const resultLifters: LiftingFromJs[] = [];
         switch (exportModel.results.tag) {
             case ModelTag.ComponentFuncResultNamed: {
                 for (const res of exportModel.results.values) {
@@ -85,68 +85,20 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
                 ` convention: params=${callingConventionName(callingConvention.params)} results=${callingConventionName(callingConvention.results)}`);
         }
 
-        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction => {
-
-            function loweringTrampoline(...args: any[]): any {
-                try {
-                    const convertedArgs = new Array(paramLoaders.length);
-                    if (callingConvention.params === CallingConvention.Spilled) {
-                        // Spill: WASM passes single pointer, read params from memory
-                        const ptr = args[0] as number;
-                        for (let i = 0; i < paramLoaders.length; i++) {
-                            convertedArgs[i] = paramLoaders[i]!(ctx, ptr + spilledParamOffsets[i]!);
-                        }
-                    } else {
-                        // Flat/Scalar: read each param using lowerers
-                        let flatOffset = 0;
-                        for (let i = 0; i < paramLowerers.length; i++) {
-                            const lowerer = paramLowerers[i]!;
-                            const spill = (lowerer as any).spill;
-                            convertedArgs[i] = lowerer(ctx, ...args.slice(flatOffset, flatOffset + spill));
-                            flatOffset += spill;
-                        }
-                    }
-
-                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                        ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
-                    }
-
-                    if (callingConvention.results === CallingConvention.Spilled) {
-                        // canon_lower: WASM passed retptr as last flat arg
-                        const retptr = args[args.length - 1] as number;
-                        const resJs = jsFunction(...convertedArgs);
-                        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-                        }
-                        if (resultStorer !== undefined) {
-                            resultStorer(ctx, retptr, resJs);
-                        }
-                        // No return value - WASM reads from retptr
-                    } else {
-                        const resJs = jsFunction(...convertedArgs);
-                        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-                        }
-                        if (resultLifters.length === 1) {
-                            resultLifters[0]!(ctx, resJs, resultBuf, 0);
-                            // Convert i64 result to BigInt for WASM if lifter stored Number
-                            if (resultIsI64 && typeof resultBuf[0] !== 'bigint') {
-                                return BigInt(resultBuf[0] as number);
-                            }
-                            return resultBuf[0];
-                        }
-                    }
-                } catch (e: unknown) {
-                    // JSPI: if a host function throws a blocking signal (JspiBlockSignal),
-                    // return its promise so WebAssembly.Suspending can suspend the WASM stack.
-                    if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-                        return (e as any).promise;
-                    }
-                    throw e;
-                }
-            }
-            return loweringTrampoline as WasmFunction;
+        const plan: FunctionLowerPlan = {
+            paramLowerers,
+            paramLoaders,
+            resultLifters,
+            resultStorer,
+            spilledParamOffsets,
+            resultBuf,
+            resultIsI64,
         };
+        const trampoline = callingConvention.params === CallingConvention.Spilled
+            ? (callingConvention.results === CallingConvention.Spilled ? lowerSpilledSpilled : lowerSpilledFlat)
+            : (callingConvention.results === CallingConvention.Spilled ? lowerFlatSpilled : lowerFlatFlat);
+        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction =>
+            trampoline.bind(null, plan, ctx, jsFunction) as WasmFunction;
     });
 }
 

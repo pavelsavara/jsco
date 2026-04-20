@@ -12,9 +12,9 @@ import { getCanonicalResourceId } from '../context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
-import { LiftingFromJs, WasmPointer, FnLiftingCallFromJs, JsFunction, WasmSize, WasmFunction, JsValue } from './types';
-import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
-import { bigIntReplacer } from '../../utils/shared';
+import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, JsValue, WasmFunction, JsFunction } from './types';
+import { liftFlatFlat, liftFlatSpilled, liftSpilledFlat, liftSpilledSpilled } from '../../execute/trampoline-lift';
+import type { FunctionLiftPlan } from '../../execute/trampoline-lift';
 import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../../execute/lift';
 import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorer, variantStorer, enumStorer, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer } from '../../execute/memory-store';
 import camelCase from 'just-camel-case';
@@ -24,13 +24,12 @@ import { TAG, VAL, OK, ERR } from '../../utils/constants';
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
     return memoize(rctx.liftingCache, importModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, importModel) as ComponentTypeFunc);
-        const paramLifters: Function[] = [];
+        const paramLifters: LiftingFromJs[] = [];
         for (const param of importModel.params) {
             const lifter = createLifting(rctx, param.type);
-
             paramLifters.push(lifter);
         }
-        const resultLowerers: Function[] = [];
+        const resultLowerers: LoweringToJs[] = [];
         let resultType: ResolvedType | undefined;
         switch (importModel.results.tag) {
             case ModelTag.ComponentFuncResultNamed: {
@@ -95,100 +94,22 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
                 ` flatParams=${totalFlatParams} spilledSize=${spilledParamsTotalSize}`);
         }
 
-        return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction => {
-            function processWasmResult(rawWasm: any): any {
-                let result: any;
-                if (callingConvention.results === CallingConvention.Spilled) {
-                    result = resultLoader!(ctx, rawWasm as number);
-                } else if (resultLowerers.length === 1) {
-                    result = resultLowerers[0]!(ctx, rawWasm);
-                }
-
-                // Post-return cleanup
-                if (ctx.postReturnFn) {
-                    ctx.postReturnFn();
-                    ctx.postReturnFn = undefined;
-                }
-
-                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                    ctx.logger!('executor', LogLevel.Summary, `← lifting result=${JSON.stringify(result, bigIntReplacer)}`);
-                }
-                return result;
-            }
-
-            function liftingTrampoline(...args: any[]): any {
-                // C4: Runtime behavioral guarantees
-                checkNotPoisoned(ctx);
-                checkNotReentrant(ctx);
-                ctx.inExport = true;
-                if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-                    ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
-                }
-                try {
-                    if (args.length !== paramStorers.length) {
-                        throw new Error(`Expected ${paramStorers.length} arguments, got ${args.length}`);
-                    }
-                    let wasmArgs: any[];
-                    if (callingConvention.params === CallingConvention.Spilled) {
-                        // Spill: store all params to memory, pass single pointer
-                        const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize,
-                            spilledParamsMaxAlign as WasmSize, spilledParamsTotalSize as WasmSize);
-                        validateAllocResult(ctx, ptr, spilledParamsMaxAlign, spilledParamsTotalSize);
-                        for (let i = 0; i < paramStorers.length; i++) {
-                            paramStorers[i]!(ctx, ptr + spilledParamOffsets[i]!, args[i]);
-                        }
-                        wasmArgs = [ptr];
-                    } else {
-                        // Flat/Scalar: spread as individual args
-                        wasmArgs = new Array(totalFlatParams);
-                        let pos = 0;
-                        for (let i = 0; i < paramLifters.length; i++) {
-                            pos += paramLifters[i]!(ctx, args[i], wasmArgs, pos);
-                        }
-                        // Convert i64 flat slots to BigInt for WASM
-                        for (let k = 0; k < i64ParamPositions.length; k++) {
-                            const idx = i64ParamPositions[k]!;
-                            if (typeof wasmArgs[idx] !== 'bigint') {
-                                wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
-                            }
-                        }
-                    }
-
-                    const rawResult = wasmFunction(...wasmArgs);
-
-                    // JSPI: promising()-wrapped functions return a Promise even for
-                    // synchronous completions. Defer result processing to its resolution.
-                    if (rawResult instanceof Promise) {
-                        return rawResult.then(
-                            (wasmResult) => {
-                                try {
-                                    return processWasmResult(wasmResult);
-                                } catch (e) {
-                                    ctx.poisoned = true;
-                                    throw e;
-                                } finally {
-                                    ctx.inExport = false;
-                                }
-                            },
-                            (e: unknown) => {
-                                ctx.poisoned = true;
-                                ctx.inExport = false;
-                                throw e;
-                            },
-                        );
-                    }
-
-                    return processWasmResult(rawResult);
-                } catch (e) {
-                    // Poison the instance on trap
-                    ctx.poisoned = true;
-                    throw e;
-                } finally {
-                    ctx.inExport = false;
-                }
-            }
-            return liftingTrampoline as JsFunction;
+        const plan: FunctionLiftPlan = {
+            paramLifters,
+            paramStorers,
+            resultLowerers,
+            resultLoader,
+            spilledParamOffsets,
+            spilledParamsTotalSize,
+            spilledParamsMaxAlign,
+            totalFlatParams,
+            i64ParamPositions,
         };
+        const trampoline = callingConvention.params === CallingConvention.Spilled
+            ? (callingConvention.results === CallingConvention.Spilled ? liftSpilledSpilled : liftSpilledFlat)
+            : (callingConvention.results === CallingConvention.Spilled ? liftFlatSpilled : liftFlatFlat);
+        return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction =>
+            trampoline.bind(null, plan, ctx, wasmFunction) as JsFunction;
     });
 }
 

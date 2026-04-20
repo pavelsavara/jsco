@@ -288,6 +288,12 @@ Each step should be independently buildable and testable.
 - [ ] Final build + full test suite
 - [ ] Lint check
 
+### Step 22: Alloc validation need to be pre-alloc too
+
+### Step 23: trim in postReturnFn release build
+
+
+
 ## Function Inventory
 
 ### to-abi.ts (Lifting: JS → WASM flat args)
