@@ -2,7 +2,7 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { LiftingFromJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import type { MemoryStorer } from '../resolver/binding/to-abi';
+import type { MemoryStorer } from '../binder/to-abi';
 import { validateAllocResult } from './validation';
 import { TAG, VAL, OK } from '../utils/constants';
 

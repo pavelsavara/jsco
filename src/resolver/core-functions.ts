@@ -19,14 +19,14 @@ import { ComponentTypeIndex, CoreFuncIndex } from '../model/indices';
 import { ModelTag } from '../model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
-import { createFunctionLowering } from './binding';
-import { JsFunction } from './binding/types';
+import { createFunctionLowering } from '../binder';
+import { JsFunction } from '../marshal/types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
 import { getCanonicalResourceId, createAllocator } from './context';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
-import type { TCabiRealloc } from './binding/types';
+import type { TCabiRealloc } from '../marshal/types';
 import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions, SubtaskState } from './types';
 
 

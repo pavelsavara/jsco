@@ -2,7 +2,7 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, JsValue } from './types';
-import type { MemoryLoader } from '../resolver/binding/to-js';
+import type { MemoryLoader } from '../binder/to-js';
 import { validatePointerAlignment, validateUtf16 } from './validation';
 import { TAG, VAL, OK, ERR } from '../utils/constants';
 

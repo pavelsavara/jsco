@@ -3,8 +3,8 @@
 import isDebug from 'env:isDebug';
 import type { BindingContext } from '../resolver/types';
 import type { LiftingFromJs, JsFunction, WasmValue } from './types';
-import type { MemoryStorer } from '../resolver/binding/to-abi';
-import type { MemoryLoader } from '../resolver/binding/to-js';
+import type { MemoryStorer } from '../binder/to-abi';
+import type { MemoryLoader } from '../binder/to-js';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
 

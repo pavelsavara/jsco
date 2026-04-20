@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
+import { TCabiRealloc, WasmPointer, WasmSize } from '../marshal/types';
 import { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../model/aliases';
 import { ComponentExport } from '../model/exports';
 import { ComponentImport } from '../model/imports';

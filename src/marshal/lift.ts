@@ -2,7 +2,7 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { LiftingFromJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import type { MemoryStorer } from '../resolver/binding/to-abi';
+import type { MemoryStorer } from '../binder/to-abi';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
 import { validateAllocResult } from './validation';

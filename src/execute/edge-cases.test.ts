@@ -1,18 +1,18 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../../utils/assert';
+import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../../model/tags';
-import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext, StringEncoding } from '../types';
-import { createResourceTable } from '../context';
-import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
-import { createLowering, createFunctionLowering } from './to-js';
-import { storeToMemory, loadFromMemory } from './test-helpers';
+import { ModelTag } from '../model/tags';
+import { ComponentValType, PrimitiveValType } from '../model/types';
+import { ResolverContext, BindingContext, StringEncoding } from '../resolver/types';
+import { createResourceTable } from '../resolver/context';
+import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
+import { createLowering, createFunctionLowering } from '../binder/to-js';
+import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
 import { WasmPointer, WasmSize, WasmValue } from './types';
-import { deepResolveType } from '../calling-convention';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import { deepResolveType } from '../resolver/calling-convention';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {

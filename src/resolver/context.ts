@@ -9,7 +9,7 @@ import { ComponentExport, ComponentExternalKind } from '../model/exports';
 import { defaultVerbosity, LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
 import { BindingContext, ComponentFactoryOptions, MemoryView, Allocator, InstanceTable, ResolvedContext, ResolverContext, ResourceTable, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, SubtaskState, ErrorContextTable, WaitableSetTable, StringEncoding } from './types';
-import { TCabiRealloc, WasmPointer, WasmSize } from './binding/types';
+import { TCabiRealloc, WasmPointer, WasmSize } from '../marshal/types';
 import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../model/imports';

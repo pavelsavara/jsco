@@ -1,27 +1,22 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-// Re-export from new location (temporary shim)
-export { createFunctionLowering, createLowering, createMemoryLoader } from '../../binder/to-js';
-export type { MemoryLoader } from '../../binder/to-js';
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
-
 import isDebug from 'env:isDebug';
-import { ComponentTypeIndex } from '../../model/indices';
-import { ModelTag } from '../../model/tags';
-import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../../model/types';
-import { BindingContext, ResolvedContext, StringEncoding } from '../types';
-import { jsco_assert, LogLevel } from '../../utils/assert';
-import { callingConventionName } from '../../utils/debug-names';
-import type { ResolvedType } from '../type-resolution';
-import { getCanonicalResourceId } from '../context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../calling-convention';
+import { ComponentTypeIndex } from '../model/indices';
+import { ModelTag } from '../model/tags';
+import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../model/types';
+import { BindingContext, ResolvedContext, StringEncoding } from '../resolver/types';
+import { jsco_assert, LogLevel } from '../utils/assert';
+import { callingConventionName } from '../utils/debug-names';
+import type { ResolvedType } from '../resolver/type-resolution';
+import { getCanonicalResourceId } from '../resolver/context';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
-import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from './types';
-import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../../marshal/trampoline-lower';
-import type { FunctionLowerPlan } from '../../marshal/trampoline-lower';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, resultLoweringCoerced, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../../marshal/lower';
-import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoaderBoth, resultLoaderOkOnly, resultLoaderErrOnly, resultLoaderVoid, variantLoaderDisc1, variantLoaderDisc2, variantLoaderDisc4, enumLoaderDisc1, enumLoaderDisc2, enumLoaderDisc4, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../../marshal/memory-load';
+import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/types';
+import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../marshal/trampoline-lower';
+import type { FunctionLowerPlan } from '../marshal/trampoline-lower';
+import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, resultLoweringCoerced, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../marshal/lower';
+import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoaderBoth, resultLoaderOkOnly, resultLoaderErrOnly, resultLoaderVoid, variantLoaderDisc1, variantLoaderDisc2, variantLoaderDisc4, enumLoaderDisc1, enumLoaderDisc2, enumLoaderDisc4, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../marshal/memory-load';
 import camelCase from 'just-camel-case';
 
 

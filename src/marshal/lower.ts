@@ -2,7 +2,7 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { LoweringToJs, WasmPointer, WasmSize, WasmValue, JsValue } from './types';
-import type { MemoryLoader } from '../resolver/binding/to-js';
+import type { MemoryLoader } from '../binder/to-js';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
 import { validateUtf16, validatePointerAlignment } from './validation';

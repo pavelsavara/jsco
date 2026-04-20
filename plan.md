@@ -4,7 +4,7 @@
 
 Split `src/resolver/binding/` into two new top-level folders:
 - **`src/binder/`** — bind-time code (runs once during `createComponent`): type resolution, plan construction, memoization
-- **`src/execute/`** — execution-time code (runs per WASM↔JS call): flat top-level functions with explicit plan structs
+- **`src/marshal/`** — execution-time code (runs per WASM↔JS call): flat top-level functions with explicit plan structs
 
 The key transformation: every `createXxxLifting`/`createXxxLowering` function currently returns a closure that captures local variables. We extract the closure body into a named top-level function, and the captured variables into an explicit "execution plan" data structure passed via `.bind(null, plan)`.
 
@@ -18,7 +18,7 @@ src/binder/          ← NEW (bind-time, runs once)
   cache.ts           ← memoize() helper (moved from binding/)
   types.ts           ← LiftPlan, LowerPlan, FunctionLiftPlan, FunctionLowerPlan types
 
-src/execute/         ← NEW (execution-time, runs per call)
+src/marshal/         ← NEW (execution-time, runs per call)
   lift.ts            ← top-level xxxLifting() functions (flat, no closures)
   lower.ts           ← top-level xxxLowering() functions (flat, no closures)
   memory-store.ts    ← top-level memory storer functions
@@ -172,9 +172,9 @@ Each step should be independently buildable and testable.
 - [ ] Build + test
 
 ### Step 1: Create folder structure with re-exports
-- [ ] Create `src/binder/` and `src/execute/` folders
-- [ ] Create `src/execute/types.ts` — move `WasmPointer`, `WasmValue`, `JsFunction`, etc. from `binding/types.ts`
-- [ ] Create `src/execute/validation.ts` — move validation functions from `binding/validation.ts`
+- [ ] Create `src/binder/` and `src/marshal/` folders
+- [ ] Create `src/marshal/types.ts` — move `WasmPointer`, `WasmValue`, `JsFunction`, etc. from `binding/types.ts`
+- [ ] Create `src/marshal/validation.ts` — move validation functions from `binding/validation.ts`
 - [ ] Create `src/binder/cache.ts` — move `memoize()` from `binding/cache.ts`
 - [ ] Update `src/resolver/binding/types.ts` to re-export from new locations (temporary shim)
 - [ ] Update `src/resolver/binding/validation.ts` to re-export from new location
@@ -182,23 +182,23 @@ Each step should be independently buildable and testable.
 - [ ] Build + test
 
 ### Step 2: Extract simple stateless lifting functions (to-abi primitives)
-- [ ] Create `src/execute/lift.ts` with top-level functions: `boolLifting`, `s8Lifting`, `u8Lifting`, `s16Lifting`, `u16Lifting`, `s32Lifting`, `u32Lifting`, `s64LiftingNumber`, `s64LiftingBigInt`, `u64LiftingNumber`, `u64LiftingBigInt`, `f32Lifting`, `f64Lifting`, `charLifting`
+- [ ] Create `src/marshal/lift.ts` with top-level functions: `boolLifting`, `s8Lifting`, `u8Lifting`, `s16Lifting`, `u16Lifting`, `s32Lifting`, `u32Lifting`, `s64LiftingNumber`, `s64LiftingBigInt`, `u64LiftingNumber`, `u64LiftingBigInt`, `f32Lifting`, `f64Lifting`, `charLifting`
 - [ ] These are trivial — no plan struct needed, just rename and make top-level
 - [ ] Update `src/binder/to-abi.ts` (copy of old to-abi.ts) to return these directly
 - [ ] Build + test
 
 ### Step 3: Extract string lifting functions
-- [ ] Add `stringLiftingUtf8`, `stringLiftingUtf16` to `src/execute/lift.ts`
+- [ ] Add `stringLiftingUtf8`, `stringLiftingUtf16` to `src/marshal/lift.ts`
 - [ ] These are stateless (depend only on ctx), no plan needed
 - [ ] Build + test
 
 ### Step 4: Extract simple stateless lowering functions (to-js primitives)
-- [ ] Create `src/execute/lower.ts` with top-level functions: `boolLowering`, `s8Lowering`, etc.
+- [ ] Create `src/marshal/lower.ts` with top-level functions: `boolLowering`, `s8Lowering`, etc.
 - [ ] Handle `spill` property — introduce `LoweringWithSpill = { fn: LoweringFn, spill: number }`
 - [ ] Build + test
 
 ### Step 5: Extract string lowering functions
-- [ ] Add `stringLoweringUtf8`, `stringLoweringUtf16` to `src/execute/lower.ts`
+- [ ] Add `stringLoweringUtf8`, `stringLoweringUtf16` to `src/marshal/lower.ts`
 - [ ] Build + test
 
 ### Step 6: Extract resource lifting/lowering (own, borrow)
@@ -248,26 +248,26 @@ Each step should be independently buildable and testable.
 - [ ] Build + test
 
 ### Step 15: Extract memory storers
-- [ ] Create `src/execute/memory-store.ts`
+- [ ] Create `src/marshal/memory-store.ts`
 - [ ] Extract primitive storers (stateless) and compound storers (with plans)
 - [ ] Update `src/binder/to-abi.ts` `createMemoryStorer` to produce plan + bind
 - [ ] Build + test
 
 ### Step 16: Extract memory loaders
-- [ ] Create `src/execute/memory-load.ts`
+- [ ] Create `src/marshal/memory-load.ts`
 - [ ] Extract primitive loaders and compound loaders (with plans)
 - [ ] Update `src/binder/to-js.ts` `createMemoryLoader` to produce plan + bind
 - [ ] Build + test
 
 ### Step 17: Extract function lifting trampoline
 - [ ] Define `FunctionLiftPlan` struct
-- [ ] Extract `liftingTrampoline` and `processWasmResult` to `src/execute/trampoline-lift.ts`
+- [ ] Extract `liftingTrampoline` and `processWasmResult` to `src/marshal/trampoline-lift.ts`
 - [ ] `createFunctionLifting` in binder builds the plan and returns `liftingTrampoline.bind(null, plan)`
 - [ ] Build + test
 
 ### Step 18: Extract function lowering trampoline
 - [ ] Define `FunctionLowerPlan` struct
-- [ ] Extract `loweringTrampoline` to `src/execute/trampoline-lower.ts`
+- [ ] Extract `loweringTrampoline` to `src/marshal/trampoline-lower.ts`
 - [ ] Build + test
 
 ### Step 19: Move binder files to final location
@@ -279,7 +279,7 @@ Each step should be independently buildable and testable.
 
 ### Step 20: Move test files
 - [ ] Move binder-focused tests to `src/binder/`
-- [ ] Move execution-focused tests to `src/execute/`
+- [ ] Move execution-focused tests to `src/marshal/`
 - [ ] Update all test imports
 - [ ] Build + test
 
@@ -380,27 +380,27 @@ FROM                                    → TO
 src/resolver/binding/to-abi.ts          → src/binder/to-abi.ts (createXxx stays, lambdas extracted)
 src/resolver/binding/to-js.ts           → src/binder/to-js.ts (same)
 src/resolver/binding/cache.ts           → src/binder/cache.ts
-src/resolver/binding/types.ts           → src/execute/types.ts
-src/resolver/binding/validation.ts      → src/execute/validation.ts
+src/resolver/binding/types.ts           → src/marshal/types.ts
+src/resolver/binding/validation.ts      → src/marshal/validation.ts
 src/resolver/binding/shared.ts          → src/utils/shared.ts
 src/resolver/binding/index.ts           → src/binder/index.ts
-src/resolver/binding/test-helpers.ts    → src/execute/test-helpers.ts (or binder/)
-(new)                                   → src/execute/lift.ts
-(new)                                   → src/execute/lower.ts
-(new)                                   → src/execute/memory-store.ts
-(new)                                   → src/execute/memory-load.ts
-(new)                                   → src/execute/trampoline-lift.ts
-(new)                                   → src/execute/trampoline-lower.ts
+src/resolver/binding/test-helpers.ts    → src/marshal/test-helpers.ts (or binder/)
+(new)                                   → src/marshal/lift.ts
+(new)                                   → src/marshal/lower.ts
+(new)                                   → src/marshal/memory-store.ts
+(new)                                   → src/marshal/memory-load.ts
+(new)                                   → src/marshal/trampoline-lift.ts
+(new)                                   → src/marshal/trampoline-lower.ts
 (new)                                   → src/binder/types.ts (plan structs)
 
 Test files:
-src/resolver/binding/primitives.test.ts     → src/execute/primitives.test.ts
-src/resolver/binding/compound-types.test.ts → src/execute/compound-types.test.ts
-src/resolver/binding/canonical-abi.test.ts  → src/execute/canonical-abi.test.ts
-src/resolver/binding/edge-cases.test.ts     → src/execute/edge-cases.test.ts
-src/resolver/binding/spilling.test.ts       → src/execute/spilling.test.ts
-src/resolver/binding/resources.test.ts      → src/execute/resources.test.ts
-src/resolver/binding/validation.test.ts     → src/execute/validation.test.ts
+src/resolver/binding/primitives.test.ts     → src/marshal/primitives.test.ts
+src/resolver/binding/compound-types.test.ts → src/marshal/compound-types.test.ts
+src/resolver/binding/canonical-abi.test.ts  → src/marshal/canonical-abi.test.ts
+src/resolver/binding/edge-cases.test.ts     → src/marshal/edge-cases.test.ts
+src/resolver/binding/spilling.test.ts       → src/marshal/spilling.test.ts
+src/resolver/binding/resources.test.ts      → src/marshal/resources.test.ts
+src/resolver/binding/validation.test.ts     → src/marshal/validation.test.ts
 src/resolver/binding/shared.test.ts         → src/utils/shared.test.ts
 src/resolver/binding/cache.test.ts          → src/binder/cache.test.ts
 src/resolver/binding/memoization.test.ts    → src/binder/memoization.test.ts

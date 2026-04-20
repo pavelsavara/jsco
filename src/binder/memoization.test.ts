@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag } from '../../model/tags';
-import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../../model/types';
-import { ResolvedContext, BindingContext, StringEncoding } from '../types';
+import { ModelTag } from '../model/tags';
+import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../model/types';
+import { ResolvedContext, BindingContext, StringEncoding } from '../resolver/types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
-import type { WasmValue } from './types';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import type { WasmValue } from '../marshal/types';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
 function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {

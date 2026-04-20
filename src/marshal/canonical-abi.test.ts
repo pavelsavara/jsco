@@ -1,18 +1,18 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../../utils/assert';
+import { initializeAsserts } from '../utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../../model/tags';
-import { ComponentValType, PrimitiveValType } from '../../model/types';
-import { ResolverContext, BindingContext, StringEncoding } from '../types';
-import { createResourceTable } from '../context';
-import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
-import { createLowering } from './to-js';
-import { storeToMemory, loadFromMemory } from './test-helpers';
-import { WasmPointer, WasmSize, WasmValue } from './types';
-import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from './validation';
-import { describeDebugOnly } from '../../test-utils/debug-only';
+import { ModelTag } from '../model/tags';
+import { ComponentValType, PrimitiveValType } from '../model/types';
+import { ResolverContext, BindingContext, StringEncoding } from '../resolver/types';
+import { createResourceTable } from '../resolver/context';
+import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
+import { createLowering } from '../binder/to-js';
+import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
+import { WasmPointer, WasmSize, WasmValue } from '../marshal/types';
+import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from '../marshal/validation';
+import { describeDebugOnly } from '../test-utils/debug-only';
 
 /** Test-only UTF-8 validator with detailed error messages. */
 function validateUtf8(bytes: Uint8Array): void {
@@ -59,7 +59,7 @@ function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any)
         return out.slice(0, count);
     };
 }
-import { deepResolveType } from '../calling-convention';
+import { deepResolveType } from '../resolver/calling-convention';
 
 // --- Test helpers ---
 
