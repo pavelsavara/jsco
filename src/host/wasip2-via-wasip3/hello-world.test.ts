@@ -10,13 +10,11 @@ import { parse } from '../../parser';
 import { createComponent } from '../../resolver';
 import { createWasiP3Host } from '../wasip3/index';
 import { createWasiP2ViaP3Adapter } from './index';
-import { WasiExit } from '../wasip2/api';
-import { setCreateComponent } from '../wasip2/instantiate';
+import { WasiExit } from '../wasip3/cli';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
 initializeAsserts();
-setCreateComponent(createComponent);
 
 const helloWasm = './integration-tests/target/wasm32-wasip1/release/hello_world.wasm';
 
@@ -72,7 +70,7 @@ describe('hello-world component (via P3 adapter)', () => {
                 exitCode = (result?.tag === 'ok') ? 0 : 1;
             } catch (e) {
                 if (e instanceof WasiExit) {
-                    exitCode = e.status;
+                    exitCode = e.exitCode;
                 } else {
                     throw e;
                 }

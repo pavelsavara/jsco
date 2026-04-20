@@ -8,7 +8,7 @@
 import { createComponent } from '../../resolver';
 import { createWasiP3Host } from '../wasip3/index';
 import { createWasiP2ViaP3Adapter } from './index';
-import { WasiExit } from '../wasip2/api';
+import { WasiExit } from '../wasip3/cli';
 import type { VerboseCapture } from '../../test-utils/verbose-logger';
 import { verboseOptions } from '../../test-utils/verbose-logger';
 import type { ResolutionStats } from '../../resolver/api-types';
@@ -223,7 +223,7 @@ export async function runConsumerScenario(
         const result = await runNs.run();
         exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
     } catch (e) {
-        if (e instanceof WasiExit) exitCode = e.status; else throw e;
+        if (e instanceof WasiExit) exitCode = e.exitCode; else throw e;
     }
 
     const stdout = new TextDecoder().decode(

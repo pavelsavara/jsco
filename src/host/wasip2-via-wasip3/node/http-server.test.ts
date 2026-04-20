@@ -8,15 +8,15 @@ import type {
     WasiIncomingRequest,
     WasiResponseOutparam,
     IncomingHandlerFn,
-} from '../../wasip2/api';
-import type { WasiResponseOutparamInternal } from '../../wasip2/types';
+    WasiResponseOutparamInternal,
+} from '../http-types';
 import {
     createHttpServer,
     createOutgoingResponse,
     responseOutparamSet,
     createFutureTrailers,
-} from './index';
-import { createFields, createFieldsFromList } from '../../wasip2/http';
+} from './http-server';
+import { createFields, createFieldsFromList } from '../http-types';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();

@@ -9,7 +9,7 @@
  */
 
 import { createComponent } from '../../resolver';
-import { createWasiP2Host } from '../wasip2/index';
+import { createWasiP2ViaP3Adapter } from '../wasip2-via-wasip3/index';
 import { createWasiP3Host as createP3Host } from './index';
 import { initializeAsserts } from '../../utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
@@ -19,8 +19,11 @@ initializeAsserts();
 const WASM_DIR = './integration-tests/wasmtime/';
 const RUN_EXPORT = 'wasi:cli/run@0.3.0-rc-2026-03-15';
 
-/** Merge P2 + P3 hosts. P3 overwrites unversioned keys; versioned keys coexist. */
-function mergeHosts(p2: Record<string, unknown>, p3: Record<string, unknown>): Record<string, unknown> {
+/** Create merged P2+P3 hosts. Creates a P3 host with the given config,
+ *  wraps it through the P2-via-P3 adapter for P2 keys, then merges both. */
+function createMergedHosts(config?: Parameters<typeof createP3Host>[0]): Record<string, unknown> {
+    const p3 = createP3Host(config);
+    const p2 = createWasiP2ViaP3Adapter(p3);
     return { ...p2, ...p3 };
 }
 
@@ -46,7 +49,7 @@ describe('WASIp3 integration tests', () => {
 
     describe('random', () => {
         test('p3_big_random_buf — get 1024 random bytes', () => runWithVerbose(verbose, async () => {
-            const imports = mergeHosts(createWasiP2Host(), createP3Host());
+            const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_big_random_buf.component.wasm',
                 verboseOptions(verbose),
@@ -58,7 +61,7 @@ describe('WASIp3 integration tests', () => {
         }));
 
         test('p3_random_imports — all three random interfaces', () => runWithVerbose(verbose, async () => {
-            const imports = mergeHosts(createWasiP2Host(), createP3Host());
+            const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_random_imports.component.wasm',
                 verboseOptions(verbose),
@@ -73,10 +76,7 @@ describe('WASIp3 integration tests', () => {
     describe('cli', () => {
         test('p3_cli_hello_stdout — writes "hello, world" to stdout', () => runWithVerbose(verbose, async () => {
             const capture = captureStream();
-            const imports = mergeHosts(
-                createWasiP2Host(),
-                createP3Host({ stdout: capture.stream }),
-            );
+            const imports = createMergedHosts({ stdout: capture.stream });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli_hello_stdout.component.wasm',
                 verboseOptions(verbose),
@@ -89,32 +89,18 @@ describe('WASIp3 integration tests', () => {
         }));
 
         test('p3_cli — environment, args, terminals, stdio', () => runWithVerbose(verbose, async () => {
-            // p3_cli routes stdout/stderr through the P2 output-stream path
-            // (the adapter converts P3 exports to P2 calls internally).
-            // Capture via P2 host callbacks:
+            // Capture stdout/stderr through the P3 WritableStream path:
             const stdoutChunks: Uint8Array[] = [];
             const stderrChunks: Uint8Array[] = [];
             const decode = (chunks: Uint8Array[]) => new TextDecoder().decode(
                 chunks.reduce((acc, c) => { const r = new Uint8Array(acc.length + c.length); r.set(acc); r.set(c, acc.length); return r; }, new Uint8Array()),
             );
-            // eslint-disable-next-line no-console
-            const logStdout = (bytes: Uint8Array) => { stdoutChunks.push(new Uint8Array(bytes)); };
-            // eslint-disable-next-line no-console
-            const logStderr = (bytes: Uint8Array) => { stderrChunks.push(new Uint8Array(bytes)); };
-            const imports = mergeHosts(
-                createP3Host({
-                    args: ['p3_cli.component', '.'],
-                    env: [['TEST_KEY', 'TEST_VALUE']],
-                    stdout: new WritableStream<Uint8Array>({ write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); } }),
-                    stderr: new WritableStream<Uint8Array>({ write(chunk) { stderrChunks.push(new Uint8Array(chunk)); } }),
-                }),
-                createWasiP2Host({
-                    args: ['p3_cli.component', '.'],
-                    env: [['TEST_KEY', 'TEST_VALUE']],
-                    stdout: logStdout,
-                    stderr: logStderr,
-                }),
-            );
+            const imports = createMergedHosts({
+                args: ['p3_cli.component', '.'],
+                env: [['TEST_KEY', 'TEST_VALUE']],
+                stdout: new WritableStream<Uint8Array>({ write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); } }),
+                stderr: new WritableStream<Uint8Array>({ write(chunk) { stderrChunks.push(new Uint8Array(chunk)); } }),
+            });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli.component.wasm',
                 verboseOptions(verbose, { resolver: 1, executor: 1 }),
@@ -130,7 +116,7 @@ describe('WASIp3 integration tests', () => {
 
     describe('clocks', () => {
         test('p3_clocks_sleep — monotonic clock sleep/wait', () => runWithVerbose(verbose, async () => {
-            const imports = mergeHosts(createWasiP2Host(), createP3Host());
+            const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_clocks_sleep.component.wasm',
                 verboseOptions(verbose),
@@ -145,16 +131,10 @@ describe('WASIp3 integration tests', () => {
     describe('cli — extended', () => {
         test('p3_cli_much_stdout — repeated writes to stdout', () => runWithVerbose(verbose, async () => {
             const capture = captureStream();
-            const imports = mergeHosts(
-                createWasiP2Host({
-                    args: ['p3_cli_much_stdout.component', 'x', '1000'],
-                    stdout: (bytes: Uint8Array) => { /* swallow P2 stdout */ void bytes; },
-                }),
-                createP3Host({
-                    args: ['p3_cli_much_stdout.component', 'x', '1000'],
-                    stdout: capture.stream,
-                }),
-            );
+            const imports = createMergedHosts({
+                args: ['p3_cli_much_stdout.component', 'x', '1000'],
+                stdout: capture.stream,
+            });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli_much_stdout.component.wasm',
                 verboseOptions(verbose),
@@ -176,10 +156,7 @@ describe('WASIp3 integration tests', () => {
                     controller.close();
                 },
             });
-            const imports = mergeHosts(
-                createWasiP2Host(),
-                createP3Host({ stdin: stdinStream }),
-            );
+            const imports = createMergedHosts({ stdin: stdinStream });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli_read_stdin.component.wasm',
                 verboseOptions(verbose),
@@ -192,10 +169,7 @@ describe('WASIp3 integration tests', () => {
 
         test('p3_cli_hello_stdout_post_return — writes after run returns', () => runWithVerbose(verbose, async () => {
             const capture = captureStream();
-            const imports = mergeHosts(
-                createWasiP2Host(),
-                createP3Host({ stdout: capture.stream }),
-            );
+            const imports = createMergedHosts({ stdout: capture.stream });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli_hello_stdout_post_return.component.wasm',
                 verboseOptions(verbose),
@@ -209,10 +183,7 @@ describe('WASIp3 integration tests', () => {
         }));
 
         test('p3_cli_random_limits — random bytes with size arg', () => runWithVerbose(verbose, async () => {
-            const imports = mergeHosts(
-                createWasiP2Host({ args: ['p3_cli_random_limits.component', 'random', '128'] }),
-                createP3Host({ args: ['p3_cli_random_limits.component', 'random', '128'] }),
-            );
+            const imports = createMergedHosts({ args: ['p3_cli_random_limits.component', 'random', '128'] });
             const component = await createComponent(
                 WASM_DIR + 'p3_cli_random_limits.component.wasm',
                 verboseOptions(verbose),

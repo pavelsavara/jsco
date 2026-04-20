@@ -17,7 +17,6 @@ import type { IncomingMessage, ServerResponse, Server as HttpServer } from 'node
 import type {
     WasiFields,
     WasiIncomingBody,
-    WasiOutgoingBody,
     HttpMethod,
     HttpScheme,
     HttpErrorCode,
@@ -25,24 +24,20 @@ import type {
     WasiIncomingRequest,
     WasiOutgoingResponse,
     WasiResponseOutparam,
+    WasiResponseOutparamInternal,
     IncomingHandlerFn,
     WasiFutureTrailers,
-    WasiInputStream,
+    HttpServerConfig,
+    WasiHttpServer,
     WasiOutputStream,
-} from '../api';
-import type { HttpServerConfig, WasiHttpServer, WasiResponseOutparamInternal } from '../types';
-import {
-    createFields,
-    createFieldsFromList,
-} from '../http';
-import { createInputStream, createOutputStream } from '../streams';
-import { createSyncPollable } from '../poll';
-import { NETWORK_DEFAULTS } from '../types';
+} from '../http-types';
+import { createFields, createFieldsFromList, NETWORK_DEFAULTS } from '../http-types';
+import { createInputStream, createOutputStream, createSyncPollable } from '../io';
 
 // ─── Incoming Request ───
 
 /** Create an incoming request from a Node.js IncomingMessage with a streaming body */
-function createIncomingRequest(req: IncomingMessage, bodyStream: WasiInputStream): WasiIncomingRequest {
+function createIncomingRequest(req: IncomingMessage, bodyStream: ReturnType<typeof createInputStream>): WasiIncomingRequest {
     let consumed = false;
 
     // Build headers — filter out hop-by-hop headers that createFieldsFromList rejects
@@ -80,7 +75,7 @@ function createIncomingRequest(req: IncomingMessage, bodyStream: WasiInputStream
             return {
                 tag: 'ok',
                 val: {
-                    stream(): HttpResult<WasiInputStream> {
+                    stream(): HttpResult<ReturnType<typeof createInputStream>> {
                         if (streamTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already taken' } };
                         streamTaken = true;
                         return { tag: 'ok', val: bodyStream };
@@ -122,7 +117,7 @@ export function createOutgoingResponse(headers: WasiFields): WasiOutgoingRespons
             return true;
         },
         headers: () => headers,
-        body(): HttpResult<WasiOutgoingBody> {
+        body(): HttpResult<{ write(): HttpResult<WasiOutputStream> }> {
             if (bodyTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'body already taken' } };
             bodyTaken = true;
             let streamTaken = false;

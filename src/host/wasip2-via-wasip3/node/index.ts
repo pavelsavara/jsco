@@ -15,19 +15,17 @@
 
 import type { WasiP2Imports } from '../../../../wit/wasip2/types/index';
 import type { JsImports } from '../../../resolver/api-types';
-import type { NetworkConfig, MountConfig, AllocationLimits } from '../../wasip3/types';
-import type { IncomingHandlerFn } from '../../wasip2/api';
-import type { WasiHttpServer, HttpServerConfig } from '../../wasip2/types';
-import type { ServeInstance } from '../../wasip2/node/type';
+import type { MountConfig, AllocationLimits } from '../../wasip3/types';
+import type { IncomingHandlerFn, NetworkConfig, WasiHttpServer, HttpServerConfig, ServeInstance } from '../http-types';
 import { createWasiP3Host } from '../../wasip3/node/wasip3';
 import { createWasiP2ViaP3Adapter } from '../index';
-import { createHttpServer as createP2HttpServer } from '../../wasip2/node/http-server';
+import { createHttpServer as createLocalHttpServer } from './http-server';
 
 // Re-export the browser adapter
 export { createWasiP2ViaP3Adapter } from '../index';
 
-// Re-export P2 HTTP server helpers (these are P2-level constructs, not backed by P3)
-export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from '../../wasip2/node/http-server';
+// Re-export P2 HTTP server helpers
+export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from './http-server';
 
 /**
  * Create a P2-compatible host import object with Node.js filesystem mounts.
@@ -87,7 +85,7 @@ export function createHttpServer(
     handler: IncomingHandlerFn,
     config?: HttpServerConfig,
 ): WasiHttpServer {
-    return createP2HttpServer(handler, config);
+    return createLocalHttpServer(handler, config);
 }
 
 /**
@@ -106,7 +104,7 @@ export async function runServe(instance: ServeInstance, addr?: string, network?:
     const hostname = colonIdx > 0 ? resolvedAddr.substring(0, colonIdx) : '0.0.0.0';
     const port = colonIdx > 0 ? parseInt(resolvedAddr.substring(colonIdx + 1), 10) : 8080;
 
-    const server = createP2HttpServer(handle as IncomingHandlerFn, {
+    const server = createLocalHttpServer(handle as IncomingHandlerFn, {
         hostname, port, network,
     });
     const actualPort = await server.start();
@@ -115,7 +113,5 @@ export async function runServe(instance: ServeInstance, addr?: string, network?:
 }
 
 // Re-export types
-export type { NetworkConfig, MountConfig, AllocationLimits } from '../../wasip3/types';
-export type { IncomingHandlerFn } from '../../wasip2/api';
-export type { WasiHttpServer, HttpServerConfig } from '../../wasip2/types';
-export type { ServeInstance } from '../../wasip2/node/type';
+export type { MountConfig, AllocationLimits } from '../../wasip3/types';
+export type { IncomingHandlerFn, NetworkConfig, WasiHttpServer, HttpServerConfig, ServeInstance } from '../http-types';

@@ -52,8 +52,6 @@ const outDir = isDebug ? 'dist/debug' : 'dist/release';
 function externalizeSiblingModules(options) {
     const skipExternals = new Set(options?.skipExternals ?? []);
     const srcDir = path.resolve('./src');
-    const wasip2Entry = path.resolve('./src/host/wasip2/wasip2.ts');
-    const wasip2NodeEntry = path.resolve('./src/host/wasip2/node/wasip2.ts');
     const wasip2ViaP3Entry = path.resolve('./src/host/wasip2-via-wasip3/index.ts');
     const wasip2ViaP3NodeEntry = path.resolve('./src/host/wasip2-via-wasip3/node/index.ts');
     const wasip3Entry = path.resolve('./src/host/wasip3/wasip3.ts');
@@ -72,12 +70,6 @@ function externalizeSiblingModules(options) {
             const resolvedTs = resolved.endsWith('.ts') ? resolved : resolved + '.ts';
             const resolvedIndex = path.join(resolved, 'index.ts');
 
-            if (!skipExternals.has('wasip2') && resolvedTs === wasip2Entry) {
-                return { id: './wasip2.js', external: true };
-            }
-            if (!skipExternals.has('wasip2-node') && resolvedTs === wasip2NodeEntry) {
-                return { id: './wasip2-node.js', external: true };
-            }
             if (!skipExternals.has('wasip2-via-wasip3') && (resolvedTs === wasip2ViaP3Entry || resolvedIndex === wasip2ViaP3Entry)) {
                 return { id: './wasip2-via-wasip3.js', external: true };
             }
@@ -143,84 +135,6 @@ const jscoTypes = {
     ],
     external: externalDependencies,
     plugins: [dts()],
-};
-
-// WASI Preview 2 — browser-compatible host module
-const wasip2 = {
-    treeshake: !isDebug,
-    input: './src/host/wasip2/wasip2.ts',
-    output: [
-        {
-            format: 'es',
-            file: `${outDir}/wasip2.js`,
-            banner: banner.replace('#!/usr/bin/env node\n', ''),
-            plugins,
-            sourcemap: true,
-            sourcemapPathTransform,
-        }
-    ],
-    onwarn,
-    external: externalDependencies,
-    plugins: [
-        externalizeSiblingModules(),
-        ...sourcePlugins,
-    ],
-};
-
-
-// WASI Preview 2 — Node.js-specific extensions
-const wasip2Node = {
-    treeshake: !isDebug,
-    input: './src/host/wasip2/node/wasip2.ts',
-    output: [
-        {
-            format: 'es',
-            file: `${outDir}/wasip2-node.js`,
-            banner: banner.replace('#!/usr/bin/env node\n', ''),
-            plugins,
-            sourcemap: true,
-            sourcemapPathTransform,
-        }
-    ],
-    onwarn,
-    external: externalDependencies,
-    plugins: [
-        externalizeSiblingModules(),
-        ...sourcePlugins,
-    ],
-};
-
-
-const wasip2Types = {
-    input: './src/host/wasip2/wasip2.ts',
-    output: [
-        {
-            format: 'es',
-            file: `${outDir}/wasip2.d.ts`,
-            banner: banner.replace('#!/usr/bin/env node\n', ''),
-        }
-    ],
-    external: externalDependencies,
-    plugins: [
-        externalizeSiblingModules(),
-        dts(),
-    ],
-};
-
-const wasip2NodeTypes = {
-    input: './src/host/wasip2/node/wasip2.ts',
-    output: [
-        {
-            format: 'es',
-            file: `${outDir}/wasip2-node.d.ts`,
-            banner: banner.replace('#!/usr/bin/env node\n', ''),
-        }
-    ],
-    external: externalDependencies,
-    plugins: [
-        externalizeSiblingModules(),
-        dts(),
-    ],
 };
 
 // WASI Preview 2 via Preview 3 adapter
@@ -376,10 +290,6 @@ const wasip3NodeTypes = {
 };
 
 export default defineConfig([
-    wasip2,
-    wasip2Types,
-    wasip2Node,
-    wasip2NodeTypes,
     wasip2ViaP3,
     wasip2ViaP3Types,
     wasip2ViaP3Node,
