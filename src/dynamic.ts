@@ -5,6 +5,7 @@ import type { JsImports } from './resolver/api-types';
 import type { WasiP3Config } from './host/wasip3';
 import type { WasiP2Imports } from '../wit/wasip2/types/index';
 import type { WasiHttpHandlerExport, ServeHandle } from './host/wasip3/node/wasip3';
+import type { WasiP1Adapter } from './host/wasip1-via-wasip3';
 
 export async function loadWasiP3Host(): Promise<{ createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports }> {
     if (typeof process !== 'undefined' && process.versions?.node) {
@@ -19,4 +20,8 @@ export async function loadWasiP2ViaP3Adapter(): Promise<{ createWasiP2ViaP3Adapt
 
 export async function loadWasiP3Serve(): Promise<{ serve(handler: WasiHttpHandlerExport, config?: WasiP3Config): Promise<ServeHandle> }> {
     return import('./host/wasip3/node/wasip3');
+}
+
+export async function loadWasiP1ViaP3Adapter(): Promise<{ createWasiP1ViaP3Adapter(config?: WasiP3Config): WasiP1Adapter }> {
+    return import('./host/wasip1-via-wasip3');
 }

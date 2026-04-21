@@ -9,7 +9,7 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 - streaming parser of binary WIT
 - streaming compilation of WASM core modules during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
-- WASIp2 and WASIp3 host
+- WASIp1, WASIp2 and WASIp3 host
 - small download size, fast enough (current release bundle is ~86 KB)
 
 ## How
@@ -47,7 +47,7 @@ await run();
 Prints `hello from jsco` to the console.
 See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
 
-`instantiateWasiComponent` auto-detects whether the component needs WASIp2 or WASIp3 and provides the correct host. Pass an optional `WasiP3Config` to configure environment, filesystem, and network:
+`instantiateWasiComponent` auto-detects whether the input is a WASI P1 core module, P2, or P3 component and provides the correct host.
 
 ```js
 const instance = await instantiateWasiComponent('./my-component.wasm', {

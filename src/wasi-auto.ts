@@ -6,8 +6,27 @@ import { loadWasiP3Host, loadWasiP2ViaP3Adapter } from './dynamic';
 
 export const enum WasiType {
     None = 0,
+    P1 = 1,
     P2 = 2,
     P3 = 3,
+}
+
+/**
+ * Check if the given bytes are a core WebAssembly module (not a component).
+ * Core modules: magic \0asm + version 1 (bytes [0x00,0x61,0x73,0x6D, 0x01,0x00,0x00,0x00]).
+ * Components:   magic \0asm + version 13 + layer 1 (bytes [0x00,0x61,0x73,0x6D, 0x0D,0x00,0x01,0x00]).
+ */
+export function isCoreModule(bytes: ArrayLike<number>): boolean {
+    return bytes.length >= 8
+        && bytes[0] === 0x00 && bytes[1] === 0x61 && bytes[2] === 0x73 && bytes[3] === 0x6D
+        && bytes[4] === 0x01 && bytes[5] === 0x00 && bytes[6] === 0x00 && bytes[7] === 0x00;
+}
+
+/**
+ * Check if a compiled WebAssembly.Module imports from wasi_snapshot_preview1.
+ */
+export function isWasiP1Module(module: WebAssembly.Module): boolean {
+    return WebAssembly.Module.imports(module).some(i => i.module === 'wasi_snapshot_preview1');
 }
 
 /**

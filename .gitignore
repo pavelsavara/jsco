@@ -139,4 +139,8 @@ target/
 !integration-tests/echo-reactor-wat/echo.wasm
 !integration-tests/hello-world-wat/hello.wasm
 !integration-tests/hello-city-wat/hello-city.wasm
+!integration-tests/hello-p1-world-wat/hello.wasm
+!integration-tests/file-io-p1-wat/file-io.wasm
+!integration-tests/env-p1-wat/env.wasm
+!integration-tests/clock-random-poll-p1-wat/test.wasm
 test-results/.last-run.json
