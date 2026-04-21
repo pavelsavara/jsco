@@ -2,5 +2,5 @@
 // Used by Scenario F and as building block for Scenario H
 package jsco:wrapped-forwarder;
 
-let fwd = new jsco:forwarder { ... };
+let fwd = new jsco:forwarder-p2 { ... };
 export fwd...;

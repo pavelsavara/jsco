@@ -3,15 +3,10 @@
 // See also `demo-verbose.mjs` for a more verbose version of this demo with comments and extra options.
 
 import { instantiateWasiComponent } from './dist/release/index.js';
-const componentUrl = './integration-tests/hello-p2-world-wat/hello.wasm';
+const componentUrl = './integration-tests/hello-p3-world-wat/hello-p3.wasm';
 const instance = await instantiateWasiComponent(componentUrl);
-const run = instance.exports['wasi:cli/run@0.2.11'].run;
+const run = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'].run;
 
 // prints 'hello from jsco' to the console
-try {
-    await run();
-} catch (e) {
-    // WasiExit with code 0 is a normal exit
-    if (!(e.name === 'WasiExit' && e.exitCode === 0)) throw e;
-}
+await run();
 process.exit(0);

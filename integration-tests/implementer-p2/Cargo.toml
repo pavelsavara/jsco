@@ -1,5 +1,5 @@
 [package]
-name = "forwarder"
+name = "implementer-p2"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,8 +10,8 @@ wit-bindgen-rt = { workspace = true, features = ["bitflags"] }
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "jsco:forwarder"
-target.world = "forwarder"
+package = "jsco:implementer-p2"
+target.world = "implementer-p2"
 target.path = "wit"
 
 [package.metadata.component.target.dependencies]
@@ -19,6 +19,6 @@ target.path = "wit"
 "wasi:io" = { path = "../../wit/wasip2/cli/deps/io.wit" }
 "wasi:clocks" = { path = "../../wit/wasip2/cli/deps/clocks.wit" }
 "wasi:random" = { path = "../../wit/wasip2/cli/deps/random.wit" }
+"jsco:test" = { path = "../../wit" }
 "wasi:filesystem" = { path = "../../wit/wasip2/cli/deps/filesystem.wit" }
 "wasi:sockets" = { path = "../../wit/wasip2/cli/deps/sockets.wit" }
-"jsco:test" = { path = "../../wit" }

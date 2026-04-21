@@ -1,6 +1,6 @@
-package jsco:implementer@0.1.0;
+package jsco:implementer-p2@0.1.0;
 
-world implementer {
+world implementer-p2 {
     // Export WASI interfaces with fake implementations
     export wasi:cli/environment@0.2.11;
     export wasi:cli/exit@0.2.11;

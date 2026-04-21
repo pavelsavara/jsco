@@ -23,7 +23,7 @@ struct Component;
 bindings::export!(Component with_types_in bindings);
 
 fn log_forward(name: &str) {
-    logger::log(Level::Debug, &format!("[forwarder] {name}"));
+    logger::log(Level::Debug, &format!("[forwarder-p2] {name}"));
 }
 
 impl RunGuest for Component {

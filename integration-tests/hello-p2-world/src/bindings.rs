@@ -1768,7 +1768,7 @@ mod _rt {
 /// ```
 #[allow(unused_macros)]
 #[doc(hidden)]
-macro_rules! __export_hello_world_impl {
+macro_rules! __export_hello_p2_world_impl {
     ($ty:ident) => {
         self::export!($ty with_types_in self);
     };
@@ -1779,15 +1779,15 @@ macro_rules! __export_hello_world_impl {
     };
 }
 #[doc(inline)]
-pub(crate) use __export_hello_world_impl as export;
+pub(crate) use __export_hello_p2_world_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
     link_section = "component-type:wit-bindgen:0.41.0:jsco:hello-p2-world:hello-p2-world:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1796] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x82\x0d\x01A\x02\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 1805] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x88\x0d\x01A\x02\x01\
 A\x16\x01B\x0a\x01o\x02ss\x01p\0\x01@\0\0\x01\x04\0\x0fget-environment\x01\x02\x01\
 ps\x01@\0\0\x03\x04\0\x0dget-arguments\x01\x04\x01ks\x01@\0\0\x05\x04\0\x0biniti\
 al-cwd\x01\x06\x03\0\x1bwasi:cli/environment@0.2.11\x05\0\x01B\x03\x01j\0\0\x01@\
@@ -1822,10 +1822,10 @@ get-stdin\x01\x03\x03\0\x15wasi:cli/stdin@0.2.11\x05\x08\x02\x03\0\x04\x0doutput
 @\0\0\x02\x04\0\x0aget-stdout\x01\x03\x03\0\x16wasi:cli/stdout@0.2.11\x05\x0a\x01\
 B\x05\x02\x03\x02\x01\x09\x04\0\x0doutput-stream\x03\0\0\x01i\x01\x01@\0\0\x02\x04\
 \0\x0aget-stderr\x01\x03\x03\0\x16wasi:cli/stderr@0.2.11\x05\x0b\x01B\x03\x01j\0\
-\0\x01@\0\0\0\x04\0\x03run\x01\x01\x04\0\x13wasi:cli/run@0.2.11\x05\x0c\x04\0\x1c\
-jsco:hello-p2-world/hello-p2-world\x04\0\x0b\x11\x01\0\x0bhello-p2-world\x03\0\0\0G\x09pr\
-oducers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x06\
-0.41.0";
+\0\x01@\0\0\0\x04\0\x03run\x01\x01\x04\0\x13wasi:cli/run@0.2.11\x05\x0c\x04\0\"j\
+sco:hello-p2-world/hello-p2-world\x04\0\x0b\x14\x01\0\x0ehello-p2-world\x03\0\0\0\
+G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindge\
+n-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

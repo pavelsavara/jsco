@@ -2,6 +2,6 @@
 // Used by Scenario G
 package jsco:double-forwarder;
 
-let inner = new jsco:forwarder { ... };
-let outer = new jsco:forwarder { ...inner, ... };
+let inner = new jsco:forwarder-p2 { ... };
+let outer = new jsco:forwarder-p2 { ...inner, ... };
 export outer...;

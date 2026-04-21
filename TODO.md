@@ -1,20 +1,3 @@
-# Resolver todo
-- export and import ABI interfaces for direct binding without JS ("fused adapters")
-- consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
-
-# Binder todo
-- respect model options for CompactUTF-16 (latin1+utf16) encoding
-- option to bind lazily only when methods are called
-- fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
-- validate string, list and buffer sizes to not cause OOM or out of range
-- validate HTTP API to not receive evil payload, like unlimited body or headers
-- make i64 -> number vs bingint configurable again, add tests for it. usesNumberForInt64
-- multiple memories
-
-# Parser todo
-- add options to delay parsing core modules
-- add options to skip parsing/storing custom sections
-
 # Testing
 - create sample app in go
 - compose 2 different JSCO instantiated components JSCO(WASM) -> JSCO(WASM)
@@ -26,6 +9,10 @@
 - update consumer,forwarder,implementer to cover all wasip2 functions and fix tests
 - fix `collectCoverageFrom` many exclusions are just excuses
 - dedicated tests for new p3 types. future, stream
+- validate string, list and buffer sizes to not cause OOM or out of range
+- WASIp3: interleaved suspension
+- WASIp3: re-entry on async - queue
+- WASIp2: at the moment we test with wasm32-wasip1, which also has preview1-to-preview2 adapter shim
 
 # Build
 - add coverage to CI, fail if lower than some %
@@ -38,16 +25,7 @@
 - implement by forwarding to WASIp2 or WASIp3
 - test with D:\nesm\tests\samples\wasi\
 
-# WASI Preview 2 Implementation Status
-- implement socket and http server on nodeJS
-- have look at https://github.com/pavelsavara/node-mono-server
-- at the moment we test with wasm32-wasip1, which also has preview1-to-preview2 adapter shim
-- forwarder, implementer and echo-reactor should ideally use wasm32-unknown-unknown
-- consumer could use either wasm32-wasip2
-
 # WASI Preview 3
-- interleaved suspension
-- re-entry on async - queue
 - zero copy bring-your-own-buffer
 
 # Demo
@@ -58,11 +36,21 @@
 # Other
 - pass CLI args to wasi:cli
 - OCI download
-- convert this TODO into github issues (this is more convenient for now)
-- attract more contributors
 - review license & add CoC
 - donate this project to @bytecodealliance
 - write article on how it works
-- multi-memory https://github.com/bytecodealliance/jco/blob/main/crates/js-component-bindgen/src/core.rs
-- implement WASIp3 (async model with native WASM stack switching, replaces JSPI workaround)
-- review setConfiguration and ./utils/debug-names
+
+# Resolver todo
+- export and import ABI interfaces for direct binding without JS ("fused adapters")
+- consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
+
+# Binder todo
+- respect model options for CompactUTF-16 (latin1+utf16) encoding
+- option to bind lazily only when methods are called
+- fused adapters https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/adapt.rs
+- validate HTTP API to not receive evil payload, like unlimited body or headers
+- multiple memories
+
+# Parser todo
+- add options to delay parsing core modules
+- add options to skip parsing/storing custom sections

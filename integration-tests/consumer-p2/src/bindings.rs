@@ -7362,7 +7362,7 @@ mod _rt {
 /// ```
 #[allow(unused_macros)]
 #[doc(hidden)]
-macro_rules! __export_consumer_impl {
+macro_rules! __export_consumer_p2_impl {
     ($ty:ident) => {
         self::export!($ty with_types_in self);
     };
@@ -7373,15 +7373,15 @@ macro_rules! __export_consumer_impl {
     };
 }
 #[doc(inline)]
-pub(crate) use __export_consumer_impl as export;
+pub(crate) use __export_consumer_p2_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
-    link_section = "component-type:wit-bindgen:0.41.0:jsco:consumer@0.1.0:consumer:encoded world"
+    link_section = "component-type:wit-bindgen:0.41.0:jsco:consumer-p2@0.1.0:consumer-p2:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 4869] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x86%\x01A\x02\x01A*\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 4878] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x8c%\x01A\x02\x01A*\x01\
 B\x0a\x01o\x02ss\x01p\0\x01@\0\0\x01\x04\0\x0fget-environment\x01\x02\x01ps\x01@\
 \0\0\x03\x04\0\x0dget-arguments\x01\x04\x01ks\x01@\0\0\x05\x04\0\x0binitial-cwd\x01\
 \x06\x03\0\x1bwasi:cli/environment@0.2.11\x05\0\x01B\x03\x01j\0\0\x01@\x01\x06st\
@@ -7488,9 +7488,9 @@ elf\x0b\0y\x04\0\x1d[method]byte-buffer.remaining\x01\x0d\x01@\x01\x04self\x0b\0
 \x10\x01@\x02\x01a\x02\x01b\x02\0\x02\x04\0\x12merge-accumulators\x01\x11\x01@\x01\
 \x03buf\x09\0\x09\x04\0\x0becho-buffer\x01\x12\x03\0\x1ejsco:test/echo-resources\
 @0.1.0\x05\x15\x01B\x03\x01j\0\0\x01@\0\0\0\x04\0\x03run\x01\x01\x04\0\x13wasi:c\
-li/run@0.2.11\x05\x16\x04\0\x1cjsco:consumer/consumer@0.1.0\x04\0\x0b\x0e\x01\0\x08\
-consumer\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.2\
-27.1\x10wit-bindgen-rust\x060.41.0";
+li/run@0.2.11\x05\x16\x04\0\"jsco:consumer-p2/consumer-p2@0.1.0\x04\0\x0b\x11\x01\
+\0\x0bconsumer-p2\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-compone\
+nt\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

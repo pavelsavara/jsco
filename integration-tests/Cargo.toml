@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["consumer", "forwarder", "implementer", "hello-p2-world", "echo-reactor"]
+members = ["consumer-p2", "forwarder-p2", "implementer-p2", "hello-p2-world", "echo-reactor"]
 
 [workspace.dependencies]
 wit-bindgen-rt = "0.44.0"

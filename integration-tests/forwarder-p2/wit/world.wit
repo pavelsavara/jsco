@@ -1,6 +1,6 @@
-package jsco:forwarder@0.1.0;
+package jsco:forwarder-p2@0.1.0;
 
-world forwarder {
+world forwarder-p2 {
     // Import WASI interfaces (from host or downstream)
     import wasi:cli/environment@0.2.11;
     import wasi:cli/exit@0.2.11;
