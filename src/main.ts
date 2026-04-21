@@ -2,11 +2,12 @@
 
 import type { WasiP3Config } from './host/wasip3';
 import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
-import { loadWasiP3Serve } from './dynamic';
+import { loadWasiP3Serve, loadWasiP1ViaP3Adapter } from './dynamic';
 import { createComponent } from './resolver';
 import { CliOptions, CliParseResult, getHelpText, parseCliArgs } from './utils/args';
 import { hasJspi } from './utils/jspi';
-import { detectWasiType, createWasiImports, WasiType } from './wasi-auto';
+import { detectWasiType, createWasiImports, WasiType, isCoreModule } from './wasi-auto';
+import { fetchLike, getBodyIfResponse } from './utils/fetch-like';
 
 // ─── CLI Entry Point ───
 
@@ -51,6 +52,30 @@ export async function cliMain(): Promise<void> {
 export async function main({ command, componentUrl, options }: CliParseResult) {
     try {
         const config = createConfig(options);
+
+        // Read bytes to detect core module vs component
+        const bytes = await readComponentBytes(componentUrl!);
+
+        if (isCoreModule(bytes)) {
+            // P1 core module path — bypass component model pipeline
+            if (command === 'serve') {
+                throw new Error('WASI P1 core modules do not support the serve command');
+            }
+            const module = await WebAssembly.compile(bytes as BufferSource);
+            const { createWasiP1ViaP3Adapter } = await loadWasiP1ViaP3Adapter();
+            const adapter = createWasiP1ViaP3Adapter(config);
+            const instance = await WebAssembly.instantiate(module, adapter.imports as unknown as WebAssembly.Imports);
+            const wasmMemory = instance.exports['memory'] as WebAssembly.Memory | undefined;
+            if (wasmMemory) {
+                adapter.bindMemory(wasmMemory);
+            }
+            const start = instance.exports['_start'] as Function | undefined;
+            if (start) {
+                start();
+            }
+            return;
+        }
+
         const component = await createComponent(componentUrl!, options);
         const exportNames = component.exports();
         const importNames = component.imports();
@@ -117,4 +142,16 @@ export function createConfig(options: CliOptions): WasiP3Config {
         cwd: options.cwd,
         args: options.componentArgs.length > 0 ? options.componentArgs : undefined,
     };
+}
+
+async function readComponentBytes(url: string): Promise<Uint8Array> {
+    const result = await fetchLike(url);
+    if (result instanceof Uint8Array) {
+        return new Uint8Array(result);
+    }
+    const body = await getBodyIfResponse(result as any);
+    if (body instanceof Uint8Array) {
+        return new Uint8Array(body);
+    }
+    throw new Error(`Failed to read component bytes from ${url}`);
 }

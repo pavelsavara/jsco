@@ -47,7 +47,7 @@ export async function instantiateWasiComponent<TJSExports>(
 
     // Component path (P2/P3) — parse bytes first, then create component from parsed model
     const parsed = await parse(bytes, options);
-    const component = await resolverCreateComponent<TJSExports>(parsed, options);
+    const component = await resolverCreateComponent<TJSExports>(parsed as unknown as ComponentFactoryInput, options);
     const exportNames = component.exports();
     const importNames = component.imports();
     const wasiType = detectWasiType(exportNames, importNames);

@@ -19,6 +19,8 @@ export type FdEntry = {
     rightsInheriting: Rights
     /** For preopened directories: the guest-visible path */
     preopenPath?: string
+    /** VFS path components for file/directory FDs */
+    vfsPath?: string[]
     /** Current file position for seekable FDs */
     position: bigint
 }
@@ -72,7 +74,7 @@ export const ALL_RIGHTS = Rights.FdDatasync | Rights.FdRead | Rights.FdSeek | Ri
     | Rights.SockShutdown | Rights.SockAccept;
 
 /**
- * Create a pre-populated FD table with stdin(0), stdout(1), stderr(2).
+ * Create a pre-populated FD table with stdin(0), stdout(1), stderr(2), and root preopen(3).
  */
 export function createDefaultFdTable(): FdTable {
     const table = new FdTable();
@@ -104,6 +106,18 @@ export function createDefaultFdTable(): FdTable {
         flags: Fdflags.Append,
         rightsBase: Rights.FdWrite | Rights.PollFdReadwrite,
         rightsInheriting: 0 as Rights,
+        position: 0n,
+    });
+
+    // fd 3 = preopened root directory '/'
+    table.allocate({
+        kind: FdKind.PreopenDir,
+        filetype: Filetype.Directory,
+        flags: 0 as Fdflags,
+        rightsBase: ALL_RIGHTS,
+        rightsInheriting: ALL_RIGHTS,
+        preopenPath: '/',
+        vfsPath: [],
         position: 0n,
     });
 
