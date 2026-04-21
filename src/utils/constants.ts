@@ -16,6 +16,7 @@ export const INSTANTIATE = 'instantiate';
 
 // WasmComponentInstance
 export const EXPORTS = 'exports';
+export const IMPORTS = 'imports';
 export const ABORT = 'abort';
 
 // Variant / Result convention — consumers create { tag: 'ok', val: 42 }

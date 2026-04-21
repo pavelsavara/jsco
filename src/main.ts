@@ -2,11 +2,12 @@
 
 import type { WasiP3Config } from './host/wasip3';
 import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
-import { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve } from './dynamic';
+import { loadWasiP3Serve } from './dynamic';
 import { createComponent } from './resolver';
 import { CliOptions, CliParseResult, getHelpText, parseCliArgs } from './utils/args';
-import { EXPORTS, INSTANTIATE } from './utils/constants';
+import { EXPORTS, IMPORTS, INSTANTIATE } from './utils/constants';
 import { hasJspi } from './utils/jspi';
+import { detectWasiType, createWasiImports, WasiType } from './wasi-auto';
 
 // ─── CLI Entry Point ───
 
@@ -52,18 +53,16 @@ export async function main({ command, componentUrl, options }: CliParseResult) {
     try {
         const config = createConfig(options);
         const component = await createComponent(componentUrl!, options);
-        const exports = component[EXPORTS]();
-        const wsiP2Rx = /^wasi:cli\/.*@0\.2/;
-        const isWasiP2 = exports.find(s => wsiP2Rx.test(s));
-        const { createWasiP3Host } = await loadWasiP3Host();
-        const wasiP3Host = createWasiP3Host(config);
-        const imports = isWasiP2
-            ? (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(wasiP3Host)
-            : wasiP3Host;
+        const exportNames = component[EXPORTS]();
+        const importNames = component[IMPORTS]();
+        const wasiType = detectWasiType(exportNames, importNames);
+        // CLI always provides a host — default to P3 when WASI version is not detected
+        const effectiveType = wasiType === WasiType.None ? WasiType.P3 : wasiType;
+        const imports = await createWasiImports(effectiveType, config);
         const instance = await component[INSTANTIATE](imports);
 
         if (command === 'run') {
-            const runExportName = exports.find(s => s.startsWith('wasi:cli/run'));
+            const runExportName = exportNames.find(s => s.startsWith('wasi:cli/run'));
             if (!runExportName) {
                 throw new Error('Component does not export wasi:cli/run');
             }
@@ -71,12 +70,12 @@ export async function main({ command, componentUrl, options }: CliParseResult) {
             if (!run) throw new Error('Component does not export wasi:cli/run');
             await run();
         } else if (command === 'serve') {
-            const handlerExportName = exports.find(s => s.startsWith('wasi:incoming-handler/handle'));
+            const handlerExportName = exportNames.find(s => s.startsWith('wasi:http/incoming-handler') || s.startsWith('wasi:incoming-handler/handle'));
             if (!handlerExportName) {
-                throw new Error('Component does not export wasi:incoming-handler/handle');
+                throw new Error('Component does not export wasi:http/incoming-handler');
             }
             const handlerExport = instance.exports[handlerExportName] as WasiHttpHandlerExport | undefined;
-            if (!handlerExport) throw new Error('Component does not export wasi:incoming-handler/handle');
+            if (!handlerExport) throw new Error('Component does not export wasi:http/incoming-handler');
 
             await (await loadWasiP3Serve()).serve(handlerExport, config);
         } else {

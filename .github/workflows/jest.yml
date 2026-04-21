@@ -87,6 +87,14 @@ jobs:
         if [ "$fail" -eq 1 ]; then exit 1; fi
         echo "✓ All bundle sizes OK"
 
+    - name: Run demos (Debug build)
+      env:
+        Configuration: Debug
+      run: |
+        npm run build
+        npm run demo
+        npm run demo:verbose
+
   browser-tests:
     runs-on: ubuntu-latest
     env:

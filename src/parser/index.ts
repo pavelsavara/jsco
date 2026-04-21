@@ -91,6 +91,10 @@ async function checkPreamble(src: Source): Promise<void> {
         && version.every((v, i) => v === WIT_VERSION[i])
         && layer.every((v, i) => v === WIT_LAYER[i]);
     if (!ok) {
+        // Detect core WASM module (WASI P1): same magic, version 1, layer 0
+        if (magic.every((v, i) => v === WIT_MAGIC[i]) && version[0] === 0x01 && version[1] === 0x00) {
+            throw new Error('Input is a WebAssembly core module, not a component. WASI Preview 1 modules must be compiled as a component (e.g. use wasm32-wasip2 target or apply a P1-to-P2 adapter shim).');
+        }
         throw new Error('unexpected magic, version or layer.');
     }
 }

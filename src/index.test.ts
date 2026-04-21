@@ -1,9 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { getBuildInfo, createComponent, LogLevel } from './index';
+import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from './index';
 import { createWasiP3Host, WasiExit } from './host/wasip3/wasip3';
 import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
 import { GIT_HASH, CONFIGURATION } from './utils/constants';
+import { detectWasiType, WasiType } from './wasi-auto';
+import { parse } from './parser';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
@@ -270,5 +272,78 @@ describe('useNumberForInt64 contract', () => {
             expect(logMessages.length).toBe(1);
             expect(logMessages[0]).toContain('Prague');
         }));
+    });
+});
+
+describe('instantiateWasiComponent', () => {
+    const verbose = useVerboseOnFailure();
+
+    test('auto-detects P2 and provides host for hello-world', () => runWithVerbose(verbose, async () => {
+        const chunks: Uint8Array[] = [];
+        const stdout = new WritableStream<Uint8Array>({
+            write(chunk) { chunks.push(new Uint8Array(chunk)); },
+        });
+        const instance = await instantiateWasiComponent(helloWorldWatWasm, { stdout });
+        const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
+        expect(runNs).toBeDefined();
+        try {
+            await runNs.run();
+        } catch (e) {
+            if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
+        }
+        const stdoutText = new TextDecoder().decode(
+            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+        );
+        expect(stdoutText).toContain('hello from jsco');
+    }));
+
+    test('exposes imports() on WasmComponent', () => runWithVerbose(verbose, async () => {
+        const component = await createComponent(helloWorldWatWasm, verboseOptions(verbose));
+        const importNames = component.imports();
+        expect(Array.isArray(importNames)).toBe(true);
+        expect(importNames.length).toBeGreaterThan(0);
+        // P2 component should import WASI interfaces
+        expect(importNames.some(n => n.startsWith('wasi:'))).toBe(true);
+    }));
+});
+
+describe('detectWasiType', () => {
+    test('detects P2 from wasi:cli exports', () => {
+        expect(detectWasiType(['wasi:cli/run@0.2.11'], [])).toBe(WasiType.P2);
+    });
+
+    test('detects P2 from wasi:http exports', () => {
+        expect(detectWasiType(['wasi:http/incoming-handler@0.2.0'], [])).toBe(WasiType.P2);
+    });
+
+    test('detects P3 from wasi:cli exports', () => {
+        expect(detectWasiType(['wasi:cli/run@0.3.0'], [])).toBe(WasiType.P3);
+    });
+
+    test('detects P3 from unversioned wasi exports', () => {
+        expect(detectWasiType(['wasi:cli/run'], [])).toBe(WasiType.P3);
+    });
+
+    test('detects P2 from imports when exports have no WASI', () => {
+        expect(detectWasiType(
+            ['my:app/api@1.0.0'],
+            ['wasi:filesystem/types@0.2.11']
+        )).toBe(WasiType.P2);
+    });
+
+    test('returns None when no WASI interfaces', () => {
+        expect(detectWasiType(['my:app/api@1.0.0'], [])).toBe(WasiType.None);
+    });
+
+    test('returns None for empty arrays', () => {
+        expect(detectWasiType([], [])).toBe(WasiType.None);
+    });
+});
+
+describe('WASI P1 detection', () => {
+    test('core WASM module (P1) gives clear error', async () => {
+        // A minimal core WASM module: magic + version 1
+        const coreModule = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+        await expect(parse(coreModule)).rejects.toThrow('WebAssembly core module, not a component');
     });
 });

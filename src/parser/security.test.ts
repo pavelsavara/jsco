@@ -72,7 +72,7 @@ describe('parser security', () => {
         test('core wasm module header (layer 0)', async () => {
             // layer = [0x00, 0x00] instead of [0x01, 0x00]
             const wasm = new Uint8Array([...WIT_MAGIC, 0x01, 0x00, 0x00, 0x00]);
-            await expect(parse(wasm)).rejects.toThrow('unexpected magic, version or layer.');
+            await expect(parse(wasm)).rejects.toThrow('WebAssembly core module, not a component');
         });
     });
 

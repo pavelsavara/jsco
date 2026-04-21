@@ -12,7 +12,7 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
-import { EXPORTS, INSTANTIATE } from '../utils/constants';
+import { EXPORTS, IMPORTS, INSTANTIATE } from '../utils/constants';
 
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
@@ -114,8 +114,9 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
         rctx.resolved.logger!('resolver', LogLevel.Summary, lines.join('\n'));
     }
 
-    // Extract export names before freeing indexes.
+    // Extract export and import names before freeing indexes.
     const exportNames = rctx.indexes.componentExports.map(e => e.name.name);
+    const importNames = rctx.indexes.componentImports.map(i => i.name.name);
 
     // Free the large indexes structure — no longer needed after resolution.
     // Binder closures capture rctx.resolved (ResolvedContext) — a separate object
@@ -128,6 +129,7 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     let firstInstantiation = true;
     const component = {
         [EXPORTS]: () => exportNames,
+        [IMPORTS]: () => importNames,
         [INSTANTIATE]: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
