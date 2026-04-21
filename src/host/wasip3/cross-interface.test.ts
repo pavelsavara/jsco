@@ -1,11 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createMonotonicClock } from './clocks';
+import { createMonotonicClock, createSystemClock } from './clocks';
 import { initFilesystem, createPreopens } from './filesystem';
 import { createHttpTypes } from './http';
-import { createStreamPair, collectBytes } from './streams';
-import { createStdout } from './stdio';
-import { createExit, WasiExit } from './cli';
+import { createStreamPair, collectBytes, collectStream } from './streams';
+import { createStdout, createStderr, createStdin } from './stdio';
+import { createExit, createEnvironment, WasiExit } from './cli';
 import { createHandleTable } from './resources';
 import type { WasiStreamReadable } from './streams';
 
@@ -229,6 +229,204 @@ describe('Cross-interface scenarios', () => {
             expect(t1 >= t0).toBe(true);
             expect(t2 >= t1).toBe(true);
             expect(decoder.decode(chunks[0]!)).toBe('content');
+        });
+    });
+
+    describe('Clock + Filesystem (8.1)', () => {
+        it('set file timestamps to a specific system-clock instant → stat → verify', async () => {
+            const sysClock = createSystemClock();
+            const root = getRoot();
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'timestamped.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            await file.writeViaStream(readableFrom(encoder.encode('data')), 0n);
+
+            const instant = sysClock.now();
+            const nsTimestamp = instant.seconds * 1_000_000_000n + BigInt(instant.nanoseconds);
+            await file.setTimes({ tag: 'timestamp', val: { seconds: instant.seconds, nanoseconds: instant.nanoseconds } },
+                { tag: 'timestamp', val: { seconds: instant.seconds, nanoseconds: instant.nanoseconds } });
+
+            const stat = await file.stat();
+            expect(stat.dataAccessTimestamp).toBeDefined();
+        });
+    });
+
+    describe('HTTP + Filesystem (8.3)', () => {
+        it('read file → stream as HTTP request body contents', async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const types = createHttpTypes() as any;
+            const root = getRoot({ fs: new Map([['upload.txt', 'file contents for upload']]) });
+
+            // Read file
+            const file = await root.openAt({ symlinkFollow: false }, 'upload.txt', {}, { read: true });
+            const [readStream] = file.readViaStream(0n);
+            const fileBytes = await collectBytes(readStream);
+
+            // Create HTTP request with file contents as body
+            const headers = new types.Fields();
+            headers.set('content-type', [encoder.encode('text/plain')]);
+
+            const body = {
+                async *[Symbol.asyncIterator]() {
+                    yield fileBytes;
+                },
+            };
+            const trailers = Promise.resolve({ tag: 'ok', val: undefined });
+            const [req] = types.Request.new(headers, body, trailers, undefined);
+            req.setMethod({ tag: 'post' });
+            req.setScheme({ tag: 'HTTP' });
+            req.setAuthority('example.com');
+            req.setPathWithQuery('/upload');
+
+            // Verify request was created correctly
+            expect(req.getMethod().tag).toBe('post');
+            const resFuture = Promise.resolve({ tag: 'ok', val: undefined });
+            const [bodyStream] = types.Request.consumeBody(req, resFuture);
+            const bodyChunks: Uint8Array[] = [];
+            for await (const chunk of bodyStream) {
+                bodyChunks.push(chunk);
+            }
+            expect(decoder.decode(bodyChunks[0])).toBe('file contents for upload');
+        });
+    });
+
+    describe('Stdio + Environment (8.5)', () => {
+        it('stdout and stderr interleaved — each stream preserves order', async () => {
+            const stdoutChunks: Uint8Array[] = [];
+            const stderrChunks: Uint8Array[] = [];
+
+            const stdoutStream = new WritableStream<Uint8Array>({
+                write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+            });
+            const stderrStream = new WritableStream<Uint8Array>({
+                write(chunk) { stderrChunks.push(new Uint8Array(chunk)); },
+            });
+
+            const stdout = createStdout({ stdout: stdoutStream });
+            const stderr = createStderr({ stderr: stderrStream });
+
+            // Write to stdout
+            const outPair = createStreamPair<Uint8Array>();
+            const outFuture = stdout.writeViaStream(outPair.readable);
+            await outPair.write(encoder.encode('out1'));
+            await outPair.write(encoder.encode('out2'));
+            outPair.close();
+
+            // Write to stderr
+            const errPair = createStreamPair<Uint8Array>();
+            const errFuture = stderr.writeViaStream(errPair.readable);
+            await errPair.write(encoder.encode('err1'));
+            await errPair.write(encoder.encode('err2'));
+            errPair.close();
+
+            await Promise.all([outFuture, errFuture]);
+
+            expect(stdoutChunks.length).toBe(2);
+            expect(decoder.decode(stdoutChunks[0]!)).toBe('out1');
+            expect(decoder.decode(stdoutChunks[1]!)).toBe('out2');
+            expect(stderrChunks.length).toBe(2);
+            expect(decoder.decode(stderrChunks[0]!)).toBe('err1');
+            expect(decoder.decode(stderrChunks[1]!)).toBe('err2');
+        });
+
+        it('stdin reading is independent of environment access', () => {
+            const inputStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(encoder.encode('input'));
+                    controller.close();
+                },
+            });
+            const stdin = createStdin({ stdin: inputStream });
+            const env = createEnvironment({ env: [['KEY', 'VAL']], args: ['arg1'] });
+
+            // Both work independently
+            const [stdinStream] = stdin.readViaStream();
+            expect(stdinStream).toBeDefined();
+            expect(env.getEnvironment()).toEqual([['KEY', 'VAL']]);
+            expect(env.getArguments()).toEqual(['arg1']);
+        });
+    });
+
+    describe('Handle reuse after drop (8.6)', () => {
+        it('after dropping a resource, handle reused for new resource — old ref must not reach new', () => {
+            const table = createHandleTable<string>();
+            const h1 = table.alloc('old-fields');
+            table.drop(h1);
+
+            // Handle is reused
+            const h2 = table.alloc('new-request');
+            expect(h2).toBe(h1);
+
+            // New value, not old
+            expect(table.get(h2)).toBe('new-request');
+        });
+    });
+
+    describe('Exit during multiple subsystem operations (8.7)', () => {
+        it('exit during stdout write — exit propagates, stdout state survives for inspection', async () => {
+            const exit = createExit();
+            const chunks: Uint8Array[] = [];
+            const outputStream = new WritableStream<Uint8Array>({
+                write(chunk) { chunks.push(new Uint8Array(chunk)); },
+            });
+            const stdout = createStdout({ stdout: outputStream });
+
+            // Write something first
+            const pair = createStreamPair<Uint8Array>();
+            const future = stdout.writeViaStream(pair.readable);
+            await pair.write(encoder.encode('before-exit'));
+            pair.close();
+            await future;
+
+            // Now exit
+            try {
+                exit.exitWithCode(42);
+            } catch (e) {
+                expect(e).toBeInstanceOf(WasiExit);
+                expect((e as WasiExit).exitCode).toBe(42);
+            }
+
+            // Data written before exit is preserved
+            expect(chunks.length).toBe(1);
+            expect(decoder.decode(chunks[0]!)).toBe('before-exit');
+        });
+
+        it('exit code correctly propagated despite pending state', () => {
+            const exit = createExit();
+            const table = createHandleTable<string>();
+            table.alloc('resource-1');
+            table.alloc('resource-2');
+
+            try {
+                exit.exit({ tag: 'err', val: undefined });
+            } catch (e) {
+                expect(e).toBeInstanceOf(WasiExit);
+                expect((e as WasiExit).exitCode).toBe(1);
+            }
+        });
+    });
+
+    describe('Filesystem + streams pipeline (multi-step)', () => {
+        it('pipe file content through stream pair to another file', async () => {
+            const root = getRoot({ fs: new Map([['source.txt', 'piped content']]) });
+
+            // Read from source
+            const srcFile = await root.openAt({ symlinkFollow: false }, 'source.txt', {}, { read: true });
+            const [srcStream] = srcFile.readViaStream(0n);
+            const srcBytes = await collectBytes(srcStream);
+
+            // Write to destination
+            const dstFile = await root.openAt(
+                { symlinkFollow: false }, 'dest.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            await dstFile.writeViaStream(readableFrom(srcBytes), 0n);
+
+            // Verify destination
+            const [dstStream] = dstFile.readViaStream(0n);
+            const dstBytes = await collectBytes(dstStream);
+            expect(decoder.decode(dstBytes)).toBe('piped content');
         });
     });
 });

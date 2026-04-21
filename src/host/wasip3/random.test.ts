@@ -65,6 +65,18 @@ describe('wasi:random/random', () => {
                 expect(bytes.length).toBe(64);
             }
         });
+
+        it('throws for undefined argument', () => {
+            expect(() => (random as any).getRandomBytes(undefined)).toThrow();
+        });
+
+        it('throws for number instead of bigint', () => {
+            expect(() => (random as any).getRandomBytes(42)).toThrow();
+        });
+
+        it('throws for absurdly large bigint beyond u64', () => {
+            expect(() => random.getRandomBytes(BigInt(Number.MAX_SAFE_INTEGER) * 1000n)).toThrow(RangeError);
+        });
     });
 
     describe('getRandomU64', () => {

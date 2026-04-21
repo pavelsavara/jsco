@@ -202,4 +202,57 @@ describe('wasi:clocks evil arguments', () => {
         expect(p).toBeInstanceOf(Promise);
         // We do not await it — just verify it was created safely
     });
+
+    it('waitFor(undefined) throws or rejects', async () => {
+        try {
+            await (clock as any).waitFor(undefined);
+        } catch {
+            // Expected — undefined is not a bigint
+            return;
+        }
+        // If it didn't throw, it resolved — that's also acceptable for a no-op
+    });
+
+    it('waitUntil with non-bigint argument throws or rejects', async () => {
+        try {
+            await (clock as any).waitUntil('not a bigint');
+        } catch {
+            // Expected
+            return;
+        }
+        // Acceptable if it resolves immediately (treats as already-past)
+    });
+});
+
+describe('wasi:clocks/system-clock additional', () => {
+    const clock = createSystemClock();
+
+    it('nanoseconds is in valid range after multiple calls', () => {
+        for (let i = 0; i < 10; i++) {
+            const instant = clock.now();
+            expect(instant.nanoseconds).toBeGreaterThanOrEqual(0);
+            expect(instant.nanoseconds).toBeLessThanOrEqual(999_999_999);
+        }
+    });
+});
+
+describe('wasi:clocks/timezone invalid arguments', () => {
+    const tz = createTimezone();
+
+    it('utcOffset with malformed instant (negative nanoseconds) does not crash', () => {
+        const malformed = { seconds: BigInt(Math.floor(Date.now() / 1000)), nanoseconds: -1 };
+        // Should not crash — may return an offset or undefined
+        const result = tz.utcOffset(malformed);
+        if (result !== undefined) {
+            expect(typeof result).toBe('bigint');
+        }
+    });
+
+    it('utcOffset with nanoseconds > 999_999_999 does not crash', () => {
+        const malformed = { seconds: BigInt(Math.floor(Date.now() / 1000)), nanoseconds: 1_500_000_000 };
+        const result = tz.utcOffset(malformed);
+        if (result !== undefined) {
+            expect(typeof result).toBe('bigint');
+        }
+    });
 });

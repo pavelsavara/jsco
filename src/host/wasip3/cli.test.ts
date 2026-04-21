@@ -254,4 +254,44 @@ describe('wasi:cli/exit edge cases', () => {
         const result = await exitPromise;
         expect(result).toBeInstanceOf(WasiExit);
     });
+
+    it('double exit — second call still throws WasiExit', () => {
+        // Both calls throw independently (no "already exiting" state)
+        let count = 0;
+        for (let i = 0; i < 2; i++) {
+            try {
+                exit.exitWithCode(0);
+            } catch (e) {
+                expect(e).toBeInstanceOf(WasiExit);
+                count++;
+            }
+        }
+        expect(count).toBe(2);
+    });
+
+    it('rapid repeated exit calls do not cause double-free', () => {
+        for (let i = 0; i < 10; i++) {
+            try {
+                exit.exitWithCode(i);
+            } catch (e) {
+                expect(e).toBeInstanceOf(WasiExit);
+                expect((e as WasiExit).exitCode).toBe(i);
+            }
+        }
+    });
+});
+
+describe('wasi:cli/environment evil arguments', () => {
+    it('env var with null bytes in value is preserved (opaque string)', () => {
+        // The host config layer does not sanitize — values are opaque
+        const env = createEnvironment({ env: [['KEY', 'val\x00ue']] });
+        const result = env.getEnvironment();
+        expect(result[0]![1]).toBe('val\x00ue');
+    });
+
+    it('env var value containing shell injection patterns is opaque', () => {
+        const env = createEnvironment({ env: [['CMD', '$(rm -rf /)']] });
+        const result = env.getEnvironment();
+        expect(result[0]![1]).toBe('$(rm -rf /)');
+    });
 });
