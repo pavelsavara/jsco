@@ -10,6 +10,7 @@
 
 - **Always run tests with `--experimental-vm-modules --experimental-wasm-jspi`** — Jest requires `--experimental-vm-modules` to load ESM-only node_modules (like `@bytecodealliance/jco`) as native ESM. WASI tests require `--experimental-wasm-jspi`. Use `npm run test:ci` or `node --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js` on Windows. Never use bare `npx jest` — it won't pass the Node flags.
 - **`transformIgnorePatterns`** excludes `@bytecodealliance/` from SWC transformation. ESM packages using `import.meta` break when SWC converts them to CJS. If adding new ESM-only deps that use `import.meta`, add them to `transformIgnorePatterns` in `jest.config.js`.
+- do not add jest coverage exclusions into `collectCoverageFrom`.
 
 ## Verbose Logging & Debugging
 

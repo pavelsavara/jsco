@@ -1,9 +1,6 @@
 # Testing
 - create sample app in go
 - compose 2 different JSCO instantiated components JSCO(WASM) -> JSCO(WASM)
-- add more WIT text based test scenarios into parser tests (parser coverage 67% — needs improvement)
-- improve utils/ coverage (47% — lowest in project)
-- add Firefox browser test (Chrome done via Playwright)
 - scenarios testing memory leaks
 - consider too many HTTP headers or too large body
 - update consumer,forwarder,implementer to cover all wasip2 functions and fix tests
