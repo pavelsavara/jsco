@@ -31,7 +31,7 @@ jobs:
     - name: Run Jest unit tests (${{ matrix.configuration }})
       run: |
         COVERAGE_FLAG=${{ matrix.configuration == 'Debug' && '--coverage' || '--no-coverage' }}
-        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test use-number-for-int64.test
+        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-p2-world.test use-number-for-int64.test
 
     - name: Upload coverage (Debug only)
       if: matrix.configuration == 'Debug'

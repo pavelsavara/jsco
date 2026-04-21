@@ -1782,7 +1782,7 @@ macro_rules! __export_hello_world_impl {
 pub(crate) use __export_hello_world_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
-    link_section = "component-type:wit-bindgen:0.41.0:jsco:hello-world:hello-world:encoded world"
+    link_section = "component-type:wit-bindgen:0.41.0:jsco:hello-p2-world:hello-p2-world:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
@@ -1823,7 +1823,7 @@ get-stdin\x01\x03\x03\0\x15wasi:cli/stdin@0.2.11\x05\x08\x02\x03\0\x04\x0doutput
 B\x05\x02\x03\x02\x01\x09\x04\0\x0doutput-stream\x03\0\0\x01i\x01\x01@\0\0\x02\x04\
 \0\x0aget-stderr\x01\x03\x03\0\x16wasi:cli/stderr@0.2.11\x05\x0b\x01B\x03\x01j\0\
 \0\x01@\0\0\0\x04\0\x03run\x01\x01\x04\0\x13wasi:cli/run@0.2.11\x05\x0c\x04\0\x1c\
-jsco:hello-world/hello-world\x04\0\x0b\x11\x01\0\x0bhello-world\x03\0\0\0G\x09pr\
+jsco:hello-p2-world/hello-p2-world\x04\0\x0b\x11\x01\0\x0bhello-p2-world\x03\0\0\0G\x09pr\
 oducers\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x06\
 0.41.0";
 #[inline(never)]

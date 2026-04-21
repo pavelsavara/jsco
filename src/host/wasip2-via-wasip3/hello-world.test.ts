@@ -1,8 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 /**
- * Hello-world integration test through the P2-via-P3 adapter.
- * Mirrors wasip2/hello-world.test.ts — same WASM binary, same assertions,
+ * hello-p2-world integration test through the P2-via-P3 adapter.
+ * Mirrors wasip2/hello-p2-world.test.ts — same WASM binary, same assertions,
  * but uses createWasiP3Host → createWasiP2ViaP3Adapter instead of createWasiP2Host.
  */
 
@@ -32,11 +32,11 @@ function createAdapterHost(options?: { stdout?: (bytes: Uint8Array) => void }) {
     return createWasiP2ViaP3Adapter(p3);
 }
 
-describe('hello-world component (via P3 adapter)', () => {
+describe('hello-p2-world component (via P3 adapter)', () => {
     const verbose = useVerboseOnFailure();
 
     describe('parsing', () => {
-        test('parser can read hello-world.wasm', async () => {
+        test('parser can read hello-p2-world.wasm', async () => {
             const model = await parse(helloWasm);
             expect(model).toBeDefined();
             expect(model.length).toBeGreaterThan(0);

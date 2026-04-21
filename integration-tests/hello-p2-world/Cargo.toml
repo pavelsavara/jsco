@@ -1,5 +1,5 @@
 [package]
-name = "hello-world"
+name = "hello-p2-world"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,9 +10,9 @@ wit-bindgen-rt = { workspace = true }
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "jsco:hello-world"
+package = "jsco:hello-p2-world"
 target.path = "wit/world.wit"
-target.world = "hello-world"
+target.world = "hello-p2-world"
 
 [package.metadata.component.target.dependencies]
 "wasi:cli" = { path = "../../wit/wasip2/cli" }

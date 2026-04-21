@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hello-world"
+name = "hello-p2-world"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen-rt",

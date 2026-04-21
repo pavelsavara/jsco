@@ -1,10 +1,10 @@
-;; Hand-written component-model WAT for hello-world.
+;; Hand-written component-model WAT for hello-p2-world.
 ;; Minimal WASI component that prints "hello from jsco" to stdout.
 ;;
 ;; Imports: wasi:io/error@0.2.11, wasi:io/streams@0.2.11, wasi:cli/stdout@0.2.11
 ;; Exports: wasi:cli/run@0.2.11
 
-(component $hello-world-wat
+(component $hello-p2-world-wat
   ;; =====================================================================
   ;; Import WASI interfaces (minimal subset for stdout writing)
   ;; =====================================================================
@@ -19,7 +19,7 @@
   ;; --- wasi:io/streams@0.2.11 (output-stream + blocking-write-and-flush) ---
   (type $io-streams-iface (instance
     (export "output-stream" (type (sub resource)))                        ;; type 0
-    (alias outer $hello-world-wat $error (type))                          ;; type 1
+    (alias outer $hello-p2-world-wat $error (type))                          ;; type 1
     (export "error" (type (eq 1)))                                        ;; type 2
     (type (own 2))                                                        ;; type 3 = own<error>
     (type (variant (case "last-operation-failed" 3) (case "closed")))      ;; type 4 = stream-error
@@ -35,7 +35,7 @@
   ;; --- wasi:cli/stdout@0.2.11 (get-stdout) ---
   (alias export $io-streams "output-stream" (type $output-stream))
   (type $stdout-iface (instance
-    (alias outer $hello-world-wat $output-stream (type))                  ;; type 0
+    (alias outer $hello-p2-world-wat $output-stream (type))                  ;; type 0
     (export "output-stream" (type (eq 0)))                                ;; type 1
     (type (own 1))                                                        ;; type 2 = own<output-stream>
     (type (func (result 2)))                                              ;; type 3

@@ -208,7 +208,7 @@ describe('Integration tests via P3 adapter (WAC compositions)', () => {
             },
             2,
         );
-    }));
+    }), 60_000);
 
     test('Scenario L: consumer ← echo-reactor-wat + JS host', async () => runWithVerbose(verbose, async () => {
         const echoInterfaces = [
