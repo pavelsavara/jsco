@@ -60,8 +60,8 @@ export function debugStack(src: any, target: any, position: string) {
 
 export function withDebugTrace<T extends Function>(binder: T, label: string): T {
     if (!isDebug) return binder;
-    return ((async (bctx: any, bargs: any) => {
+    return ((async (mctx: any, bargs: any) => {
         const tracedArgs = { ...bargs, debugStack: [label, ...(bargs.debugStack ?? [])] };
-        return (binder as any)(bctx, tracedArgs);
+        return (binder as any)(mctx, tracedArgs);
     }) as any) as T;
 }

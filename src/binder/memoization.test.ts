@@ -140,7 +140,7 @@ describeDebugOnly('memoization keys', () => {
             expect(lifter).not.toBe(lowerer);
 
             // Verify they actually behave correctly (lifter: JS→flat, lowerer: flat→JS)
-            const ctx = createMinimalBctx();
+            const ctx = createMinimalCtx();
             // Lifter takes JS object, returns flat WASM args
             const flatArgs = lifter(ctx, { x: 42 });
             expect(flatArgs).toEqual([42]);
@@ -229,7 +229,7 @@ describeDebugOnly('memoization keys', () => {
             // Different rctx = different caches, never collide
             expect(bigintLifter).not.toBe(numberLifter);
 
-            const ctx = createMinimalBctx();
+            const ctx = createMinimalCtx();
             // BigInt lifter should return BigInt args
             const bigintResult = bigintLifter(ctx, 42n);
             expect(typeof bigintResult[0]).toBe('bigint');
@@ -262,6 +262,6 @@ describeDebugOnly('memoization keys', () => {
     });
 });
 
-function createMinimalBctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }

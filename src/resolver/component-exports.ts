@@ -29,7 +29,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
             return {
                 callerElement: rargs.callerElement,
                 element: componentExport,
-                binder: withDebugTrace(async (bctx, bargs) => {
+                binder: withDebugTrace(async (mctx, bargs) => {
                     const args = {
                         arguments: [componentExport.name.name],
                         imports: bargs.imports,
@@ -37,7 +37,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
                         debugStack: bargs.debugStack,
                     };
 
-                    const exportResult = await functionResolution.binder(bctx, args);
+                    const exportResult = await functionResolution.binder(mctx, args);
                     const binderResult = {
                         result: { [componentExport.name.name]: exportResult.result }
                     };
@@ -51,7 +51,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
             return {
                 callerElement: rargs.callerElement,
                 element: componentExport,
-                binder: withDebugTrace(async (bctx, bargs) => {
+                binder: withDebugTrace(async (mctx, bargs) => {
                     const args = {
                         arguments: [componentExport.name.name],
                         imports: bargs.imports,
@@ -59,7 +59,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
                         debugStack: bargs.debugStack,
                     };
 
-                    const instanceResult = await instanceResolution.binder(bctx, args) as { result: { exports: Record<string, unknown> } };
+                    const instanceResult = await instanceResolution.binder(mctx, args) as { result: { exports: Record<string, unknown> } };
                     const ifc: Record<string, unknown> = {};
                     ifc[componentExport.name.name] = instanceResult.result.exports;
                     const binderResult = {
@@ -76,7 +76,7 @@ export const resolveComponentExport: Resolver<ComponentExport> = (rctx, rargs) =
             return {
                 callerElement: rargs.callerElement,
                 element: componentExport,
-                binder: withDebugTrace(async (_bctx, _bargs) => {
+                binder: withDebugTrace(async (_mctx, _bargs) => {
                     return { result: undefined };
                 }, rargs.element.tag + ':' + rargs.element.name.name + ':Type')
             };

@@ -7,13 +7,14 @@
 
 import type { WasiP3Imports } from '../../../../wit/wasip3/types/index';
 import type { WasiP3Config } from '../types';
-import { createHost as createBrowserHost } from '../index';
+import { createWasiP3Host as createBrowserHost } from '../index';
 import { createNodeSocketsTypes, createNodeIpNameLookup } from './sockets';
 import { addNodeMounts } from './filesystem-node';
 import { initFilesystem, createPreopens, createFilesystemTypes } from '../filesystem';
 import { nodeStdioDefaults } from './stdio-node';
 import { serve as serveImpl } from './http-server';
 import type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
+import { JsImports } from '../../../resolver/api-types';
 
 // Re-export everything from the browser module so consumers need only one import
 export * from '../index';
@@ -26,7 +27,7 @@ export * from '../index';
  * When `config.mounts` is present, adds real filesystem mount preopens.
  * Defaults stdin/stdout/stderr to process streams when not explicitly provided.
  */
-export function createHost(config?: WasiP3Config): WasiP3Imports {
+export function createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports {
     // Only inject Node.js process streams when user didn't provide their own
     const nodeConfig: WasiP3Config = { ...config };
     if (!nodeConfig.stdin) {
@@ -63,7 +64,7 @@ export function createHost(config?: WasiP3Config): WasiP3Imports {
         override('wasi:filesystem/types', createFilesystemTypes(fsState));
     }
 
-    return host as unknown as WasiP3Imports;
+    return host as unknown as WasiP3Imports & JsImports;
 }
 
 /**

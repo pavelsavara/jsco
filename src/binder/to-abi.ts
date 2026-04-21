@@ -12,13 +12,12 @@ import { getCanonicalResourceId } from '../resolver/context';
 import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, flatCount, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLowering, createMemoryLoader } from './to-js';
-import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, JsValue, WasmFunction, JsFunction } from '../marshal/model/types';
+import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, WasmFunction, JsFunction, MemoryStorer } from '../marshal/model/types';
 import { liftFlatFlat, liftFlatSpilled, liftSpilledFlat, liftSpilledSpilled } from '../marshal/trampoline-lift';
 import type { FunctionLiftPlan } from '../marshal/trampoline-lift';
 import { boolLifting, s8Lifting, u8Lifting, s16Lifting, u16Lifting, s32Lifting, u32Lifting, s64LiftingNumber, s64LiftingBigInt, u64LiftingNumber, u64LiftingBigInt, f32Lifting, f64Lifting, charLifting, stringLiftingUtf8, stringLiftingUtf16, ownLifting, borrowLifting, borrowLiftingDirect, enumLifting, flagsLifting, recordLifting, tupleLifting, listLifting, optionLifting, resultLifting, resultLiftingCoerced, variantLifting, streamLifting, futureLifting, errorContextLifting } from '../marshal/lift';
-import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorerBoth, resultStorerOkOnly, resultStorerErrOnly, resultStorerVoid, variantStorerDisc1, variantStorerDisc2, variantStorerDisc4, enumStorerDisc1, enumStorerDisc2, enumStorerDisc4, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer } from '../marshal/memory-store';
+import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer, s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer, recordStorer, listStorer, optionStorer, resultStorerBoth, resultStorerOkOnly, resultStorerErrOnly, resultStorerVoid, variantStorerDisc1, variantStorerDisc2, variantStorerDisc4, enumStorerDisc1, enumStorerDisc2, enumStorerDisc4, flagsStorer, tupleStorer, ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer, streamStorer, futureMemStorer, errorContextStorer, createResultWrappingStorer } from '../marshal/memory-store';
 import camelCase from 'just-camel-case';
-import { TAG, VAL, OK, ERR } from '../utils/constants';
 
 
 export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
@@ -277,8 +276,6 @@ function createStringLiftingUtf16(): LiftingFromJs {
 
 // --- Memory store helpers (for list element storage) ---
 
-export type MemoryStorer = (ctx: BindingContext, ptr: number, jsValue: JsValue) => void;
-
 function createPrimitiveStorer(prim: PrimitiveValType, encoding: StringEncoding): MemoryStorer {
     switch (prim) {
         case PrimitiveValType.Bool: return boolStorer;
@@ -401,16 +398,9 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             if (type.value !== undefined) {
                 const innerType = resolveValTypePure(type.value);
                 const innerMemStorer = createMemoryStorer(innerType, stringEncoding, canonicalResourceIds, ownInstanceResources);
-                if (innerType.tag === ModelTag.ComponentTypeDefinedResult) {
-                    futureInnerStorer = (ctx, ptr, value, rejected) => {
-                        const wrapped = rejected
-                            ? { [TAG]: ERR, [VAL]: value }
-                            : { [TAG]: OK, [VAL]: value };
-                        innerMemStorer(ctx, ptr, wrapped);
-                    };
-                } else {
-                    futureInnerStorer = innerMemStorer;
-                }
+                futureInnerStorer = innerType.tag === ModelTag.ComponentTypeDefinedResult
+                    ? createResultWrappingStorer(innerMemStorer)
+                    : innerMemStorer;
             }
             return futureMemStorer.bind(null, { futureStorer: futureInnerStorer });
         }
@@ -546,16 +536,9 @@ function createFutureLifting(rctx: ResolvedContext, futureModel: ComponentTypeDe
         // When the inner type is a result, the CM convention maps
         // ok → Promise resolve, err → Promise reject.
         // We reconstruct the result object from the resolve/reject outcome.
-        if (innerType.tag === ModelTag.ComponentTypeDefinedResult) {
-            storer = (ctx, ptr, value, rejected) => {
-                const wrapped = rejected
-                    ? { [TAG]: ERR, [VAL]: value }
-                    : { [TAG]: OK, [VAL]: value };
-                memStorer(ctx, ptr, wrapped);
-            };
-        } else {
-            storer = memStorer;
-        }
+        storer = innerType.tag === ModelTag.ComponentTypeDefinedResult
+            ? createResultWrappingStorer(memStorer)
+            : memStorer;
     }
     return futureLifting.bind(null, { storer });
 }

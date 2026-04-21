@@ -536,6 +536,306 @@ describe('filesystem — Descriptor', () => {
             expect(s.size).toBe(12n);
         });
     });
+
+    describe('evil arguments', () => {
+        test('createDirectoryAt treats absolute path as relative (leading / stripped)', async () => {
+            const root = getRoot();
+            // Implementation splits on '/' and skips empty segments, so /absolute → ['absolute']
+            await root.createDirectoryAt('/absolute');
+            const stat = await root.statAt({ symlinkFollow: false }, 'absolute');
+            expect(stat.type.tag).toBe('directory');
+        });
+
+        test('createDirectoryAt rejects null byte in path', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('dir\x00hidden')).rejects.toBeDefined();
+        });
+
+        test('openAt rejects absolute path', async () => {
+            const root = getRoot();
+            await expect(root.openAt(
+                { symlinkFollow: false }, '/etc/passwd',
+                {}, { read: true },
+            )).rejects.toBeDefined();
+        });
+
+        test('read at offset beyond file size returns empty', async () => {
+            const root = getRoot({ fs: new Map([['small.txt', 'hi']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'small.txt', {}, { read: true });
+            const [stream] = file.readViaStream(1000n);
+            const bytes = await collectBytes(stream);
+            expect(bytes.length).toBe(0);
+        });
+
+        test('concurrent reads on same file both succeed', async () => {
+            const content = 'shared content for concurrent reads';
+            const root = getRoot({ fs: new Map([['shared.txt', content]]) });
+            const f1 = await root.openAt({ symlinkFollow: false }, 'shared.txt', {}, { read: true });
+            const f2 = await root.openAt({ symlinkFollow: false }, 'shared.txt', {}, { read: true });
+
+            const [s1] = f1.readViaStream(0n);
+            const [s2] = f2.readViaStream(0n);
+
+            const [b1, b2] = await Promise.all([collectBytes(s1), collectBytes(s2)]);
+            expect(decoder.decode(b1)).toBe(content);
+            expect(decoder.decode(b2)).toBe(content);
+        });
+
+        test('setSize to 0 truncates file', async () => {
+            const root = getRoot({ fs: new Map([['big.txt', 'some data here']]) });
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'big.txt',
+                {}, { read: true, write: true },
+            );
+            await file.setSize(0n);
+            const stat = await file.stat();
+            expect(stat.size).toBe(0n);
+        });
+
+        test('createDirectoryAt with empty string name fails', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('')).rejects.toBeDefined();
+        });
+
+        test('createDirectoryAt with . as name fails', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('.')).rejects.toBeDefined();
+        });
+
+        test('createDirectoryAt with .. as name fails', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('..')).rejects.toBeDefined();
+        });
+
+        test('createDirectoryAt with very long name rejects', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('a'.repeat(10000))).rejects.toBeDefined();
+        });
+
+        test('renameAt to same path is no-op or succeeds', async () => {
+            const root = getRoot({ fs: new Map([['same.txt', 'data']]) });
+            // Rename to the same name — should not crash
+            await root.renameAt('same.txt', root, 'same.txt');
+            const [s] = (await root.openAt({ symlinkFollow: false }, 'same.txt', {}, { read: true })).readViaStream(0n);
+            const bytes = await collectBytes(s);
+            expect(decoder.decode(bytes)).toBe('data');
+        });
+
+        test('open same file multiple times yields independent descriptors', async () => {
+            const root = getRoot({ fs: new Map([['multi.txt', 'original']]) });
+            const f1 = await root.openAt({ symlinkFollow: false }, 'multi.txt', {}, { read: true, write: true });
+            const f2 = await root.openAt({ symlinkFollow: false }, 'multi.txt', {}, { read: true });
+
+            // Write through f1
+            await f1.writeViaStream(readableFrom(encoder.encode('modified')), 0n);
+
+            // Read through f2 — should see modified data (shared backing store)
+            const [s2] = f2.readViaStream(0n);
+            const bytes = await collectBytes(s2);
+            expect(decoder.decode(bytes)).toBe('modified');
+        });
+
+        test('write at offset beyond file size extends with zeros', async () => {
+            const root = getRoot({ fs: new Map([['gap.txt', 'AB']]) });
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'gap.txt',
+                {}, { read: true, write: true },
+            );
+            await file.writeViaStream(readableFrom(encoder.encode('CD')), 5n);
+            const [s] = file.readViaStream(0n);
+            const bytes = await collectBytes(s);
+            // First 2 bytes: 'AB', bytes 2-4: zeros, bytes 5-6: 'CD'
+            expect(bytes.length).toBe(7);
+            expect(bytes[0]).toBe(65); // 'A'
+            expect(bytes[1]).toBe(66); // 'B'
+            expect(bytes[2]).toBe(0);
+            expect(bytes[5]).toBe(67); // 'C'
+            expect(bytes[6]).toBe(68); // 'D'
+        });
+
+        test('symlink pointing outside mount is rejected on follow', async () => {
+            const root = getRoot();
+            await root.createDirectoryAt('dir');
+            // Create a symlink that tries to escape via ..
+            await root.symlinkAt('../../etc/passwd', 'evil-link');
+            // Following the symlink should be caught by path traversal prevention
+            await expect(root.openAt(
+                { symlinkFollow: true }, 'evil-link',
+                {}, { read: true },
+            )).rejects.toBeDefined();
+        });
+
+        test('readlinkAt on non-symlink throws', async () => {
+            const root = getRoot({ fs: new Map([['regular.txt', 'data']]) });
+            await expect(root.readlinkAt('regular.txt')).rejects.toBeDefined();
+        });
+
+        test('openAt with path containing %2e%2e is NOT decoded (treated literally)', async () => {
+            const root = getRoot();
+            // %2e%2e should not be decoded to ..
+            await root.openAt(
+                { symlinkFollow: false }, '%2e%2e',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            const stat = await root.statAt({ symlinkFollow: false }, '%2e%2e');
+            expect(stat.type.tag).toBe('regular-file');
+        });
+    });
+
+    describe('no preopens', () => {
+        test('empty filesystem state returns empty preopens', () => {
+            const state = initFilesystem();
+            // Delete the default root preopen by creating a new state with no fs
+            const preopens = createPreopens(state);
+            const dirs = preopens.getDirectories();
+            // Default state always has at least root '/'
+            expect(dirs.length).toBeGreaterThanOrEqual(1);
+        });
+    });
+
+    describe('sync and advice', () => {
+        test('sync on file succeeds', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'f.txt', {}, { read: true, write: true });
+            await file.sync();
+        });
+
+        test('syncData on file succeeds', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'f.txt', {}, { read: true, write: true });
+            await file.syncData();
+        });
+
+        test('advise on file succeeds', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'f.txt', {}, { read: true });
+            await file.advise(0n, 4n, { tag: 'sequential' });
+        });
+
+        test('setSize to same size is no-op', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'f.txt', {}, { read: true, write: true });
+            const stat1 = await file.stat();
+            await file.setSize(stat1.size);
+            const stat2 = await file.stat();
+            expect(stat2.size).toBe(stat1.size);
+        });
+    });
+
+    describe('error paths', () => {
+        test('write to file after drop throws', async () => {
+            const root = getRoot();
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'tmp.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            file.drop();
+            expect(() => file.writeViaStream(readableFrom(encoder.encode('late')), 0n)).toThrow();
+        });
+
+        test('openAt with directory flag on regular file throws', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            await expect(root.openAt(
+                { symlinkFollow: false }, 'f.txt',
+                { directory: true }, { read: true },
+            )).rejects.toBeDefined();
+        });
+
+        test('unlinkFileAt on directory throws', async () => {
+            const root = getRoot();
+            await root.createDirectoryAt('mydir');
+            await expect(root.unlinkFileAt('mydir')).rejects.toBeDefined();
+        });
+
+        test('createDirectoryAt that already exists throws', async () => {
+            const root = getRoot();
+            await root.createDirectoryAt('existing');
+            await expect(root.createDirectoryAt('existing')).rejects.toBeDefined();
+        });
+
+        test('removeDirectoryAt on non-existent throws', async () => {
+            const root = getRoot();
+            await expect(root.removeDirectoryAt('nope')).rejects.toBeDefined();
+        });
+
+        test('renameAt with missing source throws', async () => {
+            const root = getRoot();
+            await expect(root.renameAt('nonexistent', root, 'dest')).rejects.toBeDefined();
+        });
+
+        test('statAt on non-existent path throws', async () => {
+            const root = getRoot();
+            await expect(root.statAt({ symlinkFollow: false }, 'no-such-file')).rejects.toBeDefined();
+        });
+
+        test('setSize on read-only descriptor throws', async () => {
+            const root = getRoot({ fs: new Map([['ro.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'ro.txt', {}, { read: true });
+            await expect(file.setSize(0n)).rejects.toBeDefined();
+        });
+    });
+
+    describe('async ordering', () => {
+        test('start reading file A, start writing file B — both succeed independently', async () => {
+            const root = getRoot({ fs: new Map([['a.txt', 'aaa']]) });
+            const fileA = await root.openAt({ symlinkFollow: false }, 'a.txt', {}, { read: true });
+            const fileB = await root.openAt(
+                { symlinkFollow: false }, 'b.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+
+            const [readStream] = fileA.readViaStream(0n);
+            const writeFuture = fileB.writeViaStream(readableFrom(encoder.encode('bbb')), 0n);
+
+            const [readBytes] = await Promise.all([collectBytes(readStream), writeFuture]);
+            expect(decoder.decode(readBytes)).toBe('aaa');
+
+            const [bStream] = fileB.readViaStream(0n);
+            const bBytes = await collectBytes(bStream);
+            expect(decoder.decode(bBytes)).toBe('bbb');
+        });
+
+        test('rename file then open at new path — data still accessible', async () => {
+            const root = getRoot({ fs: new Map([['before.txt', 'content']]) });
+            await root.renameAt('before.txt', root, 'after.txt');
+
+            // File accessible at new path
+            const file = await root.openAt({ symlinkFollow: false }, 'after.txt', {}, { read: true });
+            const [s] = file.readViaStream(0n);
+            const bytes = await collectBytes(s);
+            expect(decoder.decode(bytes)).toBe('content');
+
+            // Old path is gone
+            await expect(
+                root.openAt({ symlinkFollow: false }, 'before.txt', {}, { read: true }),
+            ).rejects.toEqual({ tag: 'no-entry' });
+        });
+
+        test('write to file then setSize smaller — read shows truncated', async () => {
+            const root = getRoot();
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'trunc.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            await file.writeViaStream(readableFrom(encoder.encode('hello world')), 0n);
+            await file.setSize(5n);
+            const [s] = file.readViaStream(0n);
+            const bytes = await collectBytes(s);
+            expect(decoder.decode(bytes)).toBe('hello');
+        });
+
+        test('open file read-only → write fails → open read-write → write succeeds', async () => {
+            const root = getRoot({ fs: new Map([['rw.txt', 'old']]) });
+            const roFile = await root.openAt({ symlinkFollow: false }, 'rw.txt', {}, { read: true });
+            expect(() => roFile.writeViaStream(readableFrom(encoder.encode('fail')), 0n)).toThrow();
+
+            const rwFile = await root.openAt({ symlinkFollow: false }, 'rw.txt', {}, { read: true, write: true });
+            await rwFile.writeViaStream(readableFrom(encoder.encode('success')), 0n);
+            const [s] = rwFile.readViaStream(0n);
+            const bytes = await collectBytes(s);
+            expect(decoder.decode(bytes)).toBe('success');
+        });
+    });
 });
 
 

@@ -34,7 +34,7 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalBctx(): BindingContext {
+function createMinimalCtx(): BindingContext {
     return {} as any as BindingContext;
 }
 
@@ -49,11 +49,11 @@ function makeImport(name: string, tyTag: ModelTag, tyValue: number = 0, nameTag:
 
 describe('ComponentTypeRefFunc import resolution', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMinimalBctx();
+        mctx = createMinimalCtx();
     });
 
     describe('direct key lookup', () => {
@@ -64,7 +64,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
             const bargs: BinderArgs = {
                 imports: { 'my-func': myFunc } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBe(myFunc);
         });
 
@@ -74,7 +74,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
             const bargs: BinderArgs = {
                 imports: { 'other-func': () => { } } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBeUndefined();
         });
 
@@ -82,7 +82,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
             const imp = makeImport('my-func', ModelTag.ComponentTypeRefFunc);
             const resolved = resolveComponentImport(rctx, { callerElement: undefined, element: imp });
             const bargs: BinderArgs = {};
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBeUndefined();
         });
 
@@ -93,7 +93,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
             const bargs: BinderArgs = {
                 imports: { '': fn } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBe(fn);
         });
     });
@@ -108,7 +108,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
                     'wasi:cli/stdin': { 'get-stdin': getStdin },
                 } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBe(getStdin);
         });
 
@@ -120,7 +120,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
                     'wasi:cli/stdin': { 'get-stdin': () => { } },
                 } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBeUndefined();
         });
 
@@ -132,7 +132,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
                     'wasi:cli/stdin': { 'get-stdin': () => { } },
                 } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBeUndefined();
         });
 
@@ -146,7 +146,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
                     'ns': { func: () => 'split' },
                 } as any,
             };
-            const result = await resolved.binder(bctx, bargs);
+            const result = await resolved.binder(mctx, bargs);
             expect(result.result).toBe(directFn);
         });
     });
@@ -154,11 +154,11 @@ describe('ComponentTypeRefFunc import resolution', () => {
 
 describe('ComponentTypeRefType import resolution', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMinimalBctx();
+        mctx = createMinimalCtx();
     });
 
     test('returns result undefined', async () => {
@@ -168,7 +168,7 @@ describe('ComponentTypeRefType import resolution', () => {
         const bargs: BinderArgs = {
             imports: { 'my-type': {} } as any,
         };
-        const result = await resolved.binder(bctx, bargs);
+        const result = await resolved.binder(mctx, bargs);
         expect(result.result).toBeUndefined();
     });
 
@@ -177,19 +177,19 @@ describe('ComponentTypeRefType import resolution', () => {
         (imp.ty as any).value = { tag: ModelTag.TypeBoundsEq, value: 0 };
         const resolved = resolveComponentImport(rctx, { callerElement: undefined, element: imp });
         const bargs: BinderArgs = {};
-        const result = await resolved.binder(bctx, bargs);
+        const result = await resolved.binder(mctx, bargs);
         expect(result.result).toBeUndefined();
     });
 });
 
 describe('ComponentTypeRefInstance import resolution', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMinimalBctx();
-        bctx.instances = { coreInstances: [], componentInstances: [] };
+        mctx = createMinimalCtx();
+        mctx.instances = { coreInstances: [], componentInstances: [] };
     });
 
     test('stores imports in instance table', async () => {
@@ -199,7 +199,7 @@ describe('ComponentTypeRefInstance import resolution', () => {
         const bargs: BinderArgs = {
             imports: { 'my-instance': instanceFuncs } as any,
         };
-        const result = await resolved.binder(bctx, bargs);
+        const result = await resolved.binder(mctx, bargs);
         expect(result.result).toBeDefined();
         expect((result.result as any).exports.sendMessage).toBe(instanceFuncs.sendMessage);
     });
@@ -208,7 +208,7 @@ describe('ComponentTypeRefInstance import resolution', () => {
         const imp = makeImport('my-instance', ModelTag.ComponentTypeRefInstance);
         const resolved = resolveComponentImport(rctx, { callerElement: undefined, element: imp });
         const bargs: BinderArgs = {};
-        const result = await resolved.binder(bctx, bargs);
+        const result = await resolved.binder(mctx, bargs);
         expect(result.result).toBeDefined();
         expect((result.result as any).exports).toEqual({});
     });

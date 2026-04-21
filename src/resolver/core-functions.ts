@@ -142,7 +142,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLowerElem,
-        binder: withDebugTrace(async (bctx, bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, bargs): Promise<BinderRes> => {
             const args = {
                 arguments: bargs.arguments,
                 imports: bargs.imports,
@@ -150,16 +150,16 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 debugStack: bargs.debugStack,
             };
             debugStack(args, args, componentFunction.tag + ':' + componentFunction.selfSortIndex);
-            const functionResult = await componentFunctionResolution.binder(bctx, args);
+            const functionResult = await componentFunctionResolution.binder(mctx, args);
 
             // Use per-canon realloc if specified, otherwise use the global allocator
-            let effectiveBctx = bctx;
+            let effectivemctx = mctx;
             if (reallocResolution) {
-                const reallocResult = await reallocResolution.binder(bctx, args);
+                const reallocResult = await reallocResolution.binder(mctx, args);
                 const reallocFn = reallocResult.result as TCabiRealloc;
                 const customAllocator = createAllocator();
                 customAllocator.initialize(reallocFn);
-                effectiveBctx = { ...bctx, allocator: customAllocator };
+                effectivemctx = { ...mctx, allocator: customAllocator };
             }
 
             if (isAsyncLower) {
@@ -175,14 +175,14 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                     }
                     return result;
                 };
-                const wasmFunction = loweringBinder(effectiveBctx, wrappedJsFunction);
+                const wasmFunction = loweringBinder(effectivemctx, wrappedJsFunction);
 
                 const asyncLowerTrampoline = (...wasmArgs: unknown[]): number => {
                     capturedPromise = undefined;
                     wasmFunction(...wasmArgs);
                     if (capturedPromise) {
                         // Async: create a subtask, return packed state|handle
-                        const handle = effectiveBctx.subtasks.create(capturedPromise);
+                        const handle = effectivemctx.subtasks.create(capturedPromise);
                         return SubtaskState.STARTED | (handle << 4);
                     }
                     // Synchronous completion (host returned non-Promise)
@@ -192,7 +192,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 return { result: asyncLowerTrampoline };
             }
 
-            const wasmFunction = loweringBinder(effectiveBctx, functionResult.result as JsFunction);
+            const wasmFunction = loweringBinder(effectivemctx, functionResult.result as JsFunction);
 
             const finalFunction = wrapLower ? wrapLower(wasmFunction) : wasmFunction;
 
@@ -513,9 +513,9 @@ export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionRes
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const dropFn = (handle: number) => {
-                bctx.resources.remove(resourceTypeIdx, handle);
+                mctx.resources.remove(resourceTypeIdx, handle);
             };
             return { result: dropFn };
         }, `resource.drop:${elem.selfSortIndex}`)
@@ -533,9 +533,9 @@ export const resolveCanonicalFunctionResourceNew: Resolver<CanonicalFunctionReso
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const newFn = (rep: number) => {
-                return bctx.resources.add(resourceTypeIdx, rep);
+                return mctx.resources.add(resourceTypeIdx, rep);
             };
             return { result: newFn };
         }, `resource.new:${elem.selfSortIndex}`)
@@ -552,9 +552,9 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const repFn = (handle: number) => {
-                return bctx.resources.get(resourceTypeIdx, handle);
+                return mctx.resources.get(resourceTypeIdx, handle);
             };
             return { result: repFn };
         }, `resource.rep:${elem.selfSortIndex}`)
@@ -568,9 +568,9 @@ export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStream
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const streamNewFn = () => {
-                return bctx.streams.newStream(elem.type);
+                return mctx.streams.newStream(elem.type);
             };
             return { result: streamNewFn };
         }, `stream.new:${elem.selfSortIndex}`)
@@ -582,9 +582,9 @@ export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStrea
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const streamReadFn = (handle: number, ptr: number, len: number) => {
-                return bctx.streams.read(elem.type, handle, ptr, len);
+                return mctx.streams.read(elem.type, handle, ptr, len);
             };
             return { result: streamReadFn };
         }, `stream.read:${elem.selfSortIndex}`)
@@ -596,9 +596,9 @@ export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStre
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const streamWriteFn = (handle: number, ptr: number, len: number) => {
-                return bctx.streams.write(elem.type, handle, ptr, len);
+                return mctx.streams.write(elem.type, handle, ptr, len);
             };
             return { result: streamWriteFn };
         }, `stream.write:${elem.selfSortIndex}`)
@@ -610,9 +610,9 @@ export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctio
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                return bctx.streams.cancelRead(elem.type, handle);
+                return mctx.streams.cancelRead(elem.type, handle);
             };
             return { result: fn };
         }, `stream.cancel-read:${elem.selfSortIndex}`)
@@ -624,9 +624,9 @@ export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFuncti
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                return bctx.streams.cancelWrite(elem.type, handle);
+                return mctx.streams.cancelWrite(elem.type, handle);
             };
             return { result: fn };
         }, `stream.cancel-write:${elem.selfSortIndex}`)
@@ -638,9 +638,9 @@ export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunct
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.streams.dropReadable(elem.type, handle);
+                mctx.streams.dropReadable(elem.type, handle);
             };
             return { result: fn };
         }, `stream.drop-readable:${elem.selfSortIndex}`)
@@ -652,9 +652,9 @@ export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunct
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.streams.dropWritable(elem.type, handle);
+                mctx.streams.dropWritable(elem.type, handle);
             };
             return { result: fn };
         }, `stream.drop-writable:${elem.selfSortIndex}`)
@@ -668,9 +668,9 @@ export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFuture
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = () => {
-                return bctx.futures.newFuture(elem.type);
+                return mctx.futures.newFuture(elem.type);
             };
             return { result: fn };
         }, `future.new:${elem.selfSortIndex}`)
@@ -682,9 +682,9 @@ export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutur
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number, ptr: number) => {
-                return bctx.futures.read(elem.type, handle, ptr, bctx);
+                return mctx.futures.read(elem.type, handle, ptr, mctx);
             };
             return { result: fn };
         }, `future.read:${elem.selfSortIndex}`)
@@ -696,9 +696,9 @@ export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutu
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number, ptr: number) => {
-                return bctx.futures.write(elem.type, handle, ptr);
+                return mctx.futures.write(elem.type, handle, ptr);
             };
             return { result: fn };
         }, `future.write:${elem.selfSortIndex}`)
@@ -710,9 +710,9 @@ export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctio
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                return bctx.futures.cancelRead(elem.type, handle);
+                return mctx.futures.cancelRead(elem.type, handle);
             };
             return { result: fn };
         }, `future.cancel-read:${elem.selfSortIndex}`)
@@ -724,9 +724,9 @@ export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFuncti
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                return bctx.futures.cancelWrite(elem.type, handle);
+                return mctx.futures.cancelWrite(elem.type, handle);
             };
             return { result: fn };
         }, `future.cancel-write:${elem.selfSortIndex}`)
@@ -738,9 +738,9 @@ export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunct
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.futures.dropReadable(elem.type, handle);
+                mctx.futures.dropReadable(elem.type, handle);
             };
             return { result: fn };
         }, `future.drop-readable:${elem.selfSortIndex}`)
@@ -752,9 +752,9 @@ export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunct
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.futures.dropWritable(elem.type, handle);
+                mctx.futures.dropWritable(elem.type, handle);
             };
             return { result: fn };
         }, `future.drop-writable:${elem.selfSortIndex}`)
@@ -768,9 +768,9 @@ export const resolveCanonicalFunctionErrorContextNew: Resolver<CanonicalFunction
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (ptr: number, len: number) => {
-                return bctx.errorContexts.newErrorContext(ptr, len);
+                return mctx.errorContexts.newErrorContext(ptr, len);
             };
             return { result: fn };
         }, `error-context.new:${elem.selfSortIndex}`)
@@ -782,9 +782,9 @@ export const resolveCanonicalFunctionErrorContextDebugMessage: Resolver<Canonica
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number, ptr: number) => {
-                bctx.errorContexts.debugMessage(handle, ptr);
+                mctx.errorContexts.debugMessage(handle, ptr);
             };
             return { result: fn };
         }, `error-context.debug-message:${elem.selfSortIndex}`)
@@ -796,9 +796,9 @@ export const resolveCanonicalFunctionErrorContextDrop: Resolver<CanonicalFunctio
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.errorContexts.drop(handle);
+                mctx.errorContexts.drop(handle);
             };
             return { result: fn };
         }, `error-context.drop:${elem.selfSortIndex}`)
@@ -814,9 +814,9 @@ const resolveCanonicalFunctionContextGet: Resolver<CanonicalFunctionContextGet> 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = () => {
-                return bctx.taskContextSlots[slotIndex] ?? 0;
+                return mctx.taskContextSlots[slotIndex] ?? 0;
             };
             return { result: fn };
         }, `context.get:${elem.selfSortIndex}`)
@@ -830,9 +830,9 @@ const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (value: number) => {
-                bctx.taskContextSlots[slotIndex] = value;
+                mctx.taskContextSlots[slotIndex] = value;
             };
             return { result: fn };
         }, `context.set:${elem.selfSortIndex}`)
@@ -845,15 +845,15 @@ const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rar
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             let fn: Function;
             if (elem.tag === ModelTag.CanonicalFunctionBackpressureInc) {
-                fn = () => { bctx.backpressure++; };
+                fn = () => { mctx.backpressure++; };
             } else if (elem.tag === ModelTag.CanonicalFunctionBackpressureDec) {
-                fn = () => { bctx.backpressure--; };
+                fn = () => { mctx.backpressure--; };
             } else {
                 // backpressure.set (legacy) — treat 0 as dec, non-0 as inc
-                fn = (value: number) => { bctx.backpressure += value ? 1 : -1; };
+                fn = (value: number) => { mctx.backpressure += value ? 1 : -1; };
             }
             return { result: fn };
         }, `backpressure:${elem.selfSortIndex}`)
@@ -883,8 +883,8 @@ const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (_rctx, r
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
-            const fn = () => bctx.waitableSets.newSet();
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = () => mctx.waitableSets.newSet();
             return { result: fn };
         }, `waitable-set.new:${elem.selfSortIndex}`)
     };
@@ -895,8 +895,8 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
-            const fn = (setId: number, ptr: number) => bctx.waitableSets.wait(setId, ptr);
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number, ptr: number) => mctx.waitableSets.wait(setId, ptr);
             return { result: fn };
         }, `waitable-set.wait:${elem.selfSortIndex}`)
     };
@@ -907,8 +907,8 @@ const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (_rctx, 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
-            const fn = (setId: number, ptr: number) => bctx.waitableSets.poll(setId, ptr);
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number, ptr: number) => mctx.waitableSets.poll(setId, ptr);
             return { result: fn };
         }, `waitable-set.poll:${elem.selfSortIndex}`)
     };
@@ -919,8 +919,8 @@ const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (_rctx, 
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
-            const fn = (setId: number) => bctx.waitableSets.drop(setId);
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (setId: number) => mctx.waitableSets.drop(setId);
             return { result: fn };
         }, `waitable-set.drop:${elem.selfSortIndex}`)
     };
@@ -931,8 +931,8 @@ const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (_rctx, rar
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
-            const fn = (waitableHandle: number, setId: number) => bctx.waitableSets.join(waitableHandle, setId);
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (waitableHandle: number, setId: number) => mctx.waitableSets.join(waitableHandle, setId);
             return { result: fn };
         }, `waitable.join:${elem.selfSortIndex}`)
     };
@@ -943,10 +943,10 @@ const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rarg
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (bctx, _bargs): Promise<BinderRes> => {
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number) => {
-                bctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
-                bctx.subtasks.drop(handle);
+                mctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
+                mctx.subtasks.drop(handle);
             };
             return { result: fn };
         }, `subtask.drop:${elem.selfSortIndex}`)

@@ -430,5 +430,126 @@ describe('Node.js sockets', () => {
                 expect((e as { tag: string }).tag).toBeDefined();
             }
         });
+
+        it('throws for empty hostname', async () => {
+            try {
+                await lookup.resolveAddresses('');
+                fail('should throw');
+            } catch (e) {
+                expect((e as { tag: string }).tag).toBeDefined();
+            }
+        });
+
+        it('resolves IP literal 127.0.0.1 to same address', async () => {
+            const results = await lookup.resolveAddresses('127.0.0.1');
+            expect(results).toEqual([{ tag: 'ipv4', val: [127, 0, 0, 1] }]);
+        });
+
+        it('rejects hostname with null byte', async () => {
+            try {
+                await lookup.resolveAddresses('evil.com\x00.example.com');
+                fail('should throw');
+            } catch (e) {
+                // Node.js may throw a plain Error or a tagged error
+                expect(e).toBeDefined();
+            }
+        });
+
+        it('rejects very long hostname', async () => {
+            try {
+                await lookup.resolveAddresses('A'.repeat(300));
+                fail('should throw');
+            } catch (e) {
+                expect((e as { tag: string }).tag).toBeDefined();
+            }
+        });
+
+        it('concurrent DNS resolutions complete independently', async () => {
+            const [r1, r2] = await Promise.all([
+                lookup.resolveAddresses('127.0.0.1'),
+                lookup.resolveAddresses('::1'),
+            ]);
+            expect(r1.length).toBeGreaterThan(0);
+            expect(r2.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('TCP error paths', () => {
+        const types = createNodeSocketsTypes() as unknown as {
+            TcpSocket: {
+                create(af: IpAddressFamily): {
+                    bind(addr: IpSocketAddress): void;
+                    connect(addr: IpSocketAddress): Promise<void>;
+                    listen(): Promise<AsyncIterable<unknown> & { close(): void }>;
+                    send(data: AsyncIterable<Uint8Array>): Promise<void>;
+                    receive(): [AsyncIterable<Uint8Array>, Promise<{ tag: string; val: unknown }>];
+                    getLocalAddress(): IpSocketAddress;
+                    getRemoteAddress(): IpSocketAddress;
+                    getIsListening(): boolean;
+                    getAddressFamily(): IpAddressFamily;
+                    setHopLimit(v: number): void;
+                };
+            };
+        };
+
+        it('connect to unreachable port rejects', async () => {
+            const sock = types.TcpSocket.create('ipv4');
+            // Port 1 on loopback is almost certainly not listening
+            await expect(sock.connect(ipv4Addr(1))).rejects.toBeDefined();
+        }, 10000);
+
+        it('setHopLimit(0) throws invalid-argument', () => {
+            const sock = types.TcpSocket.create('ipv4');
+            try {
+                sock.setHopLimit(0);
+                fail('should throw');
+            } catch (e) {
+                expect((e as { tag: string }).tag).toBe('invalid-argument');
+            }
+        });
+
+        it('setHopLimit(255) is accepted (max valid TTL)', () => {
+            const sock = types.TcpSocket.create('ipv4');
+            sock.setHopLimit(255);
+            expect(sock.getAddressFamily()).toBe('ipv4'); // didn't throw
+        });
+
+        it('IPv6 socket creation works', () => {
+            const sock = types.TcpSocket.create('ipv6');
+            expect(sock.getAddressFamily()).toBe('ipv6');
+        });
+    });
+
+    describe('UDP error paths', () => {
+        const types = createNodeSocketsTypes() as unknown as {
+            UdpSocket: {
+                create(af: IpAddressFamily): {
+                    bind(addr: IpSocketAddress): Promise<void>;
+                    send(data: Uint8Array, addr: IpSocketAddress | undefined): Promise<void>;
+                    receive(): Promise<[Uint8Array, IpSocketAddress]>;
+                    getLocalAddress(): IpSocketAddress;
+                    getAddressFamily(): IpAddressFamily;
+                    close(): void;
+                };
+            };
+        };
+
+        it('send empty data succeeds when bound', async () => {
+            const sender = types.UdpSocket.create('ipv4');
+            const receiver = types.UdpSocket.create('ipv4');
+            await receiver.bind(ipv4Addr(0));
+            const recvPort = (receiver.getLocalAddress() as IpSocketAddress).val.port;
+            await sender.bind(ipv4Addr(0));
+            // Sending empty data is valid
+            await sender.send(new Uint8Array(0), ipv4Addr(recvPort));
+            sender.close();
+            receiver.close();
+        }, 10000);
+
+        it('IPv6 UDP socket creation works', () => {
+            const sock = types.UdpSocket.create('ipv6');
+            expect(sock.getAddressFamily()).toBe('ipv6');
+            sock.close();
+        });
     });
 });

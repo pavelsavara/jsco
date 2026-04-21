@@ -5,7 +5,7 @@ import type { WasmPointer, WasmSize, JsValue } from './model/types';
 import type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
 export type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
 import { validatePointerAlignment, validateUtf16 } from './validation';
-import { TAG, VAL, OK, ERR } from '../utils/constants';
+import { OK, ERR } from './constants';
 
 // --- Primitive memory loaders ---
 
@@ -144,52 +144,52 @@ export function optionLoader(plan: OptionLoaderPlan, ctx: BindingContext, ptr: n
 export function resultLoaderBoth(plan: ResultLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
-    if (disc === 0) return { [TAG]: OK, [VAL]: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
-    return { [TAG]: ERR, [VAL]: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
+    if (disc === 0) return { tag: OK, val: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
+    return { tag: ERR, val: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
 }
 
 export function resultLoaderOkOnly(plan: ResultLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
-    if (disc === 0) return { [TAG]: OK, [VAL]: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
-    return { [TAG]: ERR, [VAL]: undefined };
+    if (disc === 0) return { tag: OK, val: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
+    return { tag: ERR, val: undefined };
 }
 
 export function resultLoaderErrOnly(plan: ResultLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
-    if (disc === 0) return { [TAG]: OK, [VAL]: undefined };
-    return { [TAG]: ERR, [VAL]: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
+    if (disc === 0) return { tag: OK, val: undefined };
+    return { tag: ERR, val: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
 }
 
 export function resultLoaderVoid(plan: ResultLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
-    return disc === 0 ? { [TAG]: OK, [VAL]: undefined } : { [TAG]: ERR, [VAL]: undefined };
+    return disc === 0 ? { tag: OK, val: undefined } : { tag: ERR, val: undefined };
 }
 
 export function variantLoaderDisc1(plan: VariantLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
-    if (loader) return { [TAG]: plan.caseNames[disc], [VAL]: loader(ctx, ptr + plan.payloadOffset) };
-    return { [TAG]: plan.caseNames[disc] };
+    if (loader) return { tag: plan.caseNames[disc], val: loader(ctx, ptr + plan.payloadOffset) };
+    return { tag: plan.caseNames[disc] };
 }
 
 export function variantLoaderDisc2(plan: VariantLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).getUint16(0, true);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
-    if (loader) return { [TAG]: plan.caseNames[disc], [VAL]: loader(ctx, ptr + plan.payloadOffset) };
-    return { [TAG]: plan.caseNames[disc] };
+    if (loader) return { tag: plan.caseNames[disc], val: loader(ctx, ptr + plan.payloadOffset) };
+    return { tag: plan.caseNames[disc] };
 }
 
 export function variantLoaderDisc4(plan: VariantLoaderPlan, ctx: BindingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
-    if (loader) return { [TAG]: plan.caseNames[disc], [VAL]: loader(ctx, ptr + plan.payloadOffset) };
-    return { [TAG]: plan.caseNames[disc] };
+    if (loader) return { tag: plan.caseNames[disc], val: loader(ctx, ptr + plan.payloadOffset) };
+    return { tag: plan.caseNames[disc] };
 }
 
 export function enumLoaderDisc1(plan: EnumLoaderPlan, ctx: BindingContext, ptr: number): string {

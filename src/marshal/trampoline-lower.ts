@@ -8,6 +8,55 @@ export type { FunctionLowerPlan } from './model/lower-plans';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
 
+function processFlatResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: any): any {
+    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+    }
+    if (plan.resultLifters.length === 1) {
+        plan.resultLifters[0]!(ctx, resJs, plan.resultBuf, 0);
+        if (plan.resultIsI64 && typeof plan.resultBuf[0] !== 'bigint') {
+            return BigInt(plan.resultBuf[0] as number);
+        }
+        return plan.resultBuf[0];
+    }
+}
+
+function processSpilledResult(plan: FunctionLowerPlan, ctx: BindingContext, retptr: number, resJs: any): void {
+    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+        ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
+    }
+    if (plan.resultStorer !== undefined) {
+        plan.resultStorer(ctx, retptr, resJs);
+    }
+}
+
+function handleLowerResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: any,
+    processResult: (plan: FunctionLowerPlan, ctx: BindingContext, resJs: any) => any): any {
+    if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
+        return resJs.then(
+            (val: any) => {
+                try { return processResult(plan, ctx, val); }
+                catch (e) { ctx.poisoned = true; throw e; }
+            },
+            (e: unknown) => { ctx.poisoned = true; throw e; },
+        );
+    }
+    return processResult(plan, ctx, resJs);
+}
+
+function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: BindingContext, retptr: number, resJs: any): any {
+    if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
+        return resJs.then(
+            (val: any) => {
+                try { return processSpilledResult(plan, ctx, retptr, val); }
+                catch (e) { ctx.poisoned = true; throw e; }
+            },
+            (e: unknown) => { ctx.poisoned = true; throw e; },
+        );
+    }
+    return processSpilledResult(plan, ctx, retptr, resJs);
+}
+
 // --- Flat params, Flat result ---
 
 export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFunction: JsFunction, ...args: any[]): any {
@@ -23,20 +72,10 @@ export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFu
         if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
             ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
         }
-        const resJs = jsFunction(...convertedArgs);
-        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-        }
-        if (plan.resultLifters.length === 1) {
-            plan.resultLifters[0]!(ctx, resJs, plan.resultBuf, 0);
-            if (plan.resultIsI64 && typeof plan.resultBuf[0] !== 'bigint') {
-                return BigInt(plan.resultBuf[0] as number);
-            }
-            return plan.resultBuf[0];
-        }
+        return handleLowerResult(plan, ctx, jsFunction(...convertedArgs), processFlatResult);
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            return handleLowerResult(plan, ctx, (e as any).promise, processFlatResult);
         }
         throw e;
     }
@@ -58,16 +97,11 @@ export function lowerFlatSpilled(plan: FunctionLowerPlan, ctx: BindingContext, j
             ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
         }
         const retptr = args[args.length - 1] as number;
-        const resJs = jsFunction(...convertedArgs);
-        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-        }
-        if (plan.resultStorer !== undefined) {
-            plan.resultStorer(ctx, retptr, resJs);
-        }
+        return handleLowerResultSpilled(plan, ctx, retptr, jsFunction(...convertedArgs));
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            const retptr = args[args.length - 1] as number;
+            return handleLowerResultSpilled(plan, ctx, retptr, (e as any).promise);
         }
         throw e;
     }
@@ -85,20 +119,10 @@ export function lowerSpilledFlat(plan: FunctionLowerPlan, ctx: BindingContext, j
         if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
             ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
         }
-        const resJs = jsFunction(...convertedArgs);
-        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-        }
-        if (plan.resultLifters.length === 1) {
-            plan.resultLifters[0]!(ctx, resJs, plan.resultBuf, 0);
-            if (plan.resultIsI64 && typeof plan.resultBuf[0] !== 'bigint') {
-                return BigInt(plan.resultBuf[0] as number);
-            }
-            return plan.resultBuf[0];
-        }
+        return handleLowerResult(plan, ctx, jsFunction(...convertedArgs), processFlatResult);
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            return handleLowerResult(plan, ctx, (e as any).promise, processFlatResult);
         }
         throw e;
     }
@@ -117,16 +141,11 @@ export function lowerSpilledSpilled(plan: FunctionLowerPlan, ctx: BindingContext
             ctx.logger!('executor', LogLevel.Summary, `→ lowering args=${JSON.stringify(convertedArgs, bigIntReplacer)}`);
         }
         const retptr = args[args.length - 1] as number;
-        const resJs = jsFunction(...convertedArgs);
-        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
-            ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
-        }
-        if (plan.resultStorer !== undefined) {
-            plan.resultStorer(ctx, retptr, resJs);
-        }
+        return handleLowerResultSpilled(plan, ctx, retptr, jsFunction(...convertedArgs));
     } catch (e: unknown) {
         if (e && typeof e === 'object' && 'promise' in e && (e as any).promise instanceof Promise) {
-            return (e as any).promise;
+            const retptr = args[args.length - 1] as number;
+            return handleLowerResultSpilled(plan, ctx, retptr, (e as any).promise);
         }
         throw e;
     }

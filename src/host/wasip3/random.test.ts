@@ -58,6 +58,31 @@ describe('wasi:random/random', () => {
         it('throws when maxLen exceeds u64 range via config limit', () => {
             expect(() => random.getRandomBytes(2n ** 64n)).toThrow(RangeError);
         });
+
+        it('rapid calls in tight loop do not crash', () => {
+            for (let i = 0; i < 100; i++) {
+                const bytes = random.getRandomBytes(64n);
+                expect(bytes.length).toBe(64);
+            }
+        });
+
+        it('undefined argument returns empty array (no type guard)', () => {
+            // No runtime type check — undefined passes through comparisons as false
+            const result = (random as any).getRandomBytes(undefined);
+            expect(result).toBeInstanceOf(Uint8Array);
+            expect(result.length).toBe(0);
+        });
+
+        it('number instead of bigint silently coerces', () => {
+            // JS allows number<->bigint comparisons; Number(42) = 42
+            const result = (random as any).getRandomBytes(42);
+            expect(result).toBeInstanceOf(Uint8Array);
+            expect(result.length).toBe(42);
+        });
+
+        it('throws for absurdly large bigint beyond u64', () => {
+            expect(() => random.getRandomBytes(BigInt(Number.MAX_SAFE_INTEGER) * 1000n)).toThrow(RangeError);
+        });
     });
 
     describe('getRandomU64', () => {

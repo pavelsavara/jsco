@@ -1,7 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { LiftingFromJs, LoweringToJs, WasmValue } from './types';
-import type { MemoryStorer } from '../../binder/to-abi';
+import type { LiftingFromJs, LoweringToJs, WasmValue, MemoryStorer } from './types';
 import type { MemoryLoader } from '../../binder/to-js';
 import type { FlatType } from '../../resolver/calling-convention';
 
@@ -33,4 +32,7 @@ export type FunctionLowerPlan = {
     spilledParamOffsets: number[],
     resultBuf: WasmValue[],
     resultIsI64: boolean,
+    /** When true, the JS function may return a Promise that IS the future/stream value
+     *  (not a Promise to be awaited). Pass it directly to the result lifter. */
+    hasFutureOrStreamReturn: boolean,
 };

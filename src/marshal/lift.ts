@@ -7,7 +7,7 @@ export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, Tup
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
 import { validateAllocResult } from './validation';
-import { TAG, VAL, OK } from '../utils/constants';
+import { OK } from './constants';
 
 // --- Primitive lifting functions (JS → WASM flat args) ---
 // These are stateless top-level functions with no captured state.
@@ -254,7 +254,7 @@ export function optionLifting(plan: OptionLiftPlan, ctx: BindingContext, srcJsVa
 
 export function resultLifting(plan: ResultLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
-    const tag = srcJsValue[TAG], val = srcJsValue[VAL];
+    const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
     out.fill(0, offset, offset + plan.totalSize);
     if (tag === OK) {
@@ -268,7 +268,7 @@ export function resultLifting(plan: ResultLiftPlan, ctx: BindingContext, srcJsVa
 
 export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
-    const tag = srcJsValue[TAG], val = srcJsValue[VAL];
+    const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
     out.fill(0, offset, offset + plan.totalSize);
     if (tag === OK) {
@@ -298,7 +298,7 @@ export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: BindingContext, 
 
 export function variantLifting(plan: VariantLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a variant value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
-    const tag = srcJsValue[TAG], val = srcJsValue[VAL];
+    const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
     const c = plan.nameToCase.get(tag);
     if (!c) throw new Error(`Unknown variant case: ${tag}`);

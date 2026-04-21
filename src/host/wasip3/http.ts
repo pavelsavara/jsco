@@ -774,6 +774,12 @@ async function sendImpl(
 
 // ──────────────────── Factory functions ────────────────────
 
+/**
+ * Create the `wasi:http/types` interface.
+ *
+ * Returns the `Fields`, `Request`, `RequestOptions`, and `Response` resource
+ * classes configured with the current network limits.
+ */
 export function createHttpTypes(config?: WasiP3Config): typeof WasiHttpTypes {
     const limits = getHttpLimits(config?.network);
 
@@ -795,6 +801,12 @@ export function createHttpTypes(config?: WasiP3Config): typeof WasiHttpTypes {
     } as unknown as typeof WasiHttpTypes;
 }
 
+/**
+ * Create the `wasi:http/client` interface.
+ *
+ * Provides `send(request)` which executes HTTP requests via the Fetch API
+ * with duplex streaming, timeout support, and full error code mapping.
+ */
 export function createHttpClient(config?: WasiP3Config): typeof WasiHttpClient {
     const limits = getHttpLimits(config?.network);
     const defaultTimeoutMs = config?.network?.httpRequestTimeoutMs ?? NETWORK_DEFAULTS.httpRequestTimeoutMs;
@@ -806,6 +818,12 @@ export function createHttpClient(config?: WasiP3Config): typeof WasiHttpClient {
     } as unknown as typeof WasiHttpClient;
 }
 
+/**
+ * Create the `wasi:http/handler` interface (stub).
+ *
+ * The handler is a guest export, not a host import. This stub throws
+ * a descriptive error if called — use `serve()` for server mode.
+ */
 export function createHttpHandler(): typeof WasiHttpHandler {
     // handler is a guest export, not a host import.
     // For now, provide a stub that throws.

@@ -104,15 +104,15 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
     return {
         callerElement: rargs.callerElement,
         element: canonicalFunctionLift,
-        binder: withDebugTrace(async (bctx, bargs) => {
+        binder: withDebugTrace(async (mctx, bargs) => {
             // Wire up post-return function from canonical options
             if (postReturnResolution) {
-                const postReturnResult = await postReturnResolution.binder(bctx, {
+                const postReturnResult = await postReturnResolution.binder(mctx, {
                     callerArgs: bargs,
                     debugStack: bargs.debugStack,
                 });
                 const postReturnWasm = postReturnResult.result as Function;
-                bctx.postReturnFn = postReturnWasm;
+                mctx.postReturnFn = postReturnWasm;
             }
 
             const args = {
@@ -121,13 +121,13 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
-            const functionResult = await coreFunctionResolution.binder(bctx, args);
+            const functionResult = await coreFunctionResolution.binder(mctx, args);
 
             let coreFn = functionResult.result as WasmFunction;
             const exportName = bargs.arguments?.[0] as string | undefined;
 
             if (isAsyncWithCallback && callbackResolution) {
-                const cbResult = await callbackResolution.binder(bctx, {
+                const cbResult = await callbackResolution.binder(mctx, {
                     callerArgs: bargs,
                     debugStack: bargs.debugStack,
                 });
@@ -139,7 +139,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
                     coreFn = wrapLift(coreFn, exportName) as WasmFunction;
                     callbackWasm = wrapLift(callbackWasm) as WasmFunction;
                 }
-                const jsFunction = createAsyncLiftWrapper(bctx, coreFn, callbackWasm, liftingBinder);
+                const jsFunction = createAsyncLiftWrapper(mctx, coreFn, callbackWasm, liftingBinder);
                 return { result: jsFunction };
             }
 
@@ -147,7 +147,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
                 coreFn = wrapLift(coreFn, exportName) as WasmFunction;
             }
 
-            const jsFunction = liftingBinder(bctx, coreFn);
+            const jsFunction = liftingBinder(mctx, coreFn);
 
             const binderResult = {
                 result: jsFunction
@@ -173,7 +173,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
  * The status is the initial callback return (from start_task).
  */
 function createAsyncLiftWrapper(
-    bctx: BindingContext,
+    mctx: BindingContext,
     coreFn: WasmFunction,
     callbackWasm: WasmFunction,
     _syncLiftingBinder: (ctx: BindingContext, fn: WasmFunction) => Function,
@@ -215,20 +215,20 @@ function createAsyncLiftWrapper(
             const waitableSetId = status >>> 4;
 
             // Allocate event buffer if not yet done
-            if (!eventBufAllocated && bctx.allocator.isInitialized()) {
-                eventPtr = bctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
+            if (!eventBufAllocated && mctx.allocator.isInitialized()) {
+                eventPtr = mctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
                 eventBufAllocated = true;
             }
 
             // Wait for events on the waitable set
-            const numEvents = await bctx.waitableSets.wait(waitableSetId, eventPtr);
+            const numEvents = await mctx.waitableSets.wait(waitableSetId, eventPtr);
             if (numEvents === 0) {
                 // No events — break out (shouldn't happen normally)
                 break;
             }
 
             // Deliver events to the callback one at a time
-            const view = bctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
+            const view = mctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
             for (let i = 0; i < numEvents; i++) {
                 const eventCode = view.getInt32(i * 12, true);
                 const handle = view.getInt32(i * 12 + 4, true);
@@ -236,6 +236,13 @@ function createAsyncLiftWrapper(
                 status = await callbackWasm(eventCode, handle, returnCode) as number;
                 if (status === EXIT) break;
             }
+        }
+        // Await any background tasks from sync canon.lower with stream/future params.
+        // These are host functions (e.g. writeViaStream) that consume streams
+        // in the background while the WASM continues writing to them.
+        if (mctx.pendingBackgroundTasks.length > 0) {
+            await Promise.all(mctx.pendingBackgroundTasks);
+            mctx.pendingBackgroundTasks.length = 0;
         }
     };
 }
@@ -254,8 +261,8 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         return {
             callerElement: rargs.callerElement,
             element: componentAliasInstanceExport,
-            binder: async (bctx, bargs) => {
-                const instanceResult = await instanceResolution.binder(bctx, {
+            binder: async (mctx, bargs) => {
+                const instanceResult = await instanceResolution.binder(mctx, {
                     arguments: bargs.arguments,
                     imports: bargs.imports,
                     callerArgs: bargs,
@@ -279,14 +286,14 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     return {
         callerElement: rargs.callerElement,
         element: componentAliasInstanceExport,
-        binder: withDebugTrace(async (bctx, bargs) => {
+        binder: withDebugTrace(async (mctx, bargs) => {
             const args = {
                 arguments: bargs.arguments,
                 imports: bargs.imports,
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
-            const instanceResult = await instanceResolution.binder(bctx, args);
+            const instanceResult = await instanceResolution.binder(mctx, args);
             const instanceData = instanceResult.result as { exports: Record<string, unknown>; imports: Record<string, unknown> };
 
             // TODO resolve type as well

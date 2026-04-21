@@ -107,6 +107,26 @@ describe('StreamBridge', () => {
             const readable = readableFromStream(webStream);
             await expect(collectBytes(readable)).rejects.toThrow('source error');
         });
+
+        it('close readable stream prematurely — consumer sees end of stream', async () => {
+            const pair = createStreamPair<number>();
+            // Start consuming before writing (backpressure: write blocks until read)
+            const collectPromise = collectStream(pair.readable);
+            await pair.write(1);
+            pair.close();
+            const result = await collectPromise;
+            expect(result).toEqual([1]);
+        });
+
+        it('error stream cancels pending reads', async () => {
+            const pair = createStreamPair<number>();
+            // Start consuming — will wait for items
+            const collectPromise = collectStream(pair.readable);
+            await pair.write(42);
+            // Error signals the consumer to throw
+            pair.error(new Error('cancelled'));
+            await expect(collectPromise).rejects.toThrow('cancelled');
+        });
     });
 
     // ─── 1.2 Edge cases ─────────────────────────────────────────────
@@ -164,6 +184,53 @@ describe('StreamBridge', () => {
 
             const result = await collectPromise;
             expect(result).toEqual([1, 2, 3]);
+        });
+
+        it('large chunk (1MB+) passes through without corruption', async () => {
+            const pair = createStreamPair<Uint8Array>();
+            const size = 1024 * 1024 + 7; // 1MB + 7 bytes
+            const data = new Uint8Array(size);
+            for (let i = 0; i < size; i++) data[i] = i & 0xFF;
+            const collectPromise = collectBytes(pair.readable);
+            await pair.write(data);
+            pair.close();
+            const result = await collectPromise;
+            expect(result.length).toBe(size);
+            expect(result[0]).toBe(0);
+            expect(result[size - 1]).toBe((size - 1) & 0xFF);
+        });
+
+        it('zero-length Uint8Array chunk passes through', async () => {
+            const pair = createStreamPair<Uint8Array>();
+            const collectPromise = collectStream(pair.readable);
+            await pair.write(new Uint8Array(0));
+            await pair.write(new Uint8Array([1]));
+            pair.close();
+            const result = await collectPromise;
+            expect(result.length).toBe(2);
+        });
+
+        it('backpressure: fast consumer, slow producer — consumer awaits without spinning', async () => {
+            const pair = createStreamPair<number>();
+            const received: number[] = [];
+
+            // Start consuming immediately (fast consumer)
+            const consumePromise = (async () => {
+                for await (const item of pair.readable) {
+                    received.push(item);
+                }
+            })();
+
+            // Slow producer: write with delays
+            await pair.write(1);
+            await new Promise(r => setTimeout(r, 10));
+            await pair.write(2);
+            await new Promise(r => setTimeout(r, 10));
+            await pair.write(3);
+            pair.close();
+
+            await consumePromise;
+            expect(received).toEqual([1, 2, 3]);
         });
     });
 
@@ -240,6 +307,101 @@ describe('StreamBridge', () => {
             const pair = createStreamPair<number>();
             pair.close();
             pair.close(); // should not throw
+        });
+
+        it('infinite async iterable can be broken out of by consumer', async () => {
+            async function* infinite() {
+                let i = 0;
+                while (true) {
+                    yield i++;
+                }
+            }
+            const readable = readableFromAsyncIterable(infinite());
+            const items: number[] = [];
+            for await (const item of readable) {
+                items.push(item);
+                if (items.length >= 5) break;
+            }
+            expect(items).toEqual([0, 1, 2, 3, 4]);
+        });
+
+        it('iterator whose return() throws — consumer still gets collected data', async () => {
+            let _returnCalled = false;
+            const evil: AsyncIterable<number> = {
+                [Symbol.asyncIterator]() {
+                    let i = 0;
+                    return {
+                        next() {
+                            if (i < 3) return Promise.resolve({ value: i++, done: false as const });
+                            return Promise.resolve({ value: undefined, done: true as const });
+                        },
+                        return() {
+                            _returnCalled = true;
+                            throw new Error('evil return');
+                        },
+                    };
+                },
+            };
+            const readable = readableFromAsyncIterable(evil);
+            const items: number[] = [];
+            for await (const item of readable) {
+                items.push(item);
+            }
+            expect(items).toEqual([0, 1, 2]);
+        });
+
+        it('null yielded from async iterable is passed through', async () => {
+            async function* gen() {
+                yield null;
+                yield 42;
+            }
+            const readable = readableFromAsyncIterable(gen());
+            const result = await collectStream(readable);
+            expect(result).toEqual([null, 42]);
+        });
+
+        it('Proxy object that throws on property access is propagated', async () => {
+            // Proxy must not trap `.then` — JS Promise resolution checks `.then`
+            // on yielded values from async generators (thenable check)
+            const evilProxy = new Proxy({}, {
+                get(_target, prop) {
+                    if (prop === 'then') return undefined; // allow thenable check
+                    throw new Error('proxy trap');
+                },
+            });
+            const pair = createStreamPair<unknown>();
+            const collectPromise = collectStream(pair.readable);
+            // Writing the proxy itself should succeed (we're not accessing properties)
+            await pair.write(evilProxy);
+            pair.close();
+            const result = await collectPromise;
+            // The proxy is stored as-is; accessing its properties would throw
+            expect(result.length).toBe(1);
+            expect(() => (result[0] as Record<string, unknown>).anything).toThrow('proxy trap');
+        });
+
+        it('iterator that calls next() after done gets no extra values', async () => {
+            const values = [10, 20];
+            let nextCallCount = 0;
+            const iterable: AsyncIterable<number> = {
+                [Symbol.asyncIterator]() {
+                    let idx = 0;
+                    return {
+                        next() {
+                            nextCallCount++;
+                            if (idx < values.length) {
+                                return Promise.resolve({ value: values[idx++]!, done: false as const });
+                            }
+                            return Promise.resolve({ value: undefined, done: true as const });
+                        },
+                    };
+                },
+            };
+            const readable = readableFromAsyncIterable(iterable);
+            const result = await collectStream(readable);
+            expect(result).toEqual([10, 20]);
+            // Bridge should call next() exactly 3 times: two values + one done
+            expect(nextCallCount).toBe(3);
         });
     });
 

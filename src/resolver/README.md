@@ -170,7 +170,7 @@ After building the plan, the resolver nulls index space arrays to allow GC. The 
 
 3. **Phase 3 — ExportBind** (parallel): Execute all export binders. Each wraps a WASM function with its pre-compiled lifting trampoline and exposes it on the component's JS exports object.
 
-The binding context (`bctx`) holds per-instantiation state: core instance caches, the resource table, memory views, and the allocator.
+The binding context (`mctx`) holds per-instantiation state: core instance caches, the resource table, memory views, and the allocator.
 
 ---
 

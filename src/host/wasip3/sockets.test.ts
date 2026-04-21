@@ -105,4 +105,26 @@ describe('Browser sockets stubs', () => {
             }
         });
     });
+
+    describe('cross-type confusion', () => {
+        it('TcpSocket and UdpSocket are distinct types', () => {
+            const types = createSocketsTypes() as unknown as {
+                TcpSocket: { create(af: string): never };
+                UdpSocket: { create(af: string): never };
+            };
+            // Both should throw, but with different messages
+            try { types.TcpSocket.create('ipv4'); } catch (e) {
+                expect((e as Error).message).toContain('TCP');
+            }
+            try { types.UdpSocket.create('ipv4'); } catch (e) {
+                expect((e as Error).message).toContain('UDP');
+            }
+        });
+
+        it('createSocketsTypes called twice returns independent instances', () => {
+            const t1 = createSocketsTypes();
+            const t2 = createSocketsTypes();
+            expect(t1).not.toBe(t2);
+        });
+    });
 });

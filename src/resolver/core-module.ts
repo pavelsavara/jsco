@@ -11,7 +11,7 @@ export const resolveCoreModule: Resolver<CoreModule> = (rctx, rargs) => {
     return {
         callerElement: rargs.callerElement,
         element: coreModule,
-        binder: async (_bctx, _bargs) => {
+        binder: async (_mctx, _bargs) => {
             const binderResult = {
                 result: await coreModule.module!
             };

@@ -3,34 +3,48 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./__mocks__/.types.d.ts" />
 
+import type { WasiP3Config } from './host/wasip3';
+import type { ComponentFactoryInput, ComponentFactoryOptions } from './resolver/types';
+import type { WasmComponentInstance } from './resolver/api-types';
+import type { ParserOptions } from './parser/types';
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
-import { GIT_HASH, CONFIGURATION } from './utils/constants';
-import { cliMain } from './utils/args';
+import { cliMain } from './main';
+import { createComponent as resolverCreateComponent } from './resolver';
+import { detectWasiType, createWasiImports, WasiType } from './wasi-auto';
 
 export type { WasmComponent, WasmComponentInstance } from './resolver/api-types';
+export type { WasiP3Config } from './host/wasip3';
 export { instantiateComponent, createComponent } from './resolver';
 export { LogLevel, setLogger } from './utils/assert';
+export { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve } from './dynamic';
 
 /**
- * Dynamically load the WASIp3 host module.
- *
- * On Node.js, loads `wasip3-node` (full bundle with real TCP/UDP/DNS).
- * In the browser, loads `wasip3` (browser-compatible stubs for sockets).
+ * Create and instantiate a WASI component with automatic host detection.
+ * Detects WASI P2 or P3 from the component's exports/imports and provides
+ * the appropriate host. Defaults to P3 if no WASI interfaces are detected.
  */
-export async function loadWasip3Host() {
-    if (typeof process !== 'undefined' && process.versions?.node) {
-        return import('./host/wasip3/node/wasip3');
-    }
-    return import('./host/wasip3/wasip3');
+export async function instantiateWasiComponent<TJSExports>(
+    componentBytesOrUrl: ComponentFactoryInput,
+    config?: WasiP3Config,
+    options?: ComponentFactoryOptions & ParserOptions,
+): Promise<WasmComponentInstance<TJSExports>> {
+    const component = await resolverCreateComponent<TJSExports>(componentBytesOrUrl, options);
+    const exportNames = component.exports();
+    const importNames = component.imports();
+    const wasiType = detectWasiType(exportNames, importNames);
+    // Always provide a host — default to P3 when WASI version is not detected
+    const effectiveType = wasiType === WasiType.None ? WasiType.P3 : wasiType;
+    const imports = await createWasiImports(effectiveType, config);
+    return component.instantiate(imports);
 }
 
 export function getBuildInfo() {
     return {
-        [GIT_HASH]: gitHash,
-        [CONFIGURATION]: configuration,
+        gitHash: gitHash,
+        configuration: configuration,
     };
 }
 

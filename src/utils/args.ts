@@ -1,9 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { NetworkConfig } from '../host/wasip2/types';
-import { NETWORK_DEFAULTS } from '../host/wasip2/types';
-import { createComponent } from '../resolver';
-import { hasJspi } from './jspi';
+import type { NetworkConfig } from '../host/wasip3/types';
+import { NETWORK_DEFAULTS } from '../host/wasip3/types';
 
 export interface FsMount {
     hostPath: string;
@@ -387,115 +385,6 @@ export function parseCliArgs(args: string[]): CliParseResult {
     }
 
     return { command, componentUrl, options, error, help };
-}
-
-// ─── CLI Entry Point ───
-
-/* istanbul ignore next -- CLI entry point: uses import.meta.url, process.exit, dynamic imports; untestable in Jest */
-export async function cliMain(): Promise<void> {
-    // detect that we are running in nodejs
-    if (typeof process === 'undefined' || process.versions == null || process.versions.node == null) return;
-
-    // and that we are the main esm entry point (not imported by another module)
-    const realpathSync = (await import('node:fs'))['realpathSync'];
-    const pathToFileURL = (await import('node:url'))['pathToFileURL'];
-    const mainModulePath = process.argv[1];
-    if (!mainModulePath) return;
-    const mainModuleUrl = pathToFileURL(realpathSync(mainModulePath)).href;
-    if (import.meta.url !== mainModuleUrl) return;
-
-    // re-exec with --experimental-wasm-jspi if not already set
-    if (!hasJspi()) {
-        const spawnSync = (await import('node:child_process'))['spawnSync'];
-        const result = spawnSync(process['execPath'], ['--experimental-wasm-jspi', ...process['execArgv'] as string[], mainModulePath, ...process.argv.slice(2)], { 'stdio': 'inherit' });
-        process.exit(result['status'] ?? 1);
-    }
-
-    const args = process.argv.slice(2);
-    const { command, componentUrl, options, error, help } = parseCliArgs(args);
-    if (help) {
-        // eslint-disable-next-line no-console
-        console.log(getHelpText(command));
-        process.exit(0);
-    }
-    if (error) {
-        // eslint-disable-next-line no-console
-        console.error(error);
-        process.exit(1);
-    }
-    if (!componentUrl) {
-        process.exit(1);
-    }
-
-    // Build env pairs: explicit values + inherited names + inherit-all
-    const envRecord: Record<string, string> = {};
-    if (options.envInheritAll) {
-        Object.assign(envRecord, process['env']);
-    }
-    for (const name of options.envInheritNames) {
-        if (name in process['env']) {
-            envRecord[name] = process['env'][name]!;
-        }
-    }
-    Object.assign(envRecord, options.env);
-    const envPairs: [string, string][] | undefined = Object.keys(envRecord).length > 0
-        ? Object.entries(envRecord) : undefined;
-
-    // Dynamic import of wasip2 for instantiation (avoid static import to prevent circular dependency)
-    const wasip2 = await import('../host/wasip2/wasip2');
-    wasip2['setCreateComponent'](createComponent);
-    const instantiateWasiComponent = wasip2['instantiateWasiComponent'];
-
-    // Read stdin if it's piped (not a TTY)
-    let stdin: Uint8Array | undefined;
-    if (!process.stdin.isTTY) {
-        try {
-            const fs = await import('fs');
-            const buf = fs.readFileSync(0);
-            if (buf.length > 0) stdin = new Uint8Array(buf);
-        } catch {
-            // stdin not available — leave undefined
-        }
-    }
-
-    try {
-        const instance = await instantiateWasiComponent(componentUrl, {
-            network: options.network,
-            enabledInterfaces: options.enabledInterfaces,
-            env: envPairs,
-            mounts: options.mounts.length > 0 ? options.mounts : undefined,
-            cwd: options.cwd,
-            args: options.componentArgs.length > 0 ? options.componentArgs : undefined,
-            stdin,
-        }, {}, options);
-
-        if (command === 'serve') {
-            // Dynamic import of wasip2-node for serve command
-            const runServe = (await import('../host/wasip2/node/wasip2'))['runServe'];
-            await runServe(instance, options.addr, options.network);
-        } else {
-            // Find wasi:cli/run export — try exact version first, then any versioned key
-            let run = instance.exports['wasi:cli/run@0.2.11']?.['run'];
-            if (!run) {
-                for (const key of Object.keys(instance.exports)) {
-                    if (key.startsWith('wasi:cli/run@')) {
-                        run = (instance.exports as Record<string, Record<string, Function>>)[key]?.['run'];
-                        if (run) break;
-                    }
-                }
-            }
-            if (!run) throw new Error('Component does not export wasi:cli/run');
-            await run();
-        }
-    } catch (e: unknown) {
-        // WasiExit is a normal exit — use its status code
-        if (e instanceof Error && e.name === 'WasiExit' && 'status' in e) {
-            process.exit(e.status as number);
-        }
-        // eslint-disable-next-line no-console
-        console.error(e instanceof Error ? e.stack ?? e.message : e);
-        process.exit(1);
-    }
 }
 
 export { MAIN_HELP_TEXT, RUN_HELP_TEXT, SERVE_HELP_TEXT };

@@ -82,8 +82,8 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
     return {
         callerElement: rargs.callerElement,
         element: componentInstanceInstantiate,
-        binder: withDebugTrace(async (bctx, bargs) => {
-            const binderResult = lookupComponentInstance(bctx, componentInstanceInstantiate.selfSortIndex!);
+        binder: withDebugTrace(async (mctx, bargs) => {
+            const binderResult = lookupComponentInstance(mctx, componentInstanceInstantiate.selfSortIndex!);
             Object.assign(binderResult.result, bargs.imports);
 
             const componentArgs: Record<string, unknown> = {};
@@ -97,7 +97,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                     debugStack: bargs.debugStack,
                 };
                 debugStack(args, args, 'ComponentInstantiationArg:' + callerElement.index + ':' + callerElement.name);
-                const argResult = await argResolution.binder(bctx, args);
+                const argResult = await argResolution.binder(mctx, args);
                 let argName = callerElement.name;
                 // wit-component (wasm-tools crate) generates synthetic prefixed names for
                 // component instantiation arguments to disambiguate kinds in the flat
@@ -138,7 +138,7 @@ export const resolveComponentInstanceInstantiate: Resolver<ComponentInstanceInst
                 callerArgs: bargs,
                 debugStack: bargs.debugStack,
             };
-            const componentSectionResult = await componentSectionResolution.binder(bctx, args);
+            const componentSectionResult = await componentSectionResolution.binder(mctx, args);
 
             Object.assign(binderResult.result.exports, componentSectionResult.result);
             return binderResult;
@@ -183,8 +183,8 @@ export const resolveComponentInstanceFromExports: Resolver<ComponentInstanceFrom
     return {
         callerElement: rargs.callerElement,
         element: componentInstanceFromExports,
-        binder: withDebugTrace(async (bctx, bargs) => {
-            const binderResult = lookupComponentInstance(bctx, componentInstanceFromExports.selfSortIndex!);
+        binder: withDebugTrace(async (mctx, bargs) => {
+            const binderResult = lookupComponentInstance(mctx, componentInstanceFromExports.selfSortIndex!);
 
             for (const exportResolution of exportResolutions) {
                 const callerElement = exportResolution.callerElement as unknown as ComponentExport;
@@ -195,7 +195,7 @@ export const resolveComponentInstanceFromExports: Resolver<ComponentInstanceFrom
                     debugStack: bargs.debugStack,
                 };
                 debugStack(args, args, 'ComponentInstanceFromExports:' + callerElement.name?.name);
-                const argResult = await exportResolution.binder(bctx, args);
+                const argResult = await exportResolution.binder(mctx, args);
                 const exportName = camelCase(callerElement.name?.name ?? '');
                 binderResult.result.exports[exportName] = argResult.result;
             }
@@ -212,8 +212,8 @@ export const resolveComponentTypeInstance: Resolver<ComponentTypeInstance> = (rc
     return {
         callerElement: rargs.callerElement,
         element: componentTypeInstance,
-        binder: async (bctx, bargs) => {
-            const binderResult = lookupComponentInstance(bctx, componentTypeInstance.selfSortIndex!);
+        binder: async (mctx, bargs) => {
+            const binderResult = lookupComponentInstance(mctx, componentTypeInstance.selfSortIndex!);
             Object.assign(binderResult.result.exports, bargs.imports);
             Object.assign(binderResult.result.types, componentTypeInstance.declarations);
             return binderResult;
@@ -231,9 +231,9 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     return {
         callerElement: rargs.callerElement,
         element: alias,
-        binder: withDebugTrace(async (bctx, bargs) => {
-            const parentResult = await parentResolution.binder(bctx, bargs) as ComponentInstanceBinderRes;
-            const binderResult = lookupComponentInstance(bctx, alias.selfSortIndex!);
+        binder: withDebugTrace(async (mctx, bargs) => {
+            const parentResult = await parentResolution.binder(mctx, bargs) as ComponentInstanceBinderRes;
+            const binderResult = lookupComponentInstance(mctx, alias.selfSortIndex!);
             // Try the original name first (for interface URIs like "zoo:food/eater@0.1.0"),
             // then fall back to camelCase (for simple kebab-case identifiers like "food-info").
             const exportedInstance = parentResult.result.exports[alias.name]
@@ -246,8 +246,8 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     };
 };
 
-export function lookupComponentInstance(bctx: BindingContext, instanceIndex: number): ComponentInstanceBinderRes {
-    let binderResult = bctx.instances.componentInstances[instanceIndex] as ComponentInstanceBinderRes | undefined;
+export function lookupComponentInstance(mctx: BindingContext, instanceIndex: number): ComponentInstanceBinderRes {
+    let binderResult = mctx.instances.componentInstances[instanceIndex] as ComponentInstanceBinderRes | undefined;
     if (!binderResult) {
         binderResult = {
             result: {
@@ -257,7 +257,7 @@ export function lookupComponentInstance(bctx: BindingContext, instanceIndex: num
                 types: {}
             }
         };
-        bctx.instances.componentInstances[instanceIndex] = binderResult;
+        mctx.instances.componentInstances[instanceIndex] = binderResult;
     }
     return binderResult;
 }

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createComponent } from './dist/index.js';
+import { createComponent } from './dist/release/index.js';
 
 // this is url of your component
 // `hello.wasm` sample was built using `npm run build:hello`
@@ -43,3 +43,4 @@ await run(cityInfo);
 
 // result type is void
 // And we should see 'Welcome to Prague, we invite you for a drink!' in the console
+process.exit(0);

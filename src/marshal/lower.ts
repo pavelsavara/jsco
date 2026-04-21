@@ -7,7 +7,7 @@ export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan,
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
 import { validateUtf16, validatePointerAlignment } from './validation';
-import { TAG, VAL, OK, ERR } from '../utils/constants';
+import { OK, ERR } from './constants';
 
 // --- Primitive lowering functions (WASM flat args → JS values) ---
 // These are stateless top-level functions with no captured state.
@@ -223,10 +223,10 @@ export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...ar
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
     if (discriminant === 0) {
         const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
-        return { [TAG]: OK, [VAL]: val };
+        return { tag: OK, val: val };
     } else {
         const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;
-        return { [TAG]: ERR, [VAL]: val };
+        return { tag: ERR, val: val };
     }
 }
 
@@ -243,7 +243,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext
             }
         }
         const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
-        return { [TAG]: OK, [VAL]: val };
+        return { tag: OK, val: val };
     } else {
         for (let i = 0; i < plan.errFlatTypes.length; i++) {
             const joinedFT = plan.payloadJoined[i];
@@ -253,7 +253,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext
             }
         }
         const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;
-        return { [TAG]: ERR, [VAL]: val };
+        return { tag: ERR, val: val };
     }
 }
 
@@ -275,9 +275,9 @@ export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...
                 }
             }
         }
-        return { [TAG]: c.name, [VAL]: c.lowerer(ctx, ...payload) };
+        return { tag: c.name, val: c.lowerer(ctx, ...payload) };
     }
-    return { [TAG]: c.name };
+    return { tag: c.name };
 }
 
 // --- Stream lowering (i32 handle → JS AsyncIterable) ---

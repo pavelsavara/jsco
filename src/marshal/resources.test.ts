@@ -238,18 +238,18 @@ describeDebugOnly('canonical resource identity resolution', () => {
 
 describeDebugOnly('own<T> lifting', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithResources();
+        mctx = createMockCtxWithResources();
     });
 
     test('JS object lifts to [handle] where handle > 0', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lifter = createLifting(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
-        const result = lifter(bctx, obj);
+        const result = lifter(mctx, obj);
         expect(result).toHaveLength(1);
         expect(result[0]).toBeGreaterThan(0);
     });
@@ -258,34 +258,34 @@ describeDebugOnly('own<T> lifting', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lifter = createLifting(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
-        const [handle] = lifter(bctx, obj);
-        expect(bctx.resources.get(0, handle as number)).toBe(obj);
+        const [handle] = lifter(mctx, obj);
+        expect(mctx.resources.get(0, handle as number)).toBe(obj);
     });
 
     test('multiple lifts produce unique handles', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lifter = createLifting(rctx.resolved, ownModel as any);
-        const [h1] = lifter(bctx, { a: 1 });
-        const [h2] = lifter(bctx, { a: 2 });
+        const [h1] = lifter(mctx, { a: 1 });
+        const [h2] = lifter(mctx, { a: 2 });
         expect(h1).not.toBe(h2);
     });
 });
 
 describeDebugOnly('own<T> lowering', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithResources();
+        mctx = createMockCtxWithResources();
     });
 
     test('handle lowers to original JS object', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lowerer = createLowering(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
-        const handle = bctx.resources.add(0, obj);
-        const result = lowerer(bctx, handle);
+        const handle = mctx.resources.add(0, obj);
+        const result = lowerer(mctx, handle);
         expect(result).toBe(obj);
     });
 
@@ -293,17 +293,17 @@ describeDebugOnly('own<T> lowering', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lowerer = createLowering(rctx.resolved, ownModel as any);
         const obj = { name: 'stream' };
-        const handle = bctx.resources.add(0, obj);
-        lowerer(bctx, handle);
-        expect(bctx.resources.has(0, handle)).toBe(false);
+        const handle = mctx.resources.add(0, obj);
+        lowerer(mctx, handle);
+        expect(mctx.resources.has(0, handle)).toBe(false);
     });
 
     test('lowering same handle twice throws', () => {
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lowerer = createLowering(rctx.resolved, ownModel as any);
-        const handle = bctx.resources.add(0, { name: 'stream' });
-        lowerer(bctx, handle);
-        expect(() => lowerer(bctx, handle)).toThrow('Invalid resource handle');
+        const handle = mctx.resources.add(0, { name: 'stream' });
+        lowerer(mctx, handle);
+        expect(() => lowerer(mctx, handle)).toThrow('Invalid resource handle');
     });
 
     test('spill is 1', () => {
@@ -315,18 +315,18 @@ describeDebugOnly('own<T> lowering', () => {
 
 describeDebugOnly('borrow<T> lifting', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithResources();
+        mctx = createMockCtxWithResources();
     });
 
     test('JS object lifts to [handle]', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lifter = createLifting(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
-        const result = lifter(bctx, obj);
+        const result = lifter(mctx, obj);
         expect(result).toHaveLength(1);
         expect(result[0]).toBeGreaterThan(0);
     });
@@ -335,26 +335,26 @@ describeDebugOnly('borrow<T> lifting', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lifter = createLifting(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
-        const [handle] = lifter(bctx, obj);
-        expect(bctx.resources.get(0, handle as number)).toBe(obj);
+        const [handle] = lifter(mctx, obj);
+        expect(mctx.resources.get(0, handle as number)).toBe(obj);
     });
 });
 
 describeDebugOnly('borrow<T> lowering', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithResources();
+        mctx = createMockCtxWithResources();
     });
 
     test('handle lowers to JS object', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
-        const handle = bctx.resources.add(0, obj);
-        const result = lowerer(bctx, handle);
+        const handle = mctx.resources.add(0, obj);
+        const result = lowerer(mctx, handle);
         expect(result).toBe(obj);
     });
 
@@ -362,19 +362,19 @@ describeDebugOnly('borrow<T> lowering', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
-        const handle = bctx.resources.add(0, obj);
-        lowerer(bctx, handle);
-        expect(bctx.resources.has(0, handle)).toBe(true);
+        const handle = mctx.resources.add(0, obj);
+        lowerer(mctx, handle);
+        expect(mctx.resources.has(0, handle)).toBe(true);
     });
 
     test('can lower same handle multiple times', () => {
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lowerer = createLowering(rctx.resolved, borrowModel as any);
         const obj = { name: 'ref' };
-        const handle = bctx.resources.add(0, obj);
-        expect(lowerer(bctx, handle)).toBe(obj);
-        expect(lowerer(bctx, handle)).toBe(obj);
-        expect(lowerer(bctx, handle)).toBe(obj);
+        const handle = mctx.resources.add(0, obj);
+        expect(lowerer(mctx, handle)).toBe(obj);
+        expect(lowerer(mctx, handle)).toBe(obj);
+        expect(lowerer(mctx, handle)).toBe(obj);
     });
 
     test('spill is 1', () => {
@@ -386,50 +386,50 @@ describeDebugOnly('borrow<T> lowering', () => {
 
 describeDebugOnly('own vs borrow semantics', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithResources();
+        mctx = createMockCtxWithResources();
     });
 
     test('lift own, lower own → handle removed', () => {
         const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'owned' };
-        const [handle] = lifter(bctx, obj);
-        const result = lowerer(bctx, handle!);
+        const [handle] = lifter(mctx, obj);
+        const result = lowerer(mctx, handle!);
         expect(result).toBe(obj);
-        expect(bctx.resources.has(0, handle as number)).toBe(false);
+        expect(mctx.resources.has(0, handle as number)).toBe(false);
     });
 
     test('lift borrow, lower borrow → handle kept', () => {
         const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'borrowed' };
-        const [handle] = lifter(bctx, obj);
-        const result = lowerer(bctx, handle!);
+        const [handle] = lifter(mctx, obj);
+        const result = lowerer(mctx, handle!);
         expect(result).toBe(obj);
-        expect(bctx.resources.has(0, handle as number)).toBe(true);
+        expect(mctx.resources.has(0, handle as number)).toBe(true);
     });
 
     test('lift own, lower borrow → object returned, handle still exists', () => {
         const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const borrowLowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any);
         const obj = { name: 'owned-but-borrowed' };
-        const [handle] = lifter(bctx, obj);
-        const result = borrowLowerer(bctx, handle!);
+        const [handle] = lifter(mctx, obj);
+        const result = borrowLowerer(mctx, handle!);
         expect(result).toBe(obj);
-        expect(bctx.resources.has(0, handle as number)).toBe(true);
+        expect(mctx.resources.has(0, handle as number)).toBe(true);
     });
 
     test('lift own, lower own, try lower again → throws', () => {
         const lifter = createLifting(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const lowerer = createLowering(rctx.resolved, { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any);
         const obj = { name: 'consumed' };
-        const [handle] = lifter(bctx, obj);
-        lowerer(bctx, handle!);
-        expect(() => lowerer(bctx, handle!)).toThrow('Invalid resource handle');
+        const [handle] = lifter(mctx, obj);
+        lowerer(mctx, handle!);
+        expect(() => lowerer(mctx, handle!)).toThrow('Invalid resource handle');
     });
 });
 
@@ -674,18 +674,18 @@ describeDebugOnly('resource handle cleanup and ref counting', () => {
 
 describeDebugOnly('stream<T> lifting and lowering', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithStreams();
+        mctx = createMockCtxWithStreams();
     });
 
     test('JS async iterable lifts to [handle]', () => {
         const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lifter = createLifting(rctx.resolved, streamModel as any);
         const iterable = { [Symbol.asyncIterator]: () => ({}) };
-        const result = lifter(bctx, iterable);
+        const result = lifter(mctx, iterable);
         expect(result).toHaveLength(1);
         expect(result[0]).toBeGreaterThan(0);
     });
@@ -694,8 +694,8 @@ describeDebugOnly('stream<T> lifting and lowering', () => {
         const streamModel = { tag: ModelTag.ComponentTypeDefinedStream, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lowerer = createLowering(rctx.resolved, streamModel as any);
         const iterable = { [Symbol.asyncIterator]: () => ({}) };
-        const handle = (bctx.streams as any).addReadable(0, iterable);
-        const result = lowerer(bctx, handle);
+        const handle = (mctx.streams as any).addReadable(0, iterable);
+        const result = lowerer(mctx, handle);
         expect(result).toBe(iterable);
     });
 
@@ -708,18 +708,18 @@ describeDebugOnly('stream<T> lifting and lowering', () => {
 
 describeDebugOnly('future<T> lifting and lowering', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithStreams();
+        mctx = createMockCtxWithStreams();
     });
 
     test('JS promise lifts to [handle]', () => {
         const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lifter = createLifting(rctx.resolved, futureModel as any);
         const promise = Promise.resolve(42);
-        const result = lifter(bctx, promise);
+        const result = lifter(mctx, promise);
         expect(result).toHaveLength(1);
         expect(result[0]).toBeGreaterThan(0);
     });
@@ -728,8 +728,8 @@ describeDebugOnly('future<T> lifting and lowering', () => {
         const futureModel = { tag: ModelTag.ComponentTypeDefinedFuture, value: { tag: ModelTag.ComponentValTypePrimitive, value: PrimitiveValType.S32 } };
         const lowerer = createLowering(rctx.resolved, futureModel as any);
         const promise = Promise.resolve(42);
-        const handle = (bctx.futures as any).addReadable(0, promise);
-        const result = lowerer(bctx, handle);
+        const handle = (mctx.futures as any).addReadable(0, promise);
+        const result = lowerer(mctx, handle);
         expect(result).toBe(promise);
     });
 
@@ -742,18 +742,18 @@ describeDebugOnly('future<T> lifting and lowering', () => {
 
 describeDebugOnly('error-context lifting and lowering', () => {
     let rctx: ResolverContext;
-    let bctx: BindingContext;
+    let mctx: BindingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
-        bctx = createMockCtxWithStreams();
+        mctx = createMockCtxWithStreams();
     });
 
     test('JS Error lifts to [handle]', () => {
         const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
         const lifter = createLifting(rctx.resolved, errModel as any);
         const err = new Error('test error');
-        const result = lifter(bctx, err);
+        const result = lifter(mctx, err);
         expect(result).toHaveLength(1);
         expect(result[0]).toBeGreaterThan(0);
     });
@@ -762,8 +762,8 @@ describeDebugOnly('error-context lifting and lowering', () => {
         const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
         const lowerer = createLowering(rctx.resolved, errModel as any);
         const err = new Error('test error');
-        const handle = (bctx.errorContexts as any).add(err);
-        const result = lowerer(bctx, handle);
+        const handle = (mctx.errorContexts as any).add(err);
+        const result = lowerer(mctx, handle);
         expect(result).toBe(err);
     });
 
@@ -776,8 +776,8 @@ describeDebugOnly('error-context lifting and lowering', () => {
     test('multiple lifts produce unique handles', () => {
         const errModel = { tag: ModelTag.ComponentTypeDefinedErrorContext };
         const lifter = createLifting(rctx.resolved, errModel as any);
-        const [h1] = lifter(bctx, new Error('a'));
-        const [h2] = lifter(bctx, new Error('b'));
+        const [h1] = lifter(mctx, new Error('a'));
+        const [h2] = lifter(mctx, new Error('b'));
         expect(h1).not.toBe(h2);
     });
 });

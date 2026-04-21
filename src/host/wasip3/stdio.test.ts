@@ -464,3 +464,92 @@ describe('wasi:cli/terminal-*', () => {
         expect(ts.getTerminalStderr()).toBeUndefined();
     });
 });
+
+describe('wasi:cli/stdio edge cases', () => {
+    it('rapid small writes preserve ordering', async () => {
+        const chunks: Uint8Array[] = [];
+        const outputStream = new WritableStream<Uint8Array>({
+            write(chunk) { chunks.push(new Uint8Array(chunk)); },
+        });
+
+        const stdout = createStdout({ stdout: outputStream });
+        const pair = createStreamPair<Uint8Array>();
+        const future = stdout.writeViaStream(pair.readable);
+
+        for (let i = 0; i < 50; i++) {
+            await pair.write(new Uint8Array([i]));
+        }
+        pair.close();
+        await future;
+
+        expect(chunks.length).toBe(50);
+        for (let i = 0; i < 50; i++) {
+            expect(chunks[i]![0]).toBe(i);
+        }
+    });
+
+    it('zero-length write does not break stream', async () => {
+        const chunks: Uint8Array[] = [];
+        const outputStream = new WritableStream<Uint8Array>({
+            write(chunk) { chunks.push(new Uint8Array(chunk)); },
+        });
+
+        const stdout = createStdout({ stdout: outputStream });
+        const pair = createStreamPair<Uint8Array>();
+        const future = stdout.writeViaStream(pair.readable);
+
+        await pair.write(new Uint8Array(0));
+        await pair.write(new Uint8Array([99]));
+        pair.close();
+        await future;
+
+        // At least one chunk with [99] arrives; zero-length may or may not appear
+        const allBytes: number[] = [];
+        for (const c of chunks) for (const b of c) allBytes.push(b);
+        expect(allBytes).toContain(99);
+    });
+
+    it('write to broken WritableStream — future rejects with error', async () => {
+        let rejectCount = 0;
+        const brokenStream = new WritableStream<Uint8Array>({
+            write() {
+                rejectCount++;
+                if (rejectCount >= 2) throw new Error('pipe broken');
+            },
+        });
+
+        const stdout = createStdout({ stdout: brokenStream });
+        const pair = createStreamPair<Uint8Array>();
+        const future = stdout.writeViaStream(pair.readable);
+
+        await pair.write(new Uint8Array([1]));
+        await pair.write(new Uint8Array([2])); // should trigger broken pipe
+        pair.close();
+
+        // Future should reject with the pipe error
+        await expect(future).rejects.toBeDefined();
+    });
+
+    it('stdin reading after stream is consumed yields empty', async () => {
+        const inputData = new Uint8Array([1, 2, 3]);
+        const inputStream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(inputData);
+                controller.close();
+            },
+        });
+        const stdin = createStdin({ stdin: inputStream });
+
+        // First read — consume all
+        const [stream1, future1] = stdin.readViaStream();
+        const data1 = await collectBytes(stream1);
+        expect(data1).toEqual(inputData);
+        await future1;
+
+        // Second read — stream is already consumed
+        const [stream2, future2] = stdin.readViaStream();
+        const data2 = await collectBytes(stream2);
+        expect(data2.length).toBe(0);
+        await future2;
+    });
+});

@@ -21,6 +21,12 @@ export class WasiExit extends Error {
     }
 }
 
+/**
+ * Create the `wasi:cli/environment` interface.
+ *
+ * Provides `getEnvironment()`, `getArguments()`, and `getInitialCwd()`
+ * from the supplied configuration. Returns defensive copies.
+ */
 export function createEnvironment(config?: WasiP3Config): typeof WasiCliEnvironment {
     const env = config?.env ?? [];
     const args = config?.args ?? [];
@@ -44,6 +50,12 @@ export function createEnvironment(config?: WasiP3Config): typeof WasiCliEnvironm
 
 type ExitResult = { tag: 'ok'; val: void } | { tag: 'err'; val: void };
 
+/**
+ * Create the `wasi:cli/exit` interface.
+ *
+ * Both `exit()` and `exitWithCode()` throw {@link WasiExit} which the
+ * host runtime catches to extract the exit code.
+ */
 export function createExit(): typeof WasiCliExit {
     return {
         exit(status: ExitResult): void {

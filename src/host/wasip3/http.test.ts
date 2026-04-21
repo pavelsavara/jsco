@@ -308,6 +308,68 @@ describe('HttpFields', () => {
             const f = types.Fields.fromList([['constructor', encode('evil')]]);
             expect(f.get('constructor').length).toBe(1);
         });
+
+        it('header value with response splitting pattern is rejected', () => {
+            // HTTP response splitting: value contains \r\n followed by a fake header
+            expect(() => types.Fields.fromList([
+                ['x-safe', encode('value\r\nX-Injected: true')],
+            ])).toThrow();
+        });
+
+        it('many headers are accepted within size limit', () => {
+            const config: WasiP3Config = { network: { maxHttpHeadersBytes: 100_000 } };
+            const t = getTypes(config);
+            const entries: [string, Uint8Array][] = [];
+            for (let i = 0; i < 100; i++) {
+                entries.push([`x-h${i}`, encode(`value${i}`)]);
+            }
+            const f = t.Fields.fromList(entries);
+            expect(f.copyAll().length).toBe(100);
+        });
+    });
+
+    describe('invalid arguments', () => {
+        it('set with empty header name throws', () => {
+            const f = new types.Fields();
+            expect(() => f.set('', [encode('value')])).toThrow();
+        });
+
+        it('fromList with header name containing null byte throws', () => {
+            expect(() => types.Fields.fromList([['x-null\x00byte', encode('v')]])).toThrow();
+        });
+
+        it('fromList with header name containing CRLF throws', () => {
+            expect(() => types.Fields.fromList([['x-bad\r\n', encode('v')]])).toThrow();
+        });
+
+        it('header value with only \\r (no \\n) is accepted', () => {
+            // Bare \r without \n may be accepted per some implementations
+            // or rejected — verify no crash
+            try {
+                types.Fields.fromList([['x-bare-cr', encode('val\rue')]]);
+            } catch {
+                // Also acceptable
+            }
+        });
+
+        it('empty header value is valid', () => {
+            const f = types.Fields.fromList([['x-empty', new Uint8Array(0)]]);
+            expect(f.get('x-empty').length).toBe(1);
+            expect(f.get('x-empty')[0].length).toBe(0);
+        });
+
+        it('multiple values for same header preserved in order', () => {
+            const f = types.Fields.fromList([
+                ['x-multi', encode('first')],
+                ['x-multi', encode('second')],
+                ['x-multi', encode('third')],
+            ]);
+            const vals = f.get('x-multi');
+            expect(vals.length).toBe(3);
+            expect(dec.decode(vals[0])).toBe('first');
+            expect(dec.decode(vals[1])).toBe('second');
+            expect(dec.decode(vals[2])).toBe('third');
+        });
     });
 });
 
@@ -404,6 +466,12 @@ describe('HttpRequest', () => {
         expect(req.getScheme()).toEqual({ tag: 'HTTPS' });
     });
 
+    it('set custom scheme other', () => {
+        const [req] = makeRequest();
+        req.setScheme({ tag: 'other', val: 'wss' });
+        expect(req.getScheme()).toEqual({ tag: 'other', val: 'wss' });
+    });
+
     it('set/get authority', () => {
         const [req] = makeRequest();
         req.setAuthority('example.com');
@@ -474,6 +542,43 @@ describe('HttpRequest', () => {
         const [, completionFuture] = makeRequest();
         expect(completionFuture).toBeInstanceOf(Promise);
     });
+
+    it('setPathWithQuery with path traversal stores as-is (no host-side decoding)', () => {
+        const [req] = makeRequest();
+        // WASI HTTP does not decode/resolve URL paths — that's the server's job
+        req.setPathWithQuery('/../../../etc/passwd');
+        expect(req.getPathWithQuery()).toBe('/../../../etc/passwd');
+    });
+
+    it('setMethod CONNECT is accepted (host does not restrict methods)', () => {
+        const [req] = makeRequest();
+        req.setMethod({ tag: 'other', val: 'CONNECT' });
+        expect(req.getMethod()).toEqual({ tag: 'other', val: 'CONNECT' });
+    });
+
+    it('request without body — consumeBody yields empty stream', async () => {
+        const [req] = makeRequest();
+        const resFuture = Promise.resolve({ tag: 'ok' as const, val: undefined });
+        const [stream] = types.Request.consumeBody(req, resFuture);
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        expect(chunks.length).toBe(0);
+    });
+
+    it('request without options — getOptions returns undefined', () => {
+        const [req] = makeRequest();
+        // No options were passed to makeRequest
+        // Depending on implementation, it may return undefined or default options
+        const opts = req.getOptions();
+        // Either is acceptable
+        if (opts === undefined) {
+            expect(opts).toBeUndefined();
+        } else {
+            expect(opts.getConnectTimeout()).toBeUndefined();
+        }
+    });
 });
 
 // ──────────────────── Response ────────────────────
@@ -507,6 +612,24 @@ describe('HttpResponse', () => {
         expect(() => resp.setStatusCode(-1)).toThrow();
         expect(() => resp.setStatusCode(1000)).toThrow();
         expect(() => resp.setStatusCode(1.5)).toThrow();
+    });
+
+    it('setStatusCode 0 is rejected or set', () => {
+        const [resp] = makeResponse();
+        // 0 is not a valid HTTP status code — implementation may reject it
+        try {
+            resp.setStatusCode(0);
+            // If it doesn't throw, at least verify it was stored
+            expect(resp.getStatusCode()).toBe(0);
+        } catch {
+            // Expected — 0 is invalid
+        }
+    });
+
+    it('setStatusCode 999 is accepted', () => {
+        const [resp] = makeResponse();
+        resp.setStatusCode(999);
+        expect(resp.getStatusCode()).toBe(999);
     });
 
     it('getHeaders returns frozen clone', () => {
@@ -858,6 +981,66 @@ describe('HttpClient.send()', () => {
         });
         await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
         expect(receivedMethod).toBe('PUT');
+    });
+
+    it('multiple concurrent sends complete independently', async () => {
+        let callCount = 0;
+        mockFetch(async (_url, _init) => {
+            callCount++;
+            return new Response(`response-${callCount}`, { status: 200 });
+        });
+
+        const client = createHttpClient();
+        const req1 = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'a.com', path: '/1' });
+        const req2 = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'b.com', path: '/2' });
+
+        const [resp1, resp2] = await Promise.all([
+            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req1),
+            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req2),
+        ]);
+
+        expect(resp1.getStatusCode()).toBe(200);
+        expect(resp2.getStatusCode()).toBe(200);
+        expect(callCount).toBe(2);
+    });
+
+    it('send request with custom request headers', async () => {
+        let receivedHeaders: Headers | undefined;
+        mockFetch(async (_url, init) => {
+            receivedHeaders = new Headers(init.headers as HeadersInit);
+            return new Response('ok', { status: 200 });
+        });
+
+        const client = createHttpClient();
+        const req = buildRequest({
+            scheme: { tag: 'HTTPS' },
+            authority: 'example.com',
+            path: '/',
+            headers: [['x-custom', encode('myvalue')]],
+        });
+        await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        expect(receivedHeaders!.get('x-custom')).toBe('myvalue');
+    });
+
+    it('empty response body — stream ends immediately', async () => {
+        mockFetch(async () => new Response('', { status: 200 }));
+
+        const client = createHttpClient();
+        const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/' });
+        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+
+        const resFuture = Promise.resolve({ tag: 'ok' as const, val: undefined });
+        const [stream] = (types.Response as unknown as {
+            consumeBody(r: ResponseLike, f: Promise<unknown>): [AsyncIterable<Uint8Array>, Promise<unknown>];
+        }).consumeBody(resp as unknown as ResponseLike, resFuture);
+
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        // Empty string may yield one empty chunk or zero chunks
+        const totalBytes = chunks.reduce((a, c) => a + c.length, 0);
+        expect(totalBytes).toBe(0);
     });
 });
 

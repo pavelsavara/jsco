@@ -108,6 +108,12 @@ class BrowserUdpSocket {
 
 // ──────────────────── Factory functions ────────────────────
 
+/**
+ * Create the `wasi:sockets/types` interface (browser stub).
+ *
+ * Both `TcpSocket.create()` and `UdpSocket.create()` throw `not-supported`.
+ * On Node.js, this is replaced by real implementations from `node/sockets.ts`.
+ */
 export function createSocketsTypes(): typeof WasiSocketsTypes {
     return {
         TcpSocket: BrowserTcpSocket,
@@ -115,6 +121,12 @@ export function createSocketsTypes(): typeof WasiSocketsTypes {
     } as unknown as typeof WasiSocketsTypes;
 }
 
+/**
+ * Create the `wasi:sockets/ip-name-lookup` interface (browser stub).
+ *
+ * DNS lookup is not available in the browser. Throws `not-supported`.
+ * On Node.js, this is replaced by real DNS lookup from `node/sockets.ts`.
+ */
 export function createIpNameLookup(): typeof WasiSocketsIpNameLookup {
     return {
         async resolveAddresses(_name: string): Promise<never> {
