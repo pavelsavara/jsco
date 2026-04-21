@@ -25,6 +25,7 @@
 - consider too many HTTP headers or too large body
 - update consumer,forwarder,implementer to cover all wasip2 functions and fix tests
 - fix `collectCoverageFrom` many exclusions are just excuses
+- dedicated tests for new p3 types. future, stream
 
 # Build
 - add coverage to CI, fail if lower than some %

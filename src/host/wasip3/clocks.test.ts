@@ -183,3 +183,23 @@ describe('wasi:clocks/types', () => {
         expect(typeof types).toBe('object');
     });
 });
+
+describe('wasi:clocks evil arguments', () => {
+    const clock = createMonotonicClock();
+
+    it('many concurrent waitFor calls do not leak timers', async () => {
+        const promises: Promise<void>[] = [];
+        for (let i = 0; i < 200; i++) {
+            promises.push(clock.waitFor(1_000_000n)); // 1ms each
+        }
+        await Promise.all(promises);
+        // If we get here without OOM or timeout, timer cleanup works
+    });
+
+    it('waitFor with extremely large value does not crash (just pends)', () => {
+        // Start an extremely long wait — it should not crash synchronously
+        const p = clock.waitFor(BigInt(Number.MAX_SAFE_INTEGER) * 1_000_000_000n);
+        expect(p).toBeInstanceOf(Promise);
+        // We do not await it — just verify it was created safely
+    });
+});

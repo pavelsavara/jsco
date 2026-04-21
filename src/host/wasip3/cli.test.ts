@@ -93,6 +93,15 @@ describe('wasi:cli/environment', () => {
             const second = env.getArguments();
             expect(second).toEqual(['original']);
         });
+
+        it('handles very long argument list (10000 entries)', () => {
+            const args = Array.from({ length: 10000 }, (_, i) => `arg${i}`);
+            const env = createEnvironment({ args });
+            const result = env.getArguments();
+            expect(result.length).toBe(10000);
+            expect(result[0]).toBe('arg0');
+            expect(result[9999]).toBe('arg9999');
+        });
     });
 
     describe('getInitialCwd', () => {
@@ -197,5 +206,52 @@ describe('wasi:cli/types', () => {
     it('createCliTypes returns an object (type-only module)', () => {
         const types = createCliTypes();
         expect(typeof types).toBe('object');
+    });
+});
+
+describe('wasi:cli/exit edge cases', () => {
+    const exit = createExit();
+
+    it('exitWithCode(256) still throws WasiExit (host does not validate u8 range)', () => {
+        try {
+            exit.exitWithCode(256);
+            fail('should have thrown');
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).exitCode).toBe(256);
+        }
+    });
+
+    it('exitWithCode(-1) throws WasiExit with negative code', () => {
+        try {
+            exit.exitWithCode(-1);
+            fail('should have thrown');
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).exitCode).toBe(-1);
+        }
+    });
+
+    it('exitWithCode(NaN) throws WasiExit with NaN code', () => {
+        try {
+            exit.exitWithCode(NaN);
+            fail('should have thrown');
+        } catch (e) {
+            expect(e).toBeInstanceOf(WasiExit);
+            expect((e as WasiExit).exitCode).toBe(NaN);
+        }
+    });
+
+    it('exit called from within a promise callback does not deadlock', async () => {
+        const exitPromise = Promise.resolve().then(() => {
+            try {
+                exit.exit({ tag: 'ok', val: undefined });
+            } catch (e) {
+                return e;
+            }
+            return undefined;
+        });
+        const result = await exitPromise;
+        expect(result).toBeInstanceOf(WasiExit);
     });
 });

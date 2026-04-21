@@ -249,5 +249,25 @@ describe('HandleTable', () => {
             }
             expect(table.size).toBe(0);
         });
+
+        it('descriptor handle used as socket handle must fail (per-type-table isolation)', () => {
+            const descriptorTable = createHandleTable<{ kind: string; path: string }>();
+            const socketTable = createHandleTable<{ kind: string; fd: number }>();
+            const descHandle = descriptorTable.alloc({ kind: 'descriptor', path: '/tmp' });
+            // Passing the descriptor handle to the socket table should not find a valid socket
+            expect(socketTable.get(descHandle)).toBeUndefined();
+        });
+
+        it('drop then reuse handle does not leak old value', () => {
+            const table = createHandleTable<string>();
+            const h1 = table.alloc('old-resource');
+            table.drop(h1);
+            const h2 = table.alloc('new-resource');
+            // h2 should reuse h1's slot
+            expect(h2).toBe(h1);
+            expect(table.get(h2)).toBe('new-resource');
+            // Old references to h1 now see "new-resource" — this is expected
+            // since handles are just integers. The type system prevents misuse.
+        });
     });
 });

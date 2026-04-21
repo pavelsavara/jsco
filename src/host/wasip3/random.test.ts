@@ -58,6 +58,13 @@ describe('wasi:random/random', () => {
         it('throws when maxLen exceeds u64 range via config limit', () => {
             expect(() => random.getRandomBytes(2n ** 64n)).toThrow(RangeError);
         });
+
+        it('rapid calls in tight loop do not crash', () => {
+            for (let i = 0; i < 100; i++) {
+                const bytes = random.getRandomBytes(64n);
+                expect(bytes.length).toBe(64);
+            }
+        });
     });
 
     describe('getRandomU64', () => {

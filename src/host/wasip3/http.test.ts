@@ -308,6 +308,24 @@ describe('HttpFields', () => {
             const f = types.Fields.fromList([['constructor', encode('evil')]]);
             expect(f.get('constructor').length).toBe(1);
         });
+
+        it('header value with response splitting pattern is rejected', () => {
+            // HTTP response splitting: value contains \r\n followed by a fake header
+            expect(() => types.Fields.fromList([
+                ['x-safe', encode('value\r\nX-Injected: true')],
+            ])).toThrow();
+        });
+
+        it('many headers are accepted within size limit', () => {
+            const config: WasiP3Config = { network: { maxHttpHeadersBytes: 100_000 } };
+            const t = getTypes(config);
+            const entries: [string, Uint8Array][] = [];
+            for (let i = 0; i < 100; i++) {
+                entries.push([`x-h${i}`, encode(`value${i}`)]);
+            }
+            const f = t.Fields.fromList(entries);
+            expect(f.copyAll().length).toBe(100);
+        });
     });
 });
 
@@ -402,6 +420,12 @@ describe('HttpRequest', () => {
         const [req] = makeRequest();
         req.setScheme({ tag: 'HTTPS' });
         expect(req.getScheme()).toEqual({ tag: 'HTTPS' });
+    });
+
+    it('set custom scheme other', () => {
+        const [req] = makeRequest();
+        req.setScheme({ tag: 'other', val: 'wss' });
+        expect(req.getScheme()).toEqual({ tag: 'other', val: 'wss' });
     });
 
     it('set/get authority', () => {
@@ -507,6 +531,24 @@ describe('HttpResponse', () => {
         expect(() => resp.setStatusCode(-1)).toThrow();
         expect(() => resp.setStatusCode(1000)).toThrow();
         expect(() => resp.setStatusCode(1.5)).toThrow();
+    });
+
+    it('setStatusCode 0 is rejected or set', () => {
+        const [resp] = makeResponse();
+        // 0 is not a valid HTTP status code — implementation may reject it
+        try {
+            resp.setStatusCode(0);
+            // If it doesn't throw, at least verify it was stored
+            expect(resp.getStatusCode()).toBe(0);
+        } catch {
+            // Expected — 0 is invalid
+        }
+    });
+
+    it('setStatusCode 999 is accepted', () => {
+        const [resp] = makeResponse();
+        resp.setStatusCode(999);
+        expect(resp.getStatusCode()).toBe(999);
     });
 
     it('getHeaders returns frozen clone', () => {

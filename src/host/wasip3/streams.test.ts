@@ -165,6 +165,30 @@ describe('StreamBridge', () => {
             const result = await collectPromise;
             expect(result).toEqual([1, 2, 3]);
         });
+
+        it('large chunk (1MB+) passes through without corruption', async () => {
+            const pair = createStreamPair<Uint8Array>();
+            const size = 1024 * 1024 + 7; // 1MB + 7 bytes
+            const data = new Uint8Array(size);
+            for (let i = 0; i < size; i++) data[i] = i & 0xFF;
+            const collectPromise = collectBytes(pair.readable);
+            await pair.write(data);
+            pair.close();
+            const result = await collectPromise;
+            expect(result.length).toBe(size);
+            expect(result[0]).toBe(0);
+            expect(result[size - 1]).toBe((size - 1) & 0xFF);
+        });
+
+        it('zero-length Uint8Array chunk passes through', async () => {
+            const pair = createStreamPair<Uint8Array>();
+            const collectPromise = collectStream(pair.readable);
+            await pair.write(new Uint8Array(0));
+            await pair.write(new Uint8Array([1]));
+            pair.close();
+            const result = await collectPromise;
+            expect(result.length).toBe(2);
+        });
     });
 
     // ─── 1.2 Invalid arguments ──────────────────────────────────────
@@ -240,6 +264,57 @@ describe('StreamBridge', () => {
             const pair = createStreamPair<number>();
             pair.close();
             pair.close(); // should not throw
+        });
+
+        it('infinite async iterable can be broken out of by consumer', async () => {
+            async function* infinite() {
+                let i = 0;
+                while (true) {
+                    yield i++;
+                }
+            }
+            const readable = readableFromAsyncIterable(infinite());
+            const items: number[] = [];
+            for await (const item of readable) {
+                items.push(item);
+                if (items.length >= 5) break;
+            }
+            expect(items).toEqual([0, 1, 2, 3, 4]);
+        });
+
+        it('iterator whose return() throws — consumer still gets collected data', async () => {
+            let returnCalled = false;
+            const evil: AsyncIterable<number> = {
+                [Symbol.asyncIterator]() {
+                    let i = 0;
+                    return {
+                        next() {
+                            if (i < 3) return Promise.resolve({ value: i++, done: false as const });
+                            return Promise.resolve({ value: undefined, done: true as const });
+                        },
+                        return() {
+                            returnCalled = true;
+                            throw new Error('evil return');
+                        },
+                    };
+                },
+            };
+            const readable = readableFromAsyncIterable(evil);
+            const items: number[] = [];
+            for await (const item of readable) {
+                items.push(item);
+            }
+            expect(items).toEqual([0, 1, 2]);
+        });
+
+        it('null yielded from async iterable is passed through', async () => {
+            async function* gen() {
+                yield null;
+                yield 42;
+            }
+            const readable = readableFromAsyncIterable(gen());
+            const result = await collectStream(readable);
+            expect(result).toEqual([null, 42]);
         });
     });
 

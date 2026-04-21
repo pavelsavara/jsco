@@ -536,6 +536,62 @@ describe('filesystem — Descriptor', () => {
             expect(s.size).toBe(12n);
         });
     });
+
+    describe('evil arguments', () => {
+        test('createDirectoryAt treats absolute path as relative (leading / stripped)', async () => {
+            const root = getRoot();
+            // Implementation splits on '/' and skips empty segments, so /absolute → ['absolute']
+            await root.createDirectoryAt('/absolute');
+            const stat = await root.statAt({ symlinkFollow: false }, 'absolute');
+            expect(stat.type.tag).toBe('directory');
+        });
+
+        test('createDirectoryAt rejects null byte in path', async () => {
+            const root = getRoot();
+            await expect(root.createDirectoryAt('dir\x00hidden')).rejects.toBeDefined();
+        });
+
+        test('openAt rejects absolute path', async () => {
+            const root = getRoot();
+            await expect(root.openAt(
+                { symlinkFollow: false }, '/etc/passwd',
+                {}, { read: true },
+            )).rejects.toBeDefined();
+        });
+
+        test('read at offset beyond file size returns empty', async () => {
+            const root = getRoot({ fs: new Map([['small.txt', 'hi']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'small.txt', {}, { read: true });
+            const [stream] = file.readViaStream(1000n);
+            const bytes = await collectBytes(stream);
+            expect(bytes.length).toBe(0);
+        });
+
+        test('concurrent reads on same file both succeed', async () => {
+            const content = 'shared content for concurrent reads';
+            const root = getRoot({ fs: new Map([['shared.txt', content]]) });
+            const f1 = await root.openAt({ symlinkFollow: false }, 'shared.txt', {}, { read: true });
+            const f2 = await root.openAt({ symlinkFollow: false }, 'shared.txt', {}, { read: true });
+
+            const [s1] = f1.readViaStream(0n);
+            const [s2] = f2.readViaStream(0n);
+
+            const [b1, b2] = await Promise.all([collectBytes(s1), collectBytes(s2)]);
+            expect(decoder.decode(b1)).toBe(content);
+            expect(decoder.decode(b2)).toBe(content);
+        });
+
+        test('setSize to 0 truncates file', async () => {
+            const root = getRoot({ fs: new Map([['big.txt', 'some data here']]) });
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'big.txt',
+                {}, { read: true, write: true },
+            );
+            await file.setSize(0n);
+            const stat = await file.stat();
+            expect(stat.size).toBe(0n);
+        });
+    });
 });
 
 

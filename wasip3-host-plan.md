@@ -113,210 +113,114 @@ Unified handle allocation/disposal via typed `HandleTable<T>` per resource kind:
 
 ---
 
-## Stage 1: Infrastructure & Build
+## Stage 1: Infrastructure & Build ✅ COMPLETE
 
 ### Goals
 - Set up the file structure, build pipeline, and shared utilities
 
-### Tasks
-- Create `src/host/wasip3/wasip3.ts` entry point with `createHost()` skeleton
-- Create `src/host/wasip3/node/wasip3.ts` entry point with `createHost()` and `serve()` skeletons
-- Add rollup entries for `wasip3.js` and `wasip3-node.js` (mirror wasip2 pattern)
-- Update `deploy/package.json` exports map with `./wasip3` and `./wasip3-node`
-- Create `src/host/wasip3/types.ts` — `WasiP3Config`, `MountConfig`, `NetworkConfig`, allocation/size limits
-- Create `src/host/wasip3/streams.ts` — stream bridge helpers (ReadableStream ↔ WasiStream)
-- Create `src/host/wasip3/result.ts` — result/error constructor helpers (`ok()`, `err()`), `WasiError` exception class carrying error code/tag/message for representing failed results as throwable exceptions
-- Create `src/host/wasip3/resources.ts` — typed `HandleTable<T>` for resource handle allocation, lookup, drop, and use-after-drop detection. Free-list based reuse. Per-kind tables (descriptors, sockets, streams, etc.)
-- Verify build produces `dist/release/wasip3.js`, `wasip3.d.ts`, `wasip3-node.js`
+### Status
+All tasks complete. Build produces `dist/release/wasip3.js`, `wasip3.d.ts`, `wasip3-node.js`.
+- `src/host/wasip3/wasip3.ts` — browser entry point with `createWasiP3Host()`
+- `src/host/wasip3/node/wasip3.ts` — Node.js entry with `createWasiP3Host()` and `serve()`
+- Rollup entries for `wasip3.js` and `wasip3-node.js` in `rollup.config.js`
+- `deploy/package.json` exports: `./wasip3`, `./wasip3-node`
+- `src/host/wasip3/types.ts` — `WasiP3Config`, `MountConfig`, `NetworkConfig`, `AllocationLimits` with defaults
+- `src/host/wasip3/streams.ts` — `createStreamPair()`, `readableFromStream()`, `readableFromAsyncIterable()`, `collectStream()`, `collectBytes()`
+- `src/host/wasip3/result.ts` — `WasiResult<T,E>`, `ok()`/`err()` helpers, `WasiError`, `WasiExit`
+- `src/host/wasip3/resources.ts` — `HandleTable<T>` with LIFO free-list, configurable max (default 10K)
 
-### Tests
+### Tests ✅
 - `src/host/wasip3/streams.test.ts` — stream bridge round-trips
 - `src/host/wasip3/resources.test.ts` — handle alloc/get/drop, use-after-drop error, free-list reuse
+- `src/host/wasip3/result.test.ts` — result/error helpers
 - `src/host/wasip3/wasip3-host.test.ts` — createHost returns object with all interface keys
 
 ---
 
-## Stage 1.5: Interface Skeletons
+## Stage 1.5: Interface Skeletons ✅ COMPLETE
 
 ### Goals
 - Create skeleton files for ALL interfaces with every function stubbed out
 - Every function throws `WasiError('not-implemented')` — enables incremental development and compile-time type checking from the start
 
-### Tasks
-- Create `src/host/wasip3/random.ts` — all 3 interfaces, all functions, throw not-implemented
-- Create `src/host/wasip3/clocks.ts` — monotonic-clock, system-clock, timezone, throw not-implemented
-- Create `src/host/wasip3/cli.ts` — environment, exit, types, terminal-*, throw not-implemented
-- Create `src/host/wasip3/stdio.ts` — stdin, stdout, stderr, throw not-implemented
-- Create `src/host/wasip3/filesystem.ts` — Descriptor class skeleton, preopens, throw not-implemented
-- Create `src/host/wasip3/vfs.ts` — async VFS interface definition, in-memory skeleton
-- Create `src/host/wasip3/http.ts` — types, client send(), throw not-implemented
-- Create `src/host/wasip3/sockets.ts` — TcpSocket, UdpSocket, ip-name-lookup, throw not-supported
-- Create `src/host/wasip3/node/sockets.ts` — Node.js socket skeleton, throw not-implemented
-- Create `src/host/wasip3/node/http-server.ts` — serve() skeleton, throw not-implemented
-- Create `src/host/wasip3/node/filesystem-node.ts` — node FS Descriptor skeleton, throw not-implemented
-- Wire all skeletons into `createHost()` so it returns a complete `WasiP3Imports` object
-- Verify build succeeds and type-checks pass
+### Status
+All interface files created and wired into `createWasiP3Host()` (registered as both unversioned and versioned `0.3.0-rc-2026-03-15`). All 23 WASI interfaces registered. No "not-implemented" stubs remain — all interfaces either fully implemented or intentionally "not-supported" (browser sockets).
 
-### Tests
-- `src/host/wasip3/wasip3-host.test.ts` — every interface key present, calling any function throws not-implemented
+### Tests ✅
+- `src/host/wasip3/wasip3-host.test.ts` — every interface key present, browser socket stubs throw "not-supported"
 
 ---
 
-## Stage 2: Simple Interfaces (Random, Clocks, CLI Environment/Exit)
+## Stage 2: Simple Interfaces (Random, Clocks, CLI Environment/Exit) ✅ COMPLETE
 
 ### Goals
 - Implement interfaces that are synchronous or trivially async, browser-compatible
 
-### Interfaces
-- `wasi:random/random` — `getRandomBytes(len)`, `getRandomU64()` via `crypto.getRandomValues()`. Validate `len` against config max allocation size before allocating.
-- `wasi:random/insecure` — `getInsecureRandomBytes(len)`, `getInsecureRandomU64()`. Same length validation.
-- `wasi:random/insecure-seed` — `insecureSeed()` returning `[bigint, bigint]`
-- `wasi:clocks/types` — `Duration` type (just bigint, no runtime)
-- `wasi:clocks/monotonic-clock` — `now()`, `getResolution()`, `waitUntil(Mark)`, `waitFor(Duration)` (Promise-based)
-- `wasi:clocks/system-clock` — `now()`, `getResolution()`
-- `wasi:clocks/timezone` — `display(Instant)`, `utcOffset(Instant)`, `inDaylightSavingTime(Instant)`
-- `wasi:cli/environment` — `getEnvironment()`, `getArguments()`, `getInitialCwd()` from config
-- `wasi:cli/exit` — `exit(Result)`, `exitWithCode(number)` throwing WasiExit
-- `wasi:cli/types` — `ErrorCode` type (no runtime)
+### Status
+All interfaces fully implemented.
+- `src/host/wasip3/random.ts` — `getRandomBytes()` with chunked crypto.getRandomValues (64K limit), `getRandomU64()`, insecure variants, per-instance insecure seed
+- `src/host/wasip3/clocks.ts` — `now()` via perf.now() in nanoseconds, `waitUntil()`/`waitFor()` via setTimeout, system clock from Date.now(), timezone via Intl.DateTimeFormat
+- `src/host/wasip3/cli.ts` — `getEnvironment()`, `getArguments()`, `getInitialCwd()` from config, `exit()`/`exitWithCode()` throwing WasiExit
 
-### Tasks
-- Create `src/host/wasip3/random.ts`
-- Create `src/host/wasip3/clocks.ts`
-- Create `src/host/wasip3/cli.ts`
-
-### Tests
+### Tests ✅
 - `src/host/wasip3/random.test.ts`
 - `src/host/wasip3/clocks.test.ts`
 - `src/host/wasip3/cli.test.ts` — environment, exit
 
 ---
 
-## Stage 3: CLI Stdio (Streams)
+## Stage 3: CLI Stdio (Streams) ✅ COMPLETE
 
-### Goals
-- Implement stdin/stdout/stderr using P3 stream semantics
-- First real usage of the stream bridge
+### Status
+Fully implemented in `src/host/wasip3/stdio.ts`.
+- stdin: `readViaStream()` returns stream pair, pumps from config.stdin
+- stdout: `writeViaStream(readable)` → config.stdout or fallback console.log
+- stderr: `writeViaStream(readable)` → config.stderr or fallback console.error
+- Node.js stdio bridge in `src/host/wasip3/node/stdio-node.ts` (process.stdin/stdout/stderr)
 
-### Interfaces
-- `wasi:cli/stdin` — `readViaStream()` returning `[WasiStreamWritable<Uint8Array>, WasiFuture<Result>]`
-- `wasi:cli/stdout` — `writeViaStream(data: WasiStreamReadable<Uint8Array>): WasiFuture<void>`
-- `wasi:cli/stderr` — same as stdout
-
-### Design
-- stdin: Host creates a `ReadableStream` from config.stdin (or empty stream). `readViaStream()` returns a writable end the runtime pushes data into, plus a completion future.
-- stdout/stderr: Guest passes a readable stream. Host consumes it and writes to config.stdout/stderr (or discards).
-
-### Tasks
-- Create `src/host/wasip3/stdio.ts`
-- Wire into cli.ts and createHost()
-
-### Tests
-- Extend `src/host/wasip3/cli.test.ts` — stdin read, stdout/stderr write, completion futures
+### Tests ✅
+- `src/host/wasip3/stdio.test.ts`
+- `src/host/wasip3/node/stdio-node.test.ts`
 
 ---
 
-## Stage 4: Terminal Interfaces
+## Stage 4: Terminal Interfaces ✅ COMPLETE
 
-### Goals
-- Implement terminal-related interfaces (mostly informational, NOOP in many environments)
+### Status
+Terminal stubs implemented in `src/host/wasip3/stdio.ts`. All 5 terminal interfaces return `undefined` / throw `not-supported` (browser limitation). No TTY detection in browser.
 
-### Interfaces
-- `wasi:cli/terminal-input` — `TerminalInput` class
-- `wasi:cli/terminal-output` — `TerminalOutput` class
-- `wasi:cli/terminal-stdin` — `getTerminalStdin(): TerminalInput | undefined`
-- `wasi:cli/terminal-stdout` — `getTerminalStdout(): TerminalOutput | undefined`
-- `wasi:cli/terminal-stderr` — `getTerminalStderr(): TerminalOutput | undefined`
-
-### Tasks
-- Add terminal stubs to `src/host/wasip3/cli.ts`
-
-### Tests
-- Extend `src/host/wasip3/cli.test.ts` — terminal queries return undefined in non-TTY
+### Tests ✅
+- Covered in `src/host/wasip3/wasip3-host.test.ts` — terminal stubs return expected values
 
 ---
 
-## Stage 5: Virtual Filesystem
+## Stage 5: Virtual Filesystem ✅ COMPLETE
 
-### Goals
-- Full in-memory VFS with directory tree, metadata, timestamps
-- Browser-compatible, no node:fs dependency
-- Async interface that enables future multi-threaded or component-based backend
+### Status
+Fully implemented.
+- `src/host/wasip3/vfs.ts` — `MemoryVfsBackend` tree-based VFS with symlink support, full path resolution, 18 POSIX error codes
+- `src/host/wasip3/filesystem.ts` — `FsDescriptor` resource class with 30+ methods (read, write, stat, createFile, removeFile, createDirectory, readDirectory, openAt, etc.)
+- `wasi:filesystem/preopens` — `listPreopens()` returns mounted directories
+- Path traversal prevention, null byte rejection, path length limits
 
-### Interfaces
-- `wasi:filesystem/types` — `Descriptor` class (all methods), `DirectoryEntry`, error codes
-- `wasi:filesystem/preopens` — `getDirectories()` returning descriptors
-
-### Design
-
-#### Async VFS Interface
-The VFS is accessed through an async interface (`IVfsBackend`) that all Descriptor methods call:
-```
-IVfsBackend {
-  stat(path): Promise<DescriptorStat>
-  read(path, offset, len): Promise<Uint8Array>
-  write(path, data, offset): Promise<void>
-  openAt(dirPath, path, flags): Promise<handle>
-  readDirectory(path): AsyncIterable<DirectoryEntry>
-  createDirectory(path): Promise<void>
-  removeDirectory(path): Promise<void>
-  unlink(path): Promise<void>
-  rename(from, to): Promise<void>
-  ... (all Descriptor operations)
-}
-```
-- In-memory implementation: `MemoryVfsBackend` — synchronous under the hood but exposed as async
-- Node.js mount implementation: `NodeFsBackend` — delegates to node:fs/promises (Stage 9)
-- The Descriptor class dispatches to the appropriate backend based on which subtree the path falls in
-- This async boundary makes the interface safe for future SAB+Atomics or component replacement
-
-#### VFS Tree (MemoryVfsBackend)
-- Nodes are directories (children map) or files (Uint8Array content)
-- Each node tracks: type, size, link count, access/modification/status-change timestamps
-- `Descriptor` wraps a VFS node reference with flags (read/write/mutate-directory)
-- File I/O via P3 streams: `readViaStream(offset)` → `[WasiStreamWritable<u8>, WasiFuture<Result>]`
-- `writeViaStream(data, offset)` → `WasiFuture<Result>`
-- Directory listing: `readDirectory()` → `WasiStreamWritable<DirectoryEntry>`
-- Path traversal: resolve relative paths, prevent escape above preopens
-- `openAt`, `stat`, `statAt`, `setTimes`, `setTimesAt`, `createDirectoryAt`, `removeDirectoryAt`, `unlinkFileAt`, `renameAt`, `linkAt`, `symlinkAt`, `readlinkAt`, `metadataHash`, `metadataHashAt`
-
-#### Security
-- Validate all path arguments: reject null bytes, excessive length (config.maxPathLength)
-- Validate buffer sizes against config limits before allocation
-- Prevent `..` escape above preopens at every resolution step
-
-### Tasks
-- Create `src/host/wasip3/vfs.ts` — `IVfsBackend` interface, `MemoryVfsBackend`, VfsNode tree, path resolution
-- Create `src/host/wasip3/filesystem.ts` — Descriptor class, preopens, backend dispatch, error mapping
-
-### Tests
-- `src/host/wasip3/filesystem.test.ts` — tree construction, CRUD ops, path traversal, escape prevention, stream reads/writes, directory listing, timestamps, error codes
-- `src/host/wasip3/vfs.test.ts` — MemoryVfsBackend operations, concurrent access patterns, size limit enforcement
+### Tests ✅
+- `src/host/wasip3/filesystem.test.ts`
+- `src/host/wasip3/vfs.test.ts`
 
 ---
 
-## Stage 6: HTTP Client
+## Stage 6: HTTP Client ✅ COMPLETE
 
-### Goals
-- Implement HTTP outbound requests using fetch() with duplex streaming
+### Status
+Fully implemented in `src/host/wasip3/http.ts` (~850 lines).
+- `HttpFields` resource — RFC 9110 header validation (token format, forbidden headers, CRLF injection prevention)
+- `HttpRequest` / `HttpResponse` / `HttpRequestOptions` resources
+- `send(request)` — Fetch API with duplex streaming, `AbortSignal.timeout()`, full error code mapping (DNS, TLS, connection, HTTP-specific)
+- Size enforcement: request/response body, header count/size, URL length
+- `wasi:http/handler` — stub (guest export, not host import; throws descriptive error)
 
-### Interfaces
-- `wasi:http/types` — all type definitions (Method, Scheme, ErrorCode, Request, Response classes)
-- `wasi:http/client` — `send(request: Request): Promise<Response>`
-
-### Design
-- `Request` class: method, URL, headers, optional body as `ReadableStream<Uint8Array>`
-- `Response` class: status, headers, body as `ReadableStream<Uint8Array>`
-- `send()` converts Request → `fetch()` RequestInit with `duplex: 'half'` for streaming body
-- Response wraps fetch Response with streaming body consumption
-- Error mapping: network errors → P3 `ErrorCode` variants
-- Timeout support via `AbortSignal.timeout()`
-- Security: validate URL scheme (http/https only), header count/size limits (config.network.maxHeaders, maxHeaderSize), request body size limit, response body size limit. Reject forbidden headers (host, connection, etc. per spec). Sanitize header values (no CRLF injection).
-
-### Tasks
-- Create `src/host/wasip3/http.ts` — types, client implementation
-
-### Tests
-- `src/host/wasip3/http.test.ts` — request/response construction, header validation, error mapping, mock fetch
+### Tests ✅
+- `src/host/wasip3/http.test.ts`
 
 ---
 
@@ -357,186 +261,96 @@ IVfsBackend {
 
 ---
 
-## Stage 8: HTTP Server (Node.js) & serve()
+## Stage 8: HTTP Server (Node.js) & serve() ✅ COMPLETE
 
-### Goals
-- Implement `serve(handler)` on Node.js using `node:http`
-- Route incoming HTTP requests to the WASM handler export
+### Status
+Fully implemented in `src/host/wasip3/node/http-server.ts`.
+- `serve(handler, config)` starts Node.js HTTP server
+- Routes incoming requests to WASM handler export
+- Streaming request/response body
+- Re-exported via `src/host/wasip3/node/wasip3.ts`
 
-### Interfaces
-- `wasi:http/handler` — `handle(request: Request): Promise<Response>` (this is the guest export the server calls)
-
-### Design
-- `serve(handler)` starts `http.Server`
-- Incoming request → P3 `Request` object with streaming body
-- Calls `handler.handle(request)` → awaits P3 `Response`
-- P3 `Response` → Node.js `ServerResponse` with streaming body
-- Graceful shutdown, timeout enforcement, error handling
-- Config: port, host, backlog, keepalive, header limits, body limits
-- Security: validate URL scheme (http/https only), header count/size limits (config.network.maxHeaders, maxHeaderSize), request body size limit, response body size limit. Reject forbidden headers (host, connection, etc. per spec). Sanitize header values (no CRLF injection).
-- streaming request and response
-
-### Tasks
-- Create `src/host/wasip3/node/http-server.ts`
-- Wire `serve()` re-export from wasip3.ts
-
-### Tests
-- `src/host/wasip3/node/http-server.test.ts` — start server, send request, verify handler called, streaming body round-trip, error responses, timeout
+### Tests ✅
+- `src/host/wasip3/node/http-server.test.ts`
 
 ---
 
-## Stage 9: Node.js Filesystem (Real FS Mounts)
+## Stage 9: Node.js Filesystem (Real FS Mounts) ✅ COMPLETE
 
-### Goals
-- Implement `NodeFsBackend` conforming to `IVfsBackend` async interface
-- Mount host directories into VFS, forwarding operations to real filesystem
-- Security: prevent path escape and symlink escape
+### Status
+Fully implemented in `src/host/wasip3/node/filesystem-node.ts`.
+- Mounts host directories via Node.js `fs` module
+- Wired into `src/host/wasip3/node/wasip3.ts` host creation
 
-### Design
-- `MountConfig: { hostPath: string, guestPath: string, readOnly?: boolean }`
-- `NodeFsBackend` implements `IVfsBackend` — all methods delegate to `node:fs/promises`
-- VFS Descriptor dispatches to `NodeFsBackend` for paths under a mount, `MemoryVfsBackend` for others
-- Path resolution: guest path → host path with escape prevention
-- Symlink/junction resolution: `fs.realpath()` checked against mount boundary after every resolve
-- Stream methods: `readViaStream` uses `fs.createReadStream`, wrapped as WasiStream
-- Error mapping: Node.js errno → P3 filesystem ErrorCode
-- Preopens: each mount added to `getDirectories()` results
-- Security: validate all incoming paths (null bytes, length limits, traversal), validate file sizes against config limits before read allocation
-
-### Tasks
-- Create `src/host/wasip3/node/filesystem-node.ts` — `NodeFsBackend` implementing `IVfsBackend`
-- Wire mount forwarding in wasip3.ts createHost() — register backends per mount path
-
-### Tests
-- `src/host/wasip3/node/filesystem-node.test.ts` — read/write mounted files, directory listing, stat, escape prevention, symlink security, error mapping, read-only enforcement, size limit enforcement
+### Tests ✅
+- `src/host/wasip3/node/filesystem-node.test.ts`
 
 ---
 
-## Stage 10: Integration Tests
+## Stage 10: Integration Tests ⚠️ PARTIALLY COMPLETE
 
-### Goals
-- End-to-end tests with real WASM components using the P3 host
-- Browser tests via Playwright
+### Status
+- ✅ `src/host/wasip3/integration.test.ts` — Tests real wasmtime WASM components: `p3_big_random_buf`, `p3_random_imports`, `p3_cli_hello_stdout`, `p3_cli` (environment, args, terminals, stdio)
+- ✅ `tests/browser/hello.spec.ts` — Playwright browser tests (hello-world, hello-city, echo components)
+- ✅ `tests/browser/` — test HTML pages and serve infrastructure
 
-### Tasks
-- Create `src/host/wasip3/integration.test.ts` — run WASM components with P3 host, verify stdout output, filesystem access, HTTP requests
-- Create integration test WASM components (or reuse existing with P3 adapter)
-- Create `tests/browser/wasip3.spec.ts` — Playwright tests loading P3 components in Chromium
-- Add browser test HTML page that loads wasip3.js and runs a component
-- Verify mounted folder round-trip (write from WASM, read from host, and vice versa)
-- Verify socket echo server (TCP connect, send, receive)
-- Verify HTTP echo server (serve + client send round-trip)
-
-### Test Scenarios
-- CLI: hello-world component with stdout capture
-- Filesystem: component reads/writes VFS files, reads mounted host files
-- HTTP client: component sends request to test server, verifies response
-- HTTP server: serve() routes to handler, integration test sends HTTP request
-- Sockets: component connects to test TCP server, echo round-trip
-- Combined: component using filesystem + HTTP + stdout together
+### Remaining Gaps
+- ❌ No dedicated `tests/browser/wasip3.spec.ts` — browser tests exercise P3 indirectly through adapter but don't test P3-native components in the browser
+- ❌ No filesystem integration test with WASM components (VFS read/write from WASM)
+- ❌ No socket echo server integration test (TCP connect/send/receive from WASM)
+- ❌ No HTTP echo server integration test (serve + client round-trip from WASM)
+- ❌ No combined multi-interface integration test (filesystem + HTTP + stdout from single component)
 
 ---
 
-## Stage 10.5: WASIp2-via-WASIp3 Node Adapter
+## Stage 10.5: WASIp2-via-WASIp3 Node Adapter ⚠️ MOSTLY COMPLETE
 
-### Goals
-- Create `src/host/wasip2-via-wasip3/node/` as a thin wrapper providing P2 Node.js APIs (filesystem mounts, sockets, HTTP server) backed by the P3 Node.js host
-- Replace `src/host/wasip2/node/` as the Node.js extension for P2 components
-- Top-level rollup entry producing `wasip2-via-wasip3-node.js` that inlines the browser adapter code + adds Node.js extensions
-- Migrate all `src/host/wasip2/node/` tests to the adapter path
-- Migrate `src/host/wasip2/cli-conformance.test.ts` and `src/host/wasip2/cli-integration.test.ts` to a top-level test location
-- Migrate `src/index.test.ts` to use P3 host + adapter instead of direct wasip2 imports
+### Status
+Core adapter and Node.js extensions are fully implemented. Test migration from the old `src/host/wasip2/` path is mostly complete.
 
-### Architecture
+#### Completed ✅
+- `src/host/wasip2-via-wasip3/index.ts` — P2 adapter factory (unversioned + P2.0 through P2.11)
+- `src/host/wasip2-via-wasip3/node/index.ts` — Node.js adapter entry point
+- `src/host/wasip2-via-wasip3/node/http-server.ts` — P2-style HTTP server wrapper
+- Rollup entries: `wasip2-via-wasip3.js`, `wasip2-via-wasip3-node.js` in `rollup.config.js`
+- `deploy/package.json` exports: `./wasip2-via-wasip3`, `./wasip2-via-wasip3-node`
+- `src/index.test.ts` — uses P3 host + `createWasiP2ViaP3Adapter()`
+- `src/utils/args.ts` — imports from `src/host/wasip3/types.ts`
+- `src/host/wasip2/` directory — fully removed
+- 14 adapter unit test files in `wasip2-via-wasip3/` (cli, clocks, filesystem, http, random, sockets, etc.)
+- `src/host/wasip2-via-wasip3/node/filesystem-node.test.ts` ✅
+- `src/host/wasip2-via-wasip3/node/http-server.test.ts` ✅
 
-```
-wasip2-via-wasip3-node.js (self-contained bundle)
-├── Browser adapter (inlined from wasip2-via-wasip3/)
-│   └── createWasiP2ViaP3Adapter(p3) → WasiP2Imports
-└── Node.js extensions
-    ├── createNodeFilesystem(mounts) → adapter to P3 NodeFsBackend
-    ├── createHttpServer(handler, config) → adapter to P3 serve()
-    └── runServe(instance, addr, network)
-```
+#### Remaining Gaps ❌
+- `src/host/wasip2-via-wasip3/node/sockets.test.ts` — **NOT CREATED** (no Node.js socket adapter tests)
+- `tests/cli-conformance.test.ts` — **NOT CREATED** (was planned to migrate from old wasip2 path)
+- `tests/cli-integration.test.ts` — **NOT CREATED** (was planned to migrate from old wasip2 path)
+- Verify build produces `dist/release/wasip2-via-wasip3-node.js` and `wasip2-via-wasip3-node.d.ts` ✅
 
-The node adapter delegates to `wasip3-node.js` for real implementations:
-- Filesystem mounts → `wasip3/node/filesystem-node.ts` `NodeFsBackend` + `addNodeMounts()`
-- HTTP server → `wasip3/node/http-server.ts` `serve()`
-- Sockets → `wasip3/node/sockets.ts` (already wired through the browser adapter via P3 host)
-
-### Entry Point
-
-- `src/host/wasip2-via-wasip3/node/index.ts` → `dist/release/wasip2-via-wasip3-node.js` + `wasip2-via-wasip3-node.d.ts`
-
-### Public API
-
-```
-wasip2-via-wasip3-node.js exports:
-  // Re-exports from browser adapter
-  createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports
-
-  // Node.js extensions (thin wrappers over wasip3-node)
-  createNodeFilesystem(mounts: MountConfig[]): FilesystemState
-  createHttpServer(handler: IncomingHandlerFn, config?: HttpServerConfig): WasiHttpServer
-  runServe(instance: ServeInstance, addr?: string, network?: NetworkConfig): Promise<void>
-```
-
-### Tasks
-- Create `src/host/wasip2-via-wasip3/node/index.ts` — node adapter entry point, re-exports browser adapter + adds Node.js wrappers
-- Add rollup entry for `wasip2-via-wasip3-node.js` and `wasip2-via-wasip3-node.d.ts` (inlines browser adapter, externalizes wasip3-node)
-- Add `externalizeSiblingModules` handling for the new entry
-- Update `deploy/package.json` exports map with `./wasip2-via-wasip3-node`
-- Migrate `src/host/wasip2/node/filesystem-node.test.ts` → `src/host/wasip2-via-wasip3/node/filesystem-node.test.ts` (unit tests mock P3 host, integration tests use real P3 host + adapter chain)
-- Migrate `src/host/wasip2/node/http-server.test.ts` → `src/host/wasip2-via-wasip3/node/http-server.test.ts` (same approach)
-- Migrate `src/host/wasip2/node/sockets.test.ts` → `src/host/wasip2-via-wasip3/node/sockets.test.ts` (same approach)
-- Migrate `src/host/wasip2/cli-conformance.test.ts` → `tests/cli-conformance.test.ts` (update to verify P3 path works)
-- Migrate `src/host/wasip2/cli-integration.test.ts` → `tests/cli-integration.test.ts` (update paths)
-- Migrate `src/index.test.ts` to use P3 host + `createWasiP2ViaP3Adapter()` instead of direct wasip2 imports
-- Switch `src/utils/args.ts` to import `NetworkConfig` and `NETWORK_DEFAULTS` from `src/host/wasip3/types.ts` instead of `src/host/wasip2/types.ts`
-- Verify build produces `dist/release/wasip2-via-wasip3-node.js` and `wasip2-via-wasip3-node.d.ts`
-
-### Tests
-- `src/host/wasip2-via-wasip3/node/filesystem-node.test.ts` — filesystem mount CRUD, path escape, read-only, symlink security (via adapter chain)
-- `src/host/wasip2-via-wasip3/node/http-server.test.ts` — HTTP server start/stop, request/response round-trip, streaming body, error handling (via adapter chain)
-- `src/host/wasip2-via-wasip3/node/sockets.test.ts` — TCP/UDP state machine, connect/listen/send/receive, DNS lookup (via adapter chain)
-- `tests/cli-conformance.test.ts` — wasmtime reference binaries via `dist/debug/index.js`
-- `tests/cli-integration.test.ts` — CLI tool behavior (--help, run, etc.)
-- Updated `src/index.test.ts` — basic component instantiation via P3 host + adapter
+### Remaining Test Gaps
+- ❌ `src/host/wasip2-via-wasip3/node/sockets.test.ts` — TCP/UDP state machine, connect/listen/send/receive, DNS lookup (via adapter chain)
+- ❌ `tests/cli-conformance.test.ts` — wasmtime reference binaries via `dist/debug/index.js`
+- ❌ `tests/cli-integration.test.ts` — CLI tool behavior (--help, run, etc.)
 
 ---
 
-## Stage 10.8: Remove WASIp2 Direct Host
+## Stage 10.8: Remove WASIp2 Direct Host ✅ COMPLETE
 
-### Goals
-- Remove all code in `src/host/wasip2/` — the P2-via-P3 adapter + P3 host is now the only P2 implementation
-- Remove the `wasip2.js` and `wasip2-node.js` rollup entries and deploy exports
-- Clean up all remaining imports that reference `src/host/wasip2/`
+### Status
+Fully complete. `src/host/wasip2/` has been removed. All code now uses P3 host + P2-via-P3 adapter.
 
-### Prerequisites
-- Stage 10.5 complete: all wasip2/node tests migrated, cli tests moved, args.ts switched to P3 types
-- All tests passing through the adapter path
-
-### Tasks
-- Remove `src/host/wasip2/` directory (all files including node/)
-- Remove rollup entries: `wasip2`, `wasip2Types`, `wasip2Node`, `wasip2NodeTypes` from `rollup.config.js`
-- Remove `externalizeSiblingModules` handling for `wasip2` and `wasip2-node` entries
-- Remove `deploy/package.json` exports for `./wasip2` and `./wasip2-node`
-- Remove `instantiateWasiComponent` — users should use `createComponent()` + P3 host directly
-- Remove `WasiExit` import from former wasip2/api — use `WasiError`/`WasiExit` from wasip3/result.ts
-- Clean up `src/dynamic.ts` — remove any stale type imports from `wit/wasip2/` if unused
-- Remove `wit/wasip2/` type definitions if they are no longer referenced by `wasip2-via-wasip3/` (check: the adapter imports from `wit/wasip2/types/` for the return type — keep those if still needed)
-- Run lint, build, and full test suite to verify nothing is broken
-- Verify `dist/release/` no longer contains `wasip2.js`, `wasip2.d.ts`, `wasip2-node.js`, `wasip2-node.d.ts`
-
-### Verification
-- `npx eslint src/` — 0 errors, 0 warnings
-- `npm run build` — succeeds, no wasip2.js / wasip2-node.js in dist/
-- All tests pass (no test imports from `src/host/wasip2/`)
-- `deploy/package.json` has no `./wasip2` or `./wasip2-node` exports
+#### Verified ✅
+- `src/host/wasip2/` directory — deleted (does not exist)
+- No `wasip2` or `wasip2-node` rollup entries in `rollup.config.js`
+- No `./wasip2` or `./wasip2-node` exports in `deploy/package.json`
+- `src/index.ts` exports `loadWasiP3Host()`, `loadWasiP2ViaP3Adapter()`, `loadWasiP3Serve()` (no direct wasip2)
+- `src/utils/args.ts` imports from `src/host/wasip3/types.ts`
+- `src/dynamic.ts` imports P3 types from `wit/wasip3/types/` and P2 types from `wit/wasip2/types/` (P2 types still needed for adapter return types)
+- `wit/wasip2/` — retained (still referenced by `wasip2-via-wasip3/` adapter for P2 type definitions)
 
 ---
 
-## Stage 11: Polish & Documentation
+## Stage 11: Polish & Documentation — NOT STARTED
 
 ### Goals
 - Finalize public API surface, documentation, error messages
@@ -550,9 +364,58 @@ wasip2-via-wasip3-node.js exports:
 - Run full test suite: lint, build, unit tests, integration tests, browser tests
 - Update README with P3 host usage examples
 
-## Stage 12: Feedback
+## Stage 12: Feedback — NOT STARTED
 review the wasip3 implementation
 - are there any functionalities missing ?
 - are there any security issues ?
 - review design and architecture and provide feedback
 - propose improvements
+
+---
+
+## Gap Summary (as of 2026-04-21)
+
+### Implementation Complete ✅
+| Area | Status |
+|------|--------|
+| Infrastructure (types, streams, resources, result) | ✅ Complete |
+| Random (all 3 interfaces) | ✅ Complete |
+| Clocks (monotonic, system, timezone) | ✅ Complete |
+| CLI (environment, exit, stdin, stdout, stderr) | ✅ Complete |
+| Terminal stubs (5 interfaces) | ✅ Complete (not-supported) |
+| Virtual Filesystem (VFS + Descriptor) | ✅ Complete |
+| HTTP Client (types, fields, request, response, send) | ✅ Complete |
+| Sockets — browser stubs | ✅ Complete (not-supported) |
+| Sockets — Node.js (TCP, UDP, DNS) | ✅ Complete |
+| HTTP Server — Node.js (serve) | ✅ Complete |
+| Node.js Filesystem mounts | ✅ Complete |
+| Node.js stdio bridge | ✅ Complete |
+| P2-via-P3 adapter (browser) | ✅ Complete |
+| P2-via-P3 adapter (Node.js) | ✅ Complete |
+| Build pipeline (rollup, deploy exports) | ✅ Complete |
+| Old wasip2 host removal | ✅ Complete |
+
+### Gaps Not Yet Implemented ❌
+
+#### Missing Tests
+1. **`src/host/wasip2-via-wasip3/node/sockets.test.ts`** — No Node.js socket adapter test exercising TCP/UDP/DNS through the P2-via-P3 adapter chain
+2. **`tests/cli-conformance.test.ts`** — CLI conformance tests against wasmtime reference binaries (planned migration from old wasip2 path, never created)
+3. **`tests/cli-integration.test.ts`** — CLI tool integration tests (--help, run, serve; planned migration, never created)
+
+#### Missing Integration Test Scenarios
+4. **Browser-native P3 test** — `tests/browser/wasip3.spec.ts` for Playwright tests exercising P3 components directly in the browser (not just through P2 adapter)
+5. **Filesystem WASM integration** — No test of WASM component reading/writing VFS files through P3 host
+6. **Socket WASM integration** — No test of WASM component doing TCP connect/send/receive through P3 host
+7. **HTTP server WASM integration** — No end-to-end test of `serve()` routing HTTP requests to a WASM handler and back
+8. **Combined multi-interface test** — No test exercising filesystem + HTTP + stdout from a single WASM component
+
+#### Documentation & Polish (Stage 11)
+9. **README** — No P3 host usage examples in README.md
+10. **JSDoc** — Public API types/functions lack JSDoc comments
+11. **Tree-shaking verification** — Not verified that browser bundle excludes node:fs/net/http references
+12. **Bundle size** — TODO.md mentions target <40KB minified+gzipped for Release (currently 264KB debug)
+
+#### Items from TODO.md (related to WASI)
+13. **WASIp1 forwarding** — Implement WASI Preview 1 by forwarding to P2/P3 (TODO.md)
+14. **WASIp3 async features** — Interleaved suspension, re-entry queuing, zero-copy bring-your-own-buffer (TODO.md)
+15. **Firefox browser test** — Only Chrome tested via Playwright; Firefox coverage missing (TODO.md)
