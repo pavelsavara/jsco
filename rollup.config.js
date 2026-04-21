@@ -48,6 +48,7 @@ const outDir = isDebug ? 'dist/debug' : 'dist/release';
 function externalizeSiblingModules(options) {
     const skipExternals = new Set(options?.skipExternals ?? []);
     const srcDir = path.resolve('./src');
+    const wasip1ViaP3Entry = path.resolve('./src/host/wasip1-via-wasip3/index.ts');
     const wasip2ViaP3Entry = path.resolve('./src/host/wasip2-via-wasip3/index.ts');
     const wasip2ViaP3NodeEntry = path.resolve('./src/host/wasip2-via-wasip3/node/index.ts');
     const wasip3Entry = path.resolve('./src/host/wasip3/wasip3.ts');
@@ -66,6 +67,9 @@ function externalizeSiblingModules(options) {
             const resolvedTs = resolved.endsWith('.ts') ? resolved : resolved + '.ts';
             const resolvedIndex = path.join(resolved, 'index.ts');
 
+            if (!skipExternals.has('wasip1-via-wasip3') && (resolvedTs === wasip1ViaP3Entry || resolvedIndex === wasip1ViaP3Entry)) {
+                return { id: './wasip1-via-wasip3.js', external: true };
+            }
             if (!skipExternals.has('wasip2-via-wasip3') && (resolvedTs === wasip2ViaP3Entry || resolvedIndex === wasip2ViaP3Entry)) {
                 return { id: './wasip2-via-wasip3.js', external: true };
             }
@@ -285,7 +289,47 @@ const wasip3NodeTypes = {
     ],
 };
 
+// WASI Preview 1 via Preview 3 adapter
+const wasip1ViaP3 = {
+    treeshake: !isDebug,
+    input: './src/host/wasip1-via-wasip3/index.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip1-via-wasip3.js`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
+const wasip1ViaP3Types = {
+    input: './src/host/wasip1-via-wasip3/index.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/wasip1-via-wasip3.d.ts`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+        }
+    ],
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
+};
+
 export default defineConfig([
+    wasip1ViaP3,
+    wasip1ViaP3Types,
     wasip2ViaP3,
     wasip2ViaP3Types,
     wasip2ViaP3Node,

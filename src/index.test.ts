@@ -3,7 +3,8 @@
 import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from './index';
 import { createWasiP3Host, WasiExit } from './host/wasip3/wasip3';
 import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
-import { detectWasiType, WasiType } from './wasi-auto';
+import { detectWasiType, WasiType, isCoreModule } from './wasi-auto';
+import { createWasiP1ViaP3Adapter } from './host/wasip1-via-wasip3';
 import { parse } from './parser';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from './utils/assert';
@@ -14,6 +15,7 @@ initializeAsserts();
 const echoReactorWatWasm = './integration-tests/echo-reactor-wat/echo.wasm';
 const helloWorldWatWasm = './integration-tests/hello-world-wat/hello.wasm';
 const helloCityWatWasm = './integration-tests/hello-city-wat/hello-city.wasm';
+const helloP1WorldWatWasm = './integration-tests/hello-p1-world-wat/hello.wasm';
 
 describe('index.ts', () => {
     test('getBuildInfo returns git hash and configuration', () => {
@@ -340,9 +342,78 @@ describe('detectWasiType', () => {
 });
 
 describe('WASI P1 detection', () => {
-    test('core WASM module (P1) gives clear error', async () => {
+    test('core WASM module (P1) gives clear error from parser', async () => {
         // A minimal core WASM module: magic + version 1
         const coreModule = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
         await expect(parse(coreModule)).rejects.toThrow('WebAssembly core module, not a component');
+    });
+
+    test('isCoreModule detects core modules', () => {
+        const core = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+        expect(isCoreModule(core)).toBe(true);
+    });
+
+    test('isCoreModule rejects components', () => {
+        const component = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00]);
+        expect(isCoreModule(component)).toBe(false);
+    });
+});
+
+describe('WASI P1 adapter', () => {
+    test('createWasiP1ViaP3Adapter returns adapter with all 45 functions', () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        expect(adapter).toBeDefined();
+        expect(adapter.imports.wasi_snapshot_preview1).toBeDefined();
+        expect(typeof adapter.imports.wasi_snapshot_preview1.fd_write).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.proc_exit).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.args_get).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.environ_get).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.clock_time_get).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.random_get).toBe('function');
+        expect(typeof adapter.imports.wasi_snapshot_preview1.poll_oneoff).toBe('function');
+        expect(typeof adapter.bindMemory).toBe('function');
+    });
+
+    test('hello-p1-world-wat prints hello via fd_write', async () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(helloP1WorldWatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+
+        const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
+        adapter.bindMemory(wasmMemory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        // Check that adapter captured stdout
+        const adapterAny = adapter as any;
+        const chunks: Uint8Array[] = adapterAny.stdoutChunks;
+        expect(chunks.length).toBeGreaterThan(0);
+        const text = new TextDecoder().decode(
+            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+        );
+        expect(text).toContain('hello from jsco');
+    });
+});
+
+describe('instantiateWasiComponent with P1 module', () => {
+    test('auto-detects P1 core module and provides instance with _start', async () => {
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(helloP1WorldWatWasm);
+
+        const instance = await instantiateWasiComponent(wasmBytes);
+        expect(instance.exports['_start']).toBeDefined();
+        expect(typeof instance.exports['_start']).toBe('function');
+    });
+
+    test('auto-detects P1 via string path', async () => {
+        // File path triggers toBytes→fetchLike→fs.readFile, then core module detection.
+        // proc_exit(0) does NOT throw during instantiation since _start is not auto-called.
+        await instantiateWasiComponent(helloP1WorldWatWasm);
     });
 });

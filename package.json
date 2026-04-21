@@ -16,6 +16,7 @@
         "build:echo-wat": "wasm-tools parse integration-tests/echo-reactor-wat/echo.wat -o integration-tests/echo-reactor-wat/echo.wasm",
         "build:hello-wat": "wasm-tools parse integration-tests/hello-world-wat/hello.wat -o integration-tests/hello-world-wat/hello.wasm",
         "build:hello-city-wat": "wasm-tools parse integration-tests/hello-city-wat/hello-city.wat -o integration-tests/hello-city-wat/hello-city.wasm",
+        "build:hello-p1-wat": "wasm-tools parse integration-tests/hello-p1-world-wat/hello.wat -o integration-tests/hello-p1-world-wat/hello.wasm",
         "test:integration": "node --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --no-coverage --testPathPattern=integration",
         "lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
         "lint:fix": "eslint --fix --max-warnings=0 \"./**/*.ts\"",
