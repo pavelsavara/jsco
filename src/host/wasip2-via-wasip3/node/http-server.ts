@@ -1,11 +1,13 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 /**
- * wasi:http/incoming-handler — Node.js HTTP server integration
+ * wasi:http/incoming-handler — Node.js HTTP server integration (P2-via-P3)
  *
- * Bridges Node.js http.Server requests to WASM components that export
- * wasi:http/incoming-handler. The WASM component receives an incoming-request
- * resource and a response-outparam resource, then writes back the response.
+ * Delegates to the P3 HTTP server (wasip3/node/http-server.ts serve()) and
+ * bridges P2 incoming-handler semantics to the P3 handler interface.
+ * P2 handlers receive (WasiIncomingRequest, WasiResponseOutparam);
+ * this module wraps them as P3 handlers that take a P3 HttpRequest and
+ * return a P3 HttpResponse.
  *
  * Usage:
  *   const server = createHttpServer(wasmHandler, { port: 8080 });
@@ -13,7 +15,16 @@
  *   server.stop();  // graceful shutdown
  */
 
-import type { IncomingMessage, ServerResponse, Server as HttpServer } from 'node:http';
+import type { ServeHandle } from '../../wasip3/node/http-server';
+import { serve as p3Serve } from '../../wasip3/node/http-server';
+import {
+    _HttpFields,
+    _HttpRequest,
+    _HttpResponse,
+} from '../../wasip3/http';
+import { ok } from '../../wasip3/result';
+import type { WasiStreamReadable } from '../../wasip3/streams';
+import { collectBytes } from '../../wasip3/streams';
 import type {
     WasiFields,
     WasiIncomingBody,
@@ -23,51 +34,49 @@ import type {
     HttpResult,
     WasiIncomingRequest,
     WasiOutgoingResponse,
-    WasiResponseOutparam,
     WasiResponseOutparamInternal,
     IncomingHandlerFn,
-    WasiFutureTrailers,
     HttpServerConfig,
     WasiHttpServer,
-    WasiOutputStream,
 } from '../http-types';
-import { createFields, createFieldsFromList, NETWORK_DEFAULTS } from '../http-types';
-import { createInputStream, createOutputStream, createSyncPollable } from '../io';
+import { NETWORK_DEFAULTS } from '../http-types';
+import { createInputStream } from '../io';
 
-// ─── Incoming Request ───
+// ─── P3 Fields → P2 Fields adapter ───
 
-/** Create an incoming request from a Node.js IncomingMessage with a streaming body */
-function createIncomingRequest(req: IncomingMessage, bodyStream: ReturnType<typeof createInputStream>): WasiIncomingRequest {
+function wrapP3FieldsAsP2(p3Fields: _HttpFields): WasiFields {
+    return {
+        get: (name: string) => p3Fields.get(name),
+        has: (name: string) => p3Fields.has(name),
+        set: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
+        append: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
+        delete: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
+        entries: () => p3Fields.copyAll(),
+        clone: () => wrapP3FieldsAsP2(p3Fields.clone()),
+    };
+}
+
+// ─── P3 Request → P2 Request bridge ───
+
+function createP2RequestFromP3(
+    p3Request: _HttpRequest,
+    bodyData: Uint8Array,
+): WasiIncomingRequest {
+    const method = p3Request.getMethod() as HttpMethod;
+    const pathWithQuery = p3Request.getPathWithQuery();
+    const scheme = p3Request.getScheme() as HttpScheme | undefined;
+    const authority = p3Request.getAuthority();
+    const p3Headers = p3Request.getHeaders();
+    const p2Headers = wrapP3FieldsAsP2(p3Headers);
+    const bodyStream = createInputStream(bodyData);
     let consumed = false;
-
-    // Build headers — filter out hop-by-hop headers that createFieldsFromList rejects
-    const INCOMING_SKIP_HEADERS = new Set([
-        'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-        'te', 'trailer', 'transfer-encoding', 'upgrade',
-    ]);
-    const headerEntries: [string, Uint8Array][] = [];
-    for (const [name, value] of Object.entries(req.headers)) {
-        if (value === undefined) continue;
-        if (INCOMING_SKIP_HEADERS.has(name.toLowerCase())) continue;
-        const values = Array.isArray(value) ? value : [value];
-        for (const v of values) {
-            headerEntries.push([name, new TextEncoder().encode(v)]);
-        }
-    }
-    const fieldsResult = createFieldsFromList(headerEntries);
-    const fields = fieldsResult.tag === 'ok' ? fieldsResult.val : createFields();
-
-    const method = parseMethod(req.method ?? 'GET');
-    const pathWithQuery = req.url;
-    const scheme: HttpScheme | undefined = (req as any).socket?.encrypted ? { tag: 'HTTPS' } : { tag: 'HTTP' };
-    const authority = req.headers.host;
 
     return {
         method: () => method,
         pathWithQuery: () => pathWithQuery,
         scheme: () => scheme,
         authority: () => authority,
-        headers: () => fields,
+        headers: () => p2Headers,
         consume(): HttpResult<WasiIncomingBody> {
             if (consumed) return { tag: 'err', val: { tag: 'internal-error', val: 'body already consumed' } };
             consumed = true;
@@ -86,64 +95,51 @@ function createIncomingRequest(req: IncomingMessage, bodyStream: ReturnType<type
     };
 }
 
-function parseMethod(method: string): HttpMethod {
-    switch (method.toUpperCase()) {
-        case 'GET': return { tag: 'get' };
-        case 'HEAD': return { tag: 'head' };
-        case 'POST': return { tag: 'post' };
-        case 'PUT': return { tag: 'put' };
-        case 'DELETE': return { tag: 'delete' };
-        case 'CONNECT': return { tag: 'connect' };
-        case 'OPTIONS': return { tag: 'options' };
-        case 'TRACE': return { tag: 'trace' };
-        case 'PATCH': return { tag: 'patch' };
-        default: return { tag: 'other', val: method };
+// ─── P2 Response → P3 Response bridge ───
+
+function convertP2ResponseToP3(p2Response: WasiOutgoingResponse): _HttpResponse {
+    const p2WithInternals = p2Response as WasiOutgoingResponse & { _bodyChunks?(): Uint8Array[]; _headers?(): WasiFields };
+
+    // Convert P2 headers to P3 HttpFields
+    const headerFields = p2WithInternals._headers ? p2WithInternals._headers() : p2Response.headers();
+    const entries = headerFields.entries();
+    const p3Headers = _HttpFields.fromIncomingList(entries);
+
+    // Get body chunks from P2 response
+    const bodyChunks = p2WithInternals._bodyChunks?.() ?? [];
+
+    // Create async iterable from body chunks
+    let contents: WasiStreamReadable<Uint8Array> | undefined;
+    if (bodyChunks.length > 0) {
+        contents = {
+            async *[Symbol.asyncIterator]() {
+                for (const chunk of bodyChunks) {
+                    yield chunk;
+                }
+            },
+        };
     }
+
+    // Build P3 response
+    const trailersPromise = Promise.resolve(ok(undefined) as any);
+    const [p3Response] = _HttpResponse.new(p3Headers as any, contents, trailersPromise);
+    p3Response.setStatusCode(p2Response.statusCode());
+
+    return p3Response;
 }
 
-// ─── Outgoing Response ───
+// ─── Create P3 error response ───
 
-/** Create an outgoing response */
-export function createOutgoingResponse(headers: WasiFields): WasiOutgoingResponse {
-    let _statusCode = 200;
-    let bodyTaken = false;
-    const bodyChunks: Uint8Array[] = [];
-
-    return {
-        statusCode: () => _statusCode,
-        setStatusCode(code: number): boolean {
-            if (code < 100 || code > 999) return false;
-            _statusCode = code;
-            return true;
-        },
-        headers: () => headers,
-        body(): HttpResult<{ write(): HttpResult<WasiOutputStream> }> {
-            if (bodyTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'body already taken' } };
-            bodyTaken = true;
-            let streamTaken = false;
-            return {
-                tag: 'ok',
-                val: {
-                    write(): HttpResult<WasiOutputStream> {
-                        if (streamTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already taken' } };
-                        streamTaken = true;
-                        return {
-                            tag: 'ok',
-                            val: createOutputStream((bytes) => { bodyChunks.push(new Uint8Array(bytes)); }),
-                        };
-                    },
-                },
-            };
-        },
-        /** @internal */
-        _bodyChunks: () => bodyChunks,
-        _headers: () => headers,
-    } as WasiOutgoingResponse & { _bodyChunks(): Uint8Array[]; _headers(): WasiFields };
+function createP3ErrorResponse(statusCode: number): _HttpResponse {
+    const headers = new _HttpFields();
+    const trailersPromise = Promise.resolve(ok(undefined) as any);
+    const [response] = _HttpResponse.new(headers as any, undefined, trailersPromise);
+    response.setStatusCode(statusCode);
+    return response;
 }
 
 // ─── Response Outparam ───
 
-/** Create a response-outparam */
 function createResponseOutparam(): { outparam: WasiResponseOutparamInternal; promise: Promise<WasiOutgoingResponse | HttpErrorCode> } {
     let resolve!: (val: WasiOutgoingResponse | HttpErrorCode) => void;
     const promise = new Promise<WasiOutgoingResponse | HttpErrorCode>(r => { resolve = r; });
@@ -161,227 +157,81 @@ function createResponseOutparam(): { outparam: WasiResponseOutparamInternal; pro
     return { outparam, promise };
 }
 
-// ─── HTTP Server ───
+// ─── HTTP Server (delegates to P3 serve) ───
 
 /**
  * Create an HTTP server that routes requests to a WASM incoming-handler.
+ * Delegates to the P3 HTTP server and bridges P2 ↔ P3 semantics.
  *
- * @param handler The wasi:http/incoming-handler.handle function
+ * @param handler The wasi:http/incoming-handler.handle function (P2 interface)
  * @param config Server configuration
  */
 export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServerConfig): WasiHttpServer {
-    let http: typeof import('node:http');
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-        http = require('node:http') as typeof import('node:http');
-    } catch {
-        throw new Error('HTTP server requires Node.js');
-    }
-
-    const hostname = config?.hostname ?? '127.0.0.1';
-    const requestedPort = config?.port ?? 0;
-    const maxBodyBytes = config?.network?.maxHttpBodyBytes ?? NETWORK_DEFAULTS.maxHttpBodyBytes;
-    const maxHeadersBytes = config?.network?.maxHttpHeadersBytes ?? NETWORK_DEFAULTS.maxHttpHeadersBytes;
-    const requestTimeoutMs = config?.network?.httpRequestTimeoutMs ?? NETWORK_DEFAULTS.httpRequestTimeoutMs;
-    const maxConnections = config?.network?.maxHttpConnections ?? NETWORK_DEFAULTS.maxHttpConnections;
+    let serveHandle: ServeHandle | null = null;
     const maxUrlBytes = config?.network?.maxRequestUrlBytes ?? NETWORK_DEFAULTS.maxRequestUrlBytes;
-    const headersTimeoutMs = config?.network?.httpHeadersTimeoutMs ?? NETWORK_DEFAULTS.httpHeadersTimeoutMs;
-    const keepAliveTimeoutMs = config?.network?.httpKeepAliveTimeoutMs ?? NETWORK_DEFAULTS.httpKeepAliveTimeoutMs;
-    let actualPort = 0;
-    let server: HttpServer | null = null;
 
-    /** Measure total incoming header size */
-    function measureHeaderBytes(req: IncomingMessage): number {
-        let total = 0;
-        const raw = req.rawHeaders;
-        for (let i = 0; i < raw.length; i++) {
-            total += raw[i]!.length;
-        }
-        return total;
-    }
+    const p3Handler = {
+        async handle(p3Request: unknown): Promise<unknown> {
+            const req = p3Request as _HttpRequest;
 
-    /** Measure total outgoing response header size */
-    function measureFieldsBytes(fields: WasiFields): number {
-        let total = 0;
-        for (const [name, value] of fields.entries()) {
-            total += name.length + value.byteLength;
-        }
-        return total;
-    }
-
-    async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-        // Enforce URL length limit
-        if (req.url && req.url.length > maxUrlBytes) {
-            res.writeHead(414);
-            res.end('URI Too Long');
-            return;
-        }
-
-        // Enforce incoming header size limit
-        if (measureHeaderBytes(req) > maxHeadersBytes) {
-            res.writeHead(431);
-            res.end('Request Header Fields Too Large');
-            return;
-        }
-
-        // Collect body with size limit (streamed to WASM handler)
-        const bodyChunks: Buffer[] = [];
-        let bodySize = 0;
-        let bodyTooLarge = false;
-
-        await new Promise<void>(resolve => {
-            if (req.complete) { resolve(); return; }
-            req.on('data', (chunk: Buffer) => {
-                bodySize += chunk.length;
-                if (bodySize > maxBodyBytes) {
-                    bodyTooLarge = true;
-                    req.destroy();
-                    resolve();
-                    return;
-                }
-                bodyChunks.push(chunk);
-            });
-            req.on('end', resolve);
-            req.on('error', resolve);
-        });
-
-        if (bodyTooLarge) {
-            res.writeHead(413);
-            res.end('Payload Too Large');
-            return;
-        }
-
-        const bodyData = Buffer.concat(bodyChunks);
-        const bodyStream = createInputStream(new Uint8Array(bodyData));
-
-        const incomingRequest = createIncomingRequest(req, bodyStream);
-        const { outparam, promise } = createResponseOutparam();
-
-        // Call WASM handler
-        try {
-            handler(incomingRequest, outparam);
-        } catch (err) {
-            res.writeHead(500);
-            res.end('Internal Server Error');
-            return;
-        }
-
-        // Wait for response with timeout
-        const timeoutPromise = new Promise<'timeout'>(resolve => {
-            setTimeout(() => resolve('timeout'), requestTimeoutMs);
-        });
-        const raceResult = await Promise.race([promise, timeoutPromise]);
-
-        if (raceResult === 'timeout') {
-            if (!res.headersSent) {
-                res.writeHead(504);
-                res.end('Gateway Timeout');
+            // Enforce URL length limit (P2-specific check, not done by P3 serve)
+            const url = req.getPathWithQuery();
+            if (url && url.length > maxUrlBytes) {
+                return createP3ErrorResponse(414);
             }
-            return;
-        }
-        const result = raceResult;
 
-        if (typeof result === 'object' && 'tag' in result) {
-            // Error code
-            res.writeHead(502);
-            res.end(`Gateway Error: ${(result as HttpErrorCode).tag}`);
-            return;
-        }
+            // Consume P3 request body
+            let resResolve!: (v: any) => void;
+            const resPromise = new Promise<any>(r => { resResolve = r; });
+            const [bodyStream] = _HttpRequest.consumeBody(req, resPromise);
+            const bodyData = await collectBytes(bodyStream);
+            resResolve(ok(undefined));
 
-        const response = result as WasiOutgoingResponse;
-        const responseWithInternal = response as WasiOutgoingResponse & { _bodyChunks?(): Uint8Array[]; _headers?(): WasiFields };
+            // Create P2 request from P3 request metadata + buffered body
+            const p2Request = createP2RequestFromP3(req, bodyData);
 
-        // Validate outgoing response headers size
-        const headerFields = responseWithInternal._headers ? responseWithInternal._headers() : response.headers();
-        if (measureFieldsBytes(headerFields) > maxHeadersBytes) {
-            res.writeHead(502);
-            res.end('Response Header Fields Too Large');
-            return;
-        }
+            // Create P2 response outparam
+            const { outparam, promise } = createResponseOutparam();
 
-        // Write status and headers
-        const statusCode = response.statusCode();
-        const headers: Record<string, string[]> = {};
-        for (const [name, value] of headerFields.entries()) {
-            if (!headers[name]) headers[name] = [];
-            headers[name]!.push(new TextDecoder().decode(value));
-        }
-        res.writeHead(statusCode, headers);
-
-        // Write body with size enforcement
-        const responseBodyChunks = responseWithInternal._bodyChunks?.() ?? [];
-        let totalResponseBody = 0;
-        for (const chunk of responseBodyChunks) {
-            totalResponseBody += chunk.byteLength;
-            if (totalResponseBody > maxBodyBytes) {
-                res.end();
-                return;
+            // Call P2 handler
+            try {
+                handler(p2Request, outparam);
+            } catch {
+                return createP3ErrorResponse(500);
             }
-            res.write(chunk);
-        }
-        res.end();
-    }
+
+            // Await P2 response
+            const result = await promise;
+
+            // Check for error code (has 'tag' property; WasiOutgoingResponse does not)
+            if (typeof result === 'object' && 'tag' in result) {
+                return createP3ErrorResponse(502);
+            }
+
+            // Convert P2 response to P3 response
+            return convertP2ResponseToP3(result as WasiOutgoingResponse);
+        },
+    };
 
     return {
-        start(): Promise<number> {
-            return new Promise<number>((resolve, reject) => {
-                server = http.createServer((req, res) => {
-                    handleRequest(req, res).catch(err => {
-                        if (!res.headersSent) {
-                            res.writeHead(500);
-                            res.end('Internal Server Error');
-                        }
-                        void err; // swallow handler error
-                    });
-                });
-                // Slowloris protection: time allowed for client to send complete headers
-                server.headersTimeout = headersTimeoutMs;
-                // Keep-alive timeout: time to wait for next request on a keep-alive connection
-                server.keepAliveTimeout = keepAliveTimeoutMs;
-                // Max concurrent connections
-                server.maxConnections = maxConnections;
-                server.on('error', reject);
-                server.listen(requestedPort, hostname, () => {
-                    const addr = server!.address();
-                    actualPort = typeof addr === 'object' && addr ? addr.port : requestedPort;
-                    resolve(actualPort);
-                });
+        async start(): Promise<number> {
+            serveHandle = await p3Serve(p3Handler, {
+                port: config?.port ?? 0,
+                host: config?.hostname,
+                network: config?.network,
             });
+            return serveHandle.port;
         },
-        stop(): Promise<void> {
-            return new Promise<void>((resolve, reject) => {
-                if (!server) { resolve(); return; }
-                server.close((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            });
+        async stop(): Promise<void> {
+            if (serveHandle) {
+                await serveHandle.close();
+                serveHandle = null;
+            }
         },
-        port: () => actualPort,
+        port(): number {
+            return serveHandle?.port ?? 0;
+        },
     };
 }
 
-// ─── Static response-outparam.set function ───
 
-/** wasi:http/types response-outparam.set — static function */
-export function responseOutparamSet(
-    param: WasiResponseOutparam,
-    response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode },
-): void {
-    (param as WasiResponseOutparamInternal)._resolve(response);
-}
-
-// ─── Future Trailers (for incoming-body.finish) ───
-
-/** Create a future-trailers that immediately resolves with no trailers */
-export function createFutureTrailers(): WasiFutureTrailers {
-    let consumed = false;
-    return {
-        subscribe: () => createSyncPollable(() => true),
-        get: () => {
-            if (consumed) return undefined;
-            consumed = true;
-            return { tag: 'ok', val: { tag: 'ok', val: undefined } };
-        },
-    };
-}

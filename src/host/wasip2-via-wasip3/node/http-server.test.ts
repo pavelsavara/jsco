@@ -5,21 +5,178 @@
  */
 
 import type {
+    WasiFields,
     WasiIncomingRequest,
+    WasiOutgoingResponse,
     WasiResponseOutparam,
-    IncomingHandlerFn,
     WasiResponseOutparamInternal,
+    IncomingHandlerFn,
+    WasiFutureTrailers,
+    HttpResult,
+    HttpErrorCode,
+    WasiOutputStream,
 } from '../http-types';
 import {
     createHttpServer,
-    createOutgoingResponse,
-    responseOutparamSet,
-    createFutureTrailers,
 } from './http-server';
-import { createFields, createFieldsFromList } from '../http-types';
+import { createOutputStream, createSyncPollable } from '../io';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
+
+// ─── Test helpers (P2 HTTP types used only in tests) ───
+
+/** Forbidden headers that cannot be set via the WASI HTTP API */
+const FORBIDDEN_HEADERS = new Set([
+    'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+    'te', 'trailer', 'transfer-encoding', 'upgrade',
+]);
+
+function isValidHeaderName(name: string): boolean {
+    return /^[a-zA-Z0-9!#$%&'*+\-.^_`|~]+$/.test(name);
+}
+
+function isValidHeaderValue(value: Uint8Array): boolean {
+    for (let i = 0; i < value.length; i++) {
+        const b = value[i];
+        if (b === 0x00 || b === 0x0a || b === 0x0d) return false;
+    }
+    return true;
+}
+
+type HeaderError =
+    | { tag: 'invalid-syntax' }
+    | { tag: 'forbidden' }
+    | { tag: 'immutable' };
+
+function createFieldsFromMap(map: Map<string, Uint8Array[]>, immutable = false): WasiFields {
+    return {
+        get(name: string): Uint8Array[] {
+            return (map.get(name.toLowerCase()) ?? []).map(v => new Uint8Array(v));
+        },
+        has(name: string): boolean {
+            return map.has(name.toLowerCase());
+        },
+        set(name: string, values: Uint8Array[]): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
+            if (immutable) return { tag: 'err', val: { tag: 'immutable' } };
+            const lower = name.toLowerCase();
+            if (!isValidHeaderName(lower)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+            if (FORBIDDEN_HEADERS.has(lower)) return { tag: 'err', val: { tag: 'forbidden' } };
+            for (const v of values) {
+                if (!isValidHeaderValue(v)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+            }
+            map.set(lower, values.map(v => new Uint8Array(v)));
+            return { tag: 'ok' };
+        },
+        append(name: string, value: Uint8Array): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
+            if (immutable) return { tag: 'err', val: { tag: 'immutable' } };
+            const lower = name.toLowerCase();
+            if (!isValidHeaderName(lower)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+            if (!isValidHeaderValue(value)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+            if (FORBIDDEN_HEADERS.has(lower)) return { tag: 'err', val: { tag: 'forbidden' } };
+            const existing = map.get(lower) ?? [];
+            existing.push(new Uint8Array(value));
+            map.set(lower, existing);
+            return { tag: 'ok' };
+        },
+        delete(name: string): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
+            if (immutable) return { tag: 'err', val: { tag: 'immutable' } };
+            const lower = name.toLowerCase();
+            if (FORBIDDEN_HEADERS.has(lower)) return { tag: 'err', val: { tag: 'forbidden' } };
+            map.delete(lower);
+            return { tag: 'ok' };
+        },
+        entries(): [string, Uint8Array][] {
+            const result: [string, Uint8Array][] = [];
+            for (const [name, values] of map) {
+                for (const value of values) {
+                    result.push([name, new Uint8Array(value)]);
+                }
+            }
+            return result;
+        },
+        clone(): WasiFields {
+            const cloned = new Map<string, Uint8Array[]>();
+            for (const [name, values] of map) {
+                cloned.set(name, values.map(v => new Uint8Array(v)));
+            }
+            return createFieldsFromMap(cloned);
+        },
+    };
+}
+
+function createFields(): WasiFields {
+    return createFieldsFromMap(new Map());
+}
+
+function createFieldsFromList(entries: [string, Uint8Array][]): { tag: 'ok'; val: WasiFields } | { tag: 'err'; val: HeaderError } {
+    const map = new Map<string, Uint8Array[]>();
+    for (const [name, value] of entries) {
+        const lower = name.toLowerCase();
+        if (!isValidHeaderName(lower)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+        if (!isValidHeaderValue(value)) return { tag: 'err', val: { tag: 'invalid-syntax' } };
+        if (FORBIDDEN_HEADERS.has(lower)) return { tag: 'err', val: { tag: 'forbidden' } };
+        const existing = map.get(lower) ?? [];
+        existing.push(new Uint8Array(value));
+        map.set(lower, existing);
+    }
+    return { tag: 'ok', val: createFieldsFromMap(map) };
+}
+
+function createOutgoingResponse(headers: WasiFields): WasiOutgoingResponse {
+    let _statusCode = 200;
+    let bodyTaken = false;
+    const bodyChunks: Uint8Array[] = [];
+
+    return {
+        statusCode: () => _statusCode,
+        setStatusCode(code: number): boolean {
+            if (code < 100 || code > 999) return false;
+            _statusCode = code;
+            return true;
+        },
+        headers: () => headers,
+        body(): HttpResult<{ write(): HttpResult<WasiOutputStream> }> {
+            if (bodyTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'body already taken' } };
+            bodyTaken = true;
+            let streamTaken = false;
+            return {
+                tag: 'ok',
+                val: {
+                    write(): HttpResult<WasiOutputStream> {
+                        if (streamTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already taken' } };
+                        streamTaken = true;
+                        return {
+                            tag: 'ok',
+                            val: createOutputStream((bytes) => { bodyChunks.push(new Uint8Array(bytes)); }),
+                        };
+                    },
+                },
+            };
+        },
+        _bodyChunks: () => bodyChunks,
+        _headers: () => headers,
+    } as WasiOutgoingResponse & { _bodyChunks(): Uint8Array[]; _headers(): WasiFields };
+}
+
+function responseOutparamSet(
+    param: WasiResponseOutparam,
+    response: { tag: 'ok'; val: WasiOutgoingResponse } | { tag: 'err'; val: HttpErrorCode },
+): void {
+    (param as WasiResponseOutparamInternal)._resolve(response);
+}
+
+function createFutureTrailers(): WasiFutureTrailers {
+    let consumed = false;
+    return {
+        subscribe: () => createSyncPollable(() => true),
+        get: () => {
+            if (consumed) return undefined;
+            consumed = true;
+            return { tag: 'ok', val: { tag: 'ok', val: undefined } };
+        },
+    };
+}
 
 // ─── outgoing-response ───
 

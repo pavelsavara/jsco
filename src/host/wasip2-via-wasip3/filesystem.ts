@@ -112,7 +112,7 @@ type P3Descriptor = any;
 /**
  * Wrap a P3 filesystem descriptor as a P2 WasiDescriptor.
  */
-export function wrapP3Descriptor(p3desc: P3Descriptor): P2DescriptorAdapter {
+function wrapP3Descriptor(p3desc: P3Descriptor): P2DescriptorAdapter {
     return new P2DescriptorAdapter(p3desc);
 }
 
@@ -409,14 +409,6 @@ class P2DirectoryEntryStreamAdapter {
         }
         return fsOk(undefined);
     }
-}
-
-export function adaptFilesystemTypes(p3: WasiP3Imports) {
-    const p3fs = p3['wasi:filesystem/types'];
-    return {
-        p3fs,
-        wrapDescriptor: wrapP3Descriptor,
-    };
 }
 
 export function adaptPreopens(p3: WasiP3Imports) {

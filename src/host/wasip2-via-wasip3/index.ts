@@ -26,7 +26,7 @@ import { adaptPreopens } from './filesystem';
 import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
 import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
 import { adaptHttpTypes, adaptOutgoingHandler } from './http';
-import type { HttpMethod, HttpScheme } from './http';
+import type { HttpMethod, HttpScheme } from './http-types';
 import { JsImports } from '../../resolver/api-types';
 
 // Re-export types for consumers

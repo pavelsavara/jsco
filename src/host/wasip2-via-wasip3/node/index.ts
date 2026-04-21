@@ -24,8 +24,6 @@ import { createHttpServer as createLocalHttpServer } from './http-server';
 // Re-export the browser adapter
 export { createWasiP2ViaP3Adapter } from '../index';
 
-// Re-export P2 HTTP server helpers
-export { createOutgoingResponse, responseOutparamSet, createFutureTrailers } from './http-server';
 
 /**
  * Create a P2-compatible host import object with Node.js filesystem mounts.
@@ -78,8 +76,7 @@ export function createNodeFilesystem(
 /**
  * Create a P2-compatible HTTP server.
  *
- * Delegates to the existing P2 HTTP server implementation which uses
- * Node.js `http.Server` directly.
+ * Delegates to the P3 HTTP server (serve()) and bridges P2 ↔ P3 semantics.
  */
 export function createHttpServer(
     handler: IncomingHandlerFn,

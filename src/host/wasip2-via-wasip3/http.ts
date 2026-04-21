@@ -12,15 +12,11 @@
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
 import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream } from './io';
+import type { HttpMethod, HttpScheme } from './http-types';
 
 type HttpErrorCode = { tag: string; val?: unknown };
 type HeaderError = { tag: string };
 type HttpResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: HttpErrorCode };
-export type HttpMethod =
-    | { tag: 'get' } | { tag: 'head' } | { tag: 'post' } | { tag: 'put' }
-    | { tag: 'delete' } | { tag: 'connect' } | { tag: 'options' } | { tag: 'trace' }
-    | { tag: 'patch' } | { tag: 'other'; val: string };
-export type HttpScheme = { tag: 'HTTP' } | { tag: 'HTTPS' } | { tag: 'other'; val: string };
 
 // ─── Fields ───
 
