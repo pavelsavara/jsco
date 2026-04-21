@@ -1,0 +1,13 @@
+package jsco:hello-p3-world;
+
+world hello-p3-world {
+    import wasi:cli/environment@0.3.0-rc-2026-03-15;
+    import wasi:cli/exit@0.3.0-rc-2026-03-15;
+    import wasi:io/error@0.3.0-rc-2026-03-15;
+    import wasi:io/streams@0.3.0-rc-2026-03-15;
+    import wasi:cli/stdin@0.3.0-rc-2026-03-15;
+    import wasi:cli/stdout@0.3.0-rc-2026-03-15;
+    import wasi:cli/stderr@0.3.0-rc-2026-03-15;
+
+    export wasi:cli/run@0.3.0-rc-2026-03-15;
+}

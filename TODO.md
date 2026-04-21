@@ -36,6 +36,7 @@
 # Other
 - pass CLI args to wasi:cli
 - OCI download
+- explore webidl2wit
 - review license & add CoC
 - donate this project to @bytecodealliance
 - write article on how it works

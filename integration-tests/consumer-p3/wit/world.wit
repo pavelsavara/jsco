@@ -1,0 +1,6 @@
+package jsco:consumer-p3@0.1.0;
+
+world consumer-p3 {
+    import wasi:cli/exit@0.3.0-rc-2026-03-15;
+    export wasi:cli/run@0.3.0-rc-2026-03-15;
+}

@@ -1,0 +1,266 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+
+/**
+ * WASIp3 native integration tests — Rust components built with wit-bindgen 0.57
+ * that use P3 WASI interfaces natively.
+ *
+ * These components import P3 WASI APIs (@0.3.0-rc-2026-03-15) AND P2 WASI
+ * APIs (@0.2.6, injected by the wasm-tools component adapter for libc calls).
+ * We create a merged P2+P3 host for each scenario.
+ *
+ * Scenario A: consumer-p3 ← JS host (P3 + adapter P2)
+ * Scenario B: consumer-p3 ← forwarder-p3 ← JS host
+ * Scenario C: consumer-p3 ← forwarder-p3 ← implementer-p3
+ */
+
+import { createComponent } from '../../resolver';
+import { createWasiP3Host } from './index';
+import { createWasiP2ViaP3Adapter } from '../wasip2-via-wasip3/index';
+import { WasiExit } from './cli';
+import { initializeAsserts } from '../../utils/assert';
+import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
+import { createEchoImports } from '../../../integration-tests/echo-reactor-ts/index';
+
+initializeAsserts();
+
+const P3_VERSION = '0.3.0-rc-2026-03-15';
+const RUN_EXPORT = `wasi:cli/run@${P3_VERSION}`;
+
+const consumerP3Wasm = './integration-tests/consumer-p3/consumer_p3.wasm';
+const forwarderP3Wasm = './integration-tests/forwarder-p3/forwarder_p3.wasm';
+const implementerP3Wasm = './integration-tests/implementer-p3/implementer_p3.wasm';
+
+type ImportsMap = Record<string, Record<string, Function>>;
+
+const fullWasiConfig = {
+    args: ['consumer-p3-test'],
+    env: [['TEST_SPECIAL', 'hello=world 🌍'], ['HOME', '/test/home'], ['PATH', '/usr/bin']] as [string, string][],
+    cwd: '/test/cwd',
+};
+
+/** Create merged P2+P3 WASI host imports. */
+function createMergedHosts(config?: Parameters<typeof createWasiP3Host>[0]): ImportsMap {
+    const p3 = createWasiP3Host(config);
+    const p2 = createWasiP2ViaP3Adapter(p3);
+    return { ...p2, ...p3 } as unknown as ImportsMap;
+}
+
+/** Create test imports (logger, counter, echo interfaces). */
+function createTestImports(logMessages: string[]) {
+    const counters = new Map<number, { value: number }>();
+    let nextCounterId = 1;
+
+    const loggerImport = {
+        log: (level: number, message: string) => {
+            const levels = ['trace', 'debug', 'info', 'warn', 'error'];
+            logMessages.push(`[${levels[level] ?? level}] ${message}`);
+        },
+        'structured-log': (level: number, message: string, properties: Array<[string, string]>) => {
+            const levels = ['trace', 'debug', 'info', 'warn', 'error'];
+            const props = properties.map(([k, v]) => `${k}=${v}`).join(', ');
+            logMessages.push(`[${levels[level] ?? level}] ${message} {${props}}`);
+        },
+    };
+
+    const counterImport = {
+        '[constructor]counter': (_name: string): number => {
+            const id = nextCounterId++;
+            counters.set(id, { value: 0 });
+            return id;
+        },
+        '[method]counter.increment': (self: number) => {
+            const c = counters.get(self);
+            if (c) c.value++;
+        },
+        '[method]counter.get': (self: number): bigint => {
+            const c = counters.get(self);
+            return BigInt(c?.value ?? 0);
+        },
+        '[resource-drop]counter': (self: number) => {
+            counters.delete(self);
+        },
+    };
+
+    const echoImports = createEchoImports();
+
+    return {
+        'jsco:test/logger@0.1.0': loggerImport,
+        'jsco:test/counter@0.1.0': counterImport,
+        ...echoImports,
+    };
+}
+
+function parseTestResults(stdout: string): { name: string; passed: boolean; reason?: string }[] {
+    const results: { name: string; passed: boolean; reason?: string }[] = [];
+    for (const line of stdout.split('\n')) {
+        const passMatch = line.match(/^\[PASS\] (.+)$/);
+        if (passMatch) {
+            const name = passMatch[1];
+            if (name) results.push({ name, passed: true });
+            continue;
+        }
+        const failMatch = line.match(/^\[FAIL\] ([^:]+): (.+)$/);
+        if (failMatch) {
+            const name = failMatch[1];
+            if (name) results.push({ name, passed: false, reason: failMatch[2] });
+        }
+    }
+    return results;
+}
+
+function assertTestResults(
+    stdout: string,
+    logMessages: string[],
+    exitCode: number | undefined,
+    expectForwarderLogs: boolean | number = false,
+) {
+    const testResults = parseTestResults(stdout);
+    expect(testResults.length).toBeGreaterThan(0);
+
+    for (const result of testResults) {
+        expect({ test: result.name, passed: result.passed, reason: result.reason })
+            .toEqual({ test: result.name, passed: true, reason: undefined });
+    }
+
+    expect(logMessages.length).toBeGreaterThan(0);
+
+    if (expectForwarderLogs === true || (typeof expectForwarderLogs === 'number' && expectForwarderLogs >= 1)) {
+        const forwarderLogs = logMessages.filter(m => m.includes('[forwarder-p3]'));
+        expect(forwarderLogs.length).toBeGreaterThan(0);
+    }
+
+    expect(exitCode).toBe(0);
+}
+
+const yieldToGC = () => new Promise<void>(r => setTimeout(r, 0));
+
+const p3ForwardedInterfaces = [
+    'wasi:cli/environment', 'wasi:cli/exit',
+    'wasi:random/random',
+    'wasi:clocks/monotonic-clock', 'wasi:clocks/system-clock',
+    'jsco:test/echo-primitives', 'jsco:test/echo-compound', 'jsco:test/echo-algebraic',
+    'jsco:test/echo-complex',
+];
+
+const p3ImplementerInterfaces = [
+    'wasi:cli/environment', 'wasi:cli/exit',
+    'wasi:random/random',
+    'wasi:clocks/monotonic-clock', 'wasi:clocks/system-clock',
+    'jsco:test/echo-primitives', 'jsco:test/echo-compound', 'jsco:test/echo-algebraic',
+    'jsco:test/echo-complex',
+];
+
+function wireP3ExportsToImports(
+    exports: ImportsMap,
+    target: ImportsMap,
+    interfaces: string[],
+) {
+    for (const iface of interfaces) {
+        const exported = exports[`${iface}@${P3_VERSION}`] ?? exports[`${iface}@0.1.0`] ?? exports[iface];
+        if (exported) {
+            target[iface] = exported;
+            target[`${iface}@${P3_VERSION}`] = exported;
+            target[`${iface}@0.1.0`] = exported;
+        }
+    }
+}
+
+async function runP3ConsumerScenario(
+    verbose: ReturnType<typeof useVerboseOnFailure>,
+    buildChain: (ctx: {
+        wasiExports: ImportsMap;
+        extraImports: ImportsMap;
+    }) => Promise<ImportsMap>,
+    expectForwarderLogs: boolean | number = false,
+    wasiConfig?: { args?: string[]; env?: [string, string][]; cwd?: string },
+) {
+    const stdoutChunks: Uint8Array[] = [];
+    const logMessages: string[] = [];
+
+    const wasiExports = createMergedHosts({
+        args: wasiConfig?.args,
+        env: wasiConfig?.env,
+        cwd: wasiConfig?.cwd,
+        stdout: new WritableStream<Uint8Array>({
+            write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+        }),
+    });
+    const extraImports = createTestImports(logMessages);
+
+    const consumerImports = await buildChain({ wasiExports, extraImports });
+
+    await yieldToGC();
+    const consumerComponent = await createComponent(consumerP3Wasm, verboseOptions(verbose));
+    let exitCode: number | undefined;
+    try {
+        const instance = await consumerComponent.instantiate(consumerImports);
+        const runNs = (instance.exports[RUN_EXPORT] ?? instance.exports['wasi:cli/run']) as any;
+        const result = await runNs.run();
+        exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
+    } catch (e) {
+        if (e instanceof WasiExit) exitCode = e.exitCode; else throw e;
+    }
+
+    const stdout = new TextDecoder().decode(
+        new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
+    );
+    assertTestResults(stdout, logMessages, exitCode, expectForwarderLogs);
+}
+
+async function instantiateP3Component(
+    wasmPath: string,
+    imports: ImportsMap,
+    verbose: ReturnType<typeof useVerboseOnFailure>,
+) {
+    await yieldToGC();
+    const component = await createComponent(wasmPath, { noJspi: true, ...verboseOptions(verbose) });
+    const instance = await component.instantiate(imports);
+    return { exports: instance.exports as ImportsMap };
+}
+
+describe('WASIp3 native component integration tests', () => {
+    const verbose = useVerboseOnFailure();
+
+    afterEach(yieldToGC);
+
+    test('Scenario A: consumer-p3 direct (P3 host)', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => ({ ...wasiExports, ...extraImports }),
+            false,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario B: consumer-p3 ← forwarder-p3 ← JS host', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const fwd = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario C: consumer-p3 ← forwarder-p3 ← implementer-p3', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+
+                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(impl.exports, fwdImports, p3ImplementerInterfaces);
+                const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+        );
+    }));
+});

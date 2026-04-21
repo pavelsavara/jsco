@@ -10,7 +10,6 @@ interface preopens {
     get-directories: func() -> list<tuple<descriptor, string>>;
 }
 
-package wasi:filesystem@0.3.0-rc-2026-03-15;
 /// WASI filesystem is a filesystem API primarily intended to let users run WASI
 /// programs that access their files on their existing filesystems, without
 /// significant overhead.
@@ -668,8 +667,6 @@ interface types {
         ) -> result<metadata-hash-value, error-code>;
     }
 }
-
-package wasi:filesystem@0.3.0-rc-2026-03-15;
 
 @since(version = 0.3.0-rc-2026-03-15)
 world imports {
