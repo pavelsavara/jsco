@@ -45,19 +45,26 @@ export default {
         '!src/marshal/memory-load.ts',
         '!src/marshal/trampoline-lift.ts',
         '!src/marshal/trampoline-lower.ts',
+        '!src/marshal/lift.ts',
+        '!src/marshal/lower.ts',
         // Integration-only: WASI host (tested by excluded integration tests)
         '!src/host/**',
         // Integration-only: core module parsing, custom sections, WAT printing
         '!src/parser/module.ts',
         '!src/parser/otherSection.ts',
         '!src/utils/wat-printer.ts',
-        // Test utilites
+        // Debug-only: name tables populated only in debug builds
+        '!src/utils/debug-names.ts',
+        // Test utilities
         '!src/parser/jest-utils.ts',
+        '!src/binder/test-helpers.ts',
         // Thin wrappers over platform APIs (node fs, fetch, component import resolution)
         '!src/utils/fetch-like.ts',
         '!src/resolver/component-imports.ts',
-        // CLI entry point (tests import.meta.url === main module; untestable in Jest)
+        // CLI / dynamic-import entry points (untestable in Jest)
         '!src/index.ts',
+        '!src/main.ts',
+        '!src/dynamic.ts',
     ],
     coverageReporters: ['text', 'lcov', 'json-summary', 'json'],
     coverageThreshold: {
