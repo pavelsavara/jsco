@@ -6,6 +6,12 @@ import { ALLOCATION_DEFAULTS } from './types';
 
 const MAX_CRYPTO_CHUNK = 65536;
 
+/**
+ * Create the `wasi:random/random` interface.
+ *
+ * Uses the Web Crypto API (`crypto.getRandomValues`) for cryptographically
+ * secure random bytes. Chunks large requests into 64 KB calls per the API limit.
+ */
 export function createRandom(limits?: AllocationLimits): typeof WasiRandomRandom {
     const maxAllocation = limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
 
@@ -35,6 +41,12 @@ export function createRandom(limits?: AllocationLimits): typeof WasiRandomRandom
     };
 }
 
+/**
+ * Create the `wasi:random/insecure` interface.
+ *
+ * Provides non-cryptographic random bytes. In the browser this still uses
+ * the Web Crypto API since there is no cheaper alternative.
+ */
 export function createInsecure(limits?: AllocationLimits): typeof WasiRandomInsecure {
     const maxAllocation = limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
 
@@ -65,6 +77,12 @@ export function createInsecure(limits?: AllocationLimits): typeof WasiRandomInse
     };
 }
 
+/**
+ * Create the `wasi:random/insecure-seed` interface.
+ *
+ * Returns a fixed 128-bit seed generated once at instance creation time.
+ * Per the WASI spec, this is intended to be called once per instance.
+ */
 export function createInsecureSeed(): typeof WasiRandomInsecureSeed {
     // Generate the seed once per instance (per spec: intended to be called once)
     const seedBuf = new Uint8Array(16);

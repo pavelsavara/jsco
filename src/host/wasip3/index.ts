@@ -1,11 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-/**
- * WASIp3 Host — entry point (stub)
- *
- * Provides `createHost()` factory returning a `WasiP3Imports` object.
- * All interface methods throw "not implemented" until the host is built out.
- */
+/**\n * WASIp3 Host — browser-compatible entry point.\n *\n * Creates all WASI Preview 3 host interface implementations:\n * CLI (environment, exit, stdio), clocks, random, filesystem (in-memory VFS),\n * HTTP client (Fetch API), and socket stubs (not-supported in browser).\n *\n * Import from `@pavelsavara/jsco/wasip3`.\n */
 
 import type {
     WasiP3Imports,
@@ -93,6 +88,22 @@ export type {
     WasiSocketsTypes,
 };
 
+/**
+ * Create a WASIp3 host import object with all WASI Preview 3 interfaces.
+ *
+ * Each interface is registered under both its unversioned key
+ * (e.g. `wasi:cli/environment`) and the versioned key
+ * (e.g. `wasi:cli/environment@0.3.0-rc-2026-03-15`).
+ *
+ * The browser bundle provides in-memory VFS, Web Crypto random, Fetch-based
+ * HTTP, and browser clock implementations. Socket operations throw `not-supported`.
+ *
+ * For Node.js with real filesystem mounts, TCP/UDP sockets, and HTTP server
+ * support, use `createWasiP3Host()` from `@pavelsavara/jsco/wasip3-node` instead.
+ *
+ * @param config - Optional configuration for environment, stdio, filesystem, and limits.
+ * @returns A `WasiP3Imports` object suitable for passing to component instantiation.
+ */
 export function createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports {
     const fsState = initFilesystem(config);
 

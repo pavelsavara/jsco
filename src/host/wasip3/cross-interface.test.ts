@@ -3,7 +3,7 @@
 import { createMonotonicClock, createSystemClock } from './clocks';
 import { initFilesystem, createPreopens } from './filesystem';
 import { createHttpTypes } from './http';
-import { createStreamPair, collectBytes, collectStream } from './streams';
+import { createStreamPair, collectBytes } from './streams';
 import { createStdout, createStderr, createStdin } from './stdio';
 import { createExit, createEnvironment, WasiExit } from './cli';
 import { createHandleTable } from './resources';
@@ -50,7 +50,7 @@ describe('Cross-interface scenarios', () => {
 
             // First write
             await file.writeViaStream(readableFrom(encoder.encode('first')), 0n);
-            const stat1 = await file.stat();
+            await file.stat();
             const t1 = clock.now();
 
             // Wait a bit
@@ -243,7 +243,6 @@ describe('Cross-interface scenarios', () => {
             await file.writeViaStream(readableFrom(encoder.encode('data')), 0n);
 
             const instant = sysClock.now();
-            const nsTimestamp = instant.seconds * 1_000_000_000n + BigInt(instant.nanoseconds);
             await file.setTimes({ tag: 'timestamp', val: { seconds: instant.seconds, nanoseconds: instant.nanoseconds } },
                 { tag: 'timestamp', val: { seconds: instant.seconds, nanoseconds: instant.nanoseconds } });
 

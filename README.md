@@ -9,7 +9,7 @@ See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](
 - streaming parser of binary WIT
 - streaming compilation of WASM core modules during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
-- WASIp2 host
+- WASIp2 and WASIp3 host
 - small download size, fast enough (current release bundle is ~86 KB)
 
 ## How
@@ -46,6 +46,78 @@ await run();
 ```
 Prints `hello from jsco` to the console.
 See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
+
+## WASIp3 Host
+
+jsco includes a native WASIp3 host with two bundles:
+- **`@pavelsavara/jsco/wasip3`** — browser-compatible (VFS, clocks, random, HTTP client via Fetch, stdio)
+- **`@pavelsavara/jsco/wasip3-node`** — adds Node.js extensions (real filesystem mounts, TCP/UDP sockets, DNS, HTTP server)
+
+### Browser usage
+
+```js
+import { createWasiP3Host } from '@pavelsavara/jsco/wasip3';
+import { createComponent } from '@pavelsavara/jsco';
+
+const host = createWasiP3Host({
+    args: ['--verbose'],
+    env: [['LANG', 'en_US.UTF-8']],
+    stdout: new WritableStream({
+        write(chunk) { console.log(new TextDecoder().decode(chunk)); },
+    }),
+});
+
+const component = await createComponent(wasmBytes, { imports: host });
+const instance = await component.instantiate();
+await instance.exports['wasi:cli/run'].run();
+```
+
+### Node.js usage
+
+```js
+import { createWasiP3Host, serve } from '@pavelsavara/jsco/wasip3-node';
+
+// Run a CLI component with real filesystem access
+const host = createWasiP3Host({
+    args: ['input.txt'],
+    env: [['HOME', '/home/user']],
+    mounts: [{ hostPath: './data', guestPath: '/data' }],
+});
+
+// Or serve an HTTP component
+const handle = await serve(handler, { port: 8080, host: '0.0.0.0' });
+console.log(`Listening on port ${handle.port}`);
+```
+
+### Configuration
+
+`createWasiP3Host()` accepts an optional `WasiP3Config`:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `env` | `[string, string][]` | Environment variables |
+| `args` | `string[]` | Command-line arguments |
+| `cwd` | `string` | Initial working directory |
+| `stdin` | `ReadableStream<Uint8Array>` | Stdin input stream |
+| `stdout` | `WritableStream<Uint8Array>` | Stdout output stream |
+| `stderr` | `WritableStream<Uint8Array>` | Stderr output stream |
+| `fs` | `Map<string, Uint8Array \| string>` | In-memory VFS files |
+| `mounts` | `MountConfig[]` | Host filesystem mounts (Node.js only) |
+| `network` | `NetworkConfig` | Network limits and timeouts |
+| `limits` | `AllocationLimits` | Allocation and size limits |
+| `enabledInterfaces` | `string[]` | Whitelist of WASI interface prefixes |
+
+### WASI interfaces provided
+
+| Interface | Browser | Node.js |
+|-----------|---------|---------|
+| `wasi:cli/*` (environment, exit, stdio) | ✅ | ✅ |
+| `wasi:clocks/*` (monotonic, system, timezone) | ✅ | ✅ |
+| `wasi:random/*` (secure, insecure, seed) | ✅ | ✅ |
+| `wasi:filesystem/*` (VFS, preopens) | ✅ in-memory | ✅ + real mounts |
+| `wasi:http/client` (Fetch API) | ✅ | ✅ |
+| `wasi:http/handler` (server) | ❌ not-supported | ✅ via `serve()` |
+| `wasi:sockets/*` (TCP, UDP, DNS) | ❌ not-supported | ✅ |
 
 # CLI
 

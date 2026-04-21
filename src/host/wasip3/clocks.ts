@@ -9,6 +9,12 @@ import type {
 
 import type { Instant } from '../../../wit/wasip3/types/cli/command/host/interfaces/wasi-clocks-system-clock';
 
+/**
+ * Create the `wasi:clocks/monotonic-clock` interface.
+ *
+ * Uses `performance.now()` for nanosecond-precision monotonic time.
+ * `waitUntil()` and `waitFor()` use `setTimeout` for async waiting.
+ */
 export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
     return {
         now(): bigint {
@@ -39,6 +45,12 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
     };
 }
 
+/**
+ * Create the `wasi:clocks/system-clock` interface.
+ *
+ * Uses `Date.now()` for wall-clock time, returned as an `Instant`
+ * with seconds and nanoseconds components.
+ */
 export function createSystemClock(): typeof WasiClocksSystemClock {
     return {
         now(): Instant {
@@ -55,6 +67,11 @@ export function createSystemClock(): typeof WasiClocksSystemClock {
     };
 }
 
+/**
+ * Create the `wasi:clocks/timezone` interface.
+ *
+ * Uses `Intl.DateTimeFormat` for IANA timezone ID and UTC offset calculation.
+ */
 export function createTimezone(): typeof WasiClocksTimezone {
     return {
         ianaId(): string | undefined {

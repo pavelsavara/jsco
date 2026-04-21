@@ -230,7 +230,7 @@ const wasip3 = {
     onwarn,
     external: externalDependencies,
     plugins: [
-        externalizeSiblingModules(),
+        externalizeSiblingModules({ skipExternals: ['wasip3'] }),
         ...sourcePlugins,
     ],
 };
@@ -268,7 +268,7 @@ const wasip3Types = {
     ],
     external: externalDependencies,
     plugins: [
-        externalizeSiblingModules(),
+        externalizeSiblingModules({ skipExternals: ['wasip3'] }),
         dts(),
     ],
 };

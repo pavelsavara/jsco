@@ -326,7 +326,7 @@ describe('StreamBridge', () => {
         });
 
         it('iterator whose return() throws — consumer still gets collected data', async () => {
-            let returnCalled = false;
+            let _returnCalled = false;
             const evil: AsyncIterable<number> = {
                 [Symbol.asyncIterator]() {
                     let i = 0;
@@ -336,7 +336,7 @@ describe('StreamBridge', () => {
                             return Promise.resolve({ value: undefined, done: true as const });
                         },
                         return() {
-                            returnCalled = true;
+                            _returnCalled = true;
                             throw new Error('evil return');
                         },
                     };
