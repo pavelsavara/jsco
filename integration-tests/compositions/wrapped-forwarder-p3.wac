@@ -1,0 +1,5 @@
+// Wraps a single P3 forwarder in a composed component (adds nesting level)
+package jsco:wrapped-forwarder-p3;
+
+let fwd = new jsco:forwarder-p3 { ... };
+export fwd...;

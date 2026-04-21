@@ -1,0 +1,18 @@
+// Two P3 forwarders composed with P3 implementer
+package jsco:double-forwarder-implementer-p3;
+
+let impl = new jsco:implementer-p3 { ... };
+let inner = new jsco:forwarder-p3 {
+    "wasi:cli/environment@0.3.0-rc-2026-03-15": impl["wasi:cli/environment@0.3.0-rc-2026-03-15"],
+    "wasi:cli/exit@0.3.0-rc-2026-03-15": impl["wasi:cli/exit@0.3.0-rc-2026-03-15"],
+    "wasi:random/random@0.3.0-rc-2026-03-15": impl["wasi:random/random@0.3.0-rc-2026-03-15"],
+    "wasi:clocks/monotonic-clock@0.3.0-rc-2026-03-15": impl["wasi:clocks/monotonic-clock@0.3.0-rc-2026-03-15"],
+    "wasi:clocks/system-clock@0.3.0-rc-2026-03-15": impl["wasi:clocks/system-clock@0.3.0-rc-2026-03-15"],
+    "jsco:test/echo-primitives@0.1.0": impl["jsco:test/echo-primitives@0.1.0"],
+    "jsco:test/echo-compound@0.1.0": impl["jsco:test/echo-compound@0.1.0"],
+    "jsco:test/echo-algebraic@0.1.0": impl["jsco:test/echo-algebraic@0.1.0"],
+    "jsco:test/echo-complex@0.1.0": impl["jsco:test/echo-complex@0.1.0"],
+    ...
+};
+let outer = new jsco:forwarder-p3 { ...inner, ... };
+export outer...;

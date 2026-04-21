@@ -8,9 +8,20 @@
  * APIs (@0.2.6, injected by the wasm-tools component adapter for libc calls).
  * We create a merged P2+P3 host for each scenario.
  *
- * Scenario A: consumer-p3 ← JS host (P3 + adapter P2)
- * Scenario B: consumer-p3 ← forwarder-p3 ← JS host
- * Scenario C: consumer-p3 ← forwarder-p3 ← implementer-p3
+ * Flat scenarios (A–E):
+ *   A: consumer-p3 ← JS host (P3 + adapter P2)
+ *   B: consumer-p3 ← forwarder-p3 ← JS host
+ *   C: consumer-p3 ← forwarder-p3 ← implementer-p3
+ *   D: consumer-p3 ← fwd ← fwd ← implementer-p3 (flat)
+ *   E: consumer-p3 ← fwd ← fwd ← JS host (flat)
+ *
+ * WAC composition scenarios (F–K):
+ *   F: consumer-p3 ← fwd ← (fwd ← host) wac-wrapped
+ *   G: consumer-p3 ← (fwd ← fwd ← host) wac-composed
+ *   H: consumer-p3 ← (fwd ← fwd ← fwd ← host) wac triple
+ *   I: consumer-p3 ← (fwd ← implementer) wac-composed
+ *   J: consumer-p3 ← (fwd ← fwd ← implementer) wac-composed
+ *   K: consumer-p3 ← (fwd ← (fwd ← implementer)) nested wac
  */
 
 import { createComponent } from '../../resolver';
@@ -29,6 +40,13 @@ const RUN_EXPORT = `wasi:cli/run@${P3_VERSION}`;
 const consumerP3Wasm = './integration-tests/consumer-p3/consumer_p3.wasm';
 const forwarderP3Wasm = './integration-tests/forwarder-p3/forwarder_p3.wasm';
 const implementerP3Wasm = './integration-tests/implementer-p3/implementer_p3.wasm';
+
+const wrappedForwarderP3Wasm = './integration-tests/compositions/wrapped-forwarder-p3.wasm';
+const doubleForwarderP3Wasm = './integration-tests/compositions/double-forwarder-p3.wasm';
+const nestedDoubleForwarderP3Wasm = './integration-tests/compositions/nested-double-forwarder-p3.wasm';
+const forwarderImplementerP3Wasm = './integration-tests/compositions/forwarder-implementer-p3.wasm';
+const doubleForwarderImplementerP3Wasm = './integration-tests/compositions/double-forwarder-implementer-p3.wasm';
+const nestedForwarderImplementerP3Wasm = './integration-tests/compositions/nested-forwarder-implementer-p3.wasm';
 
 type ImportsMap = Record<string, Record<string, Function>>;
 
@@ -218,7 +236,7 @@ async function instantiateP3Component(
     return { exports: instance.exports as ImportsMap };
 }
 
-describe('WASIp3 native component integration tests', () => {
+describe('WASIp3 native component integration tests (flat)', () => {
     const verbose = useVerboseOnFailure();
 
     afterEach(yieldToGC);
@@ -263,4 +281,137 @@ describe('WASIp3 native component integration tests', () => {
             true,
         );
     }));
+
+    test('Scenario D: consumer-p3 ← fwd ← fwd ← implementer-p3 (flat)', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+
+                const fwd2Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(impl.exports, fwd2Imports, p3ImplementerInterfaces);
+                const fwd2 = await instantiateP3Component(forwarderP3Wasm, fwd2Imports, verbose);
+
+                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
+                const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+    }));
+
+    test('Scenario E: consumer-p3 ← fwd ← fwd ← host (flat)', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const fwd2 = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+
+                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
+                const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+    }));
+});
+
+describe('WASIp3 native component integration tests (WAC compositions)', () => {
+    const verbose = useVerboseOnFailure();
+
+    afterEach(yieldToGC);
+
+    test('Scenario F: consumer-p3 ← fwd ← (fwd ← host) wac-wrapped', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const wrapped = await instantiateP3Component(wrappedForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+
+                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(wrapped.exports, fwdImports, p3ForwardedInterfaces);
+                const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario G: consumer-p3 ← (fwd ← fwd ← host) wac-composed', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const dbl = await instantiateP3Component(doubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(dbl.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario H: consumer-p3 ← (fwd ← fwd ← fwd ← host) wac triple', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const nested = await instantiateP3Component(nestedDoubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            3,
+            fullWasiConfig,
+        );
+    }));
+
+    test('Scenario I: consumer-p3 ← (fwd ← implementer) wac-composed', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const composed = await instantiateP3Component(forwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            true,
+        );
+    }));
+
+    test('Scenario J: consumer-p3 ← (fwd ← fwd ← implementer) wac-composed', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const composed = await instantiateP3Component(doubleForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+    }));
+
+    test('Scenario K: consumer-p3 ← (fwd ← (fwd ← implementer)) nested wac', () => runWithVerbose(verbose, async () => {
+        await runP3ConsumerScenario(
+            verbose,
+            async ({ wasiExports, extraImports }) => {
+                const nested = await instantiateP3Component(nestedForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
+                return consumerImports;
+            },
+            2,
+        );
+    }), 60_000);
 });
