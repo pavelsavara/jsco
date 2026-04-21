@@ -10,6 +10,11 @@
 - WASIp3: interleaved suspension
 - WASIp3: re-entry on async - queue
 - WASIp2: at the moment we test with wasm32-wasip1, which also has preview1-to-preview2 adapter shim
+- implement integration tests for jsco CLI that would test all cli arguments with wasip3 host.
+- add checks into integration-tests\consumer-p3\src\lib.rs that would try to overstep the boundaries set by CLI args and validate that proper error was raised
+- are we integration testing real http client and server ?
+- are we using all tests in the integration-tests\wasmtime folder ?
+- are there any skipped tests ?
 
 # Build
 - add coverage to CI, fail if lower than some %

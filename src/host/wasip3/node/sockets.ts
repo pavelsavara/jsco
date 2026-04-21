@@ -163,12 +163,30 @@ class NodeTcpSocket {
         return new NodeTcpSocket(addressFamily);
     }
 
-    bind(localAddress: IpSocketAddress): void {
+    /** Actually bind the socket by starting a temporary net.Server to claim the port. */
+    async bind(localAddress: IpSocketAddress): Promise<void> {
         if (this._state !== TcpState.Created) {
             throwError('invalid-state', 'Socket is already bound or connected');
         }
-        this._localAddress = localAddress;
-        this._state = TcpState.Bound;
+        const host = socketAddressToString(localAddress);
+        const port = socketAddressPort(localAddress);
+
+        // Create a server to perform the actual OS bind and claim the port
+        const server = net.createServer();
+        this._server = server;
+
+        return new Promise<void>((resolve, reject) => {
+            server.listen(port, host, () => {
+                const addr = server.address() as net.AddressInfo;
+                this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
+                this._state = TcpState.Bound;
+                resolve();
+            });
+            server.once('error', (err) => {
+                this._server = null;
+                try { mapNodeError(err); } catch (e) { reject(e); }
+            });
+        });
     }
 
     async connect(remoteAddress: IpSocketAddress): Promise<void> {
@@ -178,9 +196,15 @@ class NodeTcpSocket {
         const host = socketAddressToString(remoteAddress);
         const port = socketAddressPort(remoteAddress);
 
+        // If we have a bind server, close it to release the port for the client socket
+        const bindAddr = this._localAddress;
+        if (this._server) {
+            await new Promise<void>(resolve => this._server!.close(() => resolve()));
+            this._server = null;
+        }
+
         return new Promise<void>((resolve, reject) => {
             const socket = new net.Socket();
-            const bindAddr = this._localAddress;
             const options: net.SocketConnectOpts = {
                 host,
                 port,
@@ -204,25 +228,19 @@ class NodeTcpSocket {
         });
     }
 
-    async listen(): Promise<WasiStreamWritable<NodeTcpSocket>> {
-        if (this._state !== TcpState.Bound) {
+    listen(): WasiStreamWritable<NodeTcpSocket> {
+        if (this._state !== TcpState.Bound || !this._server) {
             throwError('invalid-state', 'Socket must be bound before listening');
         }
         this._state = TcpState.Listening;
 
-        const addr = this._localAddress!;
-        const host = socketAddressToString(addr);
-        const port = socketAddressPort(addr);
         const family = this._family;
+        const server = this._server;
 
         // Create an async iterable that yields accepted connections
-        const backlog = Number(this._backlog);
         const pendingConnections: NodeTcpSocket[] = [];
         let resolveNext: ((value: IteratorResult<NodeTcpSocket>) => void) | null = null;
         let closed = false;
-
-        const server = net.createServer();
-        this._server = server;
 
         server.on('connection', (socket: net.Socket) => {
             const accepted = new NodeTcpSocket(family);
@@ -269,13 +287,6 @@ class NodeTcpSocket {
             },
         };
 
-        await new Promise<void>((resolve) => {
-            server.listen(port, host, backlog, () => {
-                const serverAddr = server.address() as net.AddressInfo;
-                this._localAddress = nodeAddressToIpSocket(serverAddr.address, serverAddr.port, serverAddr.family);
-                resolve();
-            });
-        });
         return stream;
     }
 
@@ -651,15 +662,36 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
 
 // ──────────────────── Factory functions ────────────────────
 
+import { flattenResource, TCP_NON_RESULT, UDP_NON_RESULT } from '../sockets';
+
 export function createNodeSocketsTypes(): typeof WasiSocketsTypes {
     return {
         TcpSocket: NodeTcpSocket,
         UdpSocket: NodeUdpSocket,
+        ...flattenResource('tcp-socket', NodeTcpSocket as unknown as { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown }, TCP_NON_RESULT),
+        ...flattenResource('udp-socket', NodeUdpSocket as unknown as { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown }, UDP_NON_RESULT),
     } as unknown as typeof WasiSocketsTypes;
 }
 
 export function createNodeIpNameLookup(): typeof WasiSocketsIpNameLookup {
     return {
-        resolveAddresses,
+        'resolve-addresses': async (name: string) => {
+            try {
+                const result = await resolveAddresses(name);
+                return { tag: 'ok', val: result };
+            } catch (err: any) {
+                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
+                throw err;
+            }
+        },
+        resolveAddresses: async (name: string) => {
+            try {
+                const result = await resolveAddresses(name);
+                return { tag: 'ok', val: result };
+            } catch (err: any) {
+                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
+                throw err;
+            }
+        },
     } as unknown as typeof WasiSocketsIpNameLookup;
 }
