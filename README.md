@@ -47,6 +47,18 @@ await run();
 Prints `hello from jsco` to the console.
 See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
 
+`instantiateWasiComponent` auto-detects whether the component needs WASIp2 or WASIp3 and provides the correct host. Pass an optional `WasiP3Config` to configure environment, filesystem, and network:
+
+```js
+const instance = await instantiateWasiComponent('./my-component.wasm', {
+    args: ['--verbose'],
+    env: [['LANG', 'en_US.UTF-8']],
+    stdout: new WritableStream({
+        write(chunk) { console.log(new TextDecoder().decode(chunk)); },
+    }),
+});
+```
+
 ## WASIp3 Host
 
 jsco includes a native WASIp3 host with two bundles:
@@ -55,37 +67,53 @@ jsco includes a native WASIp3 host with two bundles:
 
 ### Browser usage
 
+For most WASI components, `instantiateWasiComponent` is the simplest way:
+
 ```js
-import { createWasiP3Host } from '@pavelsavara/jsco/wasip3';
+import { instantiateWasiComponent } from '@pavelsavara/jsco';
+
+const instance = await instantiateWasiComponent('./my-component.wasm');
+await instance.exports['wasi:cli/run@0.2.11'].run();
+```
+
+For advanced use cases (custom imports, non-WASI components), use `createComponent` directly:
+
+```js
 import { createComponent } from '@pavelsavara/jsco';
 
-const host = createWasiP3Host({
-    args: ['--verbose'],
-    env: [['LANG', 'en_US.UTF-8']],
-    stdout: new WritableStream({
-        write(chunk) { console.log(new TextDecoder().decode(chunk)); },
-    }),
+const component = await createComponent('./my-component.wasm');
+const instance = await component.instantiate({
+    'my:app/logger@1.0.0': { log: console.log },
 });
-
-const component = await createComponent(wasmBytes, { imports: host });
-const instance = await component.instantiate();
-await instance.exports['wasi:cli/run'].run();
+await instance.exports['my:app/greeter@1.0.0'].run({ name: 'World' });
 ```
 
 ### Node.js usage
 
 ```js
-import { createWasiP3Host, serve } from '@pavelsavara/jsco/wasip3-node';
+import { instantiateWasiComponent } from '@pavelsavara/jsco';
 
 // Run a CLI component with real filesystem access
-const host = createWasiP3Host({
+const instance = await instantiateWasiComponent('./my-cli-component.wasm', {
     args: ['input.txt'],
     env: [['HOME', '/home/user']],
     mounts: [{ hostPath: './data', guestPath: '/data' }],
 });
+await instance.exports['wasi:cli/run@0.2.11'].run();
+```
 
-// Or serve an HTTP component
-const handle = await serve(handler, { port: 8080, host: '0.0.0.0' });
+To serve an HTTP handler component:
+
+```js
+import { createComponent, loadWasiP3Host, loadWasiP3Serve } from '@pavelsavara/jsco';
+
+const { createWasiP3Host } = await loadWasiP3Host();
+const host = createWasiP3Host();
+const component = await createComponent('./my-http-component.wasm');
+const instance = await component.instantiate(host);
+const handler = instance.exports['wasi:http/incoming-handler@0.2.0'];
+const { serve } = await loadWasiP3Serve();
+const handle = await serve(handler, { network: { httpRequestTimeoutMs: 30_000 } });
 console.log(`Listening on port ${handle.port}`);
 ```
 

@@ -11,7 +11,6 @@ import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
 import './utils/debug-names'; // registers initDebugNames before setConfiguration
-import { GIT_HASH, CONFIGURATION, EXPORTS, IMPORTS, INSTANTIATE } from './utils/constants';
 import { cliMain } from './main';
 import { createComponent as resolverCreateComponent } from './resolver';
 import { detectWasiType, createWasiImports, WasiType } from './wasi-auto';
@@ -33,19 +32,19 @@ export async function instantiateWasiComponent<TJSExports>(
     options?: ComponentFactoryOptions & ParserOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
     const component = await resolverCreateComponent<TJSExports>(componentBytesOrUrl, options);
-    const exportNames = component[EXPORTS]();
-    const importNames = component[IMPORTS]();
+    const exportNames = component.exports();
+    const importNames = component.imports();
     const wasiType = detectWasiType(exportNames, importNames);
     // Always provide a host — default to P3 when WASI version is not detected
     const effectiveType = wasiType === WasiType.None ? WasiType.P3 : wasiType;
     const imports = await createWasiImports(effectiveType, config);
-    return component[INSTANTIATE](imports);
+    return component.instantiate(imports);
 }
 
 export function getBuildInfo() {
     return {
-        [GIT_HASH]: gitHash,
-        [CONFIGURATION]: configuration,
+        gitHash: gitHash,
+        configuration: configuration,
     };
 }
 

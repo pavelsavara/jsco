@@ -12,7 +12,6 @@ import { parseSectionExport } from './export';
 import { parseModule } from './module';
 import { readU32Async, readU32, readCoreType, readStartFunction } from './values';
 import { parseSectionAlias } from './alias';
-import { OTHER_SECTION_DATA, COMPILE_STREAMING, PROCESS_CUSTOM_SECTION, VERBOSE, LOGGER } from '../utils/constants';
 import { parseSectionImport } from './import';
 import { parseSectionType } from './type';
 import { parseSectionCanon } from './canon';
@@ -52,11 +51,11 @@ async function parseWIT(src: Source & Closeable, options?: ParserOptions): Promi
         // eslint-disable-next-line no-console
         const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
         const ctx: ParserContext = {
-            otherSectionData: options?.[OTHER_SECTION_DATA] ?? false,
-            compileStreaming: options?.[COMPILE_STREAMING] ?? WebAssembly.compileStreaming,
-            processCustomSection: options?.[PROCESS_CUSTOM_SECTION] ?? undefined,
-            verbose: { ...defaultVerbosity, ...(options as any)?.[VERBOSE] },
-            logger: (options as any)?.[LOGGER] ?? defaultLogger,
+            otherSectionData: options?.otherSectionData ?? false,
+            compileStreaming: options?.compileStreaming ?? WebAssembly.compileStreaming,
+            processCustomSection: options?.processCustomSection ?? undefined,
+            verbose: { ...defaultVerbosity, ...(options as any)?.verbose },
+            logger: (options as any)?.logger ?? defaultLogger,
             depth: 0,
         };
 

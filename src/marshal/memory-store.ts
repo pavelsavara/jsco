@@ -5,7 +5,7 @@ import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
 import type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
 export type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
 import { validateAllocResult } from './validation';
-import { TAG, VAL, OK, ERR } from '../utils/constants';
+import { OK, ERR } from './constants';
 
 // --- Primitive memory storers ---
 
@@ -109,7 +109,7 @@ export function optionStorer(plan: OptionStorerPlan, ctx: MarshalingContext, ptr
 export function resultStorerBoth(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     if (tag === OK) {
         dv.setUint8(0, 0);
@@ -123,7 +123,7 @@ export function resultStorerBoth(plan: ResultStorerPlan, ctx: MarshalingContext,
 export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     if (tag === OK) {
         dv.setUint8(0, 0);
@@ -136,7 +136,7 @@ export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: MarshalingContex
 export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     if (tag === OK) {
         dv.setUint8(0, 0);
@@ -149,14 +149,14 @@ export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: MarshalingConte
 export function resultStorerVoid(_plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG];
+    const tag = jsValue.tag;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     dv.setUint8(0, tag === OK ? 0 : 1);
 }
 
 export function variantStorerDisc1(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     const caseIndex = plan.nameToIndex.get(tag);
     if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
@@ -167,7 +167,7 @@ export function variantStorerDisc1(plan: VariantStorerPlan, ctx: MarshalingConte
 
 export function variantStorerDisc2(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     const caseIndex = plan.nameToIndex.get(tag);
     if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
@@ -178,7 +178,7 @@ export function variantStorerDisc2(plan: VariantStorerPlan, ctx: MarshalingConte
 
 export function variantStorerDisc4(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
-    const tag = jsValue[TAG], val = jsValue[VAL];
+    const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
     const caseIndex = plan.nameToIndex.get(tag);
     if (caseIndex === undefined) throw new Error(`Unknown variant case: ${tag}`);
@@ -265,8 +265,8 @@ export function futureMemStorer(plan: FutureStorerPlan, ctx: MarshalingContext, 
 export function createResultWrappingStorer(memStorer: MemoryStorer): (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void {
     return (ctx, ptr, value, rejected) => {
         const wrapped = rejected
-            ? { [TAG]: ERR, [VAL]: value }
-            : { [TAG]: OK, [VAL]: value };
+            ? { tag: ERR, val: value }
+            : { tag: OK, val: value };
         memStorer(ctx, ptr, wrapped);
     };
 }

@@ -14,7 +14,6 @@ import { JsImports } from './api-types';
 import { buildResolvedTypeMap } from './type-resolution';
 import type { ComponentImport } from '../parser/model/imports';
 import type { ComponentTypeInstance, ComponentTypeResource } from '../parser/model/types';
-import { NO_JSPI, USE_NUMBER_FOR_INT64, VALIDATE_TYPES, WASM_INSTANTIATE, VERBOSE, LOGGER, PROMISING, SUSPENDING } from '../utils/constants';
 import { hasJspi } from '../utils/jspi';
 
 function createJspiWrappers(noJspi?: boolean | string[]): { wrapLift?: (fn: Function, exportName?: string) => Function; wrapLower?: (fn: Function) => Function } {
@@ -24,27 +23,27 @@ function createJspiWrappers(noJspi?: boolean | string[]): { wrapLift?: (fn: Func
             const shouldWrap = Array.isArray(noJspi)
                 ? (exportName !== undefined && !noJspi.includes(exportName))
                 : true;
-            return shouldWrap ? (WebAssembly as any)[PROMISING](fn) : fn;
+            return shouldWrap ? (WebAssembly as any).promising(fn) : fn;
         },
-        wrapLower: (fn) => new (WebAssembly as any)[SUSPENDING](fn),
+        wrapLower: (fn) => new (WebAssembly as any).Suspending(fn),
     };
 }
 
 export function createResolverContext(sections: WITModel, options: ComponentFactoryOptions): ResolverContext {
     // eslint-disable-next-line no-console
     const defaultLogger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
-    const verbose = { ...defaultVerbosity, ...(options as any)[VERBOSE] };
-    const logger = (options as any)[LOGGER] ?? defaultLogger;
-    const jspiWrappers = createJspiWrappers(options[NO_JSPI]);
+    const verbose = { ...defaultVerbosity, ...(options as any).verbose };
+    const logger = (options as any).logger ?? defaultLogger;
+    const jspiWrappers = createJspiWrappers(options.noJspi);
     const rctx: ResolverContext = {
         resolved: {
             wrapLift: jspiWrappers.wrapLift,
             wrapLower: jspiWrappers.wrapLower,
             fixedUpOwnBorrow: new WeakSet(),
-            usesNumberForInt64: options[USE_NUMBER_FOR_INT64] === true,
-            useNumberForInt64Methods: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? options[USE_NUMBER_FOR_INT64] : undefined,
-            numberModeLiftingCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
-            numberModeLoweringCache: Array.isArray(options[USE_NUMBER_FOR_INT64]) ? new Map() : undefined,
+            usesNumberForInt64: options.useNumberForInt64 === true,
+            useNumberForInt64Methods: Array.isArray(options.useNumberForInt64) ? options.useNumberForInt64 : undefined,
+            numberModeLiftingCache: Array.isArray(options.useNumberForInt64) ? new Map() : undefined,
+            numberModeLoweringCache: Array.isArray(options.useNumberForInt64) ? new Map() : undefined,
             stringEncoding: StringEncoding.Utf8,
             liftingCache: new Map(),
             loweringCache: new Map(),
@@ -56,8 +55,8 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             verbose,
             logger,
         },
-        validateTypes: (options[VALIDATE_TYPES] === false) ? false : true,
-        wasmInstantiate: options[WASM_INSTANTIATE] ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
+        validateTypes: (options.validateTypes === false) ? false : true,
+        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
         componentInstanceCache: new Map(),

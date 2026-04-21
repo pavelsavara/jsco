@@ -5,7 +5,6 @@ import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
 import { loadWasiP3Serve } from './dynamic';
 import { createComponent } from './resolver';
 import { CliOptions, CliParseResult, getHelpText, parseCliArgs } from './utils/args';
-import { EXPORTS, IMPORTS, INSTANTIATE } from './utils/constants';
 import { hasJspi } from './utils/jspi';
 import { detectWasiType, createWasiImports, WasiType } from './wasi-auto';
 
@@ -53,13 +52,13 @@ export async function main({ command, componentUrl, options }: CliParseResult) {
     try {
         const config = createConfig(options);
         const component = await createComponent(componentUrl!, options);
-        const exportNames = component[EXPORTS]();
-        const importNames = component[IMPORTS]();
+        const exportNames = component.exports();
+        const importNames = component.imports();
         const wasiType = detectWasiType(exportNames, importNames);
         // CLI always provides a host — default to P3 when WASI version is not detected
         const effectiveType = wasiType === WasiType.None ? WasiType.P3 : wasiType;
         const imports = await createWasiImports(effectiveType, config);
-        const instance = await component[INSTANTIATE](imports);
+        const instance = await component.instantiate(imports);
 
         if (command === 'run') {
             const runExportName = exportNames.find(s => s.startsWith('wasi:cli/run'));

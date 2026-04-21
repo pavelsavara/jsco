@@ -12,7 +12,6 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
-import { EXPORTS, IMPORTS, INSTANTIATE } from '../utils/constants';
 
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
@@ -24,7 +23,7 @@ export async function instantiateComponent<TJSExports>(
         input = await parse(input, options ?? {});
     }
     const component = await createComponent<TJSExports>(input, options);
-    return component[INSTANTIATE](imports);
+    return component.instantiate(imports);
 }
 
 export async function createComponent<TJSExports>(componentBytesOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
@@ -128,9 +127,9 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     const resolved = rctx.resolved;
     let firstInstantiation = true;
     const component = {
-        [EXPORTS]: () => exportNames,
-        [IMPORTS]: () => importNames,
-        [INSTANTIATE]: async (imports?: JsImports) => {
+        exports: () => exportNames,
+        imports: () => importNames,
+        instantiate: async (imports?: JsImports) => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
                 firstInstantiation = false;

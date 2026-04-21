@@ -39,10 +39,6 @@ const plugins = isDebug ? [] : [terser({
     mangle: {
         module: true,
         toplevel: true,
-        properties: {
-            keep_quoted: 'strict',
-            reserved: ['leb128DecodeU64', 'leb128DecodeI64', 'leb128EncodeU64', 'leb128EncodeI64', 'buf', 'buffer', 'memory']
-        },
     },
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';

@@ -3,7 +3,6 @@
 import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from './index';
 import { createWasiP3Host, WasiExit } from './host/wasip3/wasip3';
 import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
-import { GIT_HASH, CONFIGURATION } from './utils/constants';
 import { detectWasiType, WasiType } from './wasi-auto';
 import { parse } from './parser';
 import isDebug from 'env:isDebug';
@@ -19,10 +18,10 @@ const helloCityWatWasm = './integration-tests/hello-city-wat/hello-city.wasm';
 describe('index.ts', () => {
     test('getBuildInfo returns git hash and configuration', () => {
         const info = getBuildInfo();
-        expect(info).toHaveProperty(GIT_HASH);
-        expect(info).toHaveProperty(CONFIGURATION);
-        expect(typeof info[GIT_HASH]).toBe('string');
-        expect(typeof info[CONFIGURATION]).toBe('string');
+        expect(info).toHaveProperty('gitHash');
+        expect(info).toHaveProperty('configuration');
+        expect(typeof info.gitHash).toBe('string');
+        expect(typeof info.configuration).toBe('string');
     });
 });
 
