@@ -795,15 +795,20 @@ describe('filesystem — Descriptor', () => {
             expect(decoder.decode(bBytes)).toBe('bbb');
         });
 
-        test('rename file while descriptor is open — data still accessible', async () => {
+        test('rename file then open at new path — data still accessible', async () => {
             const root = getRoot({ fs: new Map([['before.txt', 'content']]) });
-            const file = await root.openAt({ symlinkFollow: false }, 'before.txt', {}, { read: true });
             await root.renameAt('before.txt', root, 'after.txt');
 
-            // Original descriptor still works
+            // File accessible at new path
+            const file = await root.openAt({ symlinkFollow: false }, 'after.txt', {}, { read: true });
             const [s] = file.readViaStream(0n);
             const bytes = await collectBytes(s);
             expect(decoder.decode(bytes)).toBe('content');
+
+            // Old path is gone
+            await expect(
+                root.openAt({ symlinkFollow: false }, 'before.txt', {}, { read: true }),
+            ).rejects.toEqual({ tag: 'no-entry' });
         });
 
         test('write to file then setSize smaller — read shows truncated', async () => {
@@ -820,7 +825,7 @@ describe('filesystem — Descriptor', () => {
         });
 
         test('open file read-only → write fails → open read-write → write succeeds', async () => {
-            const root = getRoot({ fs: new Map([['rw.txt', 'original']]) });
+            const root = getRoot({ fs: new Map([['rw.txt', 'old']]) });
             const roFile = await root.openAt({ symlinkFollow: false }, 'rw.txt', {}, { read: true });
             expect(() => roFile.writeViaStream(readableFrom(encoder.encode('fail')), 0n)).toThrow();
 

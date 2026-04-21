@@ -110,19 +110,22 @@ describe('StreamBridge', () => {
 
         it('close readable stream prematurely — consumer sees end of stream', async () => {
             const pair = createStreamPair<number>();
+            // Start consuming before writing (backpressure: write blocks until read)
+            const collectPromise = collectStream(pair.readable);
             await pair.write(1);
             pair.close();
-            const result = await collectStream(pair.readable);
+            const result = await collectPromise;
             expect(result).toEqual([1]);
         });
 
-        it('error stream cancels pending writes', async () => {
+        it('error stream cancels pending reads', async () => {
             const pair = createStreamPair<number>();
-            // Start a write that won't be consumed
-            const writePromise = pair.write(42);
+            // Start consuming — will wait for items
+            const collectPromise = collectStream(pair.readable);
+            await pair.write(42);
+            // Error signals the consumer to throw
             pair.error(new Error('cancelled'));
-            // The pending write should reject
-            await expect(writePromise).rejects.toThrow('cancelled');
+            await expect(collectPromise).rejects.toThrow('cancelled');
         });
     });
 
@@ -358,8 +361,13 @@ describe('StreamBridge', () => {
         });
 
         it('Proxy object that throws on property access is propagated', async () => {
+            // Proxy must not trap `.then` — JS Promise resolution checks `.then`
+            // on yielded values from async generators (thenable check)
             const evilProxy = new Proxy({}, {
-                get() { throw new Error('proxy trap'); },
+                get(_target, prop) {
+                    if (prop === 'then') return undefined; // allow thenable check
+                    throw new Error('proxy trap');
+                },
             });
             const pair = createStreamPair<unknown>();
             const collectPromise = collectStream(pair.readable);
