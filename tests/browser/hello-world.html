@@ -7,9 +7,7 @@
 
 <body>
     <script type="module">
-        import { createComponent } from '/dist/index.js';
-        import { instantiateWasiComponent, setCreateComponent } from '/dist/wasip2.js';
-        setCreateComponent(createComponent);
+        import { instantiateWasiComponent } from '/dist/index.js';
 
         window.__testResults = {};
         try {
@@ -17,7 +15,9 @@
             const instance = await instantiateWasiComponent(
                 '/integration-tests/hello-world-wat/hello.wasm',
                 {
-                    stdout: (bytes) => { stdoutChunks.push(new Uint8Array(bytes)); },
+                    stdout: new WritableStream({
+                        write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+                    }),
                 },
             );
 
@@ -25,8 +25,8 @@
             try {
                 await runNs.run();
             } catch (e) {
-                // WasiExit with status 0 is expected
-                if (!e.message?.includes('exit') && e.status !== 0) throw e;
+                // WasiExit with exitCode 0 is expected
+                if (!e.message?.includes('exit') && e.exitCode !== 0) throw e;
             }
 
             const allBytes = new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], []));
