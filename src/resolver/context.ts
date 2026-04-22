@@ -430,14 +430,20 @@ const STREAM_STATUS_DROPPED = 1;
 const STREAM_BLOCKED = 0xFFFFFFFF;
 
 type StreamEntry = {
-    chunks: Uint8Array[];
+    chunks: unknown[];
     closed: boolean;
     /** Resolve function when an async reader is waiting for data/close. */
-    waitingReader?: (chunk: Uint8Array | null) => void;
+    waitingReader?: (chunk: unknown | null) => void;
     /** Callbacks to invoke when data arrives or stream closes (for waitable-set integration). */
     onReady?: (() => void)[];
     /** Deferred read: guest buffer awaiting data after stream.read returned BLOCKED. */
     pendingRead?: { ptr: number, len: number };
+    /** For typed streams (non-u8): size of one element in WASM memory. */
+    elementSize?: number;
+    /** For typed streams (non-u8): storer to encode one JS value into WASM memory. */
+    elementStorer?: (ctx: BindingContext, ptr: number, value: unknown) => void;
+    /** For typed streams: the marshaling context needed by elementStorer. */
+    mctx?: BindingContext;
 };
 
 function createStreamTable(memory: MemoryView, allocHandle: () => number): StreamTable {
@@ -456,7 +462,7 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
     }
 
     /** Pump an async iterable into a stream entry's buffer in the background. */
-    function pumpIterable(iterable: AsyncIterable<Uint8Array>, entry: StreamEntry): void {
+    function pumpIterable(iterable: AsyncIterable<unknown>, entry: StreamEntry): void {
         const iter = iterable[Symbol.asyncIterator]();
         function pump(): void {
             iter.next().then((result) => {
@@ -488,18 +494,18 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
     }
 
     /** Build an async-iterable backed by the stream entry's internal buffer. */
-    function makeAsyncIterable(entry: StreamEntry): AsyncIterable<Uint8Array> {
+    function makeAsyncIterable(entry: StreamEntry): AsyncIterable<unknown> {
         return {
             [Symbol.asyncIterator]() {
                 return {
-                    next(): Promise<IteratorResult<Uint8Array>> {
+                    next(): Promise<IteratorResult<unknown>> {
                         if (entry.chunks.length > 0) {
                             return Promise.resolve({ value: entry.chunks.shift()!, done: false });
                         }
                         if (entry.closed) {
                             return Promise.resolve({ value: undefined as any, done: true });
                         }
-                        return new Promise<IteratorResult<Uint8Array>>((resolve) => {
+                        return new Promise<IteratorResult<unknown>>((resolve) => {
                             entry.waitingReader = (chunk) => {
                                 entry.waitingReader = undefined;
                                 if (chunk === null) {
@@ -515,6 +521,27 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
         };
     }
 
+    /** Read typed (non-byte) elements from a stream: encode each via elementStorer. */
+    function readTypedElements(entry: StreamEntry, ptr: number, len: number): number {
+        const elemSize = entry.elementSize!;
+        const storer = entry.elementStorer!;
+        const mctx = entry.mctx!;
+        // len is the buffer size in bytes; compute max element count
+        const maxElems = (len / elemSize) | 0;
+        let count = 0;
+        while (entry.chunks.length > 0 && count < maxElems) {
+            const element = entry.chunks.shift()!;
+            storer(mctx, ptr + count * elemSize, element);
+            count++;
+        }
+        if (count > 0) {
+            return (count << 4) | STREAM_STATUS_COMPLETED;
+        }
+        if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+        entry.pendingRead = { ptr, len };
+        return STREAM_BLOCKED;
+    }
+
     return {
         newStream(_typeIdx: number): bigint {
             const readHandle = allocHandle();
@@ -527,10 +554,14 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             const base = baseHandle(handle);
             const entry = entries.get(base);
             if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
-            // Copy available data into WASM linear memory
+            // Typed stream: each chunk is a single element, encode via storer
+            if (entry.elementStorer && entry.elementSize) {
+                return readTypedElements(entry, ptr, len);
+            }
+            // Byte stream: copy available data into WASM linear memory
             let offset = 0;
             while (entry.chunks.length > 0 && offset < len) {
-                const chunk = entry.chunks[0]!;
+                const chunk = entry.chunks[0] as Uint8Array;
                 const needed = len - offset;
                 if (chunk.length <= needed) {
                     memory.getViewU8(ptr + offset, chunk.length).set(chunk);
@@ -594,14 +625,14 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             }
         },
 
-        addReadable(_typeIdx: number, value: unknown): number {
+        addReadable(_typeIdx: number, value: unknown, elementStorer?: (ctx: BindingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: BindingContext): number {
             const readHandle = allocHandle();
-            const entry: StreamEntry = { chunks: [], closed: false };
+            const entry: StreamEntry = { chunks: [], closed: false, elementStorer, elementSize, mctx };
             entries.set(readHandle, entry);
             jsReadables.set(readHandle, value);
             // If the value is an async iterable, pump it into the buffer
             if (value && typeof (value as any)[Symbol.asyncIterator] === 'function') {
-                pumpIterable(value as AsyncIterable<Uint8Array>, entry);
+                pumpIterable(value as AsyncIterable<unknown>, entry);
             }
             return readHandle;
         },
@@ -662,10 +693,14 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             if (!entry || !entry.pendingRead) return (0 << 4) | STREAM_STATUS_COMPLETED;
             const { ptr, len } = entry.pendingRead;
             entry.pendingRead = undefined;
+            // Typed stream: encode elements via storer
+            if (entry.elementStorer && entry.elementSize) {
+                return readTypedElements(entry, ptr, len);
+            }
             // Copy available data into the guest's deferred buffer
             let offset = 0;
             while (entry.chunks.length > 0 && offset < len) {
-                const chunk = entry.chunks[0]!;
+                const chunk = entry.chunks[0]! as Uint8Array;
                 const needed = len - offset;
                 if (chunk.length <= needed) {
                     memory.getViewU8(ptr + offset, chunk.length).set(chunk);

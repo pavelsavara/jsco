@@ -2,8 +2,8 @@
 
 import type { MarshalingContext, MemoryStorer } from './model/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
-import type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
-export type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan } from './model/store-plans';
+import type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, StreamStorerPlan, FutureStorerPlan } from './model/store-plans';
+export type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, StreamStorerPlan, FutureStorerPlan } from './model/store-plans';
 import { validateAllocResult } from './validation';
 import { OK, ERR } from './constants';
 
@@ -247,8 +247,8 @@ export function borrowResourceDirectStorer(_plan: OwnResourceStorerPlan, ctx: Ma
 
 // --- Stream/Future/ErrorContext memory storers ---
 
-export function streamStorer(ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
-    const handle = ctx.streams.addReadable(0, jsValue);
+export function streamStorer(plan: StreamStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+    const handle = ctx.streams.addReadable(0, jsValue, plan.elementStorer, plan.elementSize, ctx);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 

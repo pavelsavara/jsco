@@ -660,7 +660,7 @@ describe('memory-store.ts', () => {
     describe('stream/future/errorContext storers', () => {
         test('streamStorer stores handle', () => {
             const { ctx, buffer } = createMockCtx();
-            streamStorer(ctx, 0, { readable: true });
+            streamStorer({ elementStorer: undefined, elementSize: undefined }, ctx, 0, { readable: true });
             expect(readI32(buffer, 0)).toBe(7);
         });
 

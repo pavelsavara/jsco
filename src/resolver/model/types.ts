@@ -153,7 +153,7 @@ export interface StreamTable {
     cancelWrite(typeIdx: number, handle: number): number;
     dropReadable(typeIdx: number, handle: number): void;
     dropWritable(typeIdx: number, handle: number): void;
-    addReadable(typeIdx: number, value: unknown): number;
+    addReadable(typeIdx: number, value: unknown, elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: MarshalingContext): number;
     getReadable(typeIdx: number, handle: number): unknown;
     removeReadable(typeIdx: number, handle: number): unknown;
     addWritable(typeIdx: number, value: unknown): number;

@@ -99,6 +99,39 @@ function throwError(tag: ErrorCode['tag'], message?: string): never {
     throw Object.assign(new Error(message ?? tag), { tag } as ErrorCode);
 }
 
+function isUnspecifiedAddress(addr: IpSocketAddress): boolean {
+    if (addr.tag === 'ipv4') {
+        const a = addr.val.address;
+        return a[0] === 0 && a[1] === 0 && a[2] === 0 && a[3] === 0;
+    }
+    const a = addr.val.address;
+    return a[0] === 0 && a[1] === 0 && a[2] === 0 && a[3] === 0 &&
+        a[4] === 0 && a[5] === 0 && a[6] === 0 && a[7] === 0;
+}
+
+/** Detect IPv4-mapped IPv6 addresses (::ffff:x.x.x.x) */
+function isIpv4MappedIpv6(addr: IpSocketAddress): boolean {
+    if (addr.tag !== 'ipv6') return false;
+    const a = addr.val.address;
+    return a[0] === 0 && a[1] === 0 && a[2] === 0 && a[3] === 0 &&
+        a[4] === 0 && a[5] === 0xffff;
+}
+
+function validateConnectAddress(addr: IpSocketAddress, socketFamily: IpAddressFamily): void {
+    if (isUnspecifiedAddress(addr)) {
+        throwError('invalid-argument', 'Cannot connect to unspecified address');
+    }
+    if (addr.val.port === 0) {
+        throwError('invalid-argument', 'Cannot connect to port 0');
+    }
+    if (addr.tag !== socketFamily) {
+        throwError('invalid-argument', 'Address family mismatch');
+    }
+    if (isIpv4MappedIpv6(addr)) {
+        throwError('invalid-argument', 'IPv4-mapped IPv6 addresses are not allowed');
+    }
+}
+
 function mapNodeError(err: NodeJS.ErrnoException): never {
     switch (err.code) {
         case 'EACCES':
@@ -168,6 +201,12 @@ class NodeTcpSocket {
         if (this._state !== TcpState.Created) {
             throwError('invalid-state', 'Socket is already bound or connected');
         }
+        if (localAddress.tag !== this._family) {
+            throwError('invalid-argument', 'Address family mismatch');
+        }
+        if (isIpv4MappedIpv6(localAddress)) {
+            throwError('invalid-argument', 'IPv4-mapped IPv6 addresses are not allowed');
+        }
         const host = socketAddressToString(localAddress);
         const port = socketAddressPort(localAddress);
 
@@ -176,7 +215,7 @@ class NodeTcpSocket {
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
-            server.listen(port, host, () => {
+            server.listen({ port, host, backlog: Number(this._backlog) }, () => {
                 const addr = server.address() as net.AddressInfo;
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 this._state = TcpState.Bound;
@@ -193,6 +232,7 @@ class NodeTcpSocket {
         if (this._state !== TcpState.Created && this._state !== TcpState.Bound) {
             throwError('invalid-state', 'Socket is already connected or listening');
         }
+        validateConnectAddress(remoteAddress, this._family);
         const host = socketAddressToString(remoteAddress);
         const port = socketAddressPort(remoteAddress);
 
@@ -228,14 +268,21 @@ class NodeTcpSocket {
         });
     }
 
-    listen(): WasiStreamWritable<NodeTcpSocket> {
-        if (this._state !== TcpState.Bound || !this._server) {
-            throwError('invalid-state', 'Socket must be bound before listening');
+    async listen(): Promise<WasiStreamWritable<NodeTcpSocket>> {
+        if (this._state === TcpState.Connected || this._state === TcpState.Listening || this._state === TcpState.Closed) {
+            throwError('invalid-state', 'Socket is already connected, listening, or closed');
+        }
+        // Implicit bind if not yet bound
+        if (this._state === TcpState.Created) {
+            const unspec: IpSocketAddress = this._family === 'ipv4'
+                ? { tag: 'ipv4', val: { port: 0, address: [0, 0, 0, 0] } }
+                : { tag: 'ipv6', val: { port: 0, flowInfo: 0, address: [0, 0, 0, 0, 0, 0, 0, 0], scopeId: 0 } };
+            await this.bind(unspec);
         }
         this._state = TcpState.Listening;
 
         const family = this._family;
-        const server = this._server;
+        const server = this._server!;
 
         // Create an async iterable that yields accepted connections
         const pendingConnections: NodeTcpSocket[] = [];
@@ -390,6 +437,7 @@ class NodeTcpSocket {
     }
 
     setListenBacklogSize(value: bigint): void {
+        if (value === 0n) throwError('invalid-argument', 'Backlog size must be greater than 0');
         this._backlog = value;
     }
 
@@ -400,13 +448,22 @@ class NodeTcpSocket {
     }
 
     getKeepAliveIdleTime(): Duration { return this._keepAliveIdleTime; }
-    setKeepAliveIdleTime(value: Duration): void { this._keepAliveIdleTime = value; }
+    setKeepAliveIdleTime(value: Duration): void {
+        if (value === 0n) throwError('invalid-argument', 'Keep-alive idle time must be greater than 0');
+        this._keepAliveIdleTime = value;
+    }
 
     getKeepAliveInterval(): Duration { return this._keepAliveInterval; }
-    setKeepAliveInterval(value: Duration): void { this._keepAliveInterval = value; }
+    setKeepAliveInterval(value: Duration): void {
+        if (value === 0n) throwError('invalid-argument', 'Keep-alive interval must be greater than 0');
+        this._keepAliveInterval = value;
+    }
 
     getKeepAliveCount(): number { return this._keepAliveCount; }
-    setKeepAliveCount(value: number): void { this._keepAliveCount = value; }
+    setKeepAliveCount(value: number): void {
+        if (value === 0) throwError('invalid-argument', 'Keep-alive count must be greater than 0');
+        this._keepAliveCount = value;
+    }
 
     getHopLimit(): number { return this._hopLimit; }
     setHopLimit(value: number): void {
@@ -445,6 +502,7 @@ class NodeUdpSocket {
     private _unicastHopLimit = 64;
     private _receiveBufferSize = 65536n;
     private _sendBufferSize = 65536n;
+    private _pendingOptions: (() => void)[] = [];
 
     private constructor(family: IpAddressFamily) {
         this._family = family;
@@ -455,9 +513,28 @@ class NodeUdpSocket {
         return new NodeUdpSocket(addressFamily);
     }
 
+    /** Apply deferred socket options once the socket has an fd (after bind). */
+    private _applyPendingOptions(): void {
+        for (const apply of this._pendingOptions) apply();
+        this._pendingOptions = [];
+    }
+
+    private async _implicitBind(): Promise<void> {
+        const unspec: IpSocketAddress = this._family === 'ipv4'
+            ? { tag: 'ipv4', val: { port: 0, address: [0, 0, 0, 0] } }
+            : { tag: 'ipv6', val: { port: 0, flowInfo: 0, address: [0, 0, 0, 0, 0, 0, 0, 0], scopeId: 0 } };
+        await this.bind(unspec);
+    }
+
     async bind(localAddress: IpSocketAddress): Promise<void> {
         if (this._state !== UdpState.Created) {
             throwError('invalid-state', 'Socket is already bound');
+        }
+        if (localAddress.tag !== this._family) {
+            throwError('invalid-argument', 'Address family mismatch');
+        }
+        if (isIpv4MappedIpv6(localAddress)) {
+            throwError('invalid-argument', 'IPv4-mapped IPv6 addresses are not allowed');
         }
         const host = socketAddressToString(localAddress);
         const port = socketAddressPort(localAddress);
@@ -467,6 +544,7 @@ class NodeUdpSocket {
                 this._state = UdpState.Bound;
                 const addr = this._socket.address();
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
+                this._applyPendingOptions();
                 resolve();
             });
             this._socket.once('error', (err) => {
@@ -476,23 +554,31 @@ class NodeUdpSocket {
     }
 
     async connect(remoteAddress: IpSocketAddress): Promise<void> {
-        if (this._state !== UdpState.Created && this._state !== UdpState.Bound) {
-            throwError('invalid-state', 'Socket is already connected');
+        if (this._state === UdpState.Closed) {
+            throwError('invalid-state', 'Socket is closed');
+        }
+        validateConnectAddress(remoteAddress, this._family);
+        // Implicit bind if not yet bound
+        if (this._state === UdpState.Created) {
+            await this._implicitBind();
+        }
+        // Disconnect first if already connected (reconnect)
+        if (this._state === UdpState.Connected) {
+            this._socket.disconnect();
+            this._state = UdpState.Bound;
+            this._remoteAddress = null;
         }
         const host = socketAddressToString(remoteAddress);
         const port = socketAddressPort(remoteAddress);
 
         return new Promise<void>((resolve, reject) => {
             this._socket.connect(port, host, () => {
-                if (this._state === UdpState.Created) {
-                    this._state = UdpState.Bound;
-                }
                 this._state = UdpState.Connected;
                 this._remoteAddress = remoteAddress;
-                if (!this._localAddress) {
-                    const addr = this._socket.address();
-                    this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
-                }
+                // Always update local address after connect — the OS may assign a specific
+                // interface address (e.g. 127.0.0.1) instead of the wildcard (0.0.0.0).
+                const addr = this._socket.address();
+                this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 resolve();
             });
             this._socket.once('error', (err) => {
@@ -508,9 +594,20 @@ class NodeUdpSocket {
         this._socket.disconnect();
         this._state = UdpState.Bound;
         this._remoteAddress = null;
+        // Refresh local address after disconnect — it may revert to wildcard
+        const addr = this._socket.address();
+        this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
     }
 
     async send(data: Uint8Array, remoteAddress: IpSocketAddress | undefined): Promise<void> {
+        // Sending without a remote address on an unconnected socket is invalid
+        if (!remoteAddress && this._state !== UdpState.Connected) {
+            throwError('invalid-argument', 'Remote address required for unconnected socket');
+        }
+        // Implicit bind if not yet bound
+        if (this._state === UdpState.Created) {
+            await this._implicitBind();
+        }
         return new Promise<void>((resolve, reject) => {
             const callback = (err: Error | null) => {
                 if (err) {
@@ -562,21 +659,33 @@ class NodeUdpSocket {
     setUnicastHopLimit(value: number): void {
         if (value === 0) throwError('invalid-argument', 'TTL value must be 1 or higher');
         this._unicastHopLimit = value;
-        this._socket.setTTL(value);
+        if (this._state !== UdpState.Created) {
+            this._socket.setTTL(value);
+        } else {
+            this._pendingOptions.push(() => this._socket.setTTL(value));
+        }
     }
 
     getReceiveBufferSize(): bigint { return this._receiveBufferSize; }
     setReceiveBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
         this._receiveBufferSize = value;
-        this._socket.setRecvBufferSize(Number(value));
+        if (this._state !== UdpState.Created) {
+            this._socket.setRecvBufferSize(Number(value));
+        } else {
+            this._pendingOptions.push(() => this._socket.setRecvBufferSize(Number(value)));
+        }
     }
 
     getSendBufferSize(): bigint { return this._sendBufferSize; }
     setSendBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
         this._sendBufferSize = value;
-        this._socket.setSendBufferSize(Number(value));
+        if (this._state !== UdpState.Created) {
+            this._socket.setSendBufferSize(Number(value));
+        } else {
+            this._pendingOptions.push(() => this._socket.setSendBufferSize(Number(value)));
+        }
     }
 
     /** Close the underlying dgram socket. */
@@ -588,7 +697,24 @@ class NodeUdpSocket {
 
 // ──────────────────── IP name lookup (Node.js) ────────────────────
 
+type DnsErrorCode =
+    | { tag: 'access-denied' }
+    | { tag: 'invalid-argument' }
+    | { tag: 'name-unresolvable' }
+    | { tag: 'temporary-resolver-failure' }
+    | { tag: 'permanent-resolver-failure' }
+    | { tag: 'other'; val: string | undefined };
+
+function throwDnsError(tag: DnsErrorCode['tag'], message?: string): never {
+    throw Object.assign(new Error(message ?? tag), { tag } as DnsErrorCode);
+}
+
 async function resolveAddresses(name: string): Promise<IpAddress[]> {
+    // Reject empty or whitespace-only input before any other checks
+    if (!name || /^\s*$/.test(name)) {
+        throwDnsError('invalid-argument', `Invalid domain name: ${name}`);
+    }
+
     // If the input is an IP address string, parse and return directly
     if (net.isIPv4(name)) {
         return [{ tag: 'ipv4', val: parseIpv4(name) }];
@@ -596,11 +722,25 @@ async function resolveAddresses(name: string): Promise<IpAddress[]> {
     if (net.isIPv6(name)) {
         return [{ tag: 'ipv6', val: parseIpv6(name) }];
     }
+    // Handle bracketed IPv6 notation: [::1] → ::1
+    if (name.startsWith('[') && name.endsWith(']')) {
+        const inner = name.slice(1, -1);
+        if (net.isIPv6(inner)) {
+            return [{ tag: 'ipv6', val: parseIpv6(inner) }];
+        }
+        // Brackets but not valid IPv6 (e.g. "[::]:80" wouldn't match since it has :80)
+        throwDnsError('invalid-argument', `Invalid domain name: ${name}`);
+    }
+
+    // Validate domain names: reject IP:port, URLs, and names with invalid chars
+    if (/[[\]<>&:/]/.test(name) || name.includes(' ')) {
+        throwDnsError('invalid-argument', `Invalid domain name: ${name}`);
+    }
 
     try {
         const results = await dns.lookup(name, { all: true });
         if (results.length === 0) {
-            throwError('other', `No addresses found for ${name}`);
+            throwDnsError('name-unresolvable', `No addresses found for ${name}`);
         }
         return results.map(r => {
             if (r.family === 4) {
@@ -614,16 +754,16 @@ async function resolveAddresses(name: string): Promise<IpAddress[]> {
         switch (nodeErr.code) {
             case 'ENOTFOUND':
             case 'EAI_NONAME':
-                throwError('other', `Name unresolvable: ${name}`);
+                throwDnsError('name-unresolvable', `Name unresolvable: ${name}`);
                 break;
             case 'EAI_AGAIN':
-                throwError('other', `Temporary resolver failure: ${name}`);
+                throwDnsError('temporary-resolver-failure', `Temporary resolver failure: ${name}`);
                 break;
             case 'EAI_FAIL':
-                throwError('other', `Permanent resolver failure: ${name}`);
+                throwDnsError('permanent-resolver-failure', `Permanent resolver failure: ${name}`);
                 break;
             default:
-                throwError('other', nodeErr.message);
+                throwDnsError('other', nodeErr.message);
         }
     }
 }

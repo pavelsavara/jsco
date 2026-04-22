@@ -15,6 +15,7 @@
 - are we integration testing real http client and server ?
 - are we using all tests in the integration-tests\wasmtime folder ?
 - are there any skipped tests ?
+- running all tests is slow, why ?
 
 # Build
 - add coverage to CI, fail if lower than some %
@@ -42,10 +43,12 @@
 - review license & add CoC
 - donate this project to @bytecodealliance
 - write article on how it works
+- review which jsco_assert could be trimmed in release and which need to stay permanent
 
 # Resolver todo
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
+- extract more marshalling lambdas
 
 # Binder todo
 - respect model options for CompactUTF-16 (latin1+utf16) encoding

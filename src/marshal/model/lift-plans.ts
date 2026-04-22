@@ -26,6 +26,7 @@ export type VariantLiftPlan = {
     nameToCase: Map<string, VariantCaseLiftPlan>,
 };
 export type FutureLiftPlan = { storer?: (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void };
+export type StreamLiftPlan = { elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number };
 
 export type FunctionLiftPlan = {
     paramLifters: LiftingFromJs[],
