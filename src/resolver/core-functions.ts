@@ -128,7 +128,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
             `type chain: ${chain}${funcName ? ` name="${funcName}"` : ''} → ComponentTypeFunc[${funcType.selfSortIndex ?? '?'}]`);
     }
 
-    const loweringBinder = createFunctionLowering(localResolved, funcType);
+    const loweringBinder = createFunctionLowering(localResolved, funcType, canonOpts.async);
 
     // If the canon.lower specifies a per-function realloc, resolve it now.
     // The resolved binder will be called at bind time to get the actual function.
@@ -163,26 +163,17 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
             }
 
             if (isAsyncLower) {
-                // Async canon.lower: wrap JS function to capture its Promise,
-                // then return a subtask handle to the guest instead of blocking.
-                let capturedPromise: Promise<unknown> | undefined;
+                // Async canon.lower: the lowering trampoline already handles Promises
+                // (via handleLowerResult/handleLowerResultSpilled), returning a Promise
+                // when the JS host function is async. We detect that and create a subtask.
                 const jsFunction = functionResult.result as JsFunction;
-                const wrappedJsFunction: JsFunction = (...fnArgs: unknown[]) => {
-                    const result = jsFunction(...fnArgs);
-                    if (result instanceof Promise) {
-                        capturedPromise = result;
-                        return undefined;
-                    }
-                    return result;
-                };
-                const wasmFunction = loweringBinder(effectivemctx, wrappedJsFunction);
+                const wasmFunction = loweringBinder(effectivemctx, jsFunction);
 
                 const asyncLowerTrampoline = (...wasmArgs: unknown[]): number => {
-                    capturedPromise = undefined;
-                    wasmFunction(...wasmArgs);
-                    if (capturedPromise) {
+                    const result = wasmFunction(...wasmArgs);
+                    if (result instanceof Promise) {
                         // Async: create a subtask, return packed state|handle
-                        const handle = effectivemctx.subtasks.create(capturedPromise);
+                        const handle = effectivemctx.subtasks.create(result);
                         return SubtaskState.STARTED | (handle << 4);
                     }
                     // Synchronous completion (host returned non-Promise)
