@@ -701,6 +701,10 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             let offset = 0;
             while (entry.chunks.length > 0 && offset < len) {
                 const chunk = entry.chunks[0]! as Uint8Array;
+                if (!(chunk instanceof Uint8Array)) {
+                    // eslint-disable-next-line no-console
+                    console.error('DEBUG: non-Uint8Array chunk in byte stream path:', typeof chunk, chunk?.constructor?.name, 'elementStorer:', !!entry.elementStorer, 'elementSize:', entry.elementSize, 'chunks:', entry.chunks.length);
+                }
                 const needed = len - offset;
                 if (chunk.length <= needed) {
                     memory.getViewU8(ptr + offset, chunk.length).set(chunk);
