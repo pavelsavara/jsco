@@ -82,10 +82,12 @@ export function recordStorer(plan: RecordStorerPlan, ctx: MarshalingContext, ptr
 export function listStorer(plan: ListStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
     const len = jsValue.length;
-    let listPtr = 0;
+    const totalSize = len * plan.elemSize;
+    // Always call realloc per canonical ABI spec — even for empty lists (totalSize=0).
+    // Rust's cabi_realloc returns `align as *mut u8` for size=0, producing the
+    // non-null dangling pointer that Vec::from_raw_parts / NonNull::new_unchecked requires.
+    const listPtr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, plan.elemAlign as WasmSize, totalSize as WasmSize);
     if (len > 0) {
-        const totalSize = len * plan.elemSize;
-        listPtr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, plan.elemAlign as WasmSize, totalSize as WasmSize);
         validateAllocResult(ctx, listPtr as WasmPointer, plan.elemAlign, totalSize);
         for (let i = 0; i < len; i++) {
             plan.elemStorer(ctx, listPtr + i * plan.elemSize, jsValue[i]);

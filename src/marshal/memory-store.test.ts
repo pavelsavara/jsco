@@ -36,7 +36,7 @@ function createMockCtx(bufferSize = 1024): { ctx: MarshalingContext, buffer: Arr
 
     const allocator = {
         realloc(_oldPtr: WasmPointer, _oldSize: WasmSize, align: WasmSize, newSize: WasmSize): WasmPointer {
-            if (newSize as number === 0) return 0 as WasmPointer;
+            if (newSize as number === 0) return align as unknown as WasmPointer; // match Rust cabi_realloc: returns alignment as dangling pointer
             const aligned = ((nextAlloc + (align as number) - 1) & ~((align as number) - 1));
             nextAlloc = aligned + (newSize as number);
             return aligned as WasmPointer;
@@ -273,11 +273,13 @@ describe('memory-store.ts', () => {
     });
 
     describe('listStorer', () => {
-        test('stores empty list as ptr=0 len=0', () => {
+        test('stores empty list — realloc(0,0,align,0) provides dangling pointer', () => {
             const { ctx, buffer } = createMockCtx();
             const plan: ListStorerPlan = { elemSize: 4, elemAlign: 4, elemStorer: u32Storer };
             listStorer(plan, ctx, 0, []);
-            expect(readI32(buffer, 0)).toBe(0); // ptr
+            // Canonical ABI calls realloc even for empty lists; Rust's cabi_realloc
+            // returns `align` as a non-null dangling pointer for size=0.
+            expect(readI32(buffer, 0)).toBe(4); // ptr from realloc(0,0,4,0) = 4
             expect(readI32(buffer, 4)).toBe(0); // len
         });
 

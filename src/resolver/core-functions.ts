@@ -496,6 +496,10 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
 /**
  * resource.drop — produces a core function that drops a resource handle.
  * The core module calls this to release an imported resource (e.g. output-stream).
+ *
+ * For imported (host) resources, the returned object may have a `drop()` method
+ * which serves as the destructor. We call it after removing the handle so the
+ * host can release underlying OS resources (sockets, file handles, etc.).
  */
 export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionResourceDrop> = (rctx, rargs) => {
     const elem = rargs.element;
@@ -506,7 +510,11 @@ export const resolveCanonicalFunctionResourceDrop: Resolver<CanonicalFunctionRes
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const dropFn = (handle: number) => {
-                mctx.resources.remove(resourceTypeIdx, handle);
+                const obj = mctx.resources.remove(resourceTypeIdx, handle);
+                // Call host destructor if the resource object has one.
+                if (obj && typeof (obj as any).drop === 'function') {
+                    (obj as any).drop();
+                }
             };
             return { result: dropFn };
         }, `resource.drop:${elem.selfSortIndex}`)

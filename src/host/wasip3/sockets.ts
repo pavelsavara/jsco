@@ -171,7 +171,7 @@ export function flattenResource(
             result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]) => wrapResultCall(self, key, ...args);
         }
     }
-    result[`[resource-drop]${name}`] = () => { /* GC */ };
+    result[`[resource-drop]${name}`] = (self: any) => { if (self && typeof self.drop === 'function') self.drop(); };
     return result;
 }
 

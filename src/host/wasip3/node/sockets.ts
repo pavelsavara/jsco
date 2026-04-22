@@ -130,6 +130,22 @@ function validateConnectAddress(addr: IpSocketAddress, socketFamily: IpAddressFa
     if (isIpv4MappedIpv6(addr)) {
         throwError('invalid-argument', 'IPv4-mapped IPv6 addresses are not allowed');
     }
+    if (isBroadcastAddress(addr) || isMulticastAddress(addr)) {
+        throwError('invalid-argument', 'Cannot connect to broadcast or multicast address');
+    }
+}
+
+function isBroadcastAddress(addr: IpSocketAddress): boolean {
+    if (addr.tag !== 'ipv4') return false;
+    const a = addr.val.address;
+    return a[0] === 255 && a[1] === 255 && a[2] === 255 && a[3] === 255;
+}
+
+function isMulticastAddress(addr: IpSocketAddress): boolean {
+    if (addr.tag === 'ipv4') {
+        return (addr.val.address[0]! & 0xf0) === 224;
+    }
+    return (addr.val.address[0]! & 0xff00) === 0xff00;
 }
 
 function mapNodeError(err: NodeJS.ErrnoException): never {
@@ -164,6 +180,9 @@ function mapNodeError(err: NodeJS.ErrnoException): never {
 
 // ──────────────────── TcpSocket (Node.js) ────────────────────
 
+/** Pending server-close promises. `bind()` awaits these so the OS port is truly released. */
+const pendingServerCloses: Set<Promise<void>> = new Set();
+
 const enum TcpState {
     Created = 0,
     Bound = 1,
@@ -176,6 +195,8 @@ class NodeTcpSocket {
     private _socket: net.Socket | null = null;
     private _server: net.Server | null = null;
     private _family: IpAddressFamily;
+    /** Raw Node.js sockets from accepted connections, tracked so drop() can force-close them. */
+    private _acceptedRawSockets: net.Socket[] = [];
     private _state: TcpState = TcpState.Created;
     private _localAddress: IpSocketAddress | null = null;
     private _remoteAddress: IpSocketAddress | null = null;
@@ -207,6 +228,13 @@ class NodeTcpSocket {
         if (isIpv4MappedIpv6(localAddress)) {
             throwError('invalid-argument', 'IPv4-mapped IPv6 addresses are not allowed');
         }
+        if (isBroadcastAddress(localAddress) || isMulticastAddress(localAddress)) {
+            throwError('invalid-argument', 'Cannot bind to broadcast or multicast address');
+        }
+        // Wait for any pending server closes so the OS port is truly released.
+        if (pendingServerCloses.size > 0) {
+            await Promise.all(pendingServerCloses);
+        }
         const host = socketAddressToString(localAddress);
         const port = socketAddressPort(localAddress);
 
@@ -215,7 +243,7 @@ class NodeTcpSocket {
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
-            server.listen({ port, host, backlog: Number(this._backlog) }, () => {
+            server.listen({ port, host, backlog: Number(this._backlog), exclusive: false }, () => {
                 const addr = server.address() as net.AddressInfo;
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 this._state = TcpState.Bound;
@@ -290,9 +318,22 @@ class NodeTcpSocket {
         let closed = false;
 
         server.on('connection', (socket: net.Socket) => {
+            this._acceptedRawSockets.push(socket);
             const accepted = new NodeTcpSocket(family);
             accepted._socket = socket;
             accepted._state = TcpState.Connected;
+            // Inherit socket options from the listener
+            accepted._keepAliveEnabled = this._keepAliveEnabled;
+            accepted._keepAliveIdleTime = this._keepAliveIdleTime;
+            accepted._keepAliveInterval = this._keepAliveInterval;
+            accepted._keepAliveCount = this._keepAliveCount;
+            accepted._hopLimit = this._hopLimit;
+            accepted._receiveBufferSize = this._receiveBufferSize;
+            accepted._sendBufferSize = this._sendBufferSize;
+            // Apply keep-alive to the actual socket
+            if (this._keepAliveEnabled) {
+                socket.setKeepAlive(true);
+            }
             const localInfo = socket.address() as net.AddressInfo;
             accepted._localAddress = nodeAddressToIpSocket(localInfo.address, localInfo.port, localInfo.family);
             accepted._remoteAddress = nodeAddressToIpSocket(
@@ -453,13 +494,17 @@ class NodeTcpSocket {
     getKeepAliveIdleTime(): Duration { return this._keepAliveIdleTime; }
     setKeepAliveIdleTime(value: Duration): void {
         if (value === 0n) throwError('invalid-argument', 'Keep-alive idle time must be greater than 0');
-        this._keepAliveIdleTime = value;
+        // Clamp to minimum 1 second (OS minimum)
+        const SECOND = 1_000_000_000n;
+        this._keepAliveIdleTime = value < SECOND ? SECOND : value;
     }
 
     getKeepAliveInterval(): Duration { return this._keepAliveInterval; }
     setKeepAliveInterval(value: Duration): void {
         if (value === 0n) throwError('invalid-argument', 'Keep-alive interval must be greater than 0');
-        this._keepAliveInterval = value;
+        // Clamp to minimum 1 second (OS minimum)
+        const SECOND = 1_000_000_000n;
+        this._keepAliveInterval = value < SECOND ? SECOND : value;
     }
 
     getKeepAliveCount(): number { return this._keepAliveCount; }
@@ -484,6 +529,28 @@ class NodeTcpSocket {
     setSendBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
         this._sendBufferSize = value;
+    }
+
+    drop(): void {
+        this._state = TcpState.Closed;
+        // Force-destroy all accepted connections so server.close() can complete.
+        for (const raw of this._acceptedRawSockets) {
+            if (!raw.destroyed) raw.destroy();
+        }
+        this._acceptedRawSockets = [];
+        if (this._server) {
+            const server = this._server;
+            const p = new Promise<void>(resolve => server.close(() => {
+                resolve();
+            }));
+            pendingServerCloses.add(p);
+            p.then(() => { pendingServerCloses.delete(p); });
+            this._server = null;
+        }
+        if (this._socket) {
+            this._socket.destroy();
+            this._socket = null;
+        }
     }
 }
 
@@ -611,6 +678,8 @@ class NodeUdpSocket {
         if (this._state === UdpState.Created) {
             await this._implicitBind();
         }
+        // list<u8> may arrive as a plain Array from the component model
+        const buf = data instanceof Uint8Array ? data : new Uint8Array(data);
         return new Promise<void>((resolve, reject) => {
             const callback = (err: Error | null) => {
                 if (err) {
@@ -619,12 +688,16 @@ class NodeUdpSocket {
                     resolve();
                 }
             };
-            if (remoteAddress) {
+            if (this._state === UdpState.Connected) {
+                // Node.js does not allow specifying a destination on a connected socket.
+                // WASI allows it — just send to the connected address.
+                this._socket.send(buf, callback);
+            } else if (remoteAddress) {
                 const host = socketAddressToString(remoteAddress);
                 const port = socketAddressPort(remoteAddress);
-                this._socket.send(data, port, host, callback);
+                this._socket.send(buf, port, host, callback);
             } else {
-                this._socket.send(data, callback);
+                this._socket.send(buf, callback);
             }
         });
     }
@@ -695,6 +768,12 @@ class NodeUdpSocket {
     close(): void {
         this._state = UdpState.Closed;
         this._socket.close();
+    }
+
+    drop(): void {
+        if (this._state !== UdpState.Closed) {
+            this.close();
+        }
     }
 }
 
