@@ -429,6 +429,9 @@ const STREAM_STATUS_COMPLETED = 0;
 const STREAM_STATUS_DROPPED = 1;
 const STREAM_BLOCKED = 0xFFFFFFFF;
 
+/** Backpressure threshold: stream.write returns BLOCKED when this many bytes are buffered. */
+const STREAM_BACKPRESSURE = 65536; // 64 KB
+
 type StreamEntry = {
     chunks: unknown[];
     closed: boolean;
@@ -444,6 +447,10 @@ type StreamEntry = {
     elementStorer?: (ctx: BindingContext, ptr: number, value: unknown) => void;
     /** For typed streams: the marshaling context needed by elementStorer. */
     mctx?: BindingContext;
+    /** Total bytes buffered in chunks (for backpressure). */
+    bufferedBytes?: number;
+    /** Callbacks to invoke when buffer drains below backpressure threshold. */
+    onWriteReady?: (() => void)[];
 };
 
 function createStreamTable(memory: MemoryView, allocHandle: () => number): StreamTable {
@@ -458,6 +465,13 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
     function signalReady(entry: StreamEntry): void {
         if (entry.onReady) {
             for (const cb of entry.onReady) cb();
+        }
+    }
+
+    /** Signal that buffer drained below threshold — notify write-side waiters. */
+    function checkWriteReady(entry: StreamEntry): void {
+        if (entry.onWriteReady && ((entry.bufferedBytes ?? 0) < STREAM_BACKPRESSURE || entry.closed)) {
+            for (const cb of entry.onWriteReady) cb();
         }
     }
 
@@ -500,7 +514,12 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                 return {
                     next(): Promise<IteratorResult<unknown>> {
                         if (entry.chunks.length > 0) {
-                            return Promise.resolve({ value: entry.chunks.shift()!, done: false });
+                            const chunk = entry.chunks.shift()!;
+                            if (chunk instanceof Uint8Array) {
+                                entry.bufferedBytes = Math.max(0, (entry.bufferedBytes ?? 0) - chunk.length);
+                            }
+                            checkWriteReady(entry);
+                            return Promise.resolve({ value: chunk, done: false });
                         }
                         if (entry.closed) {
                             return Promise.resolve({ value: undefined as any, done: true });
@@ -515,6 +534,15 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                                 }
                             };
                         });
+                    },
+                    return(): Promise<IteratorResult<unknown>> {
+                        entry.closed = true;
+                        if (entry.waitingReader) {
+                            entry.waitingReader(null);
+                        }
+                        signalReady(entry);
+                        checkWriteReady(entry);
+                        return Promise.resolve({ value: undefined as any, done: true });
                     },
                 };
             },
@@ -573,6 +601,8 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                 }
             }
             if (offset > 0) {
+                entry.bufferedBytes = Math.max(0, (entry.bufferedBytes ?? 0) - offset);
+                checkWriteReady(entry);
                 return (offset << 4) | STREAM_STATUS_COMPLETED;
             }
             if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
@@ -584,7 +614,12 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             const base = baseHandle(handle);
             const entry = entries.get(base);
             if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
             if (len > 0) {
+                // Backpressure: block if buffer is full and no reader is waiting
+                if (!entry.waitingReader && (entry.bufferedBytes ?? 0) >= STREAM_BACKPRESSURE) {
+                    return STREAM_BLOCKED;
+                }
                 // Copy data from WASM linear memory
                 const src = memory.getViewU8(ptr, len);
                 const copy = new Uint8Array(src);
@@ -592,12 +627,16 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                     entry.waitingReader(copy);
                 } else {
                     entry.chunks.push(copy);
+                    entry.bufferedBytes = (entry.bufferedBytes ?? 0) + len;
                 }
             }
             return (len << 4) | STREAM_STATUS_COMPLETED;
         },
 
-        cancelRead(_typeIdx: number, _handle: number): number {
+        cancelRead(_typeIdx: number, handle: number): number {
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (entry) entry.pendingRead = undefined;
             return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
 
@@ -713,10 +752,29 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                 }
             }
             if (offset > 0) {
+                entry.bufferedBytes = Math.max(0, (entry.bufferedBytes ?? 0) - offset);
+                checkWriteReady(entry);
                 return (offset << 4) | STREAM_STATUS_COMPLETED;
             }
             if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
             return (0 << 4) | STREAM_STATUS_COMPLETED;
+        },
+
+        hasWriteSpace(baseHandle: number): boolean {
+            const entry = entries.get(baseHandle);
+            if (!entry) return false;
+            return (entry.bufferedBytes ?? 0) < STREAM_BACKPRESSURE;
+        },
+
+        onWriteReady(baseHandle: number, callback: () => void): void {
+            const entry = entries.get(baseHandle);
+            if (!entry) return;
+            if ((entry.bufferedBytes ?? 0) < STREAM_BACKPRESSURE) {
+                callback();
+                return;
+            }
+            if (!entry.onWriteReady) entry.onWriteReady = [];
+            entry.onWriteReady.push(callback);
         },
     };
 }
@@ -1099,14 +1157,28 @@ function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, fu
                     }
                 } else if (isStream) {
                     // Wire up async readiness for streams
-                    const streamReady = streamTable.hasData(waitableHandle & ~1);
-                    if (streamReady) {
-                        entry.ready = true;
-                    } else {
-                        streamTable.onReady(waitableHandle & ~1, () => {
+                    if (isWritable) {
+                        // Write side: ready when buffer has space
+                        const writeReady = streamTable.hasWriteSpace(waitableHandle & ~1);
+                        if (writeReady) {
                             entry.ready = true;
-                            for (const cb of entry.resolvers) cb();
-                        });
+                        } else {
+                            streamTable.onWriteReady(waitableHandle & ~1, () => {
+                                entry.ready = true;
+                                for (const cb of entry.resolvers) cb();
+                            });
+                        }
+                    } else {
+                        // Read side: ready when data is available
+                        const streamReady = streamTable.hasData(waitableHandle & ~1);
+                        if (streamReady) {
+                            entry.ready = true;
+                        } else {
+                            streamTable.onReady(waitableHandle & ~1, () => {
+                                entry.ready = true;
+                                for (const cb of entry.resolvers) cb();
+                            });
+                        }
                     }
                 }
             }

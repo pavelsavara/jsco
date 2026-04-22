@@ -54,17 +54,18 @@ describe('Node.js sockets', () => {
             expect(sock.getAddressFamily()).toBe('ipv4');
         });
 
-        it('bind sets local address', () => {
+        it('bind sets local address', async () => {
             const sock = types.TcpSocket.create('ipv4');
-            sock.bind(ipv4Addr(0));
-            expect(sock.getLocalAddress()).toEqual(ipv4Addr(0));
+            await sock.bind(ipv4Addr(0));
+            const addr = sock.getLocalAddress();
+            expect(addr.tag).toBe('ipv4');
         });
 
-        it('bind twice throws invalid-state', () => {
+        it('bind twice throws invalid-state', async () => {
             const sock = types.TcpSocket.create('ipv4');
-            sock.bind(ipv4Addr(0));
+            await sock.bind(ipv4Addr(0));
             try {
-                sock.bind(ipv4Addr(0));
+                await sock.bind(ipv4Addr(0));
                 fail('should throw');
             } catch (e) {
                 expect((e as { tag: string }).tag).toBe('invalid-state');
@@ -96,14 +97,16 @@ describe('Node.js sockets', () => {
 
             it('keepAliveIdleTime set/get', () => {
                 const sock = types.TcpSocket.create('ipv4');
-                sock.setKeepAliveIdleTime(1000n);
-                expect(sock.getKeepAliveIdleTime()).toBe(1000n);
+                const twoSeconds = 2_000_000_000n;
+                sock.setKeepAliveIdleTime(twoSeconds);
+                expect(sock.getKeepAliveIdleTime()).toBe(twoSeconds);
             });
 
             it('keepAliveInterval set/get', () => {
                 const sock = types.TcpSocket.create('ipv4');
-                sock.setKeepAliveInterval(500n);
-                expect(sock.getKeepAliveInterval()).toBe(500n);
+                const twoSeconds = 2_000_000_000n;
+                sock.setKeepAliveInterval(twoSeconds);
+                expect(sock.getKeepAliveInterval()).toBe(twoSeconds);
             });
 
             it('keepAliveCount set/get', () => {
@@ -404,7 +407,9 @@ describe('Node.js sockets', () => {
         };
 
         it('resolves localhost', async () => {
-            const results = await lookup.resolveAddresses('localhost');
+            const result = await lookup.resolveAddresses('localhost') as unknown as { tag: string; val: IpAddress[] };
+            expect(result.tag).toBe('ok');
+            const results = result.val;
             expect(results.length).toBeGreaterThan(0);
             // localhost should resolve to 127.0.0.1 or ::1
             const hasIpv4 = results.some(r => r.tag === 'ipv4');
@@ -413,36 +418,30 @@ describe('Node.js sockets', () => {
         });
 
         it('parses raw IPv4 address', async () => {
-            const results = await lookup.resolveAddresses('192.168.1.1');
-            expect(results).toEqual([{ tag: 'ipv4', val: [192, 168, 1, 1] }]);
+            const result = await lookup.resolveAddresses('192.168.1.1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv4', val: [192, 168, 1, 1] }] });
         });
 
         it('parses raw IPv6 address', async () => {
-            const results = await lookup.resolveAddresses('::1');
-            expect(results).toEqual([{ tag: 'ipv6', val: [0, 0, 0, 0, 0, 0, 0, 1] }]);
+            const result = await lookup.resolveAddresses('::1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv6', val: [0, 0, 0, 0, 0, 0, 0, 1] }] });
         });
 
-        it('throws for invalid name', async () => {
-            try {
-                await lookup.resolveAddresses('this-does-not-exist-at-all.invalid');
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for invalid name', async () => {
+            const result = await lookup.resolveAddresses('this-does-not-exist-at-all.invalid') as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
-        it('throws for empty hostname', async () => {
-            try {
-                await lookup.resolveAddresses('');
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for empty hostname', async () => {
+            const result = await lookup.resolveAddresses('') as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
         it('resolves IP literal 127.0.0.1 to same address', async () => {
-            const results = await lookup.resolveAddresses('127.0.0.1');
-            expect(results).toEqual([{ tag: 'ipv4', val: [127, 0, 0, 1] }]);
+            const result = await lookup.resolveAddresses('127.0.0.1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv4', val: [127, 0, 0, 1] }] });
         });
 
         it('rejects hostname with null byte', async () => {
@@ -455,22 +454,21 @@ describe('Node.js sockets', () => {
             }
         });
 
-        it('rejects very long hostname', async () => {
-            try {
-                await lookup.resolveAddresses('A'.repeat(300));
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for very long hostname', async () => {
+            const result = await lookup.resolveAddresses('A'.repeat(300)) as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
         it('concurrent DNS resolutions complete independently', async () => {
             const [r1, r2] = await Promise.all([
                 lookup.resolveAddresses('127.0.0.1'),
                 lookup.resolveAddresses('::1'),
-            ]);
-            expect(r1.length).toBeGreaterThan(0);
-            expect(r2.length).toBeGreaterThan(0);
+            ]) as unknown as { tag: string; val: IpAddress[] }[];
+            expect(r1.tag).toBe('ok');
+            expect(r1.val.length).toBeGreaterThan(0);
+            expect(r2.tag).toBe('ok');
+            expect(r2.val.length).toBeGreaterThan(0);
         });
     });
 

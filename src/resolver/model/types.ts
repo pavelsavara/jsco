@@ -165,6 +165,10 @@ export interface StreamTable {
     hasData(baseHandle: number): boolean;
     /** Register a callback for when data arrives or stream closes. */
     onReady(baseHandle: number, callback: () => void): void;
+    /** Check if a stream's write buffer has space below the backpressure threshold. */
+    hasWriteSpace(baseHandle: number): boolean;
+    /** Register a callback for when the write buffer drains below threshold. */
+    onWriteReady(baseHandle: number, callback: () => void): void;
     /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
     fulfillPendingRead(handle: number): number;
 }

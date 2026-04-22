@@ -45,7 +45,6 @@ type ErrorCode =
 type WasiStreamReadable<T> = AsyncIterable<T>;
 type WasiStreamWritable<T> = AsyncIterable<T> & { push(value: T): void; close(): void };
 type WasiFuture<T> = Promise<T>;
-type Result<T, E> = { tag: 'ok'; val: T } | { tag: 'err'; val: E };
 
 // ──────────────────── Address helpers ────────────────────
 
@@ -208,6 +207,14 @@ class NodeTcpSocket {
     private _hopLimit = 64;
     private _receiveBufferSize = 65536n;
     private _sendBufferSize = 65536n;
+    /** Number of active send/receive operations keeping the socket alive. */
+    private _activeOps = 0;
+    /** Whether drop() was called while operations are still active. */
+    private _dropPending = false;
+    /** Whether send() has been called (at most once per connection). */
+    private _sendCalled = false;
+    /** Whether receive() has been called (at most once per connection). */
+    private _receiveCalled = false;
 
     private constructor(family: IpAddressFamily) {
         this._family = family;
@@ -215,6 +222,23 @@ class NodeTcpSocket {
 
     static create(addressFamily: IpAddressFamily): NodeTcpSocket {
         return new NodeTcpSocket(addressFamily);
+    }
+
+    /** Decrement active ops; if drop was deferred, destroy now. */
+    private _releaseOp(): void {
+        this._activeOps--;
+        if (this._activeOps === 0 && this._dropPending) {
+            this._destroySocket();
+        }
+    }
+
+    /** Actually destroy the underlying Node.js socket. */
+    private _destroySocket(): void {
+        if (this._socket) {
+            console.log('[TCP] _destroySocket() called, activeOps:', this._activeOps);
+            this._socket.destroy();
+            this._socket = null;
+        }
     }
 
     /** Actually bind the socket by starting a temporary net.Server to claim the port. */
@@ -239,7 +263,7 @@ class NodeTcpSocket {
         const port = socketAddressPort(localAddress);
 
         // Create a server to perform the actual OS bind and claim the port
-        const server = net.createServer();
+        const server = net.createServer({ allowHalfOpen: true });
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
@@ -272,7 +296,7 @@ class NodeTcpSocket {
         }
 
         return new Promise<void>((resolve, reject) => {
-            const socket = new net.Socket();
+            const socket = new net.Socket({ allowHalfOpen: true });
             const options: net.SocketConnectOpts = {
                 host,
                 port,
@@ -382,29 +406,82 @@ class NodeTcpSocket {
         if (this._state !== TcpState.Connected || !this._socket) {
             throwError('invalid-state', 'Socket is not connected');
         }
+        if (this._sendCalled) {
+            // Close the input stream so the guest sees DROPPED on writes
+            const iter = data[Symbol.asyncIterator]();
+            if (iter.return) iter.return();
+            return Promise.reject({ tag: 'invalid-state' } as ErrorCode);
+        }
+        this._sendCalled = true;
         const socket = this._socket;
+        this._activeOps++;
+        // Track socket errors so we can abort the iteration
+        let socketError: ErrorCode | undefined;
+        const onError = (err: NodeJS.ErrnoException) => {
+            console.log('[TCP] send() onError:', err.code, err.message);
+            socketError = mapNodeErrorTag(err);
+        };
+        socket.on('error', onError);
+
         return (async () => {
-            for await (const chunk of data) {
-                await new Promise<void>((resolve, reject) => {
-                    socket.write(chunk, (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
+            try {
+                const iter = data[Symbol.asyncIterator]();
+                try {
+                    let done = false;
+                    while (!done) {
+                        const result = await iter.next();
+                        if (result.done) { done = true; break; }
+                        if (socketError) throw socketError;
+                        await new Promise<void>((resolve, reject) => {
+                            socket.write(result.value, (err) => {
+                                if (err) reject(err);
+                                else resolve();
+                            });
+                        });
+                        if (socketError) throw socketError;
+                    }
+                } finally {
+                    // Close the iterator (and the stream entry) when we're done
+                    if (iter.return) iter.return();
+                }
+                if (socketError) throw socketError;
+                // Half-close: signal to the remote side that we're done sending.
+                // This sends a TCP FIN so the remote's receive stream sees closure.
+                await new Promise<void>((resolve) => socket.end(resolve));
+            } catch (err) {
+                // Prefer socket-level error (connection-broken/reset) over write-level error
+                if (socketError) throw socketError;
+                if (err && typeof (err as ErrorCode).tag === 'string') throw err;
+                const nodeErr = err as NodeJS.ErrnoException;
+                if (nodeErr && typeof nodeErr.code === 'string') {
+                    throw mapNodeErrorTag(nodeErr);
+                }
+                throw err;
+            } finally {
+                socket.removeListener('error', onError);
+                this._releaseOp();
             }
-            // Half-close: signal to the remote side that we're done sending.
-            // This sends a TCP FIN so the remote's receive stream sees closure.
-            await new Promise<void>((resolve) => socket.end(resolve));
         })();
     }
 
-    receive(): [WasiStreamWritable<Uint8Array>, WasiFuture<Result<void, ErrorCode>>] {
+    receive(): [WasiStreamWritable<Uint8Array>, WasiFuture<void>] {
         if (this._state !== TcpState.Connected || !this._socket) {
             throwError('invalid-state', 'Socket is not connected');
         }
+        if (this._receiveCalled) {
+            // Return a closed stream and a rejected future
+            const closedStream: WasiStreamWritable<Uint8Array> = {
+                push() { /* no-op */ },
+                close() { /* no-op */ },
+                async *[Symbol.asyncIterator]() { /* immediately done */ },
+            };
+            return [closedStream, Promise.reject({ tag: 'invalid-state' } as ErrorCode)];
+        }
+        this._receiveCalled = true;
         const socket = this._socket;
         let pushFn: ((value: Uint8Array) => void) | null = null;
         let closeFn: (() => void) | null = null;
+        this._activeOps++;
 
         const stream: WasiStreamWritable<Uint8Array> = {
             push(value: Uint8Array) { if (pushFn) pushFn(value); },
@@ -444,18 +521,24 @@ class NodeTcpSocket {
             },
         };
 
-        const future = new Promise<Result<void, ErrorCode>>((resolve) => {
+        const releaseOnce = (() => {
+            let released = false;
+            return () => { if (!released) { released = true; this._releaseOp(); } };
+        })();
+
+        const future = new Promise<void>((resolve, reject) => {
             socket.on('data', (chunk: Buffer) => {
                 if (pushFn) pushFn(new Uint8Array(chunk));
             });
             socket.on('end', () => {
                 if (closeFn) closeFn();
-                resolve({ tag: 'ok', val: undefined });
+                releaseOnce();
+                resolve(undefined);
             });
             socket.on('error', (err: NodeJS.ErrnoException) => {
                 if (closeFn) closeFn();
-                const tag = mapNodeErrorTag(err);
-                resolve({ tag: 'err', val: tag });
+                releaseOnce();
+                reject(mapNodeErrorTag(err));
             });
         });
 
@@ -547,9 +630,11 @@ class NodeTcpSocket {
             p.then(() => { pendingServerCloses.delete(p); });
             this._server = null;
         }
-        if (this._socket) {
-            this._socket.destroy();
-            this._socket = null;
+        if (this._activeOps > 0) {
+            // Defer socket destruction until active send/receive operations complete.
+            this._dropPending = true;
+        } else {
+            this._destroySocket();
         }
     }
 }
@@ -867,6 +952,8 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
             return { tag: 'connection-reset' };
         case 'ECONNABORTED':
             return { tag: 'connection-aborted' };
+        case 'EPIPE':
+            return { tag: 'connection-broken' };
         case 'EHOSTUNREACH':
         case 'ENETUNREACH':
         case 'ENETDOWN':

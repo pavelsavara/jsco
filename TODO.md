@@ -49,6 +49,7 @@
 - export and import ABI interfaces for direct binding without JS ("fused adapters")
 - consider "inlining" https://github.com/bytecodealliance/wasmtime/blob/main/crates/environ/src/component/translate/inline.rs
 - extract more marshalling lambdas
+- StreamEntry and createStreamTable probably belongs to marshaling or host
 
 # Binder todo
 - respect model options for CompactUTF-16 (latin1+utf16) encoding

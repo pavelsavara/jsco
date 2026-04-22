@@ -178,7 +178,7 @@ export function flattenResource(
 // ──────────────────── Factory functions ────────────────────
 
 // Methods whose return type is NOT result<T, E>
-export const TCP_NON_RESULT = new Set(['get-is-listening', 'get-address-family', 'receive']);
+export const TCP_NON_RESULT = new Set(['get-is-listening', 'get-address-family', 'receive', 'send']);
 export const UDP_NON_RESULT = new Set(['get-address-family']);
 
 /**
