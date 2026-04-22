@@ -351,6 +351,9 @@ class NodeTcpSocket {
                     });
                 });
             }
+            // Half-close: signal to the remote side that we're done sending.
+            // This sends a TCP FIN so the remote's receive stream sees closure.
+            await new Promise<void>((resolve) => socket.end(resolve));
         })();
     }
 

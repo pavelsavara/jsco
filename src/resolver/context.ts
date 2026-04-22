@@ -526,10 +526,9 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
         const elemSize = entry.elementSize!;
         const storer = entry.elementStorer!;
         const mctx = entry.mctx!;
-        // len is the buffer size in bytes; compute max element count
-        const maxElems = (len / elemSize) | 0;
+        // len is the element count (not byte count) per the canonical ABI
         let count = 0;
-        while (entry.chunks.length > 0 && count < maxElems) {
+        while (entry.chunks.length > 0 && count < len) {
             const element = entry.chunks.shift()!;
             storer(mctx, ptr + count * elemSize, element);
             count++;
@@ -622,6 +621,7 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
                 if (entry.waitingReader) {
                     entry.waitingReader(null);
                 }
+                signalReady(entry);
             }
         },
 
@@ -701,10 +701,6 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             let offset = 0;
             while (entry.chunks.length > 0 && offset < len) {
                 const chunk = entry.chunks[0]! as Uint8Array;
-                if (!(chunk instanceof Uint8Array)) {
-                    // eslint-disable-next-line no-console
-                    console.error('DEBUG: non-Uint8Array chunk in byte stream path:', typeof chunk, chunk?.constructor?.name, 'elementStorer:', !!entry.elementStorer, 'elementSize:', entry.elementSize, 'chunks:', entry.chunks.length);
-                }
                 const needed = len - offset;
                 if (chunk.length <= needed) {
                     memory.getViewU8(ptr + offset, chunk.length).set(chunk);
