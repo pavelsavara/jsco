@@ -1,0 +1,6 @@
+// Nested composition: P3 forwarder composed with forwarder-implementer-p3
+package jsco:nested-forwarder-implementer-p3;
+
+let inner = new jsco:forwarder-implementer-p3 { ... };
+let outer = new jsco:forwarder-p3 { ...inner, ... };
+export outer...;

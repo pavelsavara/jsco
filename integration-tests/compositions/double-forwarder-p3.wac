@@ -1,0 +1,6 @@
+// Two P3 forwarders composed flat — inner satisfies outer's imports
+package jsco:double-forwarder-p3;
+
+let inner = new jsco:forwarder-p3 { ... };
+let outer = new jsco:forwarder-p3 { ...inner, ... };
+export outer...;

@@ -58,14 +58,17 @@ export function createMockP3(overrides?: Partial<Record<string, unknown>>): Wasi
             getResolution: () => 1_000n,
             waitUntil: (when: bigint) => {
                 const nowNs = BigInt(Math.round(performance.now() * 1_000_000));
-                if (when <= nowNs) return undefined;
-                const delayMs = Number(when - nowNs) / 1_000_000;
-                return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
+                const delayNs = when - nowNs;
+                if (delayNs <= 0n) return undefined;
+                const MAX_NS = BigInt(0x7fffffff) * 1_000_000n;
+                const delayMs = Number(delayNs > MAX_NS ? MAX_NS : delayNs) / 1_000_000;
+                return new Promise(resolve => setTimeout(resolve, delayMs));
             },
             waitFor: (howLong: bigint) => {
                 if (howLong <= 0n) return undefined;
-                const delayMs = Number(howLong) / 1_000_000;
-                return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
+                const MAX_NS = BigInt(0x7fffffff) * 1_000_000n;
+                const delayMs = Number(howLong > MAX_NS ? MAX_NS : howLong) / 1_000_000;
+                return new Promise(resolve => setTimeout(resolve, delayMs));
             },
         },
         'wasi:clocks/system-clock': {

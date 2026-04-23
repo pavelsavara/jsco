@@ -16,4 +16,5 @@ export type EnumStorerPlan = { nameToIndex: Map<string, number> };
 export type FlagsStorerPlan = { wordCount: number, memberNames: string[] };
 export type TupleStorerPlan = { members: { offset: number, storer: MemoryStorer }[] };
 export type OwnResourceStorerPlan = { resourceTypeIdx: number };
+export type StreamStorerPlan = { elementStorer?: MemoryStorer, elementSize?: number };
 export type FutureStorerPlan = { futureStorer?: (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void };

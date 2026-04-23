@@ -134,10 +134,10 @@ dist
 # rust
 target/
 
-*.wasm
 # Hand-written WAT test components (checked in)
 !integration-tests/echo-reactor-wat/echo.wasm
-!integration-tests/hello-world-wat/hello.wasm
+!integration-tests/hello-p2-world-wat/hello.wasm
+!integration-tests/hello-p3-world-wat/hello-p3.wasm
 !integration-tests/hello-city-wat/hello-city.wasm
 !integration-tests/hello-p1-world-wat/hello.wasm
 !integration-tests/file-io-p1-wat/file-io.wasm

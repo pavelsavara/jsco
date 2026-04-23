@@ -389,8 +389,22 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
             }
             return borrowResourceStorer.bind(null, { resourceTypeIdx });
         }
-        case ModelTag.ComponentTypeDefinedStream:
-            return streamStorer;
+        case ModelTag.ComponentTypeDefinedStream: {
+            // Create a storer for the stream's element type so the stream table
+            // can encode each JS value into WASM linear memory when read.
+            let elemStorer: MemoryStorer | undefined;
+            let elemSize: number | undefined;
+            if (type.value !== undefined) {
+                const innerType = resolveValTypePure(type.value);
+                const isU8 = (innerType.tag === ModelTag.ComponentValTypePrimitive || innerType.tag === ModelTag.ComponentTypeDefinedPrimitive)
+                    && innerType.value === PrimitiveValType.U8;
+                if (!isU8) {
+                    elemStorer = createMemoryStorer(innerType, stringEncoding, canonicalResourceIds, ownInstanceResources);
+                    elemSize = sizeOf(innerType);
+                }
+            }
+            return streamStorer.bind(null, { elementStorer: elemStorer, elementSize: elemSize });
+        }
         case ModelTag.ComponentTypeDefinedFuture: {
             // Create a storer for the future's inner type so future.read can
             // encode the resolved JS value into WASM linear memory.
@@ -520,8 +534,23 @@ function createBorrowLifting(rctx: ResolvedContext, borrowModel: ComponentTypeDe
 
 // --- Stream lifting (JS AsyncIterable → i32 handle) ---
 
-function createStreamLifting(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LiftingFromJs {
-    return streamLifting;
+function createStreamLifting(rctx: ResolvedContext, streamModel: ComponentTypeDefinedStream): LiftingFromJs {
+    // For typed streams (non-u8), create an element storer so the stream table
+    // can encode each JS value into WASM linear memory when read.
+    if (streamModel.value !== undefined) {
+        const innerType = deepResolveType(rctx, resolveValType(rctx, streamModel.value));
+        // stream<u8> uses byte-copy fast path — no element storer needed
+        const isU8 = (innerType.tag === ModelTag.ComponentValTypePrimitive || innerType.tag === ModelTag.ComponentTypeDefinedPrimitive)
+            && innerType.value === PrimitiveValType.U8;
+        if (!isU8) {
+            const elemStorer = createMemoryStorer(innerType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
+            const elemSize = sizeOf(innerType);
+            const plan = { elementStorer: elemStorer, elementSize: elemSize };
+            return (ctx, srcJsValue, out, offset) => streamLifting(plan, ctx, srcJsValue, out, offset);
+        }
+    }
+    const plan = {};
+    return (ctx, srcJsValue, out, offset) => streamLifting(plan, ctx, srcJsValue, out, offset);
 }
 
 // --- Future lifting (JS Promise → i32 handle) ---

@@ -20,9 +20,9 @@ import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loa
 import camelCase from 'just-camel-case';
 
 
-export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc): FnLoweringCallToJs {
+export function createFunctionLowering(rctx: ResolvedContext, exportModel: ComponentTypeFunc, isAsync?: boolean): FnLoweringCallToJs {
     return memoize(rctx.loweringCache, exportModel, () => {
-        const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc);
+        const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, exportModel) as ComponentTypeFunc, isAsync);
         // Pre-resolve param/result types for spilled path — deep-resolve ensures
         const paramResolvedTypes = exportModel.params.map(p => deepResolveType(rctx, resolveValType(rctx, p.type)));
         let resultType: ResolvedType | undefined;

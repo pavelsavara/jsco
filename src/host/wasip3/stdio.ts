@@ -31,7 +31,7 @@ export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
             // Pump stdin data into the writable end, then signal completion
             const future = (async (): Promise<void> => {
                 try {
-                    if (stdinStream) {
+                    if (stdinStream && !stdinStream.locked) {
                         const readable = readableFromStream(stdinStream);
                         for await (const chunk of readable) {
                             await pair.write(chunk);

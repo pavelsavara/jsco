@@ -26,7 +26,6 @@ interface insecure-seed {
     get-insecure-seed: func() -> tuple<u64, u64>;
 }
 
-package wasi:random@0.3.0-rc-2026-03-15;
 /// The insecure interface for insecure pseudo-random numbers.
 ///
 /// It is intended to be portable at least between Unix-family platforms and
@@ -59,7 +58,6 @@ interface insecure {
     get-insecure-random-u64: func() -> u64;
 }
 
-package wasi:random@0.3.0-rc-2026-03-15;
 /// WASI Random is a random data API.
 ///
 /// It is intended to be portable at least between Unix-family platforms and
@@ -96,8 +94,6 @@ interface random {
     @since(version = 0.3.0-rc-2026-03-15)
     get-random-u64: func() -> u64;
 }
-
-package wasi:random@0.3.0-rc-2026-03-15;
 
 @since(version = 0.3.0-rc-2026-03-15)
 world imports {

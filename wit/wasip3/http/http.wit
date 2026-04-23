@@ -471,8 +471,6 @@ interface types {
   }
 }
 
-package wasi:http@0.3.0-rc-2026-03-15;
-
 /// The `wasi:http/service` world captures a broad category of HTTP services
 /// including web applications, API servers, and proxies. It may be `include`d
 /// in more specific worlds such as `wasi:http/middleware`.

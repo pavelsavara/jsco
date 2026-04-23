@@ -4,66 +4,7 @@
 
 See [live demo](https://pavelsavara.github.io/jsco/) and [browser demo sources](https://github.com/pavelsavara/jsco/tree/demo-page)
 
-## Goals
-- browser polyfill for running WASM components.
-- streaming parser of binary WIT
-- streaming compilation of WASM core modules during .wasm file download
-- in-the-browser creation of instances and necessary JavaScript interop
-- WASIp1, WASIp2 and WASIp3 host
-- small download size, fast enough (current release bundle is ~86 KB)
-
-## How
-- parser: read binary WIT to produce model of the component, it's sub components, modules and types
-- compile modules via Browser API [`WebAssembly.compileStreaming`](https://developer.mozilla.org/en-US/docs/WebAssembly/JavaScript_interface/compileStreaming)
-- resolver: [resolve dependencies, create instances, bind it together](./src/resolver/README.md).
-- JS binding: for component's imports and exports
-- just JS at runtime (no rust dependency)
-- TypeScript, RollupJS, rust as dev time dependencies
-
-## Status
-🚧 Work in progress 🚧
-
-[![test](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml/badge.svg)](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml)
-
-See [./TODO.md](./TODO.md), contributors are welcome!
-
-## Why
-- to provide host which could do the binding in the browser
-- browsers currently don't implement built-in WASM component model host
-- because independent implementation will help the WASM/WIT/WASI to make progress
-- [JCO](https://github.com/bytecodealliance/jco) is great alternative, really. 
-    - But it is too large to use as dynamic host, because download size matters to browser folks.
-    - When you have all your components available at dev machine, JCO transpiler could be better choice.
-
-## Usage
-```js
-import { instantiateWasiComponent } from '@pavelsavara/jsco';
-const componentUrl = './integration-tests/hello-world-wat/hello.wasm';
-const instance = await instantiateWasiComponent(componentUrl);
-const run = instance.exports['wasi:cli/run@0.2.11'].run;
-
-await run();
-```
-Prints `hello from jsco` to the console.
-See also [demo-verbose.mjs](./demo-verbose.mjs) for more details.
-
-`instantiateWasiComponent` auto-detects whether the input is a WASI P1 core module, P2, or P3 component and provides the correct host.
-
-```js
-const instance = await instantiateWasiComponent('./my-component.wasm', {
-    args: ['--verbose'],
-    env: [['LANG', 'en_US.UTF-8']],
-    stdout: new WritableStream({
-        write(chunk) { console.log(new TextDecoder().decode(chunk)); },
-    }),
-});
-```
-
-## WASIp3 Host
-
-jsco includes a native WASIp3 host with two bundles:
-- **`@pavelsavara/jsco/wasip3`** — browser-compatible (VFS, clocks, random, HTTP client via Fetch, stdio)
-- **`@pavelsavara/jsco/wasip3-node`** — adds Node.js extensions (real filesystem mounts, TCP/UDP sockets, DNS, HTTP server)
+# Usage
 
 ### Browser usage
 
@@ -72,8 +13,9 @@ For most WASI components, `instantiateWasiComponent` is the simplest way:
 ```js
 import { instantiateWasiComponent } from '@pavelsavara/jsco';
 
+// Works with both WASIp2 and WASIp3 components (auto-detected)
 const instance = await instantiateWasiComponent('./my-component.wasm');
-await instance.exports['wasi:cli/run@0.2.11'].run();
+await instance.exports['wasi:cli/run@0.3.0'].run();
 ```
 
 For advanced use cases (custom imports, non-WASI components), use `createComponent` directly:
@@ -99,7 +41,7 @@ const instance = await instantiateWasiComponent('./my-cli-component.wasm', {
     env: [['HOME', '/home/user']],
     mounts: [{ hostPath: './data', guestPath: '/data' }],
 });
-await instance.exports['wasi:cli/run@0.2.11'].run();
+await instance.exports['wasi:cli/run@0.3.0'].run();
 ```
 
 To serve an HTTP handler component:
@@ -154,9 +96,9 @@ If no subcommand is provided, `run` is used by default.
 
 ```sh
 # Run a component (default command)
-jsco run ./integration-tests/hello-world-wat/hello.wasm
+jsco run ./integration-tests/hello-p2-world-wat/hello.wasm
 # or without the subcommand
-jsco ./integration-tests/hello-world-wat/hello.wasm
+jsco ./integration-tests/hello-p2-world-wat/hello.wasm
 
 # Serve an HTTP proxy component
 jsco serve --addr 0.0.0.0:8080 ./my-http-component.wasm
@@ -169,7 +111,7 @@ jsco serve --help
 
 When installed locally or via npx:
 ```sh
-npx @pavelsavara/jsco run ./integration-tests/hello-world-wat/hello.wasm
+npx @pavelsavara/jsco run ./integration-tests/hello-p2-world-wat/hello.wasm
 ```
 
 ### Common Options
@@ -194,5 +136,40 @@ npx @pavelsavara/jsco run ./integration-tests/hello-world-wat/hello.wasm
 ### Networking Options
 
 All networking limits are configurable via CLI flags. Run `jsco run --help` for the full list.
+
+# Contribute
+
+## Goals
+- browser polyfill for running WASM components.
+- streaming parser of binary WIT
+- streaming compilation of WASM core modules during .wasm file download
+- in-the-browser creation of instances and necessary JavaScript interop
+- WASIp2 and WASIp3 host
+- small download size (~150KB), fast enough
+
+## Why
+- to provide host which could do the binding in the browser
+- browsers currently don't implement built-in WASM component model host
+- because independent implementation will help the WASM/WIT/WASI to make progress
+- [JCO](https://github.com/bytecodealliance/jco) is great alternative, really. 
+    - But it is too large to use as dynamic host, because download size matters to browser folks.
+    - When you have all your components available at dev machine, JCO transpiler could be better choice.
+
+# How
+- parser: read binary WIT to produce model of the component, it's sub components, modules and types
+- compile modules via Browser API [`WebAssembly.compileStreaming`](https://developer.mozilla.org/en-US/docs/WebAssembly/JavaScript_interface/compileStreaming)
+- resolver: [resolve dependencies, create instances, bind it together](./src/resolver/README.md).
+- JS binding: for component's imports and exports
+- just JS at runtime (no rust dependency)
+- TypeScript, RollupJS, rust as dev time dependencies
+
+## Status
+🚧 Work in progress 🚧
+
+[![test](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml/badge.svg)](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml)
+
+See [./TODO.md](./TODO.md), contributors are welcome!
+
+## JSPI
 
 See [./jspi.md](./jspi.md) for more details about JSPI - synchronous calls to JS APIs which are blocking, like I/O.

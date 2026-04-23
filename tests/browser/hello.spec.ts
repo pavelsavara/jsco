@@ -22,10 +22,26 @@ test('echo component loads and runs in browser', async ({ page, browserName }) =
     expect(results.exportKeys).toContain('jsco:test/echo-primitives@0.1.0');
 });
 
-test('WASI hello-world in browser', async ({ page, browserName }) => {
+test('WASI hello-p2-world in browser', async ({ page, browserName }) => {
     test.skip(browserName === 'firefox', 'Firefox lacks WebAssembly.promising()');
 
-    await page.goto('/tests/browser/hello-world.html');
+    await page.goto('/tests/browser/hello-p2-world.html');
+    await page.waitForFunction(() => window.__testResults && ('success' in window.__testResults), { timeout: 10000 });
+
+    const results = await page.evaluate(() => window.__testResults);
+
+    if (!results.success) {
+        console.error('Browser error:', results.error); // eslint-disable-line no-console
+        console.error('Stack:', results.stack); // eslint-disable-line no-console
+    }
+
+    expect(results.success).toBe(true);
+    expect(results.stdout).toContain('hello from jsco');
+});
+
+test('WASI P3 hello-p3-world in browser', async ({ page }) => {
+    // P3 async callback pattern does not require JSPI — works in Firefox too
+    await page.goto('/tests/browser/hello-p3-world.html');
     await page.waitForFunction(() => window.__testResults && ('success' in window.__testResults), { timeout: 10000 });
 
     const results = await page.evaluate(() => window.__testResults);

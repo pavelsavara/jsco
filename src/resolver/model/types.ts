@@ -153,7 +153,7 @@ export interface StreamTable {
     cancelWrite(typeIdx: number, handle: number): number;
     dropReadable(typeIdx: number, handle: number): void;
     dropWritable(typeIdx: number, handle: number): void;
-    addReadable(typeIdx: number, value: unknown): number;
+    addReadable(typeIdx: number, value: unknown, elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: MarshalingContext): number;
     getReadable(typeIdx: number, handle: number): unknown;
     removeReadable(typeIdx: number, handle: number): unknown;
     addWritable(typeIdx: number, value: unknown): number;
@@ -165,6 +165,10 @@ export interface StreamTable {
     hasData(baseHandle: number): boolean;
     /** Register a callback for when data arrives or stream closes. */
     onReady(baseHandle: number, callback: () => void): void;
+    /** Check if a stream's write buffer has space below the backpressure threshold. */
+    hasWriteSpace(baseHandle: number): boolean;
+    /** Register a callback for when the write buffer drains below threshold. */
+    onWriteReady(baseHandle: number, callback: () => void): void;
     /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
     fulfillPendingRead(handle: number): number;
 }

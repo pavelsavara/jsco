@@ -5,7 +5,7 @@ import { ModelTag } from '../parser/model/tags';
 import { ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeFunc, ComponentValType, PrimitiveValType_Count } from '../parser/model/types';
 import type { ResolvedType } from './type-resolution';
 import type { ResolvedContext } from './types';
-import { CallingConvention, FlatType, MAX_FLAT_PARAMS, MAX_FLAT_RESULTS } from './model/calling-convention';
+import { CallingConvention, FlatType, MAX_FLAT_PARAMS, MAX_FLAT_ASYNC_PARAMS, MAX_FLAT_RESULTS } from './model/calling-convention';
 import type { FunctionCallingConvention } from './model/calling-convention';
 export { MAX_FLAT_PARAMS, MAX_FLAT_RESULTS, CallingConvention, CallingConvention_Count, FlatType } from './model/calling-convention';
 export type { FunctionCallingConvention } from './model/calling-convention';
@@ -585,7 +585,8 @@ export function flattenValType(valType: ComponentValType): FlatType[] {
 // --- Function-level calling convention decision ---
 
 export function determineFunctionCallingConvention(
-    funcType: ComponentTypeFunc
+    funcType: ComponentTypeFunc,
+    isAsync?: boolean,
 ): FunctionCallingConvention {
     let paramFlatCount = 0;
     for (const param of funcType.params) {
@@ -606,11 +607,12 @@ export function determineFunctionCallingConvention(
         }
     }
 
+    const maxFlatParams = isAsync ? MAX_FLAT_ASYNC_PARAMS : MAX_FLAT_PARAMS;
     const paramsConvention = paramFlatCount === 0
         ? CallingConvention.Flat
         : paramFlatCount === 1
             ? CallingConvention.Scalar
-            : paramFlatCount <= MAX_FLAT_PARAMS
+            : paramFlatCount <= maxFlatParams
                 ? CallingConvention.Flat
                 : CallingConvention.Spilled;
 

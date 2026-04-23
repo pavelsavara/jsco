@@ -13,7 +13,8 @@ import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-util
 initializeAsserts();
 
 const echoReactorWatWasm = './integration-tests/echo-reactor-wat/echo.wasm';
-const helloWorldWatWasm = './integration-tests/hello-world-wat/hello.wasm';
+const helloWorldWatWasm = './integration-tests/hello-p2-world-wat/hello.wasm';
+const helloP3WorldWatWasm = './integration-tests/hello-p3-world-wat/hello-p3.wasm';
 const helloCityWatWasm = './integration-tests/hello-city-wat/hello-city.wasm';
 const helloP1WorldWatWasm = './integration-tests/hello-p1-world-wat/hello.wasm';
 const fileIoP1WatWasm = './integration-tests/file-io-p1-wat/file-io.wasm';
@@ -121,6 +122,26 @@ describe('public API', () => {
                 expect(received.length).toBeGreaterThan(0);
                 expect(received.some(r => r.phase === 'parser')).toBe(true);
             }
+        }));
+    });
+
+    describe('instantiate P3 WASI component via P3 host', () => {
+        test('produces working WASI instance with stdout', () => runWithVerbose(verbose, async () => {
+            const chunks: Uint8Array[] = [];
+            const stdout = new WritableStream<Uint8Array>({
+                write(chunk) { chunks.push(new Uint8Array(chunk)); },
+            });
+            const p3 = createWasiP3Host({ stdout });
+
+            const component = await createComponent(helloP3WorldWatWasm, verboseOptions(verbose));
+            const instance = await component.instantiate(p3);
+            const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
+            expect(runNs).toBeDefined();
+            await runNs.run();
+            const stdoutText = new TextDecoder().decode(
+                new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            );
+            expect(stdoutText).toContain('hello from jsco');
         }));
     });
 
@@ -282,7 +303,7 @@ describe('useNumberForInt64 contract', () => {
 describe('instantiateWasiComponent', () => {
     const verbose = useVerboseOnFailure();
 
-    test('auto-detects P2 and provides host for hello-world', () => runWithVerbose(verbose, async () => {
+    test('auto-detects P2 and provides host for hello-p2-world', () => runWithVerbose(verbose, async () => {
         const chunks: Uint8Array[] = [];
         const stdout = new WritableStream<Uint8Array>({
             write(chunk) { chunks.push(new Uint8Array(chunk)); },
@@ -295,6 +316,21 @@ describe('instantiateWasiComponent', () => {
         } catch (e) {
             if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
         }
+        const stdoutText = new TextDecoder().decode(
+            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+        );
+        expect(stdoutText).toContain('hello from jsco');
+    }));
+
+    test('auto-detects P3 and provides host for hello-p3-world', () => runWithVerbose(verbose, async () => {
+        const chunks: Uint8Array[] = [];
+        const stdout = new WritableStream<Uint8Array>({
+            write(chunk) { chunks.push(new Uint8Array(chunk)); },
+        });
+        const instance = await instantiateWasiComponent(helloP3WorldWatWasm, { stdout });
+        const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
+        expect(runNs).toBeDefined();
+        await runNs.run();
         const stdoutText = new TextDecoder().decode(
             new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
         );

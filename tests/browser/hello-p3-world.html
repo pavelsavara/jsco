@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>jsco hello-p3-world WASI test</title>
+</head>
+
+<body>
+    <script type="module">
+        import { instantiateWasiComponent } from '/dist/index.js';
+
+        window.__testResults = {};
+        try {
+            const stdoutChunks = [];
+            const instance = await instantiateWasiComponent(
+                '/integration-tests/hello-p3-world-wat/hello-p3.wasm',
+                {
+                    stdout: new WritableStream({
+                        write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+                    }),
+                },
+            );
+
+            const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'];
+            await runNs.run();
+
+            const allBytes = new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], []));
+            const stdout = new TextDecoder().decode(allBytes);
+
+            window.__testResults = {
+                success: true,
+                stdout,
+            };
+        } catch (e) {
+            window.__testResults = {
+                success: false,
+                error: e.message,
+                stack: e.stack,
+            };
+        }
+    </script>
+</body>
+
+</html>

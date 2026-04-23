@@ -21,9 +21,9 @@ export type ComponentResult = {
     stats?: ResolutionStats;
 };
 
-export const consumerWasm = './integration-tests/target/wasm32-wasip1/release/consumer.wasm';
-export const forwarderWasm = './integration-tests/target/wasm32-wasip1/release/forwarder.wasm';
-export const implementerWasm = './integration-tests/target/wasm32-wasip1/release/implementer.wasm';
+export const consumerWasm = './integration-tests/target/wasm32-wasip1/release/consumer_p2.wasm';
+export const forwarderWasm = './integration-tests/target/wasm32-wasip1/release/forwarder_p2.wasm';
+export const implementerWasm = './integration-tests/target/wasm32-wasip1/release/implementer_p2.wasm';
 export const wrappedForwarderWasm = './integration-tests/compositions/wrapped-forwarder.wasm';
 export const doubleForwarderWasm = './integration-tests/compositions/double-forwarder.wasm';
 export const nestedDoubleForwarderWasm = './integration-tests/compositions/nested-double-forwarder.wasm';
@@ -160,12 +160,12 @@ function assertTestResults(
     expect(logMessages.length).toBeGreaterThan(0);
 
     if (expectForwarderLogs === true || (typeof expectForwarderLogs === 'number' && expectForwarderLogs >= 1)) {
-        const forwarderLogs = logMessages.filter(m => m.includes('[forwarder]'));
+        const forwarderLogs = logMessages.filter(m => m.includes('[forwarder-p2]'));
         expect(forwarderLogs.length).toBeGreaterThan(0);
     }
 
     if (typeof expectForwarderLogs === 'number' && expectForwarderLogs >= 2) {
-        const envLogs = logMessages.filter(m => m.includes('[forwarder]') && m.includes('get-environment'));
+        const envLogs = logMessages.filter(m => m.includes('[forwarder-p2]') && m.includes('get-environment'));
         expect(envLogs.length).toBeGreaterThanOrEqual(2);
     }
 

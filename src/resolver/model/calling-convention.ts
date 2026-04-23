@@ -2,6 +2,7 @@
 
 // Canonical ABI limits
 export const MAX_FLAT_PARAMS = 16;
+export const MAX_FLAT_ASYNC_PARAMS = 4;
 export const MAX_FLAT_RESULTS = 1;
 
 export const enum CallingConvention {

@@ -4,5 +4,5 @@
 package jsco:nested-forwarder-implementer;
 
 let inner = new jsco:forwarder-implementer { ... };
-let outer = new jsco:forwarder { ...inner, ... };
+let outer = new jsco:forwarder-p2 { ...inner, ... };
 export outer...;

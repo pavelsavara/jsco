@@ -63,5 +63,5 @@ jobs:
         name: integration.${{github.sha}}
         path: |
           integration-tests/target/wasm32-wasip1/release/*.wasm
-          integration-tests/target/wasm32-unknown-unknown/release/implementer.wasm
+          integration-tests/target/wasm32-unknown-unknown/release/implementer_p2.wasm
           integration-tests/compositions/*.wasm

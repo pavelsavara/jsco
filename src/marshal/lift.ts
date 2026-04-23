@@ -2,8 +2,8 @@
 
 import type { BindingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
-import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantLiftPlan, FutureLiftPlan } from './model/lift-plans';
-export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan, FutureLiftPlan } from './model/lift-plans';
+import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantLiftPlan, FutureLiftPlan, StreamLiftPlan } from './model/lift-plans';
+export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan, FutureLiftPlan, StreamLiftPlan } from './model/lift-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
 import { validateAllocResult } from './validation';
@@ -322,8 +322,8 @@ export function variantLifting(plan: VariantLiftPlan, ctx: BindingContext, srcJs
 
 // --- Stream lifting (JS AsyncIterable → i32 handle) ---
 
-export function streamLifting(ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
-    out[offset] = ctx.streams.addReadable(0, srcJsValue);
+export function streamLifting(plan: StreamLiftPlan, ctx: BindingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.streams.addReadable(0, srcJsValue, plan.elementStorer, plan.elementSize, ctx);
     return 1;
 }
 

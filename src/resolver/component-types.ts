@@ -100,6 +100,38 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.CanonicalFunctionResourceDrop:
             case ModelTag.CanonicalFunctionResourceNew:
             case ModelTag.CanonicalFunctionResourceRep:
+            case ModelTag.CanonicalFunctionBackpressureSet:
+            case ModelTag.CanonicalFunctionBackpressureInc:
+            case ModelTag.CanonicalFunctionBackpressureDec:
+            case ModelTag.CanonicalFunctionTaskReturn:
+            case ModelTag.CanonicalFunctionTaskCancel:
+            case ModelTag.CanonicalFunctionContextGet:
+            case ModelTag.CanonicalFunctionContextSet:
+            case ModelTag.CanonicalFunctionThreadYield:
+            case ModelTag.CanonicalFunctionSubtaskCancel:
+            case ModelTag.CanonicalFunctionSubtaskDrop:
+            case ModelTag.CanonicalFunctionStreamNew:
+            case ModelTag.CanonicalFunctionStreamRead:
+            case ModelTag.CanonicalFunctionStreamWrite:
+            case ModelTag.CanonicalFunctionStreamCancelRead:
+            case ModelTag.CanonicalFunctionStreamCancelWrite:
+            case ModelTag.CanonicalFunctionStreamDropReadable:
+            case ModelTag.CanonicalFunctionStreamDropWritable:
+            case ModelTag.CanonicalFunctionFutureNew:
+            case ModelTag.CanonicalFunctionFutureRead:
+            case ModelTag.CanonicalFunctionFutureWrite:
+            case ModelTag.CanonicalFunctionFutureCancelRead:
+            case ModelTag.CanonicalFunctionFutureCancelWrite:
+            case ModelTag.CanonicalFunctionFutureDropReadable:
+            case ModelTag.CanonicalFunctionFutureDropWritable:
+            case ModelTag.CanonicalFunctionErrorContextNew:
+            case ModelTag.CanonicalFunctionErrorContextDebugMessage:
+            case ModelTag.CanonicalFunctionErrorContextDrop:
+            case ModelTag.CanonicalFunctionWaitableSetNew:
+            case ModelTag.CanonicalFunctionWaitableSetWait:
+            case ModelTag.CanonicalFunctionWaitableSetPoll:
+            case ModelTag.CanonicalFunctionWaitableSetDrop:
+            case ModelTag.CanonicalFunctionWaitableJoin:
             case ModelTag.CustomSection:
             case ModelTag.SkippedSection:
             case ModelTag.ComponentTypeDefinedRecord:
@@ -113,6 +145,9 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             case ModelTag.ComponentTypeDefinedOwn:
             case ModelTag.ComponentTypeDefinedBorrow:
             case ModelTag.ComponentTypeDefinedPrimitive:
+            case ModelTag.ComponentTypeDefinedFuture:
+            case ModelTag.ComponentTypeDefinedStream:
+            case ModelTag.ComponentTypeDefinedErrorContext:
             case ModelTag.ComponentTypeResource:
                 // Type declarations within a component section define the
                 // component's type graph (records, enums, functions, etc.).

@@ -3,8 +3,8 @@
 // Used by Scenario I
 package jsco:forwarder-implementer;
 
-let impl = new jsco:implementer { ... };
-let fwd = new jsco:forwarder {
+let impl = new jsco:implementer-p2 { ... };
+let fwd = new jsco:forwarder-p2 {
     "wasi:cli/environment@0.2.11": impl["wasi:cli/environment@0.2.11"],
     "wasi:cli/exit@0.2.11": impl["wasi:cli/exit@0.2.11"],
     "wasi:random/random@0.2.11": impl["wasi:random/random@0.2.11"],

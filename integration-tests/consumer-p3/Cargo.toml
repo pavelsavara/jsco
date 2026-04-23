@@ -1,0 +1,12 @@
+[package]
+name = "consumer-p3"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen = { workspace = true }
+futures = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+

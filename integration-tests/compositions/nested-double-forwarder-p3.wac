@@ -1,0 +1,9 @@
+// Nested composition: three P3 forwarders composed flat
+// (wac cannot re-parse composed P3 components as deps due to cm-async
+//  type mismatch, so we use three flat forwarder instances instead)
+package jsco:nested-double-forwarder-p3;
+
+let inner = new jsco:forwarder-p3 { ... };
+let middle = new jsco:forwarder-p3 { ...inner, ... };
+let outer = new jsco:forwarder-p3 { ...middle, ... };
+export outer...;

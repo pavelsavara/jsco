@@ -42,7 +42,7 @@ const plugins = isDebug ? [] : [terser({
     },
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
-const externalDependencies = ['module', 'fs', 'gitHash'];
+const externalDependencies = ['module', 'fs', 'gitHash', /^node:/];
 const outDir = isDebug ? 'dist/debug' : 'dist/release';
 /** Rollup plugin: externalize sibling module imports (wasip2, wasip2-node, index) */
 function externalizeSiblingModules(options) {

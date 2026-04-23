@@ -16,6 +16,9 @@ import type { Instant } from '../../../wit/wasip3/types/cli/command/host/interfa
  * `waitUntil()` and `waitFor()` use `setTimeout` for async waiting.
  */
 export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
+    // Max setTimeout delay: 2^31-1 ms ≈ 24.8 days (Node.js clamps larger values to 1)
+    const MAX_DELAY_NS = BigInt(0x7fffffff) * 1_000_000n;
+
     return {
         now(): bigint {
             // performance.now() returns milliseconds with microsecond precision
@@ -28,19 +31,22 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
         },
 
         waitUntil(when: bigint): Promise<void> {
+            if (typeof when !== 'bigint') return undefined as unknown as Promise<void>;
             const nowNs = BigInt(Math.round(performance.now() * 1_000_000));
             const delayNs = when - nowNs;
             // Sync return for zero/past deadlines — async lowering treats non-Promise as instant completion
             if (delayNs <= 0n) return undefined as unknown as Promise<void>;
-            const delayMs = Number(delayNs) / 1_000_000;
-            return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
+            const clampedNs = delayNs > MAX_DELAY_NS ? MAX_DELAY_NS : delayNs;
+            const delayMs = Number(clampedNs) / 1_000_000;
+            return new Promise(resolve => setTimeout(resolve, delayMs));
         },
 
         waitFor(howLong: bigint): Promise<void> {
             // Sync return for zero duration — async lowering treats non-Promise as instant completion
-            if (howLong <= 0n) return undefined as unknown as Promise<void>;
-            const delayMs = Number(howLong) / 1_000_000;
-            return new Promise(resolve => setTimeout(resolve, Math.max(0, delayMs)));
+            if (typeof howLong !== 'bigint' || howLong <= 0n) return undefined as unknown as Promise<void>;
+            const clampedNs = howLong > MAX_DELAY_NS ? MAX_DELAY_NS : howLong;
+            const delayMs = Number(clampedNs) / 1_000_000;
+            return new Promise(resolve => setTimeout(resolve, delayMs));
         },
     };
 }

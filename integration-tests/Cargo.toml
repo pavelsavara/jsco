@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["consumer", "forwarder", "implementer", "hello-world", "echo-reactor"]
+members = ["consumer-p2", "forwarder-p2", "implementer-p2", "hello-p2-world", "echo-reactor", "hello-p3-world", "implementer-p3", "forwarder-p3", "consumer-p3"]
 
 [workspace.dependencies]
 wit-bindgen-rt = "0.44.0"
+wit-bindgen = { version = "0.57.1", default-features = false, features = ["macros", "realloc", "async", "async-spawn", "std", "bitflags"] }
+futures = { version = "0.3", default-features = false, features = ["alloc", "async-await"] }

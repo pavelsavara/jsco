@@ -54,17 +54,18 @@ describe('Node.js sockets', () => {
             expect(sock.getAddressFamily()).toBe('ipv4');
         });
 
-        it('bind sets local address', () => {
+        it('bind sets local address', async () => {
             const sock = types.TcpSocket.create('ipv4');
-            sock.bind(ipv4Addr(0));
-            expect(sock.getLocalAddress()).toEqual(ipv4Addr(0));
+            await sock.bind(ipv4Addr(0));
+            const addr = sock.getLocalAddress();
+            expect(addr.tag).toBe('ipv4');
         });
 
-        it('bind twice throws invalid-state', () => {
+        it('bind twice throws invalid-state', async () => {
             const sock = types.TcpSocket.create('ipv4');
-            sock.bind(ipv4Addr(0));
+            await sock.bind(ipv4Addr(0));
             try {
-                sock.bind(ipv4Addr(0));
+                await sock.bind(ipv4Addr(0));
                 fail('should throw');
             } catch (e) {
                 expect((e as { tag: string }).tag).toBe('invalid-state');
@@ -96,14 +97,16 @@ describe('Node.js sockets', () => {
 
             it('keepAliveIdleTime set/get', () => {
                 const sock = types.TcpSocket.create('ipv4');
-                sock.setKeepAliveIdleTime(1000n);
-                expect(sock.getKeepAliveIdleTime()).toBe(1000n);
+                const twoSeconds = 2_000_000_000n;
+                sock.setKeepAliveIdleTime(twoSeconds);
+                expect(sock.getKeepAliveIdleTime()).toBe(twoSeconds);
             });
 
             it('keepAliveInterval set/get', () => {
                 const sock = types.TcpSocket.create('ipv4');
-                sock.setKeepAliveInterval(500n);
-                expect(sock.getKeepAliveInterval()).toBe(500n);
+                const twoSeconds = 2_000_000_000n;
+                sock.setKeepAliveInterval(twoSeconds);
+                expect(sock.getKeepAliveInterval()).toBe(twoSeconds);
             });
 
             it('keepAliveCount set/get', () => {
@@ -251,6 +254,144 @@ describe('Node.js sockets', () => {
                 clientSocket.destroy();
                 acceptStream.close();
             }, 10000);
+        });
+
+        describe('TCP read cancellation (backpressure)', () => {
+            // Replicates wasmtime's test_tcp_read_cancellation:
+            // blast 2MB in 256-byte chunks with minimized send buffer,
+            // receiver polls-then-cancels to stress backpressure handling.
+
+            interface AcceptedSocket {
+                send(data: AsyncIterable<Uint8Array>): Promise<void>;
+                receive(): [AsyncIterable<Uint8Array>, Promise<{ tag: string; val: unknown }>];
+                setSendBufferSize(v: bigint): void;
+            }
+
+            async function setupPair(): Promise<{
+                client: typeof types.TcpSocket extends { create(af: IpAddressFamily): infer R } ? R : never;
+                accepted: AcceptedSocket;
+                cleanup: () => void;
+            }> {
+                const server = types.TcpSocket.create('ipv4');
+                server.bind(ipv4Addr(0));
+                const acceptStream = await server.listen() as AsyncIterable<AcceptedSocket> & { close(): void };
+                const port = server.getLocalAddress().val.port;
+
+                const client = types.TcpSocket.create('ipv4');
+                await client.connect(ipv4Addr(port));
+
+                const acceptIter = acceptStream[Symbol.asyncIterator]();
+                const { value: accepted } = await acceptIter.next();
+
+                return {
+                    client,
+                    accepted: accepted!,
+                    cleanup: () => acceptStream.close(),
+                };
+            }
+
+            it('handles 2MB send in 256-byte chunks', async () => {
+                const CHUNK_SIZE = 256;
+                const CHUNKS = (2 << 20) / CHUNK_SIZE; // 8192 chunks = 2MB
+                const TOTAL = CHUNKS * CHUNK_SIZE;
+
+                const { client, accepted, cleanup } = await setupPair();
+                client.setSendBufferSize(1024n);
+
+                const chunk = new Uint8Array(CHUNK_SIZE);
+                for (let i = 0; i < CHUNK_SIZE; i++) chunk[i] = i & 0xFF;
+
+                const [recvStream] = accepted.receive();
+                let totalReceived = 0;
+
+                await Promise.all([
+                    // Sender: blast 2MB
+                    client.send({
+                        async *[Symbol.asyncIterator]() {
+                            for (let c = 0; c < CHUNKS; c++) {
+                                yield new Uint8Array(chunk);
+                            }
+                        },
+                    }),
+                    // Receiver: consume all data, verify pattern
+                    (async () => {
+                        for await (const data of recvStream) {
+                            for (let j = 0; j < data.length; j++) {
+                                const expected = (totalReceived + j) % 256;
+                                if (data[j] !== expected) {
+                                    throw new Error(`Byte mismatch at offset ${totalReceived + j}: got ${data[j]}, expected ${expected}`);
+                                }
+                            }
+                            totalReceived += data.length;
+                            if (totalReceived >= TOTAL) break;
+                        }
+                    })(),
+                ]);
+
+                expect(totalReceived).toBe(TOTAL);
+                cleanup();
+            }, 30000);
+
+            it('handles 2MB send with poll-then-cancel reads', async () => {
+                // Simulates the Rust pattern: poll read once, if not ready
+                // cancel and do a barrier read before retrying.
+                const CHUNK_SIZE = 256;
+                const CHUNKS = (2 << 20) / CHUNK_SIZE;
+                const TOTAL = CHUNKS * CHUNK_SIZE;
+
+                const { client, accepted, cleanup } = await setupPair();
+                client.setSendBufferSize(1024n);
+
+                const chunk = new Uint8Array(CHUNK_SIZE);
+                for (let i = 0; i < CHUNK_SIZE; i++) chunk[i] = i & 0xFF;
+
+                const [recvStream] = accepted.receive();
+                const recvIter = recvStream[Symbol.asyncIterator]();
+                let totalReceived = 0;
+                let cancellations = 0;
+
+                await Promise.all([
+                    // Sender: blast 2MB
+                    client.send({
+                        async *[Symbol.asyncIterator]() {
+                            for (let c = 0; c < CHUNKS; c++) {
+                                yield new Uint8Array(chunk);
+                            }
+                        },
+                    }),
+                    // Receiver: poll-then-cancel pattern
+                    (async () => {
+                        while (totalReceived < TOTAL) {
+                            const readPromise = recvIter.next();
+
+                            // Race against a microtask to detect "pending"
+                            const raced = await Promise.race([
+                                readPromise.then(r => ({ ready: true as const, r })),
+                                Promise.resolve().then(() => ({ ready: false as const, r: null })),
+                            ]);
+
+                            if (!raced.ready) {
+                                // "Cancelled" — data wasn't immediately available.
+                                // Do a barrier: await the original promise anyway
+                                // (mirrors Rust's zero-length barrier read after cancel).
+                                cancellations++;
+                                const { value, done } = await readPromise;
+                                if (done) break;
+                                totalReceived += value.length;
+                            } else {
+                                const { value, done } = raced.r!;
+                                if (done) break;
+                                totalReceived += value.length;
+                            }
+                        }
+                    })(),
+                ]);
+
+                expect(totalReceived).toBe(TOTAL);
+                // Should have had at least some cancellations
+                expect(cancellations).toBeGreaterThan(0);
+                cleanup();
+            }, 30000);
         });
     });
 
@@ -404,7 +545,9 @@ describe('Node.js sockets', () => {
         };
 
         it('resolves localhost', async () => {
-            const results = await lookup.resolveAddresses('localhost');
+            const result = await lookup.resolveAddresses('localhost') as unknown as { tag: string; val: IpAddress[] };
+            expect(result.tag).toBe('ok');
+            const results = result.val;
             expect(results.length).toBeGreaterThan(0);
             // localhost should resolve to 127.0.0.1 or ::1
             const hasIpv4 = results.some(r => r.tag === 'ipv4');
@@ -413,36 +556,30 @@ describe('Node.js sockets', () => {
         });
 
         it('parses raw IPv4 address', async () => {
-            const results = await lookup.resolveAddresses('192.168.1.1');
-            expect(results).toEqual([{ tag: 'ipv4', val: [192, 168, 1, 1] }]);
+            const result = await lookup.resolveAddresses('192.168.1.1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv4', val: [192, 168, 1, 1] }] });
         });
 
         it('parses raw IPv6 address', async () => {
-            const results = await lookup.resolveAddresses('::1');
-            expect(results).toEqual([{ tag: 'ipv6', val: [0, 0, 0, 0, 0, 0, 0, 1] }]);
+            const result = await lookup.resolveAddresses('::1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv6', val: [0, 0, 0, 0, 0, 0, 0, 1] }] });
         });
 
-        it('throws for invalid name', async () => {
-            try {
-                await lookup.resolveAddresses('this-does-not-exist-at-all.invalid');
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for invalid name', async () => {
+            const result = await lookup.resolveAddresses('this-does-not-exist-at-all.invalid') as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
-        it('throws for empty hostname', async () => {
-            try {
-                await lookup.resolveAddresses('');
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for empty hostname', async () => {
+            const result = await lookup.resolveAddresses('') as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
         it('resolves IP literal 127.0.0.1 to same address', async () => {
-            const results = await lookup.resolveAddresses('127.0.0.1');
-            expect(results).toEqual([{ tag: 'ipv4', val: [127, 0, 0, 1] }]);
+            const result = await lookup.resolveAddresses('127.0.0.1') as unknown as { tag: string; val: IpAddress[] };
+            expect(result).toEqual({ tag: 'ok', val: [{ tag: 'ipv4', val: [127, 0, 0, 1] }] });
         });
 
         it('rejects hostname with null byte', async () => {
@@ -455,22 +592,21 @@ describe('Node.js sockets', () => {
             }
         });
 
-        it('rejects very long hostname', async () => {
-            try {
-                await lookup.resolveAddresses('A'.repeat(300));
-                fail('should throw');
-            } catch (e) {
-                expect((e as { tag: string }).tag).toBeDefined();
-            }
+        it('returns error for very long hostname', async () => {
+            const result = await lookup.resolveAddresses('A'.repeat(300)) as unknown as { tag: string; val: { tag: string } };
+            expect(result.tag).toBe('err');
+            expect(result.val.tag).toBeDefined();
         });
 
         it('concurrent DNS resolutions complete independently', async () => {
             const [r1, r2] = await Promise.all([
                 lookup.resolveAddresses('127.0.0.1'),
                 lookup.resolveAddresses('::1'),
-            ]);
-            expect(r1.length).toBeGreaterThan(0);
-            expect(r2.length).toBeGreaterThan(0);
+            ]) as unknown as { tag: string; val: IpAddress[] }[];
+            expect(r1.tag).toBe('ok');
+            expect(r1.val.length).toBeGreaterThan(0);
+            expect(r2.tag).toBe('ok');
+            expect(r2.val.length).toBeGreaterThan(0);
         });
     });
 

@@ -3,8 +3,8 @@
 // Used by Scenario J
 package jsco:double-forwarder-implementer;
 
-let impl = new jsco:implementer { ... };
-let inner = new jsco:forwarder {
+let impl = new jsco:implementer-p2 { ... };
+let inner = new jsco:forwarder-p2 {
     "wasi:cli/environment@0.2.11": impl["wasi:cli/environment@0.2.11"],
     "wasi:cli/exit@0.2.11": impl["wasi:cli/exit@0.2.11"],
     "wasi:random/random@0.2.11": impl["wasi:random/random@0.2.11"],
@@ -16,5 +16,5 @@ let inner = new jsco:forwarder {
     "jsco:test/echo-complex@0.1.0": impl["jsco:test/echo-complex@0.1.0"],
     ...
 };
-let outer = new jsco:forwarder { ...inner, ... };
+let outer = new jsco:forwarder-p2 { ...inner, ... };
 export outer...;

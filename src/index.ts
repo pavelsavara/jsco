@@ -10,7 +10,7 @@ import type { ParserOptions } from './parser/types';
 import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
-import './utils/debug-names'; // registers initDebugNames before setConfiguration
+import './utils/debug-names';
 import { cliMain } from './main';
 import { createComponent as resolverCreateComponent } from './resolver';
 import { parse } from './parser';

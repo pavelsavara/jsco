@@ -1,0 +1,11 @@
+[package]
+name = "hello-p3-world"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen = { workspace = true }
+futures = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
