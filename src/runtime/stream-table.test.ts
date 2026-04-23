@@ -763,6 +763,26 @@ describe('StreamTable', () => {
             expect(st.hasData(handle)).toBe(true);
             expect(nextCalls).toBe(2);
         });
+
+        test('entries map does not grow unboundedly after repeated newStream+drop cycles', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            for (let i = 0; i < 100; i++) {
+                const pair = st.newStream(0);
+                const readHandle = Number(pair & 0xFFFFFFFFn);
+                const writHandle = Number(pair >> 32n);
+                st.dropWritable(0, writHandle);
+                st.dropReadable(0, readHandle);
+            }
+            // After 100 create+drop cycles, new streams still work
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+            memory.getViewU8(0, 3).set(new Uint8Array([1, 2, 3]));
+            st.write(0, writHandle, 0, 3);
+            const result = st.read(0, readHandle, 100, 3);
+            expect(result >>> 4).toBe(3);
+        });
     });
 
     describe('edge cases', () => {

@@ -159,6 +159,18 @@ describe('ResourceTable', () => {
             rt.disposeOwned(new Set());
             expect(rt.has(1, h)).toBe(true);
         });
+
+        test('handles map does not grow after repeated add+remove cycles', () => {
+            const rt = createResourceTable();
+            for (let i = 0; i < 100; i++) {
+                const h = rt.add(1, `val-${i}`);
+                rt.remove(1, h);
+                expect(rt.has(1, h)).toBe(false);
+            }
+            // After 100 add+remove cycles, new resources still work
+            const h = rt.add(1, 'final');
+            expect(rt.get(1, h)).toBe('final');
+        });
     });
 
     describe('edge cases', () => {

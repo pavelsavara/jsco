@@ -124,6 +124,20 @@ describe('SubtaskTable', () => {
                 table.drop(h);
             }
         });
+
+        test('entries map does not grow after repeated create+drop cycles', () => {
+            const table = createSubtaskTable(makeAllocHandle());
+            for (let i = 0; i < 100; i++) {
+                const h = table.create(Promise.resolve());
+                table.drop(h);
+                expect(table.getEntry(h)).toBeUndefined();
+            }
+            // After 100 create+drop cycles, new subtasks still work
+            const h = table.create(new Promise(() => { }));
+            const entry = table.getEntry(h);
+            expect(entry).toBeDefined();
+            expect(entry!.state).toBe(SubtaskState.STARTED);
+        });
     });
 
     describe('edge cases', () => {

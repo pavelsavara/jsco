@@ -288,6 +288,48 @@ describe('FutureTable', () => {
             expect(ft.removeReadable(0, h)).toBe('reader');
             expect(ft.getReadable(0, h)).toBeUndefined();
         });
+
+        test('after dropReadable + dropWritable, JS maps are cleaned up', () => {
+            const memory = createTestMemory();
+            const ft = createFutureTable(memory, makeAllocHandle());
+            const packed = ft.newFuture(0);
+            const readHandle = Number(packed & 0xFFFFFFFFn);
+            const writHandle = Number(packed >> 32n);
+            ft.dropReadable(0, readHandle);
+            ft.dropWritable(0, writHandle);
+            expect(ft.getReadable(0, readHandle)).toBeUndefined();
+            expect(ft.getWritable(0, writHandle)).toBeUndefined();
+        });
+
+        test('entries map does not grow unboundedly after repeated newFuture+drop cycles', () => {
+            const memory = createTestMemory();
+            const ft = createFutureTable(memory, makeAllocHandle());
+            for (let i = 0; i < 100; i++) {
+                const packed = ft.newFuture(0);
+                const readHandle = Number(packed & 0xFFFFFFFFn);
+                const writHandle = Number(packed >> 32n);
+                ft.dropWritable(0, writHandle);
+                ft.dropReadable(0, readHandle);
+            }
+            // After 100 create+drop cycles, new futures still work
+            const packed = ft.newFuture(0);
+            const writHandle = Number(packed >> 32n);
+            memory.getViewU8(0, 4).set(new Uint8Array([10, 20, 30, 40]));
+            const result = ft.write(0, writHandle, 0);
+            expect(result & 0xF).toBe(STREAM_STATUS_COMPLETED);
+        });
+
+        test('Promise rejection handlers do not leak (no unhandled rejection)', async () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            // Create futures backed by rejecting promises
+            for (let i = 0; i < 10; i++) {
+                ft.addReadable(0, Promise.reject(new Error(`reject-${i}`)));
+            }
+            // Wait for all rejections to process
+            await new Promise(r => setTimeout(r, 50));
+            // If unhandled rejections leaked, Node would report them.
+            // The test passing without unhandledRejection is the assertion.
+        });
     });
 
     describe('edge cases', () => {

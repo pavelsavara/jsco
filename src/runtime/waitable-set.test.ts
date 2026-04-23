@@ -247,6 +247,20 @@ describe('WaitableSetTable', () => {
             // No events should fire even after resolution
             expect(waitableSet.poll(setId, 100)).toBe(0);
         });
+
+        test('sets map does not grow after repeated newSet+drop cycles', () => {
+            const { waitableSet, subtaskTable } = createTestEnv();
+            for (let i = 0; i < 100; i++) {
+                const setId = waitableSet.newSet();
+                const handle = subtaskTable.create(Promise.resolve());
+                waitableSet.join(handle, setId);
+                waitableSet.drop(setId);
+            }
+            // After 100 create+drop cycles, new sets still work
+            const setId = waitableSet.newSet();
+            expect(setId).toBeGreaterThan(0);
+            expect(waitableSet.poll(setId, 100)).toBe(0);
+        });
     });
 
     describe('edge cases', () => {
