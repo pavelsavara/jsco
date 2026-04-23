@@ -9,7 +9,7 @@ import { createFutureTable } from './future-table';
 import { createSubtaskTable } from './subtask-table';
 import { createMemoryView } from './memory';
 import { SubtaskState } from './model/types';
-import { EVENT_SUBTASK, EVENT_STREAM_READ, EVENT_FUTURE_READ } from './constants';
+import { EVENT_SUBTASK, EVENT_STREAM_READ, EVENT_FUTURE_READ, EVENT_STREAM_WRITE, EVENT_FUTURE_WRITE } from './constants';
 
 function makeAllocHandle() {
     let next = 2;
@@ -276,6 +276,148 @@ describe('WaitableSetTable', () => {
             const count = waitableSet.poll(setId, 100);
             // Should only get 1 event, not 2
             expect(count).toBe(1);
+        });
+    });
+
+    describe('writable handle events', () => {
+        test('stream writable handle produces EVENT_STREAM_WRITE', async () => {
+            const memory = createMemoryView();
+            const mem = new WebAssembly.Memory({ initial: 1 });
+            memory.initialize(mem);
+            const alloc = makeAllocHandle();
+            // Use small backpressure threshold so we can fill and drain easily
+            const streamTable = createStreamTable(memory, alloc, { streamBackpressureBytes: 16 });
+            const futureTable = createFutureTable(memory, alloc);
+            const subtaskTable = createSubtaskTable(alloc);
+            const waitableSet = createWaitableSetTable(memory, streamTable, futureTable, subtaskTable);
+
+            const packed = streamTable.newStream(0);
+            const readHandle = Number(packed & 0xFFFFFFFFn);
+            const writHandle = Number(packed >> 32n);
+
+            // Fill buffer past backpressure threshold
+            const data = new Uint8Array(20);
+            // Write data into WASM memory first
+            memory.getViewU8(0, 20).set(data);
+            streamTable.write(0, writHandle, 0, 20);
+
+            // Now join the writable handle — buffer is full, so onWriteReady is wired
+            const setId = waitableSet.newSet();
+            waitableSet.join(writHandle, setId);
+            expect(waitableSet.poll(setId, 600)).toBe(0); // not ready yet
+
+            // Read from the stream to drain buffer → triggers checkWriteReady
+            streamTable.read(0, readHandle, 100, 20);
+
+            // Now poll — should have EVENT_STREAM_WRITE
+            const count = waitableSet.poll(setId, 700);
+            expect(count).toBe(1);
+            const eventCode = memory.getView(700, 4).getInt32(0, true);
+            expect(eventCode).toBe(EVENT_STREAM_WRITE);
+        });
+
+        test('future writable handle produces EVENT_FUTURE_WRITE', () => {
+            const { waitableSet, futureTable, memory } = createTestEnv();
+
+            const packed = futureTable.newFuture(0);
+            const writHandle = Number(packed >> 32n);
+
+            const setId = waitableSet.newSet();
+            waitableSet.join(writHandle, setId);
+
+            // Not ready yet — future is unresolved
+            expect(waitableSet.poll(setId, 600)).toBe(0);
+
+            // Write to the future → resolves it → fires onResolve
+            // First put some data in WASM memory
+            memory.getViewU8(0, 4).set(new Uint8Array([1, 2, 3, 4]));
+            futureTable.write(0, writHandle, 0);
+
+            const count = waitableSet.poll(setId, 700);
+            expect(count).toBe(1);
+            const eventCode = memory.getView(700, 4).getInt32(0, true);
+            expect(eventCode).toBe(EVENT_FUTURE_WRITE);
+        });
+    });
+
+    describe('mixed and multiple ready waitables', () => {
+        test('wait with mixed ready/not-ready waitables returns only the ready ones', async () => {
+            const { waitableSet, subtaskTable, memory } = createTestEnv();
+            const setId = waitableSet.newSet();
+
+            // One that resolves (ready)
+            const { promise: p1, resolve: r1 } = Promise.withResolvers<void>();
+            const h1 = subtaskTable.create(p1);
+            waitableSet.join(h1, setId);
+
+            // One that never resolves (not ready)
+            const h2 = subtaskTable.create(new Promise(() => { }));
+            waitableSet.join(h2, setId);
+
+            r1();
+            await p1;
+            await new Promise(r => setTimeout(r, 0));
+
+            const count = waitableSet.poll(setId, 800);
+            expect(count).toBe(1);
+            const eventHandle = memory.getView(800, 12).getInt32(4, true);
+            expect(eventHandle).toBe(h1);
+        });
+
+        test('multiple waitables ready: all returned in single poll', async () => {
+            const { waitableSet, subtaskTable, memory } = createTestEnv();
+            const setId = waitableSet.newSet();
+
+            const { promise: p1, resolve: r1 } = Promise.withResolvers<void>();
+            const h1 = subtaskTable.create(p1);
+            waitableSet.join(h1, setId);
+
+            const { promise: p2, resolve: r2 } = Promise.withResolvers<void>();
+            const h2 = subtaskTable.create(p2);
+            waitableSet.join(h2, setId);
+
+            r1();
+            r2();
+            await p1;
+            await p2;
+            await new Promise(r => setTimeout(r, 0));
+
+            const count = waitableSet.poll(setId, 900);
+            expect(count).toBe(2);
+            // Both events written as 12-byte records
+            const view = memory.getView(900, 24);
+            const handles = [view.getInt32(4, true), view.getInt32(16, true)];
+            expect(handles).toContain(h1);
+            expect(handles).toContain(h2);
+        });
+
+        test('multiple ready in single wait() call', async () => {
+            const { waitableSet, subtaskTable, memory } = createTestEnv();
+            const setId = waitableSet.newSet();
+
+            const { promise: p1, resolve: r1 } = Promise.withResolvers<void>();
+            const h1 = subtaskTable.create(p1);
+            waitableSet.join(h1, setId);
+
+            const { promise: p2, resolve: r2 } = Promise.withResolvers<void>();
+            const h2 = subtaskTable.create(p2);
+            waitableSet.join(h2, setId);
+
+            // Resolve both before calling wait
+            r1();
+            r2();
+            await p1;
+            await p2;
+            await new Promise(r => setTimeout(r, 0));
+
+            // wait() should return synchronously since events are already ready
+            const count = waitableSet.wait(setId, 1000);
+            expect(typeof count).toBe('number');
+            expect(count).toBe(2);
+            const view = memory.getView(1000, 24);
+            const handles = [view.getInt32(4, true), view.getInt32(16, true)];
+            expect(handles).toContain(h1);
+            expect(handles).toContain(h2);
         });
     });
 });

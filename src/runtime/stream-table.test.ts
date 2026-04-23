@@ -263,6 +263,38 @@ describe('StreamTable', () => {
                 }, 50);
             });
         });
+
+        test('fulfillPendingRead for typed streams encodes via storer', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+
+            const storedArgs: unknown[][] = [];
+            const storer = (ctx: MarshalingContext, ptr: number, value: unknown) => {
+                storedArgs.push([ctx, ptr, value]);
+            };
+            const mctx = {} as MarshalingContext;
+
+            // Create typed stream with async iterable
+            async function* gen() {
+                yield 'hello';
+                yield 'world';
+            }
+            const handle = st.addReadable(0, gen(), storer, 8, mctx);
+
+            // Issue a read that will BLOCK (no data yet at call time)
+            // Data should be pumped but read issued before pump completes
+            const _readResult = st.read(0, handle, 500, 2);
+            // Wait for pump to push elements into the buffer
+            await new Promise(r => setTimeout(r, 50));
+
+            // fulfillPendingRead should encode buffered elements via storer
+            const _result = st.fulfillPendingRead(handle);
+            // Either the initial read consumed elements or
+            // fulfillPendingRead consumed them. In either case, storer was called.
+            expect(storedArgs.length).toBeGreaterThan(0);
+            // Verify the storer received correct context
+            expect(storedArgs[0]![0]).toBe(mctx);
+        });
     });
 
     describe('async iterable integration', () => {

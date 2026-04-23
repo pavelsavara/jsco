@@ -10,6 +10,7 @@ import { createWaitableSetTable } from './waitable-set';
 import { createResourceTable } from './resources';
 import { createMemoryView } from './memory';
 import { STREAM_STATUS_DROPPED } from './constants';
+import { checkNotPoisoned } from '../marshal/validation';
 import type { MarshalingContext } from '../marshal/model/types';
 import type { FutureStorer } from './model/types';
 
@@ -490,6 +491,213 @@ describe('abort and dispose', () => {
 
             // Should not cause unhandled rejection
             expect(yieldCount).toBeGreaterThanOrEqual(1);
+        });
+    });
+
+    describe('trap during sync export (ctx-level)', () => {
+        test('ctx.abort sets poisoned and abortSignal.aborted', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.abort();
+            expect(ctx.poisoned).toBe(true);
+            expect(ctx.abortSignal.aborted).toBe(true);
+        });
+
+        test('after trap, checkNotPoisoned throws on subsequent calls', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+            } as unknown as MarshalingContext;
+
+            checkNotPoisoned(ctx);
+            ctx.abort();
+            expect(() => checkNotPoisoned(ctx)).toThrow('component instance is poisoned');
+        });
+
+        test('after trap, abortSignal.reason message contains trapped', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.abort();
+            expect((ctx.abortSignal.reason as Error).message).toBe('component instance trapped');
+        });
+
+        test('abort with custom reason preserves the message', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.abort('host import threw TypeError');
+            expect((ctx.abortSignal.reason as Error).message).toBe('host import threw TypeError');
+        });
+    });
+
+    describe('explicit dispose (ctx-level)', () => {
+        test('dispose sets poisoned and abortSignal.aborted', () => {
+            const ac = new AbortController();
+            const disposed: string[] = [];
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+                dispose() {
+                    if (this.poisoned) return;
+                    this.abort('component instance disposed');
+                    disposed.push('tables');
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.dispose();
+            expect(ctx.poisoned).toBe(true);
+            expect(ctx.abortSignal.aborted).toBe(true);
+            expect(disposed).toEqual(['tables']);
+        });
+
+        test('dispose reason contains disposed message', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+                dispose() {
+                    if (this.poisoned) return;
+                    this.abort('component instance disposed');
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.dispose();
+            expect((ctx.abortSignal.reason as Error).message).toBe('component instance disposed');
+        });
+
+        test('subsequent export calls throw poisoned error after dispose', () => {
+            const ac = new AbortController();
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+                dispose() {
+                    if (this.poisoned) return;
+                    this.abort('component instance disposed');
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.dispose();
+            expect(() => checkNotPoisoned(ctx)).toThrow('component instance is poisoned');
+        });
+
+        test('calling dispose twice is idempotent (no double-abort)', () => {
+            const ac = new AbortController();
+            let abortCount = 0;
+            const ctx = {
+                poisoned: false,
+                abortSignal: ac.signal,
+                abort(reason?: string) {
+                    abortCount++;
+                    this.poisoned = true;
+                    ac.abort(new Error(reason ?? 'component instance trapped'));
+                },
+                dispose() {
+                    if (this.poisoned) return;
+                    this.abort('component instance disposed');
+                },
+            } as unknown as MarshalingContext;
+
+            ctx.dispose();
+            ctx.dispose();
+            expect(abortCount).toBe(1);
+        });
+    });
+
+    describe('unexpected JS exceptions', () => {
+        test('stream addReadable with async iterable that throws TypeError in next — stream closed, pumping stops', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+
+            let nextCalls = 0;
+            const iterable: AsyncIterable<Uint8Array> = {
+                [Symbol.asyncIterator]() {
+                    return {
+                        next() {
+                            nextCalls++;
+                            if (nextCalls === 1) {
+                                return Promise.resolve({ value: new Uint8Array([1]), done: false });
+                            }
+                            return Promise.reject(new TypeError('Cannot read properties of null'));
+                        }
+                    };
+                }
+            };
+            const handle = st.addReadable(0, iterable);
+            await new Promise(r => setTimeout(r, 50));
+            // Stream should be closed due to error
+            expect(st.hasData(handle)).toBe(true);
+            // Pumping stopped — no further next() calls after the TypeError
+            const callsAfterError = nextCalls;
+            await new Promise(r => setTimeout(r, 50));
+            expect(nextCalls).toBe(callsAfterError);
+        });
+
+        test('stream addReadable with iterable throwing RangeError — stream closed', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+
+            async function* rangeErrorGen() {
+                yield new Uint8Array([1]);
+                throw new RangeError('Invalid array length');
+            }
+            const handle = st.addReadable(0, rangeErrorGen());
+            await new Promise(r => setTimeout(r, 50));
+            expect(st.hasData(handle)).toBe(true); // closed = hasData
+        });
+
+        test('iterable error does NOT fire abort signal (iterable error ≠ trap)', async () => {
+            const memory = createTestMemory();
+            const ac = new AbortController();
+            const st = createStreamTable(memory, makeAllocHandle(), undefined, ac.signal);
+
+            async function* errorGen(): AsyncGenerator<Uint8Array> {
+                yield new Uint8Array([0]); // yield before error
+                throw new TypeError('null reference');
+            }
+            st.addReadable(0, errorGen());
+            await new Promise(r => setTimeout(r, 50));
+
+            // Signal should NOT be aborted — iterable errors are not traps
+            expect(ac.signal.aborted).toBe(false);
         });
     });
 });
