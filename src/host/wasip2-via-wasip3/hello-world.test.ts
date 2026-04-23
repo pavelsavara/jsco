@@ -61,8 +61,8 @@ describe('hello-p2-world component (via P3 adapter)', () => {
             const component = await createComponent(helloWasm, verboseOptions(verbose));
 
             let exitCode: number | undefined;
+            const instance = await component.instantiate(wasiExports);
             try {
-                const instance = await component.instantiate(wasiExports);
                 const runNs = (instance.exports['wasi:cli/run@0.2.11']
                     ?? instance.exports['wasi:cli/run']) as any;
                 expect(runNs).toBeDefined();
@@ -74,6 +74,8 @@ describe('hello-p2-world component (via P3 adapter)', () => {
                 } else {
                     throw e;
                 }
+            } finally {
+                instance.dispose();
             }
 
             const output = chunks.map(c => new TextDecoder().decode(c)).join('');
@@ -95,13 +97,15 @@ describe('hello-p2-world component (via P3 adapter)', () => {
 
             const component = await createComponent(helloWasm, verboseOptions(verbose));
 
+            const instance = await component.instantiate(wasiExports);
             try {
-                const instance = await component.instantiate(wasiExports);
                 const runNs = (instance.exports['wasi:cli/run@0.2.11']
                     ?? instance.exports['wasi:cli/run']) as any;
                 await runNs.run();
             } catch (e) {
                 if (!(e instanceof WasiExit)) throw e;
+            } finally {
+                instance.dispose();
             }
 
             expect(lines.length).toBeGreaterThan(0);

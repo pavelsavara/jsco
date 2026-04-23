@@ -38,15 +38,19 @@ describe('useNumberForInt64 (via P3 adapter)', () => {
             });
             const imports = createMinimalEchoImports();
             const instance = await component.instantiate(imports);
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
 
-            const s64Result = ns['echo-s64'](42n);
-            expect(s64Result).toBe(42n);
-            expect(typeof s64Result).toBe('bigint');
+                const s64Result = ns['echo-s64'](42n);
+                expect(s64Result).toBe(42n);
+                expect(typeof s64Result).toBe('bigint');
 
-            const u64Result = ns['echo-u64'](0n);
-            expect(u64Result).toBe(0n);
-            expect(typeof u64Result).toBe('bigint');
+                const u64Result = ns['echo-u64'](0n);
+                expect(u64Result).toBe(0n);
+                expect(typeof u64Result).toBe('bigint');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -59,15 +63,19 @@ describe('useNumberForInt64 (via P3 adapter)', () => {
             });
             const imports = createMinimalEchoImports();
             const instance = await component.instantiate(imports);
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
 
-            const s64Result = ns['echo-s64'](42);
-            expect(s64Result).toBe(42);
-            expect(typeof s64Result).toBe('number');
+                const s64Result = ns['echo-s64'](42);
+                expect(s64Result).toBe(42);
+                expect(typeof s64Result).toBe('number');
 
-            const u64Result = ns['echo-u64'](0);
-            expect(u64Result).toBe(0);
-            expect(typeof u64Result).toBe('number');
+                const u64Result = ns['echo-u64'](0);
+                expect(u64Result).toBe(0);
+                expect(typeof u64Result).toBe('number');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -80,11 +88,15 @@ describe('useNumberForInt64 (via P3 adapter)', () => {
             });
             const imports = createMinimalEchoImports();
             const instance = await component.instantiate(imports);
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
 
-            const s64Result = ns['echo-s64'](42n);
-            expect(s64Result).toBe(42n);
-            expect(typeof s64Result).toBe('bigint');
+                const s64Result = ns['echo-s64'](42n);
+                expect(s64Result).toBe(42n);
+                expect(typeof s64Result).toBe('bigint');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });

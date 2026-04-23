@@ -55,9 +55,13 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_random_imports — all three random interfaces', () => runWithVerbose(verbose, async () => {
@@ -67,9 +71,13 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -82,10 +90,14 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
-            expect(capture.text()).toContain('hello, world');
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+                expect(capture.text()).toContain('hello, world');
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_cli — environment, args, terminals, stdio', () => runWithVerbose(verbose, async () => {
@@ -106,11 +118,15 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose, { resolver: 1, executor: 1 }),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
-            expect(decode(stdoutChunks)).toContain('hello stdout');
-            expect(decode(stderrChunks)).toContain('hello stderr');
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+                expect(decode(stdoutChunks)).toContain('hello stdout');
+                expect(decode(stderrChunks)).toContain('hello stderr');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -122,9 +138,13 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -140,12 +160,16 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
-            // Guest writes "x" 1000 times
-            expect(capture.text().length).toBe(1000);
-            expect(capture.text()).toBe('x'.repeat(1000));
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+                // Guest writes "x" 1000 times
+                expect(capture.text().length).toBe(1000);
+                expect(capture.text()).toBe('x'.repeat(1000));
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_cli_read_stdin — reads "hello!" from stdin', () => runWithVerbose(verbose, async () => {
@@ -162,9 +186,13 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_cli_hello_stdout_post_return — writes after run returns', () => runWithVerbose(verbose, async () => {
@@ -175,11 +203,15 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
-            // At minimum, the first write should have completed before run() returns
-            expect(capture.text()).toContain('hello, world');
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+                // At minimum, the first write should have completed before run() returns
+                expect(capture.text()).toContain('hello, world');
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_cli_random_limits — random bytes with size arg', () => runWithVerbose(verbose, async () => {
@@ -189,9 +221,13 @@ describe('WASIp3 integration tests', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });
