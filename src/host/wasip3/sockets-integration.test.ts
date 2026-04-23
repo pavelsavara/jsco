@@ -28,9 +28,11 @@ const RUN_EXPORT = 'wasi:cli/run@0.3.0-rc-2026-03-15';
  * Create merged P2+P3 hosts with real Node.js socket implementations.
  * Uses the Node.js P3 host (which overrides browser stubs with real TCP/UDP/DNS)
  * and wraps it through the P2-via-P3 adapter for P2 interface keys.
+ * Sinks stdout/stderr to suppress noisy Rust println! output from test programs.
  */
 function createMergedHosts(): Record<string, unknown> {
-    const p3 = createWasiP3Host();
+    const noop = () => new WritableStream<Uint8Array>({ write() { /* suppress */ } });
+    const p3 = createWasiP3Host({ stdout: noop(), stderr: noop() });
     const p2 = createWasiP2ViaP3Adapter(p3 as unknown as JsImports);
     return { ...p2, ...p3 as unknown as Record<string, unknown> };
 }
