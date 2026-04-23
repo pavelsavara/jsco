@@ -12,24 +12,41 @@ import { Readable, Writable } from 'node:stream';
 
 /**
  * Wrap a Node.js `Readable` (e.g. `process.stdin`) into a web `ReadableStream<Uint8Array>`.
+ *
+ * Uses named listener references so they can be removed on cancel.
+ * Does NOT destroy the underlying Node.js stream — it may be shared (e.g. `process.stdin`).
  */
 function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
-    // Node 18+ has Readable.toWeb, but it may not be available everywhere.
-    // Build a manual adapter for broadest compat.
+    let onData: ((chunk: Buffer) => void) | undefined;
+    let onEnd: (() => void) | undefined;
+    let onError: ((err: Error) => void) | undefined;
+
+    function removeListeners() {
+        if (onData) nodeStream.removeListener('data', onData);
+        if (onEnd) nodeStream.removeListener('end', onEnd);
+        if (onError) nodeStream.removeListener('error', onError);
+        onData = onEnd = onError = undefined;
+    }
+
     return new ReadableStream<Uint8Array>({
         start(controller) {
-            nodeStream.on('data', (chunk: Buffer) => {
+            onData = (chunk: Buffer) => {
                 controller.enqueue(new Uint8Array(chunk));
-            });
-            nodeStream.on('end', () => {
+            };
+            onEnd = () => {
+                removeListeners();
                 controller.close();
-            });
-            nodeStream.on('error', (err) => {
+            };
+            onError = (err: Error) => {
+                removeListeners();
                 controller.error(err);
-            });
+            };
+            nodeStream.on('data', onData);
+            nodeStream.on('end', onEnd);
+            nodeStream.on('error', onError);
         },
         cancel() {
-            nodeStream.destroy();
+            removeListeners();
         },
     });
 }
@@ -45,12 +62,16 @@ function nodeWritableToWeb(nodeStream: Writable): WritableStream<Uint8Array> {
         write(chunk) {
             return new Promise<void>((resolve, reject) => {
                 const ok = nodeStream.write(chunk, (err) => {
-                    if (err) reject(err);
+                    if (err) {
+                        nodeStream.removeListener('drain', onDrain);
+                        reject(err);
+                    }
                 });
+                function onDrain() { resolve(); }
                 if (ok) {
                     resolve();
                 } else {
-                    nodeStream.once('drain', resolve);
+                    nodeStream.once('drain', onDrain);
                 }
             });
         },
@@ -62,8 +83,16 @@ function nodeWritableToWeb(nodeStream: Writable): WritableStream<Uint8Array> {
  * Build a `WasiP3Config`-compatible stdin/stdout/stderr override object
  * backed by real Node.js process streams.
  *
+ * Caches web-stream wrappers for `process.stdin`/`stdout`/`stderr` so that
+ * repeated calls (e.g. one per test) don't keep adding listeners to the
+ * same underlying Node.js stream (which triggers MaxListenersExceededWarning).
+ *
  * Only creates web wrappers for streams not already provided in `existing`.
  */
+let cachedStdin: ReadableStream<Uint8Array> | undefined;
+let cachedStdout: WritableStream<Uint8Array> | undefined;
+let cachedStderr: WritableStream<Uint8Array> | undefined;
+
 export function nodeStdioDefaults(existing?: {
     stdin?: ReadableStream<Uint8Array>;
     stdout?: WritableStream<Uint8Array>;
@@ -73,9 +102,12 @@ export function nodeStdioDefaults(existing?: {
     stdout: WritableStream<Uint8Array>;
     stderr: WritableStream<Uint8Array>;
 } {
+    if (!cachedStdin) cachedStdin = nodeReadableToWeb(process.stdin);
+    if (!cachedStdout) cachedStdout = nodeWritableToWeb(process.stdout);
+    if (!cachedStderr) cachedStderr = nodeWritableToWeb(process.stderr);
     return {
-        stdin: existing?.stdin ?? nodeReadableToWeb(process.stdin),
-        stdout: existing?.stdout ?? nodeWritableToWeb(process.stdout),
-        stderr: existing?.stderr ?? nodeWritableToWeb(process.stderr),
+        stdin: existing?.stdin ?? cachedStdin,
+        stdout: existing?.stdout ?? cachedStdout,
+        stderr: existing?.stderr ?? cachedStderr,
     };
 }

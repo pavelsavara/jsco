@@ -266,16 +266,18 @@ class NodeTcpSocket {
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
+            const onError = (err: NodeJS.ErrnoException) => {
+                this._server = null;
+                try { mapNodeError(err); } catch (e) { reject(e); }
+            };
             server.listen({ port, host, backlog: Number(this._backlog), exclusive: false }, () => {
+                server.removeListener('error', onError);
                 const addr = server.address() as net.AddressInfo;
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 this._state = TcpState.Bound;
                 resolve();
             });
-            server.once('error', (err) => {
-                this._server = null;
-                try { mapNodeError(err); } catch (e) { reject(e); }
-            });
+            server.once('error', onError);
         });
     }
 
@@ -305,7 +307,11 @@ class NodeTcpSocket {
                 (options as net.TcpSocketConnectOpts).localAddress = socketAddressToString(bindAddr);
                 (options as net.TcpSocketConnectOpts).localPort = socketAddressPort(bindAddr);
             }
+            const onError = (err: NodeJS.ErrnoException) => {
+                try { mapNodeError(err); } catch (e) { reject(e); }
+            };
             socket.connect(options, () => {
+                socket.removeListener('error', onError);
                 this._socket = socket;
                 this._state = TcpState.Connected;
                 const addr = socket.address() as net.AddressInfo;
@@ -313,9 +319,7 @@ class NodeTcpSocket {
                 this._remoteAddress = remoteAddress;
                 resolve();
             });
-            socket.on('error', (err) => {
-                try { mapNodeError(err); } catch (e) { reject(e); }
-            });
+            socket.on('error', onError);
         });
     }
 
@@ -539,34 +543,48 @@ class NodeTcpSocket {
         })();
 
         const future = new Promise<void>((resolve, reject) => {
-            // When the WASM drops the receive stream reader, the receive
-            // future should resolve. Per WIT spec: "Dropping the stream
-            // should've caused the future to resolve."
-            stream.onReadableDrop = () => {
+            function removeAll() {
+                socket.removeListener('data', onData);
+                socket.removeListener('end', onEnd);
+                socket.removeListener('error', onError);
+                socket.removeListener('close', onClose);
+            }
+            const onData = (chunk: Buffer) => {
+                if (pushFn) pushFn(new Uint8Array(chunk));
+            };
+            const onEnd = () => {
+                removeAll();
                 if (closeFn) closeFn();
                 releaseOnce();
                 resolve(undefined);
             };
-            socket.on('data', (chunk: Buffer) => {
-                if (pushFn) pushFn(new Uint8Array(chunk));
-            });
-            socket.on('end', () => {
-                if (closeFn) closeFn();
-                releaseOnce();
-                resolve(undefined);
-            });
-            socket.on('error', (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException) => {
+                removeAll();
                 if (closeFn) closeFn();
                 releaseOnce();
                 reject(mapNodeErrorTag(err));
-            });
-            socket.on('close', () => {
+            };
+            const onClose = () => {
                 // 'close' fires after 'end' or 'error'. Only release the op
                 // (let the socket be destroyed when _dropPending). Do NOT call
                 // closeFn — the stream should only close on 'end' or 'error'.
+                removeAll();
                 releaseOnce();
                 resolve(undefined);
-            });
+            };
+            // When the WASM drops the receive stream reader, the receive
+            // future should resolve. Per WIT spec: "Dropping the stream
+            // should've caused the future to resolve."
+            stream.onReadableDrop = () => {
+                removeAll();
+                if (closeFn) closeFn();
+                releaseOnce();
+                resolve(undefined);
+            };
+            socket.on('data', onData);
+            socket.on('end', onEnd);
+            socket.on('error', onError);
+            socket.on('close', onClose);
         });
 
         return [stream, future];
@@ -725,16 +743,18 @@ class NodeUdpSocket {
         const port = socketAddressPort(localAddress);
 
         return new Promise<void>((resolve, reject) => {
+            const onError = (err: NodeJS.ErrnoException) => {
+                try { mapNodeError(err); } catch (e) { reject(e); }
+            };
             this._socket.bind(port, host, () => {
+                this._socket.removeListener('error', onError);
                 this._state = UdpState.Bound;
                 const addr = this._socket.address();
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 this._applyPendingOptions();
                 resolve();
             });
-            this._socket.once('error', (err) => {
-                try { mapNodeError(err); } catch (e) { reject(e); }
-            });
+            this._socket.once('error', onError);
         });
     }
 
@@ -757,7 +777,11 @@ class NodeUdpSocket {
         const port = socketAddressPort(remoteAddress);
 
         return new Promise<void>((resolve, reject) => {
+            const onError = (err: NodeJS.ErrnoException) => {
+                try { mapNodeError(err); } catch (e) { reject(e); }
+            };
             this._socket.connect(port, host, () => {
+                this._socket.removeListener('error', onError);
                 this._state = UdpState.Connected;
                 this._remoteAddress = remoteAddress;
                 // Always update local address after connect — the OS may assign a specific
@@ -766,9 +790,7 @@ class NodeUdpSocket {
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 resolve();
             });
-            this._socket.once('error', (err) => {
-                try { mapNodeError(err); } catch (e) { reject(e); }
-            });
+            this._socket.once('error', onError);
         });
     }
 
@@ -822,13 +844,18 @@ class NodeUdpSocket {
             throwError('invalid-state', 'Socket has not been bound');
         }
         return new Promise<[Uint8Array, IpSocketAddress]>((resolve, reject) => {
-            this._socket.once('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+            const sock = this._socket;
+            const onMessage = (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+                sock.removeListener('error', onError);
                 const addr = nodeAddressToIpSocket(rinfo.address, rinfo.port, rinfo.family);
                 resolve([new Uint8Array(msg), addr]);
-            });
-            this._socket.once('error', (err) => {
+            };
+            const onError = (err: NodeJS.ErrnoException) => {
+                sock.removeListener('message', onMessage);
                 try { mapNodeError(err); } catch (e) { reject(e); }
-            });
+            };
+            sock.once('message', onMessage);
+            sock.once('error', onError);
         });
     }
 
