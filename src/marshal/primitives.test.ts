@@ -5,16 +5,16 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, BindingContext } from '../resolver/types';
+import { ResolverContext, MarshalingContext } from '../resolver/types';
 import { createLifting as _createLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
 import type { WasmValue } from './model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -31,8 +31,8 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalCtx(): BindingContext {
-    return {} as any as BindingContext;
+function createMinimalCtx(): MarshalingContext {
+    return {} as any as MarshalingContext;
 }
 
 function prim(value: PrimitiveValType): ComponentValType {
@@ -41,7 +41,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 describeDebugOnly('primitive lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -263,7 +263,7 @@ describeDebugOnly('primitive lifting (JS → WASM)', () => {
 
 describeDebugOnly('primitive lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();

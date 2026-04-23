@@ -30,12 +30,12 @@ import type {
     WasiSocketsIpNameLookup,
     WasiSocketsTypes,
 } from '../../../wit/wasip3/types/index';
-import type { WasiP3Config } from './types';
+import type { HostConfig } from './types';
 
 export type { HandleTable, HandleId, HandleTableConfig } from './resources';
 export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './streams';
 export type { WasiResult } from './result';
-export type { WasiP3Config, MountConfig, NetworkConfig, AllocationLimits } from './types';
+export type { HostConfig, MountConfig, NetworkConfig, AllocationLimits } from './types';
 
 // Re-export infrastructure
 export { createHandleTable } from './resources';
@@ -104,7 +104,7 @@ export type {
  * @param config - Optional configuration for environment, stdio, filesystem, and limits.
  * @returns A `WasiP3Imports` object suitable for passing to component instantiation.
  */
-export function createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports {
+export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports {
     const fsState = initFilesystem(config);
 
     const result: Record<string, unknown> = {};

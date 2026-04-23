@@ -1,14 +1,14 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import type { BindingContext } from '../resolver/types';
+import type { MarshalingContext } from '../resolver/types';
 import type { JsFunction } from './model/types';
 import type { FunctionLowerPlan } from './model/lower-plans';
 export type { FunctionLowerPlan } from './model/lower-plans';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
 
-function processFlatResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: any): any {
+function processFlatResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any): any {
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
     }
@@ -21,7 +21,7 @@ function processFlatResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: 
     }
 }
 
-function processSpilledResult(plan: FunctionLowerPlan, ctx: BindingContext, retptr: number, resJs: any): void {
+function processSpilledResult(plan: FunctionLowerPlan, ctx: MarshalingContext, retptr: number, resJs: any): void {
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `← lowering result=${JSON.stringify(resJs, bigIntReplacer)}`);
     }
@@ -30,28 +30,28 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: BindingContext, retp
     }
 }
 
-function handleLowerResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: any,
-    processResult: (plan: FunctionLowerPlan, ctx: BindingContext, resJs: any) => any): any {
+function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any,
+    processResult: (plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any) => any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
         return resJs.then(
             (val: any) => {
                 try { return processResult(plan, ctx, val); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.poisoned = true; throw e; },
+            (e: unknown) => { ctx.abort(); throw e; },
         );
     }
     return processResult(plan, ctx, resJs);
 }
 
-function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: BindingContext, retptr: number, resJs: any): any {
+function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, retptr: number, resJs: any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
         return resJs.then(
             (val: any) => {
                 try { return processSpilledResult(plan, ctx, retptr, val); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.poisoned = true; throw e; },
+            (e: unknown) => { ctx.abort(); throw e; },
         );
     }
     return processSpilledResult(plan, ctx, retptr, resJs);
@@ -59,7 +59,7 @@ function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: BindingContext, 
 
 // --- Flat params, Flat result ---
 
-export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFunction: JsFunction, ...args: any[]): any {
+export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: MarshalingContext, jsFunction: JsFunction, ...args: any[]): any {
     try {
         const convertedArgs = new Array(plan.paramLowerers.length);
         let flatOffset = 0;
@@ -83,7 +83,7 @@ export function lowerFlatFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFu
 
 // --- Flat params, Spilled result ---
 
-export function lowerFlatSpilled(plan: FunctionLowerPlan, ctx: BindingContext, jsFunction: JsFunction, ...args: any[]): any {
+export function lowerFlatSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, jsFunction: JsFunction, ...args: any[]): any {
     try {
         const convertedArgs = new Array(plan.paramLowerers.length);
         let flatOffset = 0;
@@ -109,7 +109,7 @@ export function lowerFlatSpilled(plan: FunctionLowerPlan, ctx: BindingContext, j
 
 // --- Spilled params, Flat result ---
 
-export function lowerSpilledFlat(plan: FunctionLowerPlan, ctx: BindingContext, jsFunction: JsFunction, ...args: any[]): any {
+export function lowerSpilledFlat(plan: FunctionLowerPlan, ctx: MarshalingContext, jsFunction: JsFunction, ...args: any[]): any {
     try {
         const convertedArgs = new Array(plan.paramLoaders.length);
         const ptr = args[0] as number;
@@ -130,7 +130,7 @@ export function lowerSpilledFlat(plan: FunctionLowerPlan, ctx: BindingContext, j
 
 // --- Spilled params, Spilled result ---
 
-export function lowerSpilledSpilled(plan: FunctionLowerPlan, ctx: BindingContext, jsFunction: JsFunction, ...args: any[]): any {
+export function lowerSpilledSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, jsFunction: JsFunction, ...args: any[]): any {
     try {
         const convertedArgs = new Array(plan.paramLoaders.length);
         const ptr = args[0] as number;

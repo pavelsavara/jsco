@@ -13,7 +13,7 @@ import type {
     WasiHttpHandler,
 } from '../../../wit/wasip3/types/index';
 import type { WasiStreamReadable } from './streams';
-import type { WasiP3Config, NetworkConfig } from './types';
+import type { HostConfig, NetworkConfig } from './types';
 import { ok, err } from './result';
 import { NETWORK_DEFAULTS } from './types';
 
@@ -780,7 +780,7 @@ async function sendImpl(
  * Returns the `Fields`, `Request`, `RequestOptions`, and `Response` resource
  * classes configured with the current network limits.
  */
-export function createHttpTypes(config?: WasiP3Config): typeof WasiHttpTypes {
+export function createHttpTypes(config?: HostConfig): typeof WasiHttpTypes {
     const limits = getHttpLimits(config?.network);
 
     const FieldsClass = class extends HttpFields {
@@ -807,7 +807,7 @@ export function createHttpTypes(config?: WasiP3Config): typeof WasiHttpTypes {
  * Provides `send(request)` which executes HTTP requests via the Fetch API
  * with duplex streaming, timeout support, and full error code mapping.
  */
-export function createHttpClient(config?: WasiP3Config): typeof WasiHttpClient {
+export function createHttpClient(config?: HostConfig): typeof WasiHttpClient {
     const limits = getHttpLimits(config?.network);
     const defaultTimeoutMs = config?.network?.httpRequestTimeoutMs ?? NETWORK_DEFAULTS.httpRequestTimeoutMs;
 

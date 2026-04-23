@@ -4,7 +4,7 @@ import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../parser/model/types';
-import { BindingContext, ResolvedContext, StringEncoding } from '../resolver/types';
+import { MarshalingContext, ResolvedContext, StringEncoding } from '../resolver/types';
 import { jsco_assert, LogLevel } from '../utils/assert';
 import { callingConventionName } from '../utils/debug-names';
 import type { ResolvedType } from '../resolver/type-resolution';
@@ -105,7 +105,7 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         const trampoline = callingConvention.params === CallingConvention.Spilled
             ? (callingConvention.results === CallingConvention.Spilled ? lowerSpilledSpilled : lowerSpilledFlat)
             : (callingConvention.results === CallingConvention.Spilled ? lowerFlatSpilled : lowerFlatFlat);
-        return (ctx: BindingContext, jsFunction: JsFunction): WasmFunction =>
+        return (ctx: MarshalingContext, jsFunction: JsFunction): WasmFunction =>
             trampoline.bind(null, plan, ctx, jsFunction) as WasmFunction;
     });
 }
@@ -295,7 +295,7 @@ function createStringLoweringUtf16(): LoweringToJs {
 
 // --- Memory load helpers (for list element loading) ---
 
-export type MemoryLoader = (ctx: BindingContext, ptr: number) => any;
+export type MemoryLoader = (ctx: MarshalingContext, ptr: number) => any;
 
 function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding, usesNumberForInt64: boolean): MemoryLoader {
     switch (prim) {

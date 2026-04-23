@@ -51,8 +51,9 @@ describe('error paths', () => {
             const component = await createComponent(helloCityWatWasm, verboseOptions(verbose));
             // hello-city requires 'hello:city/logger@0.1.0' import with a 'log' function
             // Instantiate with empty object — error occurs when resolving the import binding
+            let instance: Awaited<ReturnType<typeof component.instantiate>> | undefined;
             await expect(async () => {
-                const instance = await component.instantiate({});
+                instance = await component.instantiate({});
                 const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
                 await greeter.run({
                     name: 'Test',
@@ -60,6 +61,7 @@ describe('error paths', () => {
                     budget: 0n,
                 });
             }).rejects.toThrow(/not found/);
+            instance?.dispose();
         }));
     });
 
@@ -75,25 +77,29 @@ describe('error paths', () => {
             };
 
             const instance = await component.instantiate(imports);
-            const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
+            try {
+                const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
 
-            // First call should throw because the import throws
-            await expect(async () => {
-                await greeter.run({
-                    name: 'Test',
-                    headCount: 1,
-                    budget: 0n,
-                });
-            }).rejects.toThrow('deliberate throw');
+                // First call should throw because the import throws
+                await expect(async () => {
+                    await greeter.run({
+                        name: 'Test',
+                        headCount: 1,
+                        budget: 0n,
+                    });
+                }).rejects.toThrow('deliberate throw');
 
-            // Second call should throw "poisoned" because the instance is now poisoned
-            await expect(async () => {
-                await greeter.run({
-                    name: 'Test',
-                    headCount: 1,
-                    budget: 0n,
-                });
-            }).rejects.toThrow('poisoned');
+                // Second call should throw "poisoned" because the instance is now poisoned
+                await expect(async () => {
+                    await greeter.run({
+                        name: 'Test',
+                        headCount: 1,
+                        budget: 0n,
+                    });
+                }).rejects.toThrow('poisoned');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -109,15 +115,19 @@ describe('error paths', () => {
             };
 
             const instance = await component.instantiate(imports);
-            const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
+            try {
+                const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
 
-            await expect(async () => {
-                await greeter.run({
-                    name: 'Test',
-                    headCount: 1,
-                    budget: 0n,
-                });
-            }).rejects.toThrow();
+                await expect(async () => {
+                    await greeter.run({
+                        name: 'Test',
+                        headCount: 1,
+                        budget: 0n,
+                    });
+                }).rejects.toThrow();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -129,7 +139,11 @@ describe('error paths', () => {
             });
             // echo-reactor-wat has no required imports, so this should succeed
             const instance = await component.instantiate();
-            expect(instance).toBeDefined();
+            try {
+                expect(instance).toBeDefined();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { WasiP3Config } from './host/wasip3';
+import type { HostConfig } from './host/wasip3';
 import type { JsImports } from './resolver/api-types';
 import { loadWasiP3Host, loadWasiP2ViaP3Adapter } from './dynamic';
 
@@ -50,7 +50,7 @@ function detectFromNames(names: string[]): WasiType {
  * Create WASI host imports for the detected type.
  * Returns P3 host directly for P3 components, or P3 host wrapped with P2 adapter for P2 components.
  */
-export async function createWasiImports(wasiType: WasiType, config?: WasiP3Config): Promise<JsImports | undefined> {
+export async function createWasiImports(wasiType: WasiType, config?: HostConfig): Promise<JsImports | undefined> {
     if (wasiType === WasiType.None) return undefined;
     const { createWasiP3Host } = await loadWasiP3Host();
     const p3 = createWasiP3Host(config);

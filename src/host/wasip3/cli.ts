@@ -5,7 +5,7 @@ import type {
     WasiCliExit,
     WasiCliTypes,
 } from '../../../wit/wasip3/types/index';
-import type { WasiP3Config } from './types';
+import type { HostConfig } from './types';
 
 /**
  * Thrown by exit() / exitWithCode() to signal process termination.
@@ -27,7 +27,7 @@ export class WasiExit extends Error {
  * Provides `getEnvironment()`, `getArguments()`, and `getInitialCwd()`
  * from the supplied configuration. Returns defensive copies.
  */
-export function createEnvironment(config?: WasiP3Config): typeof WasiCliEnvironment {
+export function createEnvironment(config?: HostConfig): typeof WasiCliEnvironment {
     const env = config?.env ?? [];
     const args = config?.args ?? [];
     const cwd = config?.cwd;

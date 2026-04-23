@@ -2,16 +2,16 @@
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../parser/model/types';
-import { ResolvedContext, BindingContext, StringEncoding } from '../resolver/types';
+import { ResolvedContext, MarshalingContext, StringEncoding } from '../resolver/types';
 import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
 import { createLowering, createFunctionLowering } from './to-js';
 import type { WasmValue } from '../marshal/model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -262,6 +262,6 @@ describeDebugOnly('memoization keys', () => {
     });
 });
 
-function createMinimalCtx(): BindingContext {
-    return {} as any as BindingContext;
+function createMinimalCtx(): MarshalingContext {
+    return {} as any as MarshalingContext;
 }

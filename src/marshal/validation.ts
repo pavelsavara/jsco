@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { BindingContext } from '../resolver/types';
+import { MarshalingContext } from '../resolver/types';
 import { WasmPointer } from './model/types';
 
 /**
@@ -8,7 +8,7 @@ import { WasmPointer } from './model/types';
  * - Alignment: ptr must be aligned to the requested alignment
  * - Bounds: ptr + size must not exceed linear memory size
  */
-export function validateAllocResult(ctx: BindingContext, ptr: WasmPointer, align: number, size: number): void {
+export function validateAllocResult(ctx: MarshalingContext, ptr: WasmPointer, align: number, size: number): void {
     const p = ptr as number;
     if (p !== 0 || size !== 0) {
         // trap_if(ptr != align_to(ptr, alignment))
@@ -64,7 +64,7 @@ export function validateUtf16(codeUnits: Uint16Array): void {
  * Check if the current context is poisoned (trap occurred previously).
  * Throws immediately if poisoned.
  */
-export function checkNotPoisoned(ctx: BindingContext): void {
+export function checkNotPoisoned(ctx: MarshalingContext): void {
     if (ctx.poisoned) {
         throw new Error('component instance is poisoned: a trap occurred in a previous export call');
     }
@@ -73,7 +73,7 @@ export function checkNotPoisoned(ctx: BindingContext): void {
 /**
  * Check reentrance guard — trap if already inside an export call.
  */
-export function checkNotReentrant(ctx: BindingContext): void {
+export function checkNotReentrant(ctx: MarshalingContext): void {
     if (ctx.inExport) {
         throw new Error('cannot reenter component: already executing an export');
     }

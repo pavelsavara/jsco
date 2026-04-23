@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { WasiSnapshotPreview1 } from './types/wasi-snapshot-preview1';
-import type { WasiP3Config } from '../wasip3/types';
+import type { HostConfig } from '../wasip3/types';
 import type { AdapterContext } from './adapter-context';
 import { createDefaultFdTable } from './fd-table';
 import { MemoryVfsBackend } from '../wasip3/vfs';
@@ -26,7 +26,7 @@ export type WasiP1Adapter = {
     bindMemory: (memory: WebAssembly.Memory) => void
 }
 
-export function createWasiP1ViaP3Adapter(config?: WasiP3Config): WasiP1Adapter {
+export function createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter {
     let memory: WebAssembly.Memory | null = null;
     const fdTable = createDefaultFdTable();
     const vfs = new MemoryVfsBackend({ limits: config?.limits });

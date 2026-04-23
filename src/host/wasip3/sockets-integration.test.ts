@@ -48,9 +48,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_tcp_bind — bind to ephemeral and specific ports', () => runWithVerbose(verbose, async () => {
@@ -60,9 +64,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_tcp_connect — connect validation and dual-stack', () => runWithVerbose(verbose, async () => {
@@ -72,9 +80,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_tcp_listen — listen and accept connections', () => runWithVerbose(verbose, async () => {
@@ -84,9 +96,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test.skip('p3_sockets_tcp_streams — send and receive data streams', () => runWithVerbose(verbose, async () => {
@@ -96,9 +112,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_tcp_states — socket state transitions', () => runWithVerbose(verbose, async () => {
@@ -108,9 +128,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_tcp_sockopts — socket option get/set', () => runWithVerbose(verbose, async () => {
@@ -120,9 +144,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -134,9 +162,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_udp_bind — bind to ephemeral and specific ports', () => runWithVerbose(verbose, async () => {
@@ -146,9 +178,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         // Skipped: test_udp_connect_local_address_change sub-test asserts that
@@ -161,9 +197,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_udp_send — send datagrams', () => runWithVerbose(verbose, async () => {
@@ -173,9 +213,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_udp_receive — receive datagrams', () => runWithVerbose(verbose, async () => {
@@ -185,9 +229,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_udp_states — socket state transitions', () => runWithVerbose(verbose, async () => {
@@ -197,9 +245,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('p3_sockets_udp_sockopts — socket option get/set', () => runWithVerbose(verbose, async () => {
@@ -209,9 +261,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -223,9 +279,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
                 verboseOptions(verbose),
             );
             const instance = await component.instantiate(imports);
-            const run = instance.exports[RUN_EXPORT] as any;
-            expect(run).toBeDefined();
-            await run.run();
+            try {
+                const run = instance.exports[RUN_EXPORT] as any;
+                expect(run).toBeDefined();
+                await run.run();
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });

@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { validateAllocResult, validatePointerAlignment, validateUtf16, checkNotPoisoned, checkNotReentrant } from './validation';
-import type { BindingContext } from '../resolver/types';
+import type { MarshalingContext } from '../resolver/types';
 
-function makeCtx(memorySize: number, opts?: Partial<BindingContext>): BindingContext {
+function makeCtx(memorySize: number, opts?: Partial<MarshalingContext>): MarshalingContext {
     return {
         memory: {
             getMemory() {
@@ -13,7 +13,7 @@ function makeCtx(memorySize: number, opts?: Partial<BindingContext>): BindingCon
         poisoned: false,
         inExport: false,
         ...opts,
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 }
 
 describe('validation.ts', () => {

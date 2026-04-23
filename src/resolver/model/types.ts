@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { TCabiRealloc, WasmPointer, WasmSize, MarshalingContext } from '../../marshal/model/types';
-export type { MarshalingContext as BindingContext } from '../../marshal/model/types';
+import type { MarshalingContext } from '../../marshal/model/types';
+export type { MarshalingContext } from '../../marshal/model/types';
 import type { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../../parser/model/aliases';
 import type { ComponentExport } from '../../parser/model/exports';
 import type { ComponentImport } from '../../parser/model/imports';
@@ -112,126 +112,6 @@ export type ResolverContext = {
     componentFunctionCache: Map<ComponentFunction, ResolverRes>;
     validateTypes: boolean
     wasmInstantiate: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
-}
-
-export type InstanceTable = {
-    coreInstances: BinderRes[];
-    componentInstances: BinderRes[];
-}
-
-export type MemoryView = {
-    initialize(memory: WebAssembly.Memory): void;
-    getMemory: () => WebAssembly.Memory;
-    getView: (ptr: WasmPointer, len: WasmSize) => DataView;
-    getViewU8: (ptr: WasmPointer, len: WasmSize) => Uint8Array;
-    readI32: (ptr: WasmPointer) => number;
-    writeI32: (ptr: WasmPointer, value: number) => void;
-}
-
-export type Allocator = {
-    initialize(cabi_realloc: TCabiRealloc): void;
-    isInitialized(): boolean;
-    alloc: (newSize: WasmSize, align: WasmSize) => WasmPointer;
-    realloc: (oldPtr: WasmPointer, oldSize: WasmSize, align: WasmSize, newSize: WasmSize) => WasmPointer;
-}
-
-export type ResourceTable = {
-    add(resourceTypeIdx: number, obj: unknown): number;
-    get(resourceTypeIdx: number, handle: number): unknown;
-    remove(resourceTypeIdx: number, handle: number): unknown;
-    has(resourceTypeIdx: number, handle: number): boolean;
-    lend(resourceTypeIdx: number, handle: number): void;
-    unlend(resourceTypeIdx: number, handle: number): void;
-    lendCount(resourceTypeIdx: number, handle: number): number;
-}
-
-export interface StreamTable {
-    newStream(typeIdx: number): bigint;
-    read(typeIdx: number, handle: number, ptr: number, len: number): number;
-    write(typeIdx: number, handle: number, ptr: number, len: number): number;
-    cancelRead(typeIdx: number, handle: number): number;
-    cancelWrite(typeIdx: number, handle: number): number;
-    dropReadable(typeIdx: number, handle: number): void;
-    dropWritable(typeIdx: number, handle: number): void;
-    addReadable(typeIdx: number, value: unknown, elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: MarshalingContext): number;
-    getReadable(typeIdx: number, handle: number): unknown;
-    removeReadable(typeIdx: number, handle: number): unknown;
-    addWritable(typeIdx: number, value: unknown): number;
-    getWritable(typeIdx: number, handle: number): unknown;
-    removeWritable(typeIdx: number, handle: number): unknown;
-    /** Check if a base handle belongs to this stream table. */
-    hasStream(baseHandle: number): boolean;
-    /** Check if a stream has data available for reading. */
-    hasData(baseHandle: number): boolean;
-    /** Register a callback for when data arrives or stream closes. */
-    onReady(baseHandle: number, callback: () => void): void;
-    /** Check if a stream's write buffer has space below the backpressure threshold. */
-    hasWriteSpace(baseHandle: number): boolean;
-    /** Register a callback for when the write buffer drains below threshold. */
-    onWriteReady(baseHandle: number, callback: () => void): void;
-    /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
-    fulfillPendingRead(handle: number): number;
-}
-
-export interface FutureTable {
-    newFuture(typeIdx: number): bigint;
-    read(typeIdx: number, handle: number, ptr: number, mctx?: MarshalingContext): number;
-    write(typeIdx: number, handle: number, ptr: number): number;
-    cancelRead(typeIdx: number, handle: number): number;
-    cancelWrite(typeIdx: number, handle: number): number;
-    dropReadable(typeIdx: number, handle: number): void;
-    dropWritable(typeIdx: number, handle: number): void;
-    addReadable(typeIdx: number, value: unknown, storer?: FutureStorer): number;
-    getReadable(typeIdx: number, handle: number): unknown;
-    removeReadable(typeIdx: number, handle: number): unknown;
-    addWritable(typeIdx: number, value: unknown): number;
-    getWritable(typeIdx: number, handle: number): unknown;
-    removeWritable(typeIdx: number, handle: number): unknown;
-    /** Get the internal entry for waitable-set integration. */
-    getEntry(handle: number): { resolved: boolean, onResolve?: (() => void)[] } | undefined;
-}
-
-/** Callback to store a resolved future value into WASM memory at the given pointer. */
-export type FutureStorer = (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void;
-
-/** Subtask state per the canonical ABI spec. */
-export const enum SubtaskState {
-    STARTING = 0,
-    STARTED = 1,
-    RETURNED = 2,
-}
-
-export interface SubtaskTable {
-    /** Create a subtask from a Promise. Returns the subtask handle. */
-    create(promise: Promise<unknown>): number;
-    /** Get the subtask entry for waitable-set integration. */
-    getEntry(handle: number): SubtaskEntry | undefined;
-    /** Drop a completed subtask. */
-    drop(handle: number): void;
-}
-
-export interface SubtaskEntry {
-    state: SubtaskState;
-    resolved: boolean;
-    /** Callbacks to invoke when this subtask resolves (for waitable-set integration). */
-    onResolve?: (() => void)[];
-}
-
-export interface ErrorContextTable {
-    newErrorContext(ptr: number, len: number): number;
-    debugMessage(handle: number, ptr: number): void;
-    drop(handle: number): void;
-    add(value: unknown): number;
-    get(handle: number): unknown;
-    remove(handle: number): unknown;
-}
-
-export interface WaitableSetTable {
-    newSet(): number;
-    wait(setId: number, ptr: number): number | Promise<number>;
-    poll(setId: number, ptr: number): number;
-    drop(setId: number): void;
-    join(waitableHandle: number, setId: number): void;
 }
 
 export type Resolver<TModelElement> = (rctx: ResolverContext, args: ResolverArgs<TModelElement>) => ResolverRes

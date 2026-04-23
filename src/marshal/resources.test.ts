@@ -5,8 +5,8 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, BindingContext } from '../resolver/types';
-import { createResourceTable } from '../resolver/context';
+import { ResolverContext, MarshalingContext } from '../resolver/types';
+import { createResourceTable } from '../runtime';
 import { resolveCanonicalResourceType } from '../resolver/type-resolution';
 import { createLifting as _createLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
@@ -14,9 +14,9 @@ import type { WasmValue } from './model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -35,11 +35,11 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMockCtxWithResources(): BindingContext {
+function createMockCtxWithResources(): MarshalingContext {
     const resources = createResourceTable();
     return {
         resources,
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 }
 
 function createMockHandleTable() {
@@ -86,13 +86,13 @@ function createMockErrorContextTable() {
     };
 }
 
-function createMockCtxWithStreams(): BindingContext {
+function createMockCtxWithStreams(): MarshalingContext {
     return {
         resources: createResourceTable(),
         streams: createMockHandleTable() as any,
         futures: createMockHandleTable() as any,
         errorContexts: createMockErrorContextTable() as any,
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 }
 
 describeDebugOnly('ResourceTable', () => {
@@ -238,7 +238,7 @@ describeDebugOnly('canonical resource identity resolution', () => {
 
 describeDebugOnly('own<T> lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -273,7 +273,7 @@ describeDebugOnly('own<T> lifting', () => {
 
 describeDebugOnly('own<T> lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -315,7 +315,7 @@ describeDebugOnly('own<T> lowering', () => {
 
 describeDebugOnly('borrow<T> lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -342,7 +342,7 @@ describeDebugOnly('borrow<T> lifting', () => {
 
 describeDebugOnly('borrow<T> lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -386,7 +386,7 @@ describeDebugOnly('borrow<T> lowering', () => {
 
 describeDebugOnly('own vs borrow semantics', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -674,7 +674,7 @@ describeDebugOnly('resource handle cleanup and ref counting', () => {
 
 describeDebugOnly('stream<T> lifting and lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -708,7 +708,7 @@ describeDebugOnly('stream<T> lifting and lowering', () => {
 
 describeDebugOnly('future<T> lifting and lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -742,7 +742,7 @@ describeDebugOnly('future<T> lifting and lowering', () => {
 
 describeDebugOnly('error-context lifting and lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();

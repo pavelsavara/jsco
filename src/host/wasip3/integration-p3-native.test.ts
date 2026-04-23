@@ -217,13 +217,15 @@ async function runP3ConsumerScenario(
     await yieldToGC();
     const consumerComponent = await createComponent(consumerP3Wasm, verboseOptions(verbose));
     let exitCode: number | undefined;
+    const instance = await consumerComponent.instantiate(consumerImports);
     try {
-        const instance = await consumerComponent.instantiate(consumerImports);
         const runNs = (instance.exports[RUN_EXPORT] ?? instance.exports['wasi:cli/run']) as any;
         const result = await runNs.run();
         exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
     } catch (e) {
         if (e instanceof WasiExit) exitCode = e.exitCode; else throw e;
+    } finally {
+        instance.dispose();
     }
 
     const stdout = new TextDecoder().decode(
@@ -243,7 +245,7 @@ async function instantiateP3Component(
     await yieldToGC();
     const component = await createComponent(wasmPath, { noJspi: true, ...verboseOptions(verbose) });
     const instance = await component.instantiate(imports);
-    return { exports: instance.exports as ImportsMap };
+    return { exports: instance.exports as ImportsMap, dispose: () => instance.dispose() };
 }
 
 describe('WASIp3 native component integration tests (flat)', () => {
@@ -261,76 +263,104 @@ describe('WASIp3 native component integration tests (flat)', () => {
     }));
 
     test('Scenario B: consumer-p3 ← forwarder-p3 ← JS host', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const fwd = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            true,
-            fullWasiConfig,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const fwd = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(fwd.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                true,
+                fullWasiConfig,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario C: consumer-p3 ← forwarder-p3 ← implementer-p3', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+                    disposables.push(impl.dispose);
 
-                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(impl.exports, fwdImports, p3ImplementerInterfaces);
-                const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+                    const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(impl.exports, fwdImports, p3ImplementerInterfaces);
+                    const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+                    disposables.push(fwd.dispose);
 
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            true,
-        );
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                true,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario D: consumer-p3 ← fwd ← fwd ← implementer-p3 (flat)', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const impl = await instantiateP3Component(implementerP3Wasm, createMergedHosts(), verbose);
+                    disposables.push(impl.dispose);
 
-                const fwd2Imports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(impl.exports, fwd2Imports, p3ImplementerInterfaces);
-                const fwd2 = await instantiateP3Component(forwarderP3Wasm, fwd2Imports, verbose);
+                    const fwd2Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(impl.exports, fwd2Imports, p3ImplementerInterfaces);
+                    const fwd2 = await instantiateP3Component(forwarderP3Wasm, fwd2Imports, verbose);
+                    disposables.push(fwd2.dispose);
 
-                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
-                const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+                    const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
+                    const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+                    disposables.push(fwd1.dispose);
 
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-        );
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario E: consumer-p3 ← fwd ← fwd ← host (flat)', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const fwd2 = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const fwd2 = await instantiateP3Component(forwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(fwd2.dispose);
 
-                const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
-                const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+                    const fwd1Imports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd2.exports, fwd1Imports, p3ForwardedInterfaces);
+                    const fwd1 = await instantiateP3Component(forwarderP3Wasm, fwd1Imports, verbose);
+                    disposables.push(fwd1.dispose);
 
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-            fullWasiConfig,
-        );
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd1.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+                fullWasiConfig,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 });
 
@@ -340,88 +370,125 @@ describe('WASIp3 native component integration tests (WAC compositions)', () => {
     afterEach(yieldToGC);
 
     test('Scenario F: consumer-p3 ← fwd ← (fwd ← host) wac-wrapped', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const wrapped = await instantiateP3Component(wrappedForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const wrapped = await instantiateP3Component(wrappedForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(wrapped.dispose);
 
-                const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(wrapped.exports, fwdImports, p3ForwardedInterfaces);
-                const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+                    const fwdImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(wrapped.exports, fwdImports, p3ForwardedInterfaces);
+                    const fwd = await instantiateP3Component(forwarderP3Wasm, fwdImports, verbose);
+                    disposables.push(fwd.dispose);
 
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-            fullWasiConfig,
-        );
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(fwd.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+                fullWasiConfig,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario G: consumer-p3 ← (fwd ← fwd ← host) wac-composed', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const dbl = await instantiateP3Component(doubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(dbl.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-            fullWasiConfig,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const dbl = await instantiateP3Component(doubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(dbl.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(dbl.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+                fullWasiConfig,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario H: consumer-p3 ← (fwd ← fwd ← fwd ← host) wac triple', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const nested = await instantiateP3Component(nestedDoubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            3,
-            fullWasiConfig,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const nested = await instantiateP3Component(nestedDoubleForwarderP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(nested.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                3,
+                fullWasiConfig,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario I: consumer-p3 ← (fwd ← implementer) wac-composed', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const composed = await instantiateP3Component(forwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            true,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const composed = await instantiateP3Component(forwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(composed.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                true,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario J: consumer-p3 ← (fwd ← fwd ← implementer) wac-composed', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const composed = await instantiateP3Component(doubleForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const composed = await instantiateP3Component(doubleForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(composed.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(composed.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }));
 
     test('Scenario K: consumer-p3 ← (fwd ← (fwd ← implementer)) nested wac', () => runWithVerbose(verbose, async () => {
-        await runP3ConsumerScenario(
-            verbose,
-            async ({ wasiExports, extraImports }) => {
-                const nested = await instantiateP3Component(nestedForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
-                const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
-                wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
-                return consumerImports;
-            },
-            2,
-        );
+        const disposables: (() => void)[] = [];
+        try {
+            await runP3ConsumerScenario(
+                verbose,
+                async ({ wasiExports, extraImports }) => {
+                    const nested = await instantiateP3Component(nestedForwarderImplementerP3Wasm, { ...wasiExports, ...extraImports }, verbose);
+                    disposables.push(nested.dispose);
+                    const consumerImports: ImportsMap = { ...wasiExports, ...extraImports };
+                    wireP3ExportsToImports(nested.exports, consumerImports, p3ForwardedInterfaces);
+                    return consumerImports;
+                },
+                2,
+            );
+        } finally {
+            disposables.forEach(d => d());
+        }
     }), 60_000);
 });

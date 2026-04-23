@@ -5,16 +5,16 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, BindingContext } from '../resolver/types';
+import { ResolverContext, MarshalingContext } from '../resolver/types';
 import { createLifting as _createLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
 import { WasmPointer, WasmSize, WasmValue } from './model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -31,11 +31,11 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalCtx(): BindingContext {
-    return {} as any as BindingContext;
+function createMinimalCtx(): MarshalingContext {
+    return {} as any as MarshalingContext;
 }
 
-function createMockMemoryContext(): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMockMemoryContext(): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(1024);
     let nextAlloc = 0;
 
@@ -78,7 +78,7 @@ function createMockMemoryContext(): { ctx: BindingContext, buffer: ArrayBuffer }
         allocator,
         utf8Encoder: new TextEncoder(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }
@@ -98,7 +98,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 describeDebugOnly('option lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -140,7 +140,7 @@ describeDebugOnly('option lifting (JS → WASM)', () => {
 
 describeDebugOnly('option lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -172,7 +172,7 @@ describeDebugOnly('option lowering (WASM → JS)', () => {
 
 describeDebugOnly('nested option<option<u32>>', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const nestedOptionModel = () => optionModel({
         tag: ModelTag.ComponentValTypePrimitive,
@@ -243,7 +243,7 @@ describeDebugOnly('nested option<option<u32>>', () => {
 
 describeDebugOnly('result lifting (JS → WASM)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const resultU32S32Model = {
         tag: ModelTag.ComponentTypeDefinedResult as const,
@@ -276,7 +276,7 @@ describeDebugOnly('result lifting (JS → WASM)', () => {
 
 describeDebugOnly('result lowering (WASM → JS)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const resultU32S32Model = {
         tag: ModelTag.ComponentTypeDefinedResult as const,
@@ -314,7 +314,7 @@ describeDebugOnly('result lowering (WASM → JS)', () => {
 
 describeDebugOnly('result with no error type', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const resultOkOnlyModel = {
         tag: ModelTag.ComponentTypeDefinedResult as const,
@@ -356,7 +356,7 @@ describeDebugOnly('result with no error type', () => {
 
 describeDebugOnly('result with no ok type (error-only)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const resultErrOnlyModel = {
         tag: ModelTag.ComponentTypeDefinedResult as const,
@@ -602,7 +602,7 @@ describeDebugOnly('list round-trip', () => {
 
 describeDebugOnly('variant lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const variantModel = {
         tag: ModelTag.ComponentTypeDefinedVariant as const,
@@ -643,7 +643,7 @@ describeDebugOnly('variant lifting', () => {
 
 describeDebugOnly('variant lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const variantModel = {
         tag: ModelTag.ComponentTypeDefinedVariant as const,
@@ -684,7 +684,7 @@ describeDebugOnly('variant lowering', () => {
 
 describeDebugOnly('enum lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const enumModel = {
         tag: ModelTag.ComponentTypeDefinedEnum as const,
@@ -721,7 +721,7 @@ describeDebugOnly('enum lifting', () => {
 
 describeDebugOnly('enum lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const enumModel = {
         tag: ModelTag.ComponentTypeDefinedEnum as const,
@@ -758,7 +758,7 @@ describeDebugOnly('enum lowering', () => {
 
 describeDebugOnly('flags lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const flagsModel = {
         tag: ModelTag.ComponentTypeDefinedFlags as const,
@@ -809,7 +809,7 @@ describeDebugOnly('flags lifting', () => {
 
 describeDebugOnly('flags lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const flagsModel = {
         tag: ModelTag.ComponentTypeDefinedFlags as const,
@@ -860,7 +860,7 @@ describeDebugOnly('flags lowering', () => {
 
 describeDebugOnly('tuple lifting', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const tupleModel = {
         tag: ModelTag.ComponentTypeDefinedTuple as const,
@@ -890,7 +890,7 @@ describeDebugOnly('tuple lifting', () => {
 
 describeDebugOnly('tuple lowering', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     const tupleModel = {
         tag: ModelTag.ComponentTypeDefinedTuple as const,

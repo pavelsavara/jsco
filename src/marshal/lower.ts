@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { BindingContext } from '../resolver/types';
+import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
 import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan } from './model/lower-plans';
 export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan } from './model/lower-plans';
@@ -11,81 +11,81 @@ import { OK, ERR } from './constants';
 
 // --- Primitive lowering functions (WASM flat args → JS values) ---
 // These are stateless top-level functions with no captured state.
-// Signature: (ctx: BindingContext, ...args: WasmValue[]) => JsValue
+// Signature: (ctx: MarshalingContext, ...args: WasmValue[]) => JsValue
 
-export function boolLowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function boolLowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0] !== 0;
 }
 
-export function s8Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function s8Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return (num << 24) >> 24;
 }
 
-export function u8Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function u8Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num & 0xFF;
 }
 
-export function s16Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function s16Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return (num << 16) >> 16;
 }
 
-export function u16Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function u16Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num & 0xFFFF;
 }
 
-export function s32Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function s32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num | 0;
 }
 
-export function u32Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function u32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num >>> 0;
 }
 
-export function s64LoweringBigInt(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function s64LoweringBigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0];
 }
 
-export function s64LoweringNumber(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function s64LoweringNumber(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return Number(args[0] as bigint);
 }
 
-export function u64LoweringBigInt(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function u64LoweringBigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     // WASM returns i64 as signed BigInt — reinterpret as unsigned
     return BigInt.asUintN(64, args[0] as bigint);
 }
 
-export function u64LoweringNumber(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function u64LoweringNumber(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return Number(args[0] as bigint);
 }
 
-export function f32Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function f32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const v = Math.fround(args[0] as number);
     // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
     if (v !== v) return canonicalNaN32;
     return v;
 }
 
-export function f64Lowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function f64Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const v = +(args[0] as number);
     // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
     if (v !== v) return canonicalNaN64;
     return v;
 }
 
-export function charLowering(_: BindingContext, ...args: WasmValue[]): JsValue {
+export function charLowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const i = args[0] as number;
     if (i >= 0x110000) throw new Error(`Invalid char codepoint: ${i} >= 0x110000`);
     if (i >= 0xD800 && i <= 0xDFFF) throw new Error(`Invalid char codepoint: surrogate ${i}`);
     return String.fromCodePoint(i);
 }
 
-export function stringLoweringUtf8(ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function stringLoweringUtf8(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const pointer = (args[0] as number) >>> 0 as WasmPointer;
     const len = (args[1] as number) >>> 0 as WasmSize;
     if (len as number > 0) {
@@ -101,7 +101,7 @@ export function stringLoweringUtf8(ctx: BindingContext, ...args: WasmValue[]): J
     return res;
 }
 
-export function stringLoweringUtf16(ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function stringLoweringUtf16(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const pointer = (args[0] as number) >>> 0 as WasmPointer;
     const codeUnits = (args[1] as number) >>> 0 as WasmSize;
     if (codeUnits as number > 0) {
@@ -125,23 +125,23 @@ export function stringLoweringUtf16(ctx: BindingContext, ...args: WasmValue[]): 
 
 // --- Resource lowering functions ---
 
-export function ownLowering(plan: ResourceLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function ownLowering(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const handle = args[0] as number;
     return ctx.resources.remove(plan.resourceTypeIdx, handle);
 }
 
-export function borrowLowering(plan: ResourceLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function borrowLowering(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const handle = args[0] as number;
     return ctx.resources.get(plan.resourceTypeIdx, handle);
 }
 
-export function borrowLoweringDirect(_plan: ResourceLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function borrowLoweringDirect(_plan: ResourceLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0];
 }
 
 // --- Enum lowering ---
 
-export function enumLowering(plan: EnumLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function enumLowering(plan: EnumLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;
     if (disc >= plan.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.members.length}`);
     return plan.members[disc];
@@ -149,7 +149,7 @@ export function enumLowering(plan: EnumLowerPlan, _ctx: BindingContext, ...args:
 
 // --- Flags lowering ---
 
-export function flagsLowering(plan: FlagsLowerPlan, _ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function flagsLowering(plan: FlagsLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, boolean> = {};
     for (let i = 0; i < plan.memberNames.length; i++) {
         const word = args[i >>> 5] as number;
@@ -160,7 +160,7 @@ export function flagsLowering(plan: FlagsLowerPlan, _ctx: BindingContext, ...arg
 
 // --- Record lowering ---
 
-export function recordLowering(plan: RecordLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function recordLowering(plan: RecordLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, unknown> = {};
     let offset = 0;
     for (let i = 0; i < plan.fields.length; i++) {
@@ -173,7 +173,7 @@ export function recordLowering(plan: RecordLowerPlan, ctx: BindingContext, ...ar
 
 // --- Tuple lowering ---
 
-export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function tupleLowering(plan: TupleLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result = new Array(plan.elements.length);
     let offset = 0;
     for (let i = 0; i < plan.elements.length; i++) {
@@ -186,7 +186,7 @@ export function tupleLowering(plan: TupleLowerPlan, ctx: BindingContext, ...args
 
 // --- List lowering ---
 
-export function listLowering(plan: ListLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function listLowering(plan: ListLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const ptr = (args[0] as number) >>> 0;
     const len = (args[1] as number) >>> 0;
     if (len > 0) {
@@ -207,7 +207,7 @@ export function listLowering(plan: ListLowerPlan, ctx: BindingContext, ...args: 
 
 // --- Option lowering ---
 
-export function optionLowering(plan: OptionLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function optionLowering(plan: OptionLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid option discriminant: ${discriminant}`);
     if (discriminant === 0) return null;
@@ -217,7 +217,7 @@ export function optionLowering(plan: OptionLowerPlan, ctx: BindingContext, ...ar
 
 // --- Result lowering ---
 
-export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function resultLowering(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
@@ -230,7 +230,7 @@ export function resultLowering(plan: ResultLowerPlan, ctx: BindingContext, ...ar
     }
 }
 
-export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
@@ -259,7 +259,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: BindingContext
 
 // --- Variant lowering ---
 
-export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...args: WasmValue[]): JsValue {
+export function variantLowering(plan: VariantLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;
     const c = plan.cases[disc];
     if (!c) throw new Error(`Invalid variant discriminant: ${disc}`);
@@ -282,21 +282,21 @@ export function variantLowering(plan: VariantLowerPlan, ctx: BindingContext, ...
 
 // --- Stream lowering (i32 handle → JS AsyncIterable) ---
 
-export function streamLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+export function streamLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
     const handle = args[0] as number;
     return ctx.streams.removeReadable(0, handle);
 }
 
 // --- Future lowering (i32 handle → JS Promise) ---
 
-export function futureLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+export function futureLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
     const handle = args[0] as number;
     return ctx.futures.removeReadable(0, handle);
 }
 
 // --- Error-context lowering (i32 handle → JS Error) ---
 
-export function errorContextLowering(ctx: BindingContext, ...args: WasmValue[]): unknown {
+export function errorContextLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
     const handle = args[0] as number;
     return ctx.errorContexts.remove(handle);
 }

@@ -19,6 +19,7 @@ export type ImportsMap = Record<string, Record<string, Function>>;
 export type ComponentResult = {
     exports: ImportsMap;
     stats?: ResolutionStats;
+    dispose: () => void;
 };
 
 export const consumerWasm = './integration-tests/target/wasm32-wasip1/release/consumer_p2.wasm';
@@ -217,13 +218,15 @@ export async function runConsumerScenario(
     await yieldToGC();
     const consumerComponent = await createComponent(consumerWasm, verboseOptions(verbose));
     let exitCode: number | undefined;
+    const instance = await consumerComponent.instantiate(consumerImports);
     try {
-        const instance = await consumerComponent.instantiate(consumerImports);
         const runNs = (instance.exports['wasi:cli/run@0.2.11'] ?? instance.exports['wasi:cli/run']) as any;
         const result = await runNs.run();
         exitCode = (result && typeof result === 'object' && result.tag === 'err') ? 1 : 0;
     } catch (e) {
         if (e instanceof WasiExit) exitCode = e.exitCode; else throw e;
+    } finally {
+        instance.dispose();
     }
 
     const stdout = new TextDecoder().decode(
@@ -242,7 +245,7 @@ export async function instantiateComponent(
     await yieldToGC();
     const component = await createComponent(wasmPath, { noJspi: true, ...verboseOptions(verbose) });
     const instance = await component.instantiate(imports);
-    return { exports: instance.exports as ImportsMap, stats: (component as any).stats };
+    return { exports: instance.exports as ImportsMap, stats: (component as any).stats, dispose: () => instance.dispose() };
 }
 
 /** Create a minimal P2 WASI host via the adapter (for implementer components that need basic WASI) */

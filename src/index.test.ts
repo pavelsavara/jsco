@@ -44,18 +44,22 @@ describe('public API', () => {
         test('instantiate returns exports with expected function names', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, verboseOptions(verbose));
             const instance = await component.instantiate();
-            expect(instance).toBeDefined();
-            expect(instance.exports).toBeDefined();
+            try {
+                expect(instance).toBeDefined();
+                expect(instance.exports).toBeDefined();
 
-            const exportKeys = Object.keys(instance.exports);
-            expect(exportKeys).toContain('jsco:test/echo-primitives@0.1.0');
-            expect(exportKeys).toContain('jsco:test/echo-compound@0.1.0');
-            expect(exportKeys).toContain('jsco:test/echo-algebraic@0.1.0');
+                const exportKeys = Object.keys(instance.exports);
+                expect(exportKeys).toContain('jsco:test/echo-primitives@0.1.0');
+                expect(exportKeys).toContain('jsco:test/echo-compound@0.1.0');
+                expect(exportKeys).toContain('jsco:test/echo-algebraic@0.1.0');
 
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            expect(typeof ns.echoBool).toBe('function');
-            expect(typeof ns.echoU8).toBe('function');
-            expect(typeof ns.echoString).toBe('function');
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                expect(typeof ns.echoBool).toBe('function');
+                expect(typeof ns.echoU8).toBe('function');
+                expect(typeof ns.echoString).toBe('function');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -70,17 +74,21 @@ describe('public API', () => {
 
             const component = await createComponent(helloWorldWatWasm, verboseOptions(verbose));
             const instance = await component.instantiate(p2);
-            const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
-            expect(runNs).toBeDefined();
             try {
-                await runNs.run();
-            } catch (e) {
-                if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
+                const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
+                expect(runNs).toBeDefined();
+                try {
+                    await runNs.run();
+                } catch (e) {
+                    if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
+                }
+                const stdoutText = new TextDecoder().decode(
+                    new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+                );
+                expect(stdoutText).toContain('hello from jsco');
+            } finally {
+                instance.dispose();
             }
-            const stdoutText = new TextDecoder().decode(
-                new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
-            );
-            expect(stdoutText).toContain('hello from jsco');
         }));
     });
 
@@ -135,13 +143,17 @@ describe('public API', () => {
 
             const component = await createComponent(helloP3WorldWatWasm, verboseOptions(verbose));
             const instance = await component.instantiate(p3);
-            const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
-            expect(runNs).toBeDefined();
-            await runNs.run();
-            const stdoutText = new TextDecoder().decode(
-                new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
-            );
-            expect(stdoutText).toContain('hello from jsco');
+            try {
+                const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
+                expect(runNs).toBeDefined();
+                await runNs.run();
+                const stdoutText = new TextDecoder().decode(
+                    new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+                );
+                expect(stdoutText).toContain('hello from jsco');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -157,19 +169,23 @@ describe('public API', () => {
             };
 
             const instance = await component.instantiate(imports);
-            const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
-            expect(greeter).toBeDefined();
-            expect(typeof greeter.run).toBe('function');
+            try {
+                const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
+                expect(greeter).toBeDefined();
+                expect(typeof greeter.run).toBe('function');
 
-            await greeter.run({
-                name: 'Prague',
-                headCount: 1_000_000,
-                budget: BigInt(200_000_000),
-            });
+                await greeter.run({
+                    name: 'Prague',
+                    headCount: 1_000_000,
+                    budget: BigInt(200_000_000),
+                });
 
-            expect(logMessages.length).toBe(1);
-            expect(logMessages[0]).toContain('Welcome to Prague');
-            expect(logMessages[0]).toContain('drink');
+                expect(logMessages.length).toBe(1);
+                expect(logMessages[0]).toContain('Welcome to Prague');
+                expect(logMessages[0]).toContain('drink');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });
@@ -181,29 +197,41 @@ describe('useNumberForInt64 contract', () => {
         test('echo-u64 returns bigint', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: false, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoU64(42n);
-            expect(typeof result).toBe('bigint');
-            expect(result).toBe(42n);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoU64(42n);
+                expect(typeof result).toBe('bigint');
+                expect(result).toBe(42n);
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('echo-s64 returns bigint', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: false, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoS64(-100n);
-            expect(typeof result).toBe('bigint');
-            expect(result).toBe(-100n);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoS64(-100n);
+                expect(typeof result).toBe('bigint');
+                expect(result).toBe(-100n);
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('echo-u64 with large value returns bigint', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: false, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const large = (1n << 53n) + 1n; // beyond Number.MAX_SAFE_INTEGER
-            const result = ns.echoU64(large);
-            expect(typeof result).toBe('bigint');
-            expect(result).toBe(large);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const large = (1n << 53n) + 1n; // beyond Number.MAX_SAFE_INTEGER
+                const result = ns.echoU64(large);
+                expect(typeof result).toBe('bigint');
+                expect(result).toBe(large);
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -211,37 +239,53 @@ describe('useNumberForInt64 contract', () => {
         test('echo-u64 returns number', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: true, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoU64(42);
-            expect(typeof result).toBe('number');
-            expect(result).toBe(42);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoU64(42);
+                expect(typeof result).toBe('number');
+                expect(result).toBe(42);
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('echo-s64 returns number', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: true, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoS64(-100);
-            expect(typeof result).toBe('number');
-            expect(result).toBe(-100);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoS64(-100);
+                expect(typeof result).toBe('number');
+                expect(result).toBe(-100);
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('echo-u64 accepts number input', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: true, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoU64(999);
-            expect(typeof result).toBe('number');
-            expect(result).toBe(999);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoU64(999);
+                expect(typeof result).toBe('number');
+                expect(result).toBe(999);
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('echo-s64 accepts bigint input and still returns number', () => runWithVerbose(verbose, async () => {
             const component = await createComponent(echoReactorWatWasm, { useNumberForInt64: true, noJspi: true, ...verboseOptions(verbose) });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
-            const result = ns.echoS64(50n);
-            expect(typeof result).toBe('number');
-            expect(result).toBe(50);
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+                const result = ns.echoS64(50n);
+                expect(typeof result).toBe('number');
+                expect(result).toBe(50);
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -253,17 +297,21 @@ describe('useNumberForInt64 contract', () => {
                 ...verboseOptions(verbose),
             });
             const instance = await component.instantiate();
-            const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
+            try {
+                const ns = instance.exports['jsco:test/echo-primitives@0.1.0'] as Record<string, Function>;
 
-            // listed → number
-            const u64result = ns.echoU64(42);
-            expect(typeof u64result).toBe('number');
-            expect(u64result).toBe(42);
+                // listed → number
+                const u64result = ns.echoU64(42);
+                expect(typeof u64result).toBe('number');
+                expect(u64result).toBe(42);
 
-            // unlisted → bigint
-            const s64result = ns.echoS64(-7n);
-            expect(typeof s64result).toBe('bigint');
-            expect(s64result).toBe(-7n);
+                // unlisted → bigint
+                const s64result = ns.echoS64(-7n);
+                expect(typeof s64result).toBe('bigint');
+                expect(s64result).toBe(-7n);
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 
@@ -277,10 +325,14 @@ describe('useNumberForInt64 contract', () => {
                 },
             };
             const instance = await component.instantiate(imports);
-            const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
-            greeter.run!({ name: 'Prague', headCount: 1_000_000, budget: 200_000_000 });
-            expect(logMessages.length).toBe(1);
-            expect(logMessages[0]).toContain('Prague');
+            try {
+                const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
+                greeter.run!({ name: 'Prague', headCount: 1_000_000, budget: 200_000_000 });
+                expect(logMessages.length).toBe(1);
+                expect(logMessages[0]).toContain('Prague');
+            } finally {
+                instance.dispose();
+            }
         }));
 
         test('accepts bigint budget when useNumberForInt64=false', () => runWithVerbose(verbose, async () => {
@@ -292,10 +344,14 @@ describe('useNumberForInt64 contract', () => {
                 },
             };
             const instance = await component.instantiate(imports);
-            const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
-            greeter.run({ name: 'Prague', headCount: 1_000_000, budget: BigInt(200_000_000) });
-            expect(logMessages.length).toBe(1);
-            expect(logMessages[0]).toContain('Prague');
+            try {
+                const greeter = instance.exports['hello:city/greeter@0.1.0'] as Record<string, Function>;
+                greeter.run({ name: 'Prague', headCount: 1_000_000, budget: BigInt(200_000_000) });
+                expect(logMessages.length).toBe(1);
+                expect(logMessages[0]).toContain('Prague');
+            } finally {
+                instance.dispose();
+            }
         }));
     });
 });
@@ -309,17 +365,21 @@ describe('instantiateWasiComponent', () => {
             write(chunk) { chunks.push(new Uint8Array(chunk)); },
         });
         const instance = await instantiateWasiComponent(helloWorldWatWasm, { stdout });
-        const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
-        expect(runNs).toBeDefined();
         try {
-            await runNs.run();
-        } catch (e) {
-            if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
+            const runNs = instance.exports['wasi:cli/run@0.2.11'] as Record<string, Function>;
+            expect(runNs).toBeDefined();
+            try {
+                await runNs.run();
+            } catch (e) {
+                if (!(e instanceof WasiExit && e.exitCode === 0)) throw e;
+            }
+            const stdoutText = new TextDecoder().decode(
+                new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            );
+            expect(stdoutText).toContain('hello from jsco');
+        } finally {
+            instance.dispose();
         }
-        const stdoutText = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
-        );
-        expect(stdoutText).toContain('hello from jsco');
     }));
 
     test('auto-detects P3 and provides host for hello-p3-world', () => runWithVerbose(verbose, async () => {
@@ -328,13 +388,17 @@ describe('instantiateWasiComponent', () => {
             write(chunk) { chunks.push(new Uint8Array(chunk)); },
         });
         const instance = await instantiateWasiComponent(helloP3WorldWatWasm, { stdout });
-        const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
-        expect(runNs).toBeDefined();
-        await runNs.run();
-        const stdoutText = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
-        );
-        expect(stdoutText).toContain('hello from jsco');
+        try {
+            const runNs = instance.exports['wasi:cli/run@0.3.0-rc-2026-03-15'] as Record<string, Function>;
+            expect(runNs).toBeDefined();
+            await runNs.run();
+            const stdoutText = new TextDecoder().decode(
+                new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            );
+            expect(stdoutText).toContain('hello from jsco');
+        } finally {
+            instance.dispose();
+        }
     }));
 
     test('exposes imports() on WasmComponent', () => runWithVerbose(verbose, async () => {
@@ -446,14 +510,19 @@ describe('instantiateWasiComponent with P1 module', () => {
         const wasmBytes = fs.readFileSync(helloP1WorldWatWasm);
 
         const instance = await instantiateWasiComponent(wasmBytes);
-        expect(instance.exports['_start']).toBeDefined();
-        expect(typeof instance.exports['_start']).toBe('function');
+        try {
+            expect(instance.exports['_start']).toBeDefined();
+            expect(typeof instance.exports['_start']).toBe('function');
+        } finally {
+            instance.dispose();
+        }
     });
 
     test('auto-detects P1 via string path', async () => {
         // File path triggers toBytes→fetchLike→fs.readFile, then core module detection.
         // proc_exit(0) does NOT throw during instantiation since _start is not auto-called.
-        await instantiateWasiComponent(helloP1WorldWatWasm);
+        const instance = await instantiateWasiComponent(helloP1WorldWatWasm);
+        instance.dispose();
     });
 });
 
@@ -710,8 +779,12 @@ describe('WASI P1 file I/O', () => {
         const instance = await instantiateWasiComponent(wasmBytes, {
             fs: new Map(),
         });
-        // Should have _start since it's a command module
-        expect(instance.exports['_start']).toBeDefined();
+        try {
+            // Should have _start since it's a command module
+            expect(instance.exports['_start']).toBeDefined();
+        } finally {
+            instance.dispose();
+        }
     });
 });
 

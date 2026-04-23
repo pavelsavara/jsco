@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import isDebug from 'env:isDebug';
-import type { BindingContext } from '../resolver/types';
+import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmFunction, WasmValue } from './model/types';
 import type { FunctionLiftPlan } from './model/lift-plans';
 export type { FunctionLiftPlan } from './model/lift-plans';
@@ -9,7 +9,7 @@ import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './vali
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
 
-function processFlatResult(plan: FunctionLiftPlan, ctx: BindingContext, rawWasm: any): any {
+function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWasm: any): any {
     let result: any;
     if (plan.resultLowerers.length === 1) {
         result = plan.resultLowerers[0]!(ctx, rawWasm);
@@ -24,7 +24,7 @@ function processFlatResult(plan: FunctionLiftPlan, ctx: BindingContext, rawWasm:
     return result;
 }
 
-function processSpilledResult(plan: FunctionLiftPlan, ctx: BindingContext, rawWasm: any): any {
+function processSpilledResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWasm: any): any {
     const result = plan.resultLoader!(ctx, rawWasm as number);
     if (isDebug && ctx.postReturnFn) {
         ctx.postReturnFn();
@@ -36,15 +36,15 @@ function processSpilledResult(plan: FunctionLiftPlan, ctx: BindingContext, rawWa
     return result;
 }
 
-function handleLiftResult(plan: FunctionLiftPlan, ctx: BindingContext, rawResult: any, processResult: typeof processFlatResult): any {
+function handleLiftResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawResult: any, processResult: typeof processFlatResult): any {
     if (rawResult instanceof Promise) {
         return rawResult.then(
             (wasmResult) => {
                 try { return processResult(plan, ctx, wasmResult); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
                 finally { ctx.inExport = false; }
             },
-            (e: unknown) => { ctx.poisoned = true; ctx.inExport = false; throw e; },
+            (e: unknown) => { ctx.abort(); ctx.inExport = false; throw e; },
         );
     }
     return processResult(plan, ctx, rawResult);
@@ -52,7 +52,7 @@ function handleLiftResult(plan: FunctionLiftPlan, ctx: BindingContext, rawResult
 
 // --- Flat params, Flat result ---
 
-export function liftFlatFlat(plan: FunctionLiftPlan, ctx: BindingContext, wasmFunction: WasmFunction, ...args: any[]): any {
+export function liftFlatFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, wasmFunction: WasmFunction, ...args: any[]): any {
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
@@ -76,7 +76,7 @@ export function liftFlatFlat(plan: FunctionLiftPlan, ctx: BindingContext, wasmFu
         }
         return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processFlatResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -85,7 +85,7 @@ export function liftFlatFlat(plan: FunctionLiftPlan, ctx: BindingContext, wasmFu
 
 // --- Flat params, Spilled result ---
 
-export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: BindingContext, wasmFunction: WasmFunction, ...args: any[]): any {
+export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: MarshalingContext, wasmFunction: WasmFunction, ...args: any[]): any {
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
@@ -109,7 +109,7 @@ export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: BindingContext, was
         }
         return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processSpilledResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -118,7 +118,7 @@ export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: BindingContext, was
 
 // --- Spilled params, Flat result ---
 
-export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: BindingContext, wasmFunction: WasmFunction, ...args: any[]): any {
+export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, wasmFunction: WasmFunction, ...args: any[]): any {
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
@@ -137,7 +137,7 @@ export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: BindingContext, was
         }
         return handleLiftResult(plan, ctx, wasmFunction(ptr), processFlatResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -146,7 +146,7 @@ export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: BindingContext, was
 
 // --- Spilled params, Spilled result ---
 
-export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: BindingContext, wasmFunction: WasmFunction, ...args: any[]): any {
+export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: MarshalingContext, wasmFunction: WasmFunction, ...args: any[]): any {
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
@@ -165,7 +165,7 @@ export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: BindingContext, 
         }
         return handleLiftResult(plan, ctx, wasmFunction(ptr), processSpilledResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;

@@ -20,6 +20,7 @@
 - tests for streams/buffer back-pressure. files, sockets, http
 - consider fuzzing
 - fix p3_sockets_udp_connect and p3_sockets_tcp_streams
+- do unit tests match the spec ?
 
 # Build
 - add coverage to CI, fail if lower than some %

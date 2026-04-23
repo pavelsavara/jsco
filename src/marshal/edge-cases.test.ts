@@ -5,8 +5,8 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, BindingContext, StringEncoding } from '../resolver/types';
-import { createResourceTable } from '../resolver/context';
+import { ResolverContext, MarshalingContext, StringEncoding } from '../resolver/types';
+import { createResourceTable } from '../runtime';
 import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
 import { createLowering, createFunctionLowering } from '../binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
@@ -15,9 +15,9 @@ import { deepResolveType } from '../resolver/calling-convention';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -38,11 +38,11 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalCtx(): BindingContext {
-    return {} as any as BindingContext;
+function createMinimalCtx(): MarshalingContext {
+    return {} as any as MarshalingContext;
 }
 
-function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMockMemoryContext(bufferSize = 4096): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(bufferSize);
     let nextAlloc = 16; // start at 16 so ptr is never 0 for valid allocations
 
@@ -86,7 +86,7 @@ function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buff
         utf8Encoder: new TextEncoder(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }
@@ -99,7 +99,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 
 describeDebugOnly('primitive lifting edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -319,7 +319,7 @@ describeDebugOnly('primitive lifting edge cases', () => {
 
 describeDebugOnly('primitive lowering edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -521,7 +521,7 @@ describeDebugOnly('string edge cases', () => {
 
 describeDebugOnly('option edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -573,7 +573,7 @@ describeDebugOnly('option edge cases', () => {
 
 describeDebugOnly('result edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -612,7 +612,7 @@ describeDebugOnly('result edge cases', () => {
 
 describeDebugOnly('variant edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -667,7 +667,7 @@ describeDebugOnly('variant edge cases', () => {
 
 describeDebugOnly('enum edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -714,7 +714,7 @@ describeDebugOnly('enum edge cases', () => {
 
 describeDebugOnly('flags edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -796,7 +796,7 @@ describeDebugOnly('flags edge cases', () => {
 
 describeDebugOnly('tuple edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -857,7 +857,7 @@ describeDebugOnly('tuple edge cases', () => {
 
 describeDebugOnly('record edge cases', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -1000,7 +1000,7 @@ describeDebugOnly('list edge cases', () => {
 describeDebugOnly('resource edge cases', () => {
     test('own: lifting null/undefined still stores it', () => {
         const rctx = createMinimalRctx();
-        const mctx = { resources: createResourceTable() } as any as BindingContext;
+        const mctx = { resources: createResourceTable() } as any as MarshalingContext;
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lifter = createLifting(rctx.resolved, ownModel as any);
         const [handle] = lifter(mctx, null);
@@ -1010,7 +1010,7 @@ describeDebugOnly('resource edge cases', () => {
 
     test('own: lifting a primitive value stores it', () => {
         const rctx = createMinimalRctx();
-        const mctx = { resources: createResourceTable() } as any as BindingContext;
+        const mctx = { resources: createResourceTable() } as any as MarshalingContext;
         const ownModel = { tag: ModelTag.ComponentTypeDefinedOwn, value: 0 };
         const lifter = createLifting(rctx.resolved, ownModel as any);
         const [handle] = lifter(mctx, 42);
@@ -1020,7 +1020,7 @@ describeDebugOnly('resource edge cases', () => {
 
     test('borrow: lowering invalid handle throws', () => {
         const rctx = createMinimalRctx();
-        const mctx = { resources: createResourceTable() } as any as BindingContext;
+        const mctx = { resources: createResourceTable() } as any as MarshalingContext;
         const borrowModel = { tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 };
         const lowerer = createLowering(rctx.resolved, borrowModel as any);
         expect(() => lowerer(mctx, 999)).toThrow('Invalid resource handle');
@@ -1161,7 +1161,7 @@ describeDebugOnly('type reference (ComponentValTypeType) edge cases', () => {
 
 describeDebugOnly('discriminant size boundaries', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -1261,7 +1261,7 @@ describeDebugOnly('discriminant size boundaries', () => {
 
 describeDebugOnly('nested compound types', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -1527,7 +1527,7 @@ describeDebugOnly('nested compound types', () => {
 
 describeDebugOnly('char boundary values (spec-exact)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -1626,7 +1626,7 @@ describeDebugOnly('char boundary values (spec-exact)', () => {
 
 describeDebugOnly('multi-word flags (>32 members)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -2172,7 +2172,7 @@ describeDebugOnly('function trampoline edge cases', () => {
         } as any as ResolverContext;
     }
 
-    function createFuncmctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
+    function createFuncmctx(): { ctx: MarshalingContext, buffer: ArrayBuffer } {
         const buffer = new ArrayBuffer(4096);
         let nextAlloc = 64;
         const memory = {
@@ -2208,8 +2208,8 @@ describeDebugOnly('function trampoline edge cases', () => {
             utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
             instances: { coreInstances: [], componentInstances: [] },
             componentImports: {},
-            abort: () => { },
-        } as any as BindingContext;
+            abort: () => { ctx.poisoned = true; },
+        } as any as MarshalingContext;
         return { ctx, buffer };
     }
 
@@ -2319,7 +2319,7 @@ describeDebugOnly('function trampoline edge cases', () => {
 
 describeDebugOnly('variant lowering validation', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -2431,7 +2431,7 @@ describeDebugOnly('UTF-16 string bounds checking', () => {
 
 describeDebugOnly('boundary guard errors (lifting)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -2631,7 +2631,7 @@ describeDebugOnly('boundary guard errors (lifting)', () => {
 
 describeDebugOnly('boundary guard errors (lifting)', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
