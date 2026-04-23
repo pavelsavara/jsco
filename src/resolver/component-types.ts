@@ -9,7 +9,8 @@ import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/asse
 import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
 import { resolveComponentImport } from './component-imports';
-import { createScopedResolverContext, createBindingContext } from './context';
+import { createScopedResolverContext } from './context';
+import { createBindingContext } from '../runtime';
 import { resolveCoreInstance } from './core-instance';
 import { BinderArgs, BinderRes, Resolver, ResolverRes } from './types';
 

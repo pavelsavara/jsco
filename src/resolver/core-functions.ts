@@ -24,10 +24,12 @@ import { JsFunction } from '../marshal/model/types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
-import { getCanonicalResourceId, createAllocator } from './context';
+import { getCanonicalResourceId } from './context';
+import { createAllocator } from '../runtime';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
 import type { TCabiRealloc } from '../marshal/model/types';
-import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions, SubtaskState } from './types';
+import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
+import { SubtaskState } from '../runtime/model/types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {

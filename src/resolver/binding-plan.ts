@@ -4,7 +4,7 @@ import isDebug from 'env:isDebug';
 import { LogLevel } from '../utils/assert';
 import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
-import { createBindingContext } from './context';
+import { createBindingContext } from '../runtime';
 import { BinderArgs, BindingContext, ResolvedContext } from './types';
 import { PlanOpKind } from './model/binding-plan';
 import type { PlanOp } from './model/binding-plan';

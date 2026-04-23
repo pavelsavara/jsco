@@ -6,8 +6,9 @@ import { StringEncoding } from './model/types';
 import type { ResolvedCanonicalOptions } from './model/types';
 
 export { StringEncoding } from './model/types';
-export type { ResolvedCanonicalOptions, ComponentFactoryOptions, ComponentFactoryInput, IndexedModel, ResolvedContext, ResolverContext, InstanceTable, MemoryView, Allocator, ResourceTable, BindingContext, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, ErrorContextTable, WaitableSetTable, Resolver, Binder, ResolverArgs, ResolverRes, BinderArgs, BinderRes, CoreInstanceBinderRes, FunctionBinderRes, ModuleBinderRes } from './model/types';
-export { SubtaskState } from './model/types';
+export type { ResolvedCanonicalOptions, ComponentFactoryOptions, ComponentFactoryInput, IndexedModel, ResolvedContext, ResolverContext, BindingContext, Resolver, Binder, ResolverArgs, ResolverRes, BinderArgs, BinderRes, CoreInstanceBinderRes, FunctionBinderRes, ModuleBinderRes } from './model/types';
+export type { InstanceTable, MemoryView, Allocator, ResourceTable, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, ErrorContextTable, WaitableSetTable } from '../runtime/model/types';
+export { SubtaskState } from '../runtime/model/types';
 
 export function resolveCanonicalOptions(options: CanonicalOption[]): ResolvedCanonicalOptions {
     let stringEncoding: StringEncoding = StringEncoding.Utf8;
