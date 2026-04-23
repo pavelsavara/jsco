@@ -255,6 +255,144 @@ describe('Node.js sockets', () => {
                 acceptStream.close();
             }, 10000);
         });
+
+        describe('TCP read cancellation (backpressure)', () => {
+            // Replicates wasmtime's test_tcp_read_cancellation:
+            // blast 2MB in 256-byte chunks with minimized send buffer,
+            // receiver polls-then-cancels to stress backpressure handling.
+
+            interface AcceptedSocket {
+                send(data: AsyncIterable<Uint8Array>): Promise<void>;
+                receive(): [AsyncIterable<Uint8Array>, Promise<{ tag: string; val: unknown }>];
+                setSendBufferSize(v: bigint): void;
+            }
+
+            async function setupPair(): Promise<{
+                client: typeof types.TcpSocket extends { create(af: IpAddressFamily): infer R } ? R : never;
+                accepted: AcceptedSocket;
+                cleanup: () => void;
+            }> {
+                const server = types.TcpSocket.create('ipv4');
+                server.bind(ipv4Addr(0));
+                const acceptStream = await server.listen() as AsyncIterable<AcceptedSocket> & { close(): void };
+                const port = server.getLocalAddress().val.port;
+
+                const client = types.TcpSocket.create('ipv4');
+                await client.connect(ipv4Addr(port));
+
+                const acceptIter = acceptStream[Symbol.asyncIterator]();
+                const { value: accepted } = await acceptIter.next();
+
+                return {
+                    client,
+                    accepted: accepted!,
+                    cleanup: () => acceptStream.close(),
+                };
+            }
+
+            it('handles 2MB send in 256-byte chunks', async () => {
+                const CHUNK_SIZE = 256;
+                const CHUNKS = (2 << 20) / CHUNK_SIZE; // 8192 chunks = 2MB
+                const TOTAL = CHUNKS * CHUNK_SIZE;
+
+                const { client, accepted, cleanup } = await setupPair();
+                client.setSendBufferSize(1024n);
+
+                const chunk = new Uint8Array(CHUNK_SIZE);
+                for (let i = 0; i < CHUNK_SIZE; i++) chunk[i] = i & 0xFF;
+
+                const [recvStream] = accepted.receive();
+                let totalReceived = 0;
+
+                await Promise.all([
+                    // Sender: blast 2MB
+                    client.send({
+                        async *[Symbol.asyncIterator]() {
+                            for (let c = 0; c < CHUNKS; c++) {
+                                yield new Uint8Array(chunk);
+                            }
+                        },
+                    }),
+                    // Receiver: consume all data, verify pattern
+                    (async () => {
+                        for await (const data of recvStream) {
+                            for (let j = 0; j < data.length; j++) {
+                                const expected = (totalReceived + j) % 256;
+                                if (data[j] !== expected) {
+                                    throw new Error(`Byte mismatch at offset ${totalReceived + j}: got ${data[j]}, expected ${expected}`);
+                                }
+                            }
+                            totalReceived += data.length;
+                            if (totalReceived >= TOTAL) break;
+                        }
+                    })(),
+                ]);
+
+                expect(totalReceived).toBe(TOTAL);
+                cleanup();
+            }, 30000);
+
+            it('handles 2MB send with poll-then-cancel reads', async () => {
+                // Simulates the Rust pattern: poll read once, if not ready
+                // cancel and do a barrier read before retrying.
+                const CHUNK_SIZE = 256;
+                const CHUNKS = (2 << 20) / CHUNK_SIZE;
+                const TOTAL = CHUNKS * CHUNK_SIZE;
+
+                const { client, accepted, cleanup } = await setupPair();
+                client.setSendBufferSize(1024n);
+
+                const chunk = new Uint8Array(CHUNK_SIZE);
+                for (let i = 0; i < CHUNK_SIZE; i++) chunk[i] = i & 0xFF;
+
+                const [recvStream] = accepted.receive();
+                const recvIter = recvStream[Symbol.asyncIterator]();
+                let totalReceived = 0;
+                let cancellations = 0;
+
+                await Promise.all([
+                    // Sender: blast 2MB
+                    client.send({
+                        async *[Symbol.asyncIterator]() {
+                            for (let c = 0; c < CHUNKS; c++) {
+                                yield new Uint8Array(chunk);
+                            }
+                        },
+                    }),
+                    // Receiver: poll-then-cancel pattern
+                    (async () => {
+                        while (totalReceived < TOTAL) {
+                            const readPromise = recvIter.next();
+
+                            // Race against a microtask to detect "pending"
+                            const raced = await Promise.race([
+                                readPromise.then(r => ({ ready: true as const, r })),
+                                Promise.resolve().then(() => ({ ready: false as const, r: null })),
+                            ]);
+
+                            if (!raced.ready) {
+                                // "Cancelled" — data wasn't immediately available.
+                                // Do a barrier: await the original promise anyway
+                                // (mirrors Rust's zero-length barrier read after cancel).
+                                cancellations++;
+                                const { value, done } = await readPromise;
+                                if (done) break;
+                                totalReceived += value.length;
+                            } else {
+                                const { value, done } = raced.r!;
+                                if (done) break;
+                                totalReceived += value.length;
+                            }
+                        }
+                    })(),
+                ]);
+
+                expect(totalReceived).toBe(TOTAL);
+                // Should have had at least some cancellations
+                expect(cancellations).toBeGreaterThan(0);
+                cleanup();
+            }, 30000);
+        });
     });
 
     describe('UdpSocket', () => {

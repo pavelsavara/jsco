@@ -18,6 +18,7 @@
 - running all tests is slow, why ?
 - tests for memory and resource leaks. unsubscribed listeners.
 - tests for streams/buffer back-pressure. files, sockets, http
+- consider fuzzing
 
 # Build
 - add coverage to CI, fail if lower than some %
