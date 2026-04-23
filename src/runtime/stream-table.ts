@@ -1,31 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { MarshalingContext } from '../marshal/model/types';
-import type { MemoryView, StreamTable, RuntimeConfig } from './model/types';
+import type { MemoryView, StreamTable, StreamEntry, RuntimeConfig } from './model/types';
 import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_BLOCKED, STREAM_BACKPRESSURE } from './constants';
-
-type StreamEntry = {
-    chunks: unknown[];
-    closed: boolean;
-    /** Resolve function when an async reader is waiting for data/close. */
-    waitingReader?: (chunk: unknown | null) => void;
-    /** Callbacks to invoke when data arrives or stream closes (for waitable-set integration). */
-    onReady?: (() => void)[];
-    /** Deferred read: guest buffer awaiting data after stream.read returned BLOCKED. */
-    pendingRead?: { ptr: number, len: number };
-    /** For typed streams (non-u8): size of one element in WASM memory. */
-    elementSize?: number;
-    /** For typed streams (non-u8): storer to encode one JS value into WASM memory. */
-    elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void;
-    /** For typed streams: the marshaling context needed by elementStorer. */
-    mctx?: MarshalingContext;
-    /** Total bytes buffered in chunks (for backpressure). */
-    bufferedBytes?: number;
-    /** Callbacks to invoke when buffer drains below backpressure threshold. */
-    onWriteReady?: (() => void)[];
-    /** Callback invoked when the readable end is dropped (dropReadable). */
-    onReadableDrop?: () => void;
-};
 
 export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig, signal: AbortSignal = new AbortController().signal): StreamTable {
     const backpressureThreshold = config?.streamBackpressureBytes ?? STREAM_BACKPRESSURE;
