@@ -6,7 +6,7 @@
 // Import from '@pavelsavara/jsco/wasip3-node'
 
 import type { WasiP3Imports } from '../../../../wit/wasip3/types/index';
-import type { WasiP3Config } from '../types';
+import type { HostConfig } from '../types';
 import { createWasiP3Host as createBrowserHost } from '../index';
 import { createNodeSocketsTypes, createNodeIpNameLookup } from './sockets';
 import { addNodeMounts } from './filesystem-node';
@@ -27,9 +27,9 @@ export * from '../index';
  * When `config.mounts` is present, adds real filesystem mount preopens.
  * Defaults stdin/stdout/stderr to process streams when not explicitly provided.
  */
-export function createWasiP3Host(config?: WasiP3Config): WasiP3Imports & JsImports {
+export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports {
     // Only inject Node.js process streams when user didn't provide their own
-    const nodeConfig: WasiP3Config = { ...config };
+    const nodeConfig: HostConfig = { ...config };
     if (!nodeConfig.stdin) {
         const { stdin } = nodeStdioDefaults();
         nodeConfig.stdin = stdin;

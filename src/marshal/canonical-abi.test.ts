@@ -6,7 +6,7 @@ initializeAsserts();
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType } from '../parser/model/types';
 import { ResolverContext, BindingContext, StringEncoding } from '../resolver/types';
-import { createResourceTable } from '../resolver/context';
+import { createResourceTable } from '../runtime';
 import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';

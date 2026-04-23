@@ -10,7 +10,7 @@ import type {
     WasiCliTerminalStdin,
     WasiCliTerminalStdout,
 } from '../../../wit/wasip3/types/index';
-import type { WasiP3Config } from './types';
+import type { HostConfig } from './types';
 import type { WasiStreamReadable, WasiStreamWritable } from './streams';
 import { createStreamPair, readableFromStream } from './streams';
 
@@ -21,7 +21,7 @@ import { createStreamPair, readableFromStream } from './streams';
  * The writable end is where the runtime receives bytes from stdin.
  * The host pushes config.stdin data into it and signals completion via the future.
  */
-export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
+export function createStdin(config?: HostConfig): typeof WasiCliStdin {
     const stdinStream = config?.stdin;
 
     return {
@@ -56,7 +56,7 @@ export function createStdin(config?: WasiP3Config): typeof WasiCliStdin {
  * its contents to config.stdout. When no stdout stream is configured, chunks
  * are decoded as UTF-8 and sent to `console.log` (browser default).
  */
-export function createStdout(config?: WasiP3Config): typeof WasiCliStdout {
+export function createStdout(config?: HostConfig): typeof WasiCliStdout {
     const stdoutStream = config?.stdout;
 
     // eslint-disable-next-line no-console
@@ -73,7 +73,7 @@ export function createStdout(config?: WasiP3Config): typeof WasiCliStdout {
  *
  * Same as stdout but writes to config.stderr / console.error.
  */
-export function createStderr(config?: WasiP3Config): typeof WasiCliStderr {
+export function createStderr(config?: HostConfig): typeof WasiCliStderr {
     const stderrStream = config?.stderr;
 
     // eslint-disable-next-line no-console

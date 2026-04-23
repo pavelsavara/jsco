@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
-import type { WasiP3Config } from './types';
+import type { HostConfig } from './types';
 
 // ──────────────────── Helper: text encoder ────────────────────
 const enc = new TextEncoder();
@@ -14,7 +14,7 @@ function encode(s: string): Uint8Array {
 // ──────────────────── Access internals via the WIT-shaped API ────────────────────
 
 // The factories return WIT-typed objects; cast to access class methods.
-function getTypes(config?: WasiP3Config) {
+function getTypes(config?: HostConfig) {
     return createHttpTypes(config) as unknown as {
         Fields: {
             new(): FieldsLike;
@@ -279,7 +279,7 @@ describe('HttpFields', () => {
 
     describe('size limits', () => {
         it('rejects headers exceeding size limit', () => {
-            const config: WasiP3Config = { network: { maxHttpHeadersBytes: 50 } };
+            const config: HostConfig = { network: { maxHttpHeadersBytes: 50 } };
             const t = getTypes(config);
             // Each entry: name.length + value.length
             expect(() => t.Fields.fromList([
@@ -288,7 +288,7 @@ describe('HttpFields', () => {
         });
 
         it('append rejects when size would be exceeded', () => {
-            const config: WasiP3Config = { network: { maxHttpHeadersBytes: 30 } };
+            const config: HostConfig = { network: { maxHttpHeadersBytes: 30 } };
             const t = getTypes(config);
             const f = t.Fields.fromList([['x-a', encode('short')]]);
             expect(() => f.append('x-b', new Uint8Array(30))).toThrow();
@@ -317,7 +317,7 @@ describe('HttpFields', () => {
         });
 
         it('many headers are accepted within size limit', () => {
-            const config: WasiP3Config = { network: { maxHttpHeadersBytes: 100_000 } };
+            const config: HostConfig = { network: { maxHttpHeadersBytes: 100_000 } };
             const t = getTypes(config);
             const entries: [string, Uint8Array][] = [];
             for (let i = 0; i < 100; i++) {
@@ -862,7 +862,7 @@ describe('HttpClient.send()', () => {
     });
 
     it('rejects URL exceeding max length', async () => {
-        const config: WasiP3Config = { network: { maxRequestUrlBytes: 50 } };
+        const config: HostConfig = { network: { maxRequestUrlBytes: 50 } };
         const client = createHttpClient(config);
         const req = buildRequest({
             scheme: { tag: 'HTTPS' },

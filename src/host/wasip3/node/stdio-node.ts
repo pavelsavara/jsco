@@ -80,7 +80,7 @@ function nodeWritableToWeb(nodeStream: Writable): WritableStream<Uint8Array> {
 }
 
 /**
- * Build a `WasiP3Config`-compatible stdin/stdout/stderr override object
+ * Build a `HostConfig`-compatible stdin/stdout/stderr override object
  * backed by real Node.js process streams.
  *
  * Caches web-stream wrappers for `process.stdin`/`stdout`/`stderr` so that

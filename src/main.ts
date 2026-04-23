@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { WasiP3Config } from './host/wasip3';
+import type { HostConfig } from './host/wasip3';
 import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
 import { loadWasiP3Serve, loadWasiP1ViaP3Adapter } from './dynamic';
 import { createComponent } from './resolver';
@@ -119,7 +119,7 @@ export async function main({ command, componentUrl, options }: CliParseResult) {
     }
 }
 
-export function createConfig(options: CliOptions): WasiP3Config {
+export function createConfig(options: CliOptions): HostConfig {
     // Build env pairs: explicit values + inherited names + inherit-all
     const envRecord: Record<string, string> = {};
     if (options.envInheritAll) {

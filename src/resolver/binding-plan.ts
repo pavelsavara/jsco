@@ -6,6 +6,7 @@ import { planOpKindName } from '../utils/debug-names';
 import { JsImports, WasmComponentInstance } from './api-types';
 import { createBindingContext } from '../runtime';
 import { BinderArgs, BindingContext, ResolvedContext } from './types';
+import type { RuntimeConfig } from '../runtime/model/types';
 import { PlanOpKind } from './model/binding-plan';
 import type { PlanOp } from './model/binding-plan';
 export { PlanOpKind, PlanOpKind_Count } from './model/binding-plan';
@@ -15,9 +16,10 @@ export async function executePlan<TJSExports>(
     plan: PlanOp[],
     resolved: ResolvedContext,
     componentImports?: JsImports,
+    config?: RuntimeConfig,
 ): Promise<WasmComponentInstance<TJSExports>> {
     componentImports = componentImports ?? {};
-    const ctx: BindingContext = createBindingContext(componentImports, resolved);
+    const ctx: BindingContext = createBindingContext(componentImports, resolved, config);
 
     const imports = {};
     const exports = {};

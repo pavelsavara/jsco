@@ -12,7 +12,7 @@ import type {
     WasiFilesystemPreopens,
 } from '../../../wit/wasip3/types/index';
 import type { WasiStreamReadable, WasiStreamWritable } from './streams';
-import type { WasiP3Config } from './types';
+import type { HostConfig } from './types';
 import type {
     IVfsBackend,
     VfsOpenFlags,
@@ -556,7 +556,7 @@ export interface FilesystemState {
 /**
  * Initialize the filesystem from config, returning shared state.
  */
-export function initFilesystem(config?: WasiP3Config): FilesystemState {
+export function initFilesystem(config?: HostConfig): FilesystemState {
     const backend = new MemoryVfsBackend({ limits: config?.limits });
     const maxPathLength = config?.limits?.maxPathLength ?? ALLOCATION_DEFAULTS.maxPathLength;
 

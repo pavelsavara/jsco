@@ -3,7 +3,7 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./__mocks__/.types.d.ts" />
 
-import type { WasiP3Config } from './host/wasip3';
+import type { HostConfig } from './host/wasip3';
 import type { ComponentFactoryInput, ComponentFactoryOptions } from './resolver/types';
 import type { WasmComponentInstance } from './resolver/api-types';
 import type { ParserOptions } from './parser/types';
@@ -19,7 +19,7 @@ import { loadWasiP1ViaP3Adapter } from './dynamic';
 import { fetchLike, getBodyIfResponse } from './utils/fetch-like';
 
 export type { WasmComponent, WasmComponentInstance } from './resolver/api-types';
-export type { WasiP3Config } from './host/wasip3';
+export type { HostConfig } from './host/wasip3';
 export { instantiateComponent, createComponent } from './resolver';
 export { LogLevel, setLogger } from './utils/assert';
 export { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve, loadWasiP1ViaP3Adapter } from './dynamic';
@@ -34,7 +34,7 @@ export { loadWasiP3Host, loadWasiP2ViaP3Adapter, loadWasiP3Serve, loadWasiP1ViaP
  */
 export async function instantiateWasiComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
-    config?: WasiP3Config,
+    config?: HostConfig,
     options?: ComponentFactoryOptions & ParserOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
     // Normalize input to bytes for core module detection
@@ -63,7 +63,7 @@ export async function instantiateWasiComponent<TJSExports>(
  */
 async function instantiateCoreWasiModule<TJSExports>(
     bytes: Uint8Array,
-    config?: WasiP3Config,
+    config?: HostConfig,
 ): Promise<WasmComponentInstance<TJSExports>> {
     const module = await WebAssembly.compile(bytes as BufferSource);
 

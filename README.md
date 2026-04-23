@@ -61,7 +61,7 @@ console.log(`Listening on port ${handle.port}`);
 
 ### Configuration
 
-`createWasiP3Host()` accepts an optional `WasiP3Config`:
+`createWasiP3Host()` accepts an optional `HostConfig`:
 
 | Option | Type | Description |
 |--------|------|-------------|
