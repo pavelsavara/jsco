@@ -64,5 +64,6 @@ export async function executePlan<TJSExports>(
     return {
         exports: exports,
         abort: ctx.abort,
+        dispose: ctx.dispose,
     } as any as WasmComponentInstance<TJSExports>;
 }

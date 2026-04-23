@@ -69,6 +69,13 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
         lendCount(resourceTypeIdx: number, handle: number): number {
             const entry = getEntry(resourceTypeIdx, handle);
             return entry.numLends;
+        },
+        disposeOwned(ownTypeIds: Set<number>): void {
+            for (const [handle, entry] of handles) {
+                if (ownTypeIds.has(entry.typeIdx)) {
+                    handles.delete(handle);
+                }
+            }
         }
     };
 }

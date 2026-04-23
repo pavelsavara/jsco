@@ -3,7 +3,7 @@
 import type { MemoryView, StreamTable, FutureTable, SubtaskTable, WaitableSetTable } from './model/types';
 import { STREAM_STATUS_COMPLETED, EVENT_SUBTASK, EVENT_STREAM_READ, EVENT_STREAM_WRITE, EVENT_FUTURE_READ, EVENT_FUTURE_WRITE } from './constants';
 
-export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, futureTable: FutureTable, subtaskTable: SubtaskTable): WaitableSetTable {
+export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, futureTable: FutureTable, subtaskTable: SubtaskTable, signal: AbortSignal = new AbortController().signal): WaitableSetTable {
     let nextSetId = 1; // Must start at 1 — WASM uses NonZeroU32
     // Each set tracks which handles are joined and pending operations
     const sets = new Map<number, Set<number>>();
@@ -39,14 +39,25 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
             }
 
             // No events ready — return a Promise that resolves when one becomes ready
-            return new Promise<number>((resolve) => {
+            return new Promise<number>((resolve, reject) => {
+                if (signal.aborted) {
+                    reject(signal.reason);
+                    return;
+                }
                 let settled = false;
+                function onAbort() {
+                    if (settled) return;
+                    settled = true;
+                    reject(signal.reason);
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
                 for (const handle of set) {
                     const waitable = pendingWaitables.get(handle);
                     if (waitable) {
                         waitable.resolvers.push(() => {
                             if (settled) return;
                             settled = true;
+                            signal.removeEventListener('abort', onAbort);
                             // Re-check and write events
                             const events: { eventCode: number, handle: number, returnCode: number }[] = [];
                             for (const h of set) {
@@ -187,6 +198,17 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                     }
                 }
             }
+        },
+
+        dispose(): void {
+            for (const waitable of pendingWaitables.values()) {
+                for (const cb of waitable.resolvers) {
+                    try { cb(); } catch { /* already aborted */ }
+                }
+                waitable.resolvers.length = 0;
+            }
+            pendingWaitables.clear();
+            sets.clear();
         },
     };
 

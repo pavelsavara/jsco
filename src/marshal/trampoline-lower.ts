@@ -36,9 +36,9 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: BindingContext, resJs: 
         return resJs.then(
             (val: any) => {
                 try { return processResult(plan, ctx, val); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.poisoned = true; throw e; },
+            (e: unknown) => { ctx.abort(); throw e; },
         );
     }
     return processResult(plan, ctx, resJs);
@@ -49,9 +49,9 @@ function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: BindingContext, 
         return resJs.then(
             (val: any) => {
                 try { return processSpilledResult(plan, ctx, retptr, val); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.poisoned = true; throw e; },
+            (e: unknown) => { ctx.abort(); throw e; },
         );
     }
     return processSpilledResult(plan, ctx, retptr, resJs);

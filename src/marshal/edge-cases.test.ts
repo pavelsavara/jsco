@@ -2208,7 +2208,7 @@ describeDebugOnly('function trampoline edge cases', () => {
             utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
             instances: { coreInstances: [], componentInstances: [] },
             componentImports: {},
-            abort: () => { },
+            abort: () => { ctx.poisoned = true; },
         } as any as BindingContext;
         return { ctx, buffer };
     }

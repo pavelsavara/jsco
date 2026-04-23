@@ -21,6 +21,8 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
     const instances = createInstanceTable();
     const resources = createResourceTable(resolved.verbose, resolved.logger);
 
+    const abortController = new AbortController();
+
     // Shared handle allocator: all stream/future handles come from a single
     // counter so they never overlap. This is required by the canonical ABI
     // where stream and future handles share a single "waitables" table.
@@ -32,9 +34,10 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         return h;
     }
 
-    const streamTable = createStreamTable(memory, allocHandle, config);
-    const futureTable = createFutureTable(memory, allocHandle);
+    const streamTable = createStreamTable(memory, allocHandle, config, abortController.signal);
+    const futureTable = createFutureTable(memory, allocHandle, abortController.signal);
     const subtaskTable = createSubtaskTable(allocHandle);
+    const waitableSetTable = createWaitableSetTable(memory, streamTable, futureTable, subtaskTable, abortController.signal);
 
     const ctx: MarshalingContext = {
         componentImports,
@@ -46,7 +49,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         futures: futureTable,
         subtasks: subtaskTable,
         errorContexts: createErrorContextTable(),
-        waitableSets: createWaitableSetTable(memory, streamTable, futureTable, subtaskTable),
+        waitableSets: waitableSetTable,
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
@@ -54,11 +57,18 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
         taskContextSlots: [0, 0],
         backpressure: 0,
         pendingBackgroundTasks: [],
-        abort: () => {
-            // Per Component Model spec: poisoning the instance prevents all future
-            // export calls from executing. checkNotPoisoned() in the lifting
-            // trampoline enforces this.
+        abortSignal: abortController.signal,
+        abort: (reason?: string) => {
             ctx.poisoned = true;
+            abortController.abort(new Error(reason ?? 'component instance trapped'));
+        },
+        dispose: () => {
+            if (ctx.poisoned) return;
+            ctx.abort('component instance disposed');
+            streamTable.dispose();
+            futureTable.dispose();
+            subtaskTable.dispose();
+            waitableSetTable.dispose();
         },
     };
     if (isDebug) {

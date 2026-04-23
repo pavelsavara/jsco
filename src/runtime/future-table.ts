@@ -20,7 +20,7 @@ type FutureEntry = {
     onResolve?: (() => void)[];
 };
 
-export function createFutureTable(memory: MemoryView, allocHandle: () => number): FutureTable {
+export function createFutureTable(memory: MemoryView, allocHandle: () => number, signal: AbortSignal = new AbortController().signal): FutureTable {
     const entries = new Map<number, FutureEntry>();
     const jsReadables = new Map<number, unknown>();
     const jsWritables = new Map<number, unknown>();
@@ -28,7 +28,7 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number)
     function resolveEntry(base: number, entry: FutureEntry): void {
         entry.resolved = true;
         // If there's a pending read, write the resolved value to guest memory now
-        if (entry.pendingRead && entry.storer) {
+        if (entry.pendingRead && entry.storer && !signal.aborted) {
             entry.storer(entry.pendingRead.mctx, entry.pendingRead.ptr, entry.resolvedValue, entry.rejected);
             entry.pendingRead = undefined;
         }
@@ -157,6 +157,16 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number)
         getEntry(handle: number): FutureEntry | undefined {
             const base = handle & ~1;
             return entries.get(base);
+        },
+
+        dispose(): void {
+            for (const entry of entries.values()) {
+                entry.onResolve = undefined;
+                entry.pendingRead = undefined;
+            }
+            entries.clear();
+            jsReadables.clear();
+            jsWritables.clear();
         },
     };
 }

@@ -27,7 +27,7 @@ type StreamEntry = {
     onReadableDrop?: () => void;
 };
 
-export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig): StreamTable {
+export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig, signal: AbortSignal = new AbortController().signal): StreamTable {
     const backpressureThreshold = config?.streamBackpressureBytes ?? STREAM_BACKPRESSURE;
 
     // Handle numbering: even = readable, odd = writable. Base = handle & ~1.
@@ -55,7 +55,25 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
     function pumpIterable(iterable: AsyncIterable<unknown>, entry: StreamEntry): void {
         const iter = iterable[Symbol.asyncIterator]();
         function pump(): void {
+            if (signal.aborted) {
+                iter.return?.();
+                entry.closed = true;
+                if (entry.waitingReader) {
+                    entry.waitingReader(null);
+                }
+                signalReady(entry);
+                return;
+            }
             iter.next().then((result) => {
+                if (signal.aborted) {
+                    iter.return?.();
+                    entry.closed = true;
+                    if (entry.waitingReader) {
+                        entry.waitingReader(null);
+                    }
+                    signalReady(entry);
+                    return;
+                }
                 if (result.done) {
                     entry.closed = true;
                     if (entry.waitingReader) {
@@ -103,12 +121,19 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                         return new Promise<IteratorResult<unknown>>((resolve) => {
                             entry.waitingReader = (chunk) => {
                                 entry.waitingReader = undefined;
+                                signal.removeEventListener('abort', onAbort);
                                 if (chunk === null) {
                                     resolve({ value: undefined as any, done: true });
                                 } else {
                                     resolve({ value: chunk, done: false });
                                 }
                             };
+                            function onAbort() {
+                                if (entry.waitingReader) {
+                                    entry.waitingReader(null);
+                                }
+                            }
+                            signal.addEventListener('abort', onAbort, { once: true });
                         });
                     },
                     return(): Promise<IteratorResult<unknown>> {
@@ -358,6 +383,22 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             }
             if (!entry.onWriteReady) entry.onWriteReady = [];
             entry.onWriteReady.push(callback);
+        },
+
+        dispose(): void {
+            for (const entry of entries.values()) {
+                entry.closed = true;
+                entry.onReady = undefined;
+                entry.onWriteReady = undefined;
+                entry.pendingRead = undefined;
+                if (entry.waitingReader) {
+                    entry.waitingReader(null);
+                    entry.waitingReader = undefined;
+                }
+            }
+            entries.clear();
+            jsReadables.clear();
+            jsWritables.clear();
         },
     };
 }

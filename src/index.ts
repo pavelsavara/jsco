@@ -109,6 +109,9 @@ async function instantiateCoreWasiModule<TJSExports>(
         abort(): void {
             // No-op for core modules
         },
+        dispose(): void {
+            // No-op for core modules
+        },
     };
 }
 

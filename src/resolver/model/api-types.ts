@@ -6,6 +6,7 @@ export type JsInterfaceCollection = Record<string, JsInterface>;
 export type WasmComponentInstance<TJSExports> = {
     exports: JsExports<TJSExports>
     abort: () => void
+    dispose: () => void
 }
 export type JsExports<TJSExports> = TJSExports & JsInterfaceCollection
 export type JsImports = JsInterfaceCollection

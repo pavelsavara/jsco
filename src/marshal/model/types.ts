@@ -37,7 +37,9 @@ export type MarshalingContext = {
     errorContexts: ErrorContextTable;
     utf8Decoder: TextDecoder;
     utf8Encoder: TextEncoder;
-    abort: () => void;
+    abort: (reason?: string) => void;
+    dispose: () => void;
+    abortSignal: AbortSignal;
     debugStack?: string[];
     poisoned?: boolean;
     inExport?: boolean;

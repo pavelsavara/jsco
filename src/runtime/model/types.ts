@@ -27,6 +27,8 @@ export type ResourceTable = {
     lend(resourceTypeIdx: number, handle: number): void;
     unlend(resourceTypeIdx: number, handle: number): void;
     lendCount(resourceTypeIdx: number, handle: number): number;
+    /** Dispose host-owned resources: call destructors for entries whose typeIdx is in the set, then delete them. */
+    disposeOwned(ownTypeIds: Set<number>): void;
 }
 
 export type InstanceTable = {
@@ -60,6 +62,8 @@ export interface StreamTable {
     onWriteReady(baseHandle: number, callback: () => void): void;
     /** Fulfill a deferred read: copy buffered data into the guest buffer and return the packed result. */
     fulfillPendingRead(handle: number): number;
+    /** Dispose all streams: close entries, resolve waiting readers, clear maps. */
+    dispose(): void;
 }
 
 export interface FutureTable {
@@ -78,6 +82,8 @@ export interface FutureTable {
     removeWritable(typeIdx: number, handle: number): unknown;
     /** Get the internal entry for waitable-set integration. */
     getEntry(handle: number): { resolved: boolean, onResolve?: (() => void)[] } | undefined;
+    /** Dispose all futures: clear onResolve, null pendingRead, clear maps. */
+    dispose(): void;
 }
 
 /** Callback to store a resolved future value into WASM memory at the given pointer. */
@@ -97,6 +103,8 @@ export interface SubtaskTable {
     getEntry(handle: number): SubtaskEntry | undefined;
     /** Drop a completed subtask. */
     drop(handle: number): void;
+    /** Dispose all subtasks: clear onResolve, clear entries. */
+    dispose(): void;
 }
 
 export interface SubtaskEntry {
@@ -121,6 +129,8 @@ export interface WaitableSetTable {
     poll(setId: number, ptr: number): number;
     drop(setId: number): void;
     join(waitableHandle: number, setId: number): void;
+    /** Dispose all waitable sets: reject pending resolvers, clear maps. */
+    dispose(): void;
 }
 
 /** Host FS mount point (Node.js only). */

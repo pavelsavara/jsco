@@ -41,10 +41,10 @@ function handleLiftResult(plan: FunctionLiftPlan, ctx: BindingContext, rawResult
         return rawResult.then(
             (wasmResult) => {
                 try { return processResult(plan, ctx, wasmResult); }
-                catch (e) { ctx.poisoned = true; throw e; }
+                catch (e) { ctx.abort(); throw e; }
                 finally { ctx.inExport = false; }
             },
-            (e: unknown) => { ctx.poisoned = true; ctx.inExport = false; throw e; },
+            (e: unknown) => { ctx.abort(); ctx.inExport = false; throw e; },
         );
     }
     return processResult(plan, ctx, rawResult);
@@ -76,7 +76,7 @@ export function liftFlatFlat(plan: FunctionLiftPlan, ctx: BindingContext, wasmFu
         }
         return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processFlatResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -109,7 +109,7 @@ export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: BindingContext, was
         }
         return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processSpilledResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -137,7 +137,7 @@ export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: BindingContext, was
         }
         return handleLiftResult(plan, ctx, wasmFunction(ptr), processFlatResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;
@@ -165,7 +165,7 @@ export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: BindingContext, 
         }
         return handleLiftResult(plan, ctx, wasmFunction(ptr), processSpilledResult);
     } catch (e) {
-        ctx.poisoned = true;
+        ctx.abort();
         throw e;
     } finally {
         ctx.inExport = false;

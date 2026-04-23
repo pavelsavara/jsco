@@ -120,6 +120,7 @@ function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buff
         utf8Encoder: new TextEncoder(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
+        abort: () => { ctx.poisoned = true; },
     } as any as BindingContext;
 
     return { ctx, buffer };

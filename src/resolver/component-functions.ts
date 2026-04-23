@@ -204,38 +204,47 @@ function createAsyncLiftWrapper(
         let eventPtr = 0;
         let eventBufAllocated = false;
 
-        while (status !== EXIT) {
-            if (status === YIELD) {
-                // Yield: immediately call callback again
-                status = await callbackWasm(0, 0, 0) as number;
-                continue;
-            }
+        try {
+            while (status !== EXIT) {
+                if (status === YIELD) {
+                    // Yield: immediately call callback again
+                    status = await callbackWasm(0, 0, 0) as number;
+                    continue;
+                }
 
-            // WAIT: status = 2 | (ws_id << 4)
-            const waitableSetId = status >>> 4;
+                // WAIT: status = 2 | (ws_id << 4)
+                const waitableSetId = status >>> 4;
 
-            // Allocate event buffer if not yet done
-            if (!eventBufAllocated && mctx.allocator.isInitialized()) {
-                eventPtr = mctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
-                eventBufAllocated = true;
-            }
+                // Allocate event buffer if not yet done
+                if (!eventBufAllocated && mctx.allocator.isInitialized()) {
+                    eventPtr = mctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
+                    eventBufAllocated = true;
+                }
 
-            // Wait for events on the waitable set
-            const numEvents = await mctx.waitableSets.wait(waitableSetId, eventPtr);
-            if (numEvents === 0) {
-                // No events — break out (shouldn't happen normally)
-                break;
-            }
+                // Wait for events on the waitable set
+                const numEvents = await mctx.waitableSets.wait(waitableSetId, eventPtr);
+                if (numEvents === 0) {
+                    // No events — break out (shouldn't happen normally)
+                    break;
+                }
 
-            // Deliver events to the callback one at a time
-            const view = mctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
-            for (let i = 0; i < numEvents; i++) {
-                const eventCode = view.getInt32(i * 12, true);
-                const handle = view.getInt32(i * 12 + 4, true);
-                const returnCode = view.getInt32(i * 12 + 8, true);
-                status = await callbackWasm(eventCode, handle, returnCode) as number;
-                if (status === EXIT) break;
+                // Deliver events to the callback one at a time
+                const view = mctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
+                for (let i = 0; i < numEvents; i++) {
+                    const eventCode = view.getInt32(i * 12, true);
+                    const handle = view.getInt32(i * 12 + 4, true);
+                    const returnCode = view.getInt32(i * 12 + 8, true);
+                    status = await callbackWasm(eventCode, handle, returnCode) as number;
+                    if (status === EXIT) break;
+                }
             }
+        } catch (e) {
+            // If the wait() was aborted, exit the event loop cleanly.
+            // The instance is already poisoned by the abort signal.
+            if (e instanceof Error && e.message === 'component instance trapped') throw e;
+            if (e instanceof Error && e.message === 'component instance disposed') throw e;
+            if (mctx.poisoned) throw e;
+            throw e;
         }
         // Await any background tasks from sync canon.lower with stream/future params.
         // These are host functions (e.g. writeViaStream) that consume streams
