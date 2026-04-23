@@ -43,7 +43,7 @@ type ErrorCode =
     | { tag: 'other'; val: string | undefined };
 
 type WasiStreamReadable<T> = AsyncIterable<T>;
-type WasiStreamWritable<T> = AsyncIterable<T> & { push(value: T): void; close(): void };
+type WasiStreamWritable<T> = AsyncIterable<T> & { push(value: T): void; close(): void; onReadableDrop?: () => void };
 type WasiFuture<T> = Promise<T>;
 
 // ──────────────────── Address helpers ────────────────────
@@ -235,7 +235,6 @@ class NodeTcpSocket {
     /** Actually destroy the underlying Node.js socket. */
     private _destroySocket(): void {
         if (this._socket) {
-            console.log('[TCP] _destroySocket() called, activeOps:', this._activeOps);
             this._socket.destroy();
             this._socket = null;
         }
@@ -418,7 +417,6 @@ class NodeTcpSocket {
         // Track socket errors so we can abort the iteration
         let socketError: ErrorCode | undefined;
         const onError = (err: NodeJS.ErrnoException) => {
-            console.log('[TCP] send() onError:', err.code, err.message);
             socketError = mapNodeErrorTag(err);
         };
         socket.on('error', onError);
@@ -445,9 +443,20 @@ class NodeTcpSocket {
                     if (iter.return) iter.return();
                 }
                 if (socketError) throw socketError;
-                // Half-close: signal to the remote side that we're done sending.
-                // This sends a TCP FIN so the remote's receive stream sees closure.
-                await new Promise<void>((resolve) => socket.end(resolve));
+                // Half-close: send FIN so the remote's receive sees closure.
+                // Per WIT spec: "closing the stream causes a FIN packet to be
+                // sent out." The 'finish' event may never fire if the remote
+                // destroys the connection first (RST), so also resolve on
+                // 'error' or 'close'.
+                await new Promise<void>((resolve) => {
+                    let resolved = false;
+                    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+                    socket.once('error', done);
+                    socket.once('close', done);
+                    socket.end(done);
+                });
+                // When the own handle was dropped, the socket will be destroyed
+                // via _releaseOp → _destroySocket when all ops complete.
             } catch (err) {
                 // Prefer socket-level error (connection-broken/reset) over write-level error
                 if (socketError) throw socketError;
@@ -486,6 +495,9 @@ class NodeTcpSocket {
         const stream: WasiStreamWritable<Uint8Array> = {
             push(value: Uint8Array) { if (pushFn) pushFn(value); },
             close() { if (closeFn) closeFn(); },
+            // onReadableDrop is set on the stream object; addReadable() captures
+            // it into the stream entry so dropReadable() can invoke it.
+            onReadableDrop: undefined,
             [Symbol.asyncIterator]() {
                 const queue: Uint8Array[] = [];
                 let waiting: ((result: IteratorResult<Uint8Array>) => void) | null = null;
@@ -527,6 +539,14 @@ class NodeTcpSocket {
         })();
 
         const future = new Promise<void>((resolve, reject) => {
+            // When the WASM drops the receive stream reader, the receive
+            // future should resolve. Per WIT spec: "Dropping the stream
+            // should've caused the future to resolve."
+            stream.onReadableDrop = () => {
+                if (closeFn) closeFn();
+                releaseOnce();
+                resolve(undefined);
+            };
             socket.on('data', (chunk: Buffer) => {
                 if (pushFn) pushFn(new Uint8Array(chunk));
             });
@@ -539,6 +559,13 @@ class NodeTcpSocket {
                 if (closeFn) closeFn();
                 releaseOnce();
                 reject(mapNodeErrorTag(err));
+            });
+            socket.on('close', () => {
+                // 'close' fires after 'end' or 'error'. Only release the op
+                // (let the socket be destroyed when _dropPending). Do NOT call
+                // closeFn — the stream should only close on 'end' or 'error'.
+                releaseOnce();
+                resolve(undefined);
             });
         });
 
@@ -615,17 +642,20 @@ class NodeTcpSocket {
     }
 
     drop(): void {
+
         this._state = TcpState.Closed;
-        // Force-destroy all accepted connections so server.close() can complete.
-        for (const raw of this._acceptedRawSockets) {
-            if (!raw.destroyed) raw.destroy();
-        }
+        // Do NOT destroy accepted connections — per the WIT spec, client
+        // sockets returned by listen are independent and their send/receive
+        // streams remain functional after the listener is dropped.
         this._acceptedRawSockets = [];
         if (this._server) {
             const server = this._server;
-            const p = new Promise<void>(resolve => server.close(() => {
-                resolve();
-            }));
+            // server.close() stops accepting new connections immediately.
+            // The listening port is released when close() is called, so
+            // resolve the promise now rather than waiting for all connections
+            // to end (which may never happen without force-destroying them).
+            server.close();
+            const p = Promise.resolve();
             pendingServerCloses.add(p);
             p.then(() => { pendingServerCloses.delete(p); });
             this._server = null;
@@ -951,7 +981,10 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
         case 'ECONNRESET':
             return { tag: 'connection-reset' };
         case 'ECONNABORTED':
-            return { tag: 'connection-aborted' };
+            // On Windows, ECONNABORTED is the equivalent of EPIPE
+            // (connection no longer writable). Map to connection-broken
+            // per the WIT spec: "EPIPE, ECONNABORTED on Windows".
+            return { tag: 'connection-broken' };
         case 'EPIPE':
             return { tag: 'connection-broken' };
         case 'EHOSTUNREACH':

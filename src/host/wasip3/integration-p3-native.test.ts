@@ -128,12 +128,15 @@ function parseTestResults(stdout: string): { name: string; passed: boolean; reas
 
 function assertTestResults(
     stdout: string,
+    stderr: string,
     logMessages: string[],
     exitCode: number | undefined,
     expectForwarderLogs: boolean | number = false,
 ) {
     const testResults = parseTestResults(stdout);
     expect(testResults.length).toBeGreaterThan(0);
+
+    expect(stderr).toContain('stderr_test_output');
 
     for (const result of testResults) {
         expect({ test: result.name, passed: result.passed, reason: result.reason })
@@ -193,6 +196,7 @@ async function runP3ConsumerScenario(
     wasiConfig?: { args?: string[]; env?: [string, string][]; cwd?: string },
 ) {
     const stdoutChunks: Uint8Array[] = [];
+    const stderrChunks: Uint8Array[] = [];
     const logMessages: string[] = [];
 
     const wasiExports = createMergedHosts({
@@ -201,6 +205,9 @@ async function runP3ConsumerScenario(
         cwd: wasiConfig?.cwd,
         stdout: new WritableStream<Uint8Array>({
             write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+        }),
+        stderr: new WritableStream<Uint8Array>({
+            write(chunk) { stderrChunks.push(new Uint8Array(chunk)); },
         }),
     });
     const extraImports = createTestImports(logMessages);
@@ -222,7 +229,10 @@ async function runP3ConsumerScenario(
     const stdout = new TextDecoder().decode(
         new Uint8Array(stdoutChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
     );
-    assertTestResults(stdout, logMessages, exitCode, expectForwarderLogs);
+    const stderr = new TextDecoder().decode(
+        new Uint8Array(stderrChunks.reduce((acc, c) => [...acc, ...c], [] as number[]))
+    );
+    assertTestResults(stdout, stderr, logMessages, exitCode, expectForwarderLogs);
 }
 
 async function instantiateP3Component(

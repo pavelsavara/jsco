@@ -34,6 +34,7 @@ describe('assert.ts', () => {
 
     describe('setLogger / jsco_log', () => {
         test('default logger does not throw', () => {
+            setLogger(() => { /* suppress console output in tests */ });
             expect(() => jsco_log('test', LogLevel.Summary, 'msg')).not.toThrow();
         });
 

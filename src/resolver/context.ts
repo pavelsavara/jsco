@@ -451,6 +451,8 @@ type StreamEntry = {
     bufferedBytes?: number;
     /** Callbacks to invoke when buffer drains below backpressure threshold. */
     onWriteReady?: (() => void)[];
+    /** Callback invoked when the readable end is dropped (dropReadable). */
+    onReadableDrop?: () => void;
 };
 
 function createStreamTable(memory: MemoryView, allocHandle: () => number): StreamTable {
@@ -648,7 +650,10 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
             const base = baseHandle(handle);
             jsReadables.delete(handle);
             const entry = entries.get(base);
-            if (entry) entry.closed = true;
+            if (entry) {
+                entry.closed = true;
+                if (entry.onReadableDrop) entry.onReadableDrop();
+            }
         },
 
         dropWritable(_typeIdx: number, handle: number): void {
@@ -667,6 +672,10 @@ function createStreamTable(memory: MemoryView, allocHandle: () => number): Strea
         addReadable(_typeIdx: number, value: unknown, elementStorer?: (ctx: BindingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: BindingContext): number {
             const readHandle = allocHandle();
             const entry: StreamEntry = { chunks: [], closed: false, elementStorer, elementSize, mctx };
+            // Capture onReadableDrop from the value if present
+            if (value && typeof (value as any).onReadableDrop === 'function') {
+                entry.onReadableDrop = (value as any).onReadableDrop as () => void;
+            }
             entries.set(readHandle, entry);
             jsReadables.set(readHandle, value);
             // If the value is an async iterable, pump it into the buffer
@@ -824,7 +833,7 @@ function createFutureTable(memory: MemoryView, allocHandle: () => number): Futur
         read(_typeIdx: number, handle: number, ptr: number, mctx?: BindingContext): number {
             const base = handle & ~1;
             const entry = entries.get(base);
-            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (!entry) { return (0 << 4) | STREAM_STATUS_DROPPED; }
             if (!entry.resolved) {
                 // Save the target pointer and context for deferred writing.
                 // When the Promise resolves, resolveEntry will write data to this ptr.
