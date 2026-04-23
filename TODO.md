@@ -19,6 +19,7 @@
 - tests for memory and resource leaks. unsubscribed listeners.
 - tests for streams/buffer back-pressure. files, sockets, http
 - consider fuzzing
+- fix p3_sockets_udp_connect and p3_sockets_tcp_streams
 
 # Build
 - add coverage to CI, fail if lower than some %
