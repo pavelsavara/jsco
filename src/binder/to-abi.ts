@@ -4,7 +4,7 @@ import isDebug from 'env:isDebug';
 import { ComponentTypeIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { ComponentTypeDefinedRecord, ComponentTypeDefinedList, ComponentTypeDefinedOption, ComponentTypeDefinedResult, ComponentTypeDefinedVariant, ComponentTypeDefinedEnum, ComponentTypeDefinedFlags, ComponentTypeDefinedTuple, ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow, ComponentTypeDefinedStream, ComponentTypeDefinedFuture } from '../parser/model/types';
-import { BindingContext, ResolvedContext, StringEncoding } from '../resolver/types';
+import { MarshalingContext, ResolvedContext, StringEncoding } from '../resolver/types';
 import { jsco_assert, LogLevel } from '../utils/assert';
 import { callingConventionName } from '../utils/debug-names';
 import type { ResolvedType } from '../resolver/type-resolution';
@@ -107,7 +107,7 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         const trampoline = callingConvention.params === CallingConvention.Spilled
             ? (callingConvention.results === CallingConvention.Spilled ? liftSpilledSpilled : liftSpilledFlat)
             : (callingConvention.results === CallingConvention.Spilled ? liftFlatSpilled : liftFlatFlat);
-        return (ctx: BindingContext, wasmFunction: WasmFunction): JsFunction =>
+        return (ctx: MarshalingContext, wasmFunction: WasmFunction): JsFunction =>
             trampoline.bind(null, plan, ctx, wasmFunction) as JsFunction;
     });
 }
@@ -408,7 +408,7 @@ export function createMemoryStorer(type: ResolvedType, stringEncoding: StringEnc
         case ModelTag.ComponentTypeDefinedFuture: {
             // Create a storer for the future's inner type so future.read can
             // encode the resolved JS value into WASM linear memory.
-            let futureInnerStorer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
+            let futureInnerStorer: ((ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
             if (type.value !== undefined) {
                 const innerType = resolveValTypePure(type.value);
                 const innerMemStorer = createMemoryStorer(innerType, stringEncoding, canonicalResourceIds, ownInstanceResources);
@@ -558,7 +558,7 @@ function createStreamLifting(rctx: ResolvedContext, streamModel: ComponentTypeDe
 function createFutureLifting(rctx: ResolvedContext, futureModel: ComponentTypeDefinedFuture): LiftingFromJs {
     // Create a storer for the future's inner type so future.read can
     // encode the resolved JS value into WASM linear memory.
-    let storer: ((ctx: BindingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
+    let storer: ((ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void) | undefined;
     if (futureModel.value !== undefined) {
         const innerType = deepResolveType(rctx, resolveValType(rctx, futureModel.value));
         const memStorer = createMemoryStorer(innerType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);

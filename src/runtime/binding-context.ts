@@ -15,7 +15,7 @@ import { createSubtaskTable } from './subtask-table';
 import { createErrorContextTable } from './error-context';
 import { createWaitableSetTable } from './waitable-set';
 
-export function createBindingContext(componentImports: JsImports, resolved: ResolvedContext, config?: RuntimeConfig): MarshalingContext {
+export function createMarshalingContext(componentImports: JsImports, resolved: ResolvedContext, config?: RuntimeConfig): MarshalingContext {
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();

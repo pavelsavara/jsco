@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-export { createBindingContext } from './binding-context';
+export { createMarshalingContext } from './binding-context';
 export { createMemoryView, createAllocator } from './memory';
 export { createResourceTable } from './resources';
 export { createInstanceTable } from './instances';

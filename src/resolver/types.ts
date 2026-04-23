@@ -6,7 +6,7 @@ import { StringEncoding } from './model/types';
 import type { ResolvedCanonicalOptions } from './model/types';
 
 export { StringEncoding } from './model/types';
-export type { ResolvedCanonicalOptions, ComponentFactoryOptions, ComponentFactoryInput, IndexedModel, ResolvedContext, ResolverContext, BindingContext, Resolver, Binder, ResolverArgs, ResolverRes, BinderArgs, BinderRes, CoreInstanceBinderRes, FunctionBinderRes, ModuleBinderRes } from './model/types';
+export type { ResolvedCanonicalOptions, ComponentFactoryOptions, ComponentFactoryInput, IndexedModel, ResolvedContext, ResolverContext, MarshalingContext, Resolver, Binder, ResolverArgs, ResolverRes, BinderArgs, BinderRes, CoreInstanceBinderRes, FunctionBinderRes, ModuleBinderRes } from './model/types';
 export type { InstanceTable, MemoryView, Allocator, ResourceTable, StreamTable, FutureTable, FutureStorer, SubtaskTable, SubtaskEntry, ErrorContextTable, WaitableSetTable } from '../runtime/model/types';
 export { SubtaskState } from '../runtime/model/types';
 

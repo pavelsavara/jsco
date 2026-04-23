@@ -13,7 +13,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, ResolvedContext, ResolverRes, BindingContext, resolveCanonicalOptions } from './types';
+import { Resolver, ResolvedContext, ResolverRes, MarshalingContext, resolveCanonicalOptions } from './types';
 import type { WasmPointer, WasmSize } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
@@ -173,10 +173,10 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
  * The status is the initial callback return (from start_task).
  */
 function createAsyncLiftWrapper(
-    mctx: BindingContext,
+    mctx: MarshalingContext,
     coreFn: WasmFunction,
     callbackWasm: WasmFunction,
-    _syncLiftingBinder: (ctx: BindingContext, fn: WasmFunction) => Function,
+    _syncLiftingBinder: (ctx: MarshalingContext, fn: WasmFunction) => Function,
 ): Function {
     // Callback return code constants
     const EXIT = 0;

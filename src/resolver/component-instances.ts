@@ -14,7 +14,7 @@ import { JsImports } from './api-types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentType } from './component-types';
 import { getComponentFunction, getComponentInstance } from './indices';
-import { BinderArgs, BinderRes, BindingContext, Resolver, ResolverRes } from './types';
+import { BinderArgs, BinderRes, MarshalingContext, Resolver, ResolverRes } from './types';
 import type { ComponentInstanceData } from './model/component-instances';
 export type { ComponentInstanceData } from './model/component-instances';
 
@@ -246,7 +246,7 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
     };
 };
 
-export function lookupComponentInstance(mctx: BindingContext, instanceIndex: number): ComponentInstanceBinderRes {
+export function lookupComponentInstance(mctx: MarshalingContext, instanceIndex: number): ComponentInstanceBinderRes {
     let binderResult = mctx.instances.componentInstances[instanceIndex] as ComponentInstanceBinderRes | undefined;
     if (!binderResult) {
         binderResult = {

@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, BindingContext, StringEncoding } from '../resolver/types';
+import { ResolverContext, MarshalingContext, StringEncoding } from '../resolver/types';
 import { createResourceTable } from '../runtime';
 import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
 import { createLowering } from '../binder/to-js';
@@ -51,9 +51,9 @@ function validateUtf8(bytes: Uint8Array): void {
 }
 
 // Wrap BYO-buffer lifters to return arrays for test convenience
-function createLifting(rctx: any, model: any): (ctx: BindingContext, value: any) => WasmValue[] {
+function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: any) => WasmValue[] {
     const lifter = _createLifting(rctx, model);
-    return (ctx: BindingContext, value: any) => {
+    return (ctx: MarshalingContext, value: any) => {
         const out = new Array<WasmValue>(64);
         const count = lifter(ctx, value, out, 0);
         return out.slice(0, count);
@@ -76,7 +76,7 @@ function createMinimalRctx(usesNumberForInt64 = false): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMockMemoryContext(bufferSize = 4096): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(bufferSize);
     let nextAlloc = 16;
 
@@ -121,7 +121,7 @@ function createMockMemoryContext(bufferSize = 4096): { ctx: BindingContext, buff
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
         abort: () => { ctx.poisoned = true; },
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }
@@ -131,7 +131,7 @@ function prim(value: PrimitiveValType): ComponentValType {
 }
 
 // Helper to create a mock context with a misaligned allocator
-function createMisalignedAllocContext(): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMisalignedAllocContext(): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(4096);
     const memory = {
         getMemory() { return { buffer } as any; },
@@ -158,13 +158,13 @@ function createMisalignedAllocContext(): { ctx: BindingContext, buffer: ArrayBuf
         utf8Encoder: new TextEncoder(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }
 
 // Helper to create a context with a tiny buffer for OOB testing
-function _createTinyBufferContext(size: number): { ctx: BindingContext, buffer: ArrayBuffer } {
+function _createTinyBufferContext(size: number): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(size);
     const memory = {
         getMemory() { return { buffer } as any; },
@@ -186,7 +186,7 @@ function _createTinyBufferContext(size: number): { ctx: BindingContext, buffer: 
         utf8Encoder: new TextEncoder(),
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         resources: createResourceTable(),
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }

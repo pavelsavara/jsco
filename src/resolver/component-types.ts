@@ -10,7 +10,7 @@ import { resolveComponentExport } from './component-exports';
 import { resolveComponentAliasInstanceExport } from './component-functions';
 import { resolveComponentImport } from './component-imports';
 import { createScopedResolverContext } from './context';
-import { createBindingContext } from '../runtime';
+import { createMarshalingContext } from '../runtime';
 import { resolveCoreInstance } from './core-instance';
 import { BinderArgs, BinderRes, Resolver, ResolverRes } from './types';
 
@@ -168,7 +168,7 @@ export const resolveComponentSection: Resolver<ComponentSection> = (rctx, rargs)
             // Nested sections have their own local index spaces (core instances,
             // functions, etc.) that would collide with the parent's if they shared
             // the same binding context.
-            const scopedmctx = createBindingContext(bargs.imports ?? {}, scopedRctx.resolved);
+            const scopedmctx = createMarshalingContext(bargs.imports ?? {}, scopedRctx.resolved);
 
             // Phase 1: Bind imports — wire up component args from the parent's instantiation.
             for (const importResolution of importResolutions) {

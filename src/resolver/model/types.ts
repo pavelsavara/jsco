@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { MarshalingContext } from '../../marshal/model/types';
-export type { MarshalingContext as BindingContext } from '../../marshal/model/types';
+export type { MarshalingContext } from '../../marshal/model/types';
 import type { ComponentAliasCoreInstanceExport, ComponentFunction, CoreFunction } from '../../parser/model/aliases';
 import type { ComponentExport } from '../../parser/model/exports';
 import type { ComponentImport } from '../../parser/model/imports';

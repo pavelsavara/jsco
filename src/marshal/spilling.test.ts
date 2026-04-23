@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedRecord } from '../parser/model/types';
-import { ResolverContext, BindingContext } from '../resolver/types';
+import { ResolverContext, MarshalingContext } from '../resolver/types';
 import { createFunctionLifting } from '../binder/to-abi';
 import { createFunctionLowering } from '../binder/to-js';
 import { WasmPointer, WasmSize } from './types';
@@ -38,7 +38,7 @@ function createMockRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMockmctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
+function createMockmctx(): { ctx: MarshalingContext, buffer: ArrayBuffer } {
     const buffer = new ArrayBuffer(4096);
     let nextAlloc = 64; // Start after some offset to catch ptr=0 bugs
 
@@ -88,7 +88,7 @@ function createMockmctx(): { ctx: BindingContext, buffer: ArrayBuffer } {
         instances: { coreInstances: [], componentInstances: [] },
         componentImports: {},
         abort: () => { },
-    } as any as BindingContext;
+    } as any as MarshalingContext;
 
     return { ctx, buffer };
 }

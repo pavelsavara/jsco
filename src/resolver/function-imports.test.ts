@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { ModelTag } from '../parser/model/tags';
 import { resolveComponentImport } from './component-imports';
-import { ResolverContext, BindingContext, BinderArgs } from './types';
+import { ResolverContext, MarshalingContext, BinderArgs } from './types';
 import { ComponentImport } from '../parser/model/imports';
 
 function createMinimalRctx(): ResolverContext {
@@ -34,8 +34,8 @@ function createMinimalRctx(): ResolverContext {
     } as any as ResolverContext;
 }
 
-function createMinimalCtx(): BindingContext {
-    return {} as any as BindingContext;
+function createMinimalCtx(): MarshalingContext {
+    return {} as any as MarshalingContext;
 }
 
 function makeImport(name: string, tyTag: ModelTag, tyValue: number = 0, nameTag: ModelTag = ModelTag.ComponentExternNameKebab): ComponentImport {
@@ -49,7 +49,7 @@ function makeImport(name: string, tyTag: ModelTag, tyValue: number = 0, nameTag:
 
 describe('ComponentTypeRefFunc import resolution', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -154,7 +154,7 @@ describe('ComponentTypeRefFunc import resolution', () => {
 
 describe('ComponentTypeRefType import resolution', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
@@ -184,7 +184,7 @@ describe('ComponentTypeRefType import resolution', () => {
 
 describe('ComponentTypeRefInstance import resolution', () => {
     let rctx: ResolverContext;
-    let mctx: BindingContext;
+    let mctx: MarshalingContext;
 
     beforeEach(() => {
         rctx = createMinimalRctx();
