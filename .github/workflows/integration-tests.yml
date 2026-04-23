@@ -11,6 +11,7 @@ on:
       - "src/host/wasip2-via-wasip3/integration-helpers.ts"
       - "src/host/wasip2-via-wasip3/echo-reactor.test.ts"
       - "src/host/wasip2-via-wasip3/hello-p2-world.test.ts"
+      - "src/host/wasip2-via-wasip3/hello-world.test.ts"
       - "src/host/wasip2-via-wasip3/use-number-for-int64.test.ts"
       - "src/host/wasip3/integration.test.ts"
       - ".github/workflows/integration-tests.yml"
@@ -74,12 +75,12 @@ jobs:
       run: npm run build:echo-wat
 
     - name: Run integration tests
-      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|use-number-for-int64\.test'
+      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
 
     - name: Run integration tests (Release)
       env:
         Configuration: Release
-      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|use-number-for-int64\.test'
+      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
 
     - name: Upload wasm artifacts
       uses: actions/upload-artifact@v6

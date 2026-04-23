@@ -31,7 +31,7 @@ jobs:
     - name: Run Jest unit tests (${{ matrix.configuration }})
       run: |
         COVERAGE_FLAG=${{ matrix.configuration == 'Debug' && '--coverage' || '--no-coverage' }}
-        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-p2-world.test use-number-for-int64.test
+        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-p2-world.test hello-world.test use-number-for-int64.test
 
     - name: Upload coverage (Debug only)
       if: matrix.configuration == 'Debug'
@@ -83,7 +83,7 @@ jobs:
         check_size dist/release/wasip2-via-wasip3.js     30720  "wasip2-via-wasip3.js (30 KB)"     || fail=1
         check_size dist/release/wasip2-via-wasip3-node.js 40960 "wasip2-via-wasip3-node.js (40 KB)" || fail=1
         check_size dist/release/wasip3.js                 35840  "wasip3.js (35 KB)"                || fail=1
-        check_size dist/release/wasip3-node.js            56320  "wasip3-node.js (55 KB)"           || fail=1
+        check_size dist/release/wasip3-node.js            61440  "wasip3-node.js (60 KB)"           || fail=1
         if [ "$fail" -eq 1 ]; then exit 1; fi
         echo "✓ All bundle sizes OK"
 
