@@ -252,6 +252,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             if (entry) {
                 entry.closed = true;
                 if (entry.onReadableDrop) entry.onReadableDrop();
+                checkWriteReady(entry);
             }
         },
 

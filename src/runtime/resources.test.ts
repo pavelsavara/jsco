@@ -121,4 +121,64 @@ describe('ResourceTable', () => {
             expect(rt.remove(1, h)).toBe('val');
         });
     });
+
+    describe('resource leak detection', () => {
+        test('after remove, handle is no longer in the table', () => {
+            const rt = createResourceTable();
+            const h = rt.add(1, 'val');
+            rt.remove(1, h);
+            expect(rt.has(1, h)).toBe(false);
+            expect(() => rt.get(1, h)).toThrow('Invalid resource handle');
+        });
+
+        test('handles are never reused after remove', () => {
+            const rt = createResourceTable();
+            const seen = new Set<number>();
+            for (let i = 0; i < 50; i++) {
+                const h = rt.add(1, `val-${i}`);
+                expect(seen.has(h)).toBe(false);
+                seen.add(h);
+                rt.remove(1, h);
+            }
+        });
+
+        test('disposeOwned removes matching resources', () => {
+            const rt = createResourceTable();
+            const h1 = rt.add(1, 'a');
+            const h2 = rt.add(2, 'b');
+            const h3 = rt.add(1, 'c');
+            rt.disposeOwned(new Set([1]));
+            expect(rt.has(1, h1)).toBe(false);
+            expect(rt.has(2, h2)).toBe(true);
+            expect(rt.has(1, h3)).toBe(false);
+        });
+
+        test('disposeOwned with empty set is a no-op', () => {
+            const rt = createResourceTable();
+            const h = rt.add(1, 'val');
+            rt.disposeOwned(new Set());
+            expect(rt.has(1, h)).toBe(true);
+        });
+    });
+
+    describe('edge cases', () => {
+        test('lend on removed handle throws', () => {
+            const rt = createResourceTable();
+            const h = rt.add(1, 'val');
+            rt.remove(1, h);
+            expect(() => rt.lend(1, h)).toThrow('Invalid resource handle');
+        });
+
+        test('lendCount on non-existent handle throws', () => {
+            const rt = createResourceTable();
+            expect(() => rt.lendCount(1, 999)).toThrow('Invalid resource handle');
+        });
+
+        test('has returns false for wrong typeIdx even if handle exists', () => {
+            const rt = createResourceTable();
+            const h = rt.add(1, 'val');
+            expect(rt.has(1, h)).toBe(true);
+            expect(rt.has(2, h)).toBe(false);
+        });
+    });
 });

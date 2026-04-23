@@ -446,6 +446,29 @@ describe('StreamTable', () => {
             expect(cb.called).toBe(1);
         });
 
+        test('fulfillPendingRead drains buffer and decrements bufferedBytes, triggering write-ready', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 8 });
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Create pending read first
+            st.read(0, readHandle, 500, 10);
+
+            // Fill buffer to threshold
+            memory.getViewU8(0, 8).set(new Uint8Array(8).fill(0xDD));
+            st.write(0, writHandle, 0, 8);
+
+            const cb = { called: 0 };
+            st.onWriteReady(readHandle, () => { cb.called++; });
+            expect(cb.called).toBe(0);
+
+            // fulfillPendingRead should drain and trigger write-ready
+            st.fulfillPendingRead(readHandle);
+            expect(cb.called).toBe(1);
+        });
+
         test('read after partial write returns only available bytes', () => {
             const memory = createTestMemory();
             const st = createStreamTable(memory, makeAllocHandle());
@@ -458,6 +481,93 @@ describe('StreamTable', () => {
 
             const result = st.read(0, readHandle, 100, 100);
             expect(result >>> 4).toBe(3); // only 3 bytes available
+        });
+    });
+
+    describe('backpressure — cross-side interactions', () => {
+        test('writer blocked → reader reads → writer unblocked via onWriteReady', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 4 });
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Fill buffer to threshold
+            memory.getViewU8(0, 4).set(new Uint8Array([1, 2, 3, 4]));
+            st.write(0, writHandle, 0, 4);
+
+            // Writer is now blocked
+            memory.getViewU8(0, 1).set(new Uint8Array([5]));
+            expect(st.write(0, writHandle, 0, 1)).toBe(STREAM_BLOCKED);
+
+            let writeReady = false;
+            st.onWriteReady(readHandle, () => { writeReady = true; });
+            expect(writeReady).toBe(false);
+
+            // Reader drains
+            st.read(0, readHandle, 100, 4);
+            expect(writeReady).toBe(true);
+
+            // Writer can write again
+            memory.getViewU8(0, 1).set(new Uint8Array([5]));
+            const result = st.write(0, writHandle, 0, 1);
+            expect(result >>> 4).toBe(1);
+        });
+
+        test('writer blocked → reader drops readable → writer sees closed', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 4 });
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            memory.getViewU8(0, 4).set(new Uint8Array([1, 2, 3, 4]));
+            st.write(0, writHandle, 0, 4);
+            expect(st.write(0, writHandle, 0, 1)).toBe(STREAM_BLOCKED);
+
+            // Reader drops — stream closes
+            st.dropReadable(0, readHandle);
+
+            // Writer should see dropped/closed
+            memory.getViewU8(0, 1).set(new Uint8Array([5]));
+            const result = st.write(0, writHandle, 0, 1);
+            expect(result).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+        });
+
+        test('writer writes small chunks → reader reads large buffer → partial fill', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Write two small chunks
+            memory.getViewU8(0, 2).set(new Uint8Array([10, 20]));
+            st.write(0, writHandle, 0, 2);
+            memory.getViewU8(0, 3).set(new Uint8Array([30, 40, 50]));
+            st.write(0, writHandle, 0, 3);
+
+            // Read with large buffer — should get all 5 bytes
+            const result = st.read(0, readHandle, 200, 1000);
+            expect(result >>> 4).toBe(5);
+            expect(Array.from(memory.getViewU8(200, 5))).toEqual([10, 20, 30, 40, 50]);
+        });
+
+        test('rapid alternating write/read cycles maintain correct bufferedBytes', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 10 });
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            for (let i = 0; i < 20; i++) {
+                memory.getViewU8(0, 3).set(new Uint8Array([1, 2, 3]));
+                st.write(0, writHandle, 0, 3);
+                st.read(0, readHandle, 100, 3);
+            }
+
+            // Buffer should be empty — hasWriteSpace should be true
+            expect(st.hasWriteSpace(readHandle)).toBe(true);
         });
     });
 
@@ -588,6 +698,104 @@ describe('StreamTable', () => {
             const handle = st.addReadable(0, { onReadableDrop: () => { dropCalled++; } });
             st.dropReadable(0, handle);
             expect(dropCalled).toBe(1);
+        });
+
+        test('after dropReadable + dropWritable, stream is closed', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            st.dropReadable(0, readHandle);
+            st.dropWritable(0, writHandle);
+
+            // Both ends dropped — reads/writes return DROPPED
+            expect(st.read(0, readHandle, 0, 10)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+            expect(st.write(0, writHandle, 0, 1)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+        });
+
+        test('addReadable with async iterable that errors closes stream and stops pumping', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            let nextCalls = 0;
+            async function* errorGen() {
+                nextCalls++;
+                yield new Uint8Array([1]);
+                nextCalls++;
+                throw new Error('pump error');
+            }
+            const handle = st.addReadable(0, errorGen());
+            await new Promise(r => setTimeout(r, 50));
+            // Stream should be closed
+            expect(st.hasData(handle)).toBe(true);
+            expect(nextCalls).toBe(2);
+        });
+    });
+
+    describe('edge cases', () => {
+        test('multiple sequential writes then single large read returns all data', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            for (let i = 0; i < 10; i++) {
+                memory.getViewU8(0, 1).set(new Uint8Array([i]));
+                st.write(0, writHandle, 0, 1);
+            }
+
+            const result = st.read(0, readHandle, 100, 100);
+            expect(result >>> 4).toBe(10);
+            expect(Array.from(memory.getViewU8(100, 10))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        });
+
+        test('read from stream that was never written to returns BLOCKED', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            expect(st.read(0, readHandle, 0, 10)).toBe(STREAM_BLOCKED);
+        });
+
+        test('write/read on non-existent handles returns DROPPED not throw', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            expect(st.read(0, 12345, 0, 10)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+            expect(st.write(0, 12345, 0, 5)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+        });
+
+        test('dropReadable then dropWritable on same stream does not throw', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+            expect(() => {
+                st.dropReadable(0, readHandle);
+                st.dropWritable(0, writHandle);
+            }).not.toThrow();
+        });
+
+        test('onWriteReady fires when stream closes even if buffer full', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 4 });
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Fill buffer
+            memory.getViewU8(0, 4).set(new Uint8Array(4).fill(0));
+            st.write(0, writHandle, 0, 4);
+
+            let writeReadyCalled = false;
+            st.onWriteReady(readHandle, () => { writeReadyCalled = true; });
+            expect(writeReadyCalled).toBe(false);
+
+            // Close stream via dropReadable
+            st.dropReadable(0, readHandle);
+            expect(writeReadyCalled).toBe(true);
         });
     });
 });

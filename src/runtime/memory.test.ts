@@ -54,6 +54,29 @@ describe('MemoryView', () => {
         const view = mv.getViewU8(0, 65536 * 2);
         expect(view.length).toBe(65536 * 2);
     });
+
+    test('repeated getView/getViewU8 calls on same memory return fresh views', () => {
+        const mv = createMemoryView();
+        const mem = new WebAssembly.Memory({ initial: 1 });
+        mv.initialize(mem);
+        const v1 = mv.getView(0, 16);
+        const v2 = mv.getView(0, 16);
+        // Both views should reference the same underlying buffer
+        v1.setInt32(0, 42, true);
+        expect(v2.getInt32(0, true)).toBe(42);
+    });
+
+    test('views after growth use new buffer, not stale detached buffer', () => {
+        const mv = createMemoryView();
+        const mem = new WebAssembly.Memory({ initial: 1, maximum: 3 });
+        mv.initialize(mem);
+        mv.writeI32(0, 123);
+        mem.grow(1);
+        // Read a view — should use the new buffer
+        const view = mv.getViewU8(0, 4);
+        expect(view.buffer.byteLength).toBe(65536 * 2);
+        expect(mv.readI32(0)).toBe(123);
+    });
 });
 
 describe('Allocator', () => {

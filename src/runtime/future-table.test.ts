@@ -281,5 +281,60 @@ describe('FutureTable', () => {
             ft.write(0, writHandle, 0); // resolves
             expect(() => ft.dropWritable(0, writHandle)).not.toThrow();
         });
+
+        test('removeReadable cleans up JS readable map', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const h = ft.addReadable(0, 'reader');
+            expect(ft.removeReadable(0, h)).toBe('reader');
+            expect(ft.getReadable(0, h)).toBeUndefined();
+        });
+    });
+
+    describe('edge cases', () => {
+        test('read on resolved future returns COMPLETED with data', () => {
+            const memory = createTestMemory();
+            const ft = createFutureTable(memory, makeAllocHandle());
+            const pair = ft.newFuture(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Write some data
+            memory.getViewU8(100, 4).set(new Uint8Array([1, 2, 3, 4]));
+            ft.write(0, writHandle, 100);
+
+            // Read back — should succeed
+            const result = ft.read(0, readHandle, 200);
+            expect(result).toBe((0 << 4) | STREAM_STATUS_COMPLETED);
+        });
+
+        test('addWritable allocates odd handle', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const h = ft.addWritable(0, 'writer');
+            expect(h % 2).toBe(1); // odd = writable
+        });
+
+        test('newFuture then dropWritable resolves the entry', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const pair = ft.newFuture(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            expect(ft.getEntry(readHandle)?.resolved).toBe(false);
+            ft.dropWritable(0, writHandle);
+            expect(ft.getEntry(readHandle)?.resolved).toBe(true);
+        });
+
+        test('multiple futures track independently', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const pair1 = ft.newFuture(0);
+            const pair2 = ft.newFuture(0);
+            const rh1 = Number(pair1 & 0xFFFFFFFFn);
+            const rh2 = Number(pair2 & 0xFFFFFFFFn);
+            const wh1 = Number(pair1 >> 32n);
+
+            ft.write(0, wh1, 0);
+            expect(ft.getEntry(rh1)?.resolved).toBe(true);
+            expect(ft.getEntry(rh2)?.resolved).toBe(false);
+        });
     });
 });

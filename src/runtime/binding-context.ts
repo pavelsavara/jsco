@@ -69,6 +69,7 @@ export function createBindingContext(componentImports: JsImports, resolved: Reso
             futureTable.dispose();
             subtaskTable.dispose();
             waitableSetTable.dispose();
+            resources.disposeOwned(resolved.ownInstanceResources);
         },
     };
     if (isDebug) {
