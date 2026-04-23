@@ -16,7 +16,7 @@ import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-
 
 initializeAsserts();
 
-const helloWasm = './integration-tests/target/wasm32-wasip1/release/hello_world.wasm';
+const helloWasm = './integration-tests/target/wasm32-wasip1/release/hello_p2_world.wasm';
 
 /** Create P2 exports via the adapter */
 function createAdapterHost(options?: { stdout?: (bytes: Uint8Array) => void }) {

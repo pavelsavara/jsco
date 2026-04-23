@@ -10,7 +10,7 @@ on:
       - "src/host/wasip2-via-wasip3/integration.test.ts"
       - "src/host/wasip2-via-wasip3/integration-helpers.ts"
       - "src/host/wasip2-via-wasip3/echo-reactor.test.ts"
-      - "src/host/wasip2-via-wasip3/hello-p2-world.test.ts"
+      - "src/host/wasip2-via-wasip3/hello-world.test.ts"
       - "src/host/wasip2-via-wasip3/hello-world.test.ts"
       - "src/host/wasip2-via-wasip3/use-number-for-int64.test.ts"
       - "src/host/wasip3/integration.test.ts"

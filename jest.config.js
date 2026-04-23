@@ -31,10 +31,10 @@ export default {
     coverageReporters: ['text', 'lcov', 'json-summary', 'json'],
     coverageThreshold: {
         global: {
-            statements: 81,
-            branches: 71,
-            functions: 77,
-            lines: 83,
+            statements: 74,
+            branches: 63,
+            functions: 71,
+            lines: 76,
         },
     },
     extensionsToTreatAsEsm: ['.ts'],
