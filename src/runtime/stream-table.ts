@@ -99,6 +99,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                             entry.waitingReader = (chunk) => {
                                 entry.waitingReader = undefined;
                                 signal.removeEventListener('abort', onAbort);
+                                // give the browser/event loop a chance to process other pending tasks
                                 if (chunk === null) {
                                     resolve({ value: undefined as any, done: true });
                                 } else {
@@ -125,6 +126,14 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 };
             },
         };
+    }
+
+    function yieldNextTick<T>(P: Promise<T>): Promise<T> {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                P.then(resolve, reject);
+            }, 0);
+        });
     }
 
     /** Read typed (non-byte) elements from a stream: encode each via elementStorer. */
