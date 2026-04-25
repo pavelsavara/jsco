@@ -21,7 +21,7 @@ function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
     let onEnd: (() => void) | undefined;
     let onError: ((err: Error) => void) | undefined;
 
-    function removeListeners() {
+    function removeListeners(): void {
         if (onData) nodeStream.removeListener('data', onData);
         if (onEnd) nodeStream.removeListener('end', onEnd);
         if (onError) nodeStream.removeListener('error', onError);
@@ -29,15 +29,15 @@ function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
     }
 
     return new ReadableStream<Uint8Array>({
-        start(controller) {
-            onData = (chunk: Buffer) => {
+        start(controller): void {
+            onData = (chunk: Buffer): void => {
                 controller.enqueue(new Uint8Array(chunk));
             };
-            onEnd = () => {
+            onEnd = (): void => {
                 removeListeners();
                 controller.close();
             };
-            onError = (err: Error) => {
+            onError = (err: Error): void => {
                 removeListeners();
                 controller.error(err);
             };
@@ -45,7 +45,7 @@ function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
             nodeStream.on('end', onEnd);
             nodeStream.on('error', onError);
         },
-        cancel() {
+        cancel(): void {
             removeListeners();
         },
     });
@@ -59,7 +59,7 @@ function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
  */
 function nodeWritableToWeb(nodeStream: Writable): WritableStream<Uint8Array> {
     return new WritableStream<Uint8Array>({
-        write(chunk) {
+        write(chunk): Promise<void> {
             return new Promise<void>((resolve, reject) => {
                 const ok = nodeStream.write(chunk, (err) => {
                     if (err) {
@@ -67,7 +67,7 @@ function nodeWritableToWeb(nodeStream: Writable): WritableStream<Uint8Array> {
                         reject(err);
                     }
                 });
-                function onDrain() { resolve(); }
+                function onDrain(): void { resolve(); }
                 if (ok) {
                     resolve();
                 } else {

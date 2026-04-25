@@ -8,7 +8,7 @@
 
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 
-export function adaptRandom(p3: WasiP3Imports) {
+export function adaptRandom(p3: WasiP3Imports): { getRandomBytes(len: bigint): Uint8Array; getRandomU64(): bigint } {
     const p3random = p3['wasi:random/random'];
     return {
         getRandomBytes(len: bigint): Uint8Array {
@@ -20,7 +20,7 @@ export function adaptRandom(p3: WasiP3Imports) {
     };
 }
 
-export function adaptInsecure(p3: WasiP3Imports) {
+export function adaptInsecure(p3: WasiP3Imports): { getInsecureRandomBytes(len: bigint): Uint8Array; getInsecureRandomU64(): bigint } {
     const p3insecure = p3['wasi:random/insecure'];
     return {
         getInsecureRandomBytes(len: bigint): Uint8Array {
@@ -32,7 +32,7 @@ export function adaptInsecure(p3: WasiP3Imports) {
     };
 }
 
-export function adaptInsecureSeed(p3: WasiP3Imports) {
+export function adaptInsecureSeed(p3: WasiP3Imports): { insecureSeed(): [bigint, bigint] } {
     const p3seed = p3['wasi:random/insecure-seed'];
     return {
         insecureSeed(): [bigint, bigint] {

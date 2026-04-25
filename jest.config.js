@@ -3,9 +3,10 @@
 export default {
     'roots': [
         '<rootDir>/src',
+        '<rootDir>/tests',
     ],
     'testMatch': [
-        '**/?(*.)+(spec|test).+(ts|js)'
+        '**/?(*.)+(test).+(ts|js)'
     ],
     'transform': {
         //"^.+\\.(ts|tsx)$": "esbuild-jest"
@@ -25,7 +26,6 @@ export default {
         '!src/**/*.test.ts',
         '!src/**/*.spec.ts',
         '!src/__mocks__/**',
-        '!src/test-utils/**',
         '!src/**/*.d.ts',
     ],
     coverageReporters: ['text', 'lcov', 'json-summary', 'json'],
@@ -38,6 +38,9 @@ export default {
         },
     },
     extensionsToTreatAsEsm: ['.ts'],
+    testPathIgnorePatterns: [
+        'tests/browser/',
+    ],
     testTimeout: 30_000,
     setupFiles: ['<rootDir>/jest.setup.ts'],
 };

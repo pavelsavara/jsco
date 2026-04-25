@@ -26,7 +26,7 @@ interface TimezoneDisplay {
     inDaylightSavingTime: boolean;
 }
 
-export function adaptMonotonicClock(p3: WasiP3Imports) {
+export function adaptMonotonicClock(p3: WasiP3Imports): { now(): bigint; resolution(): bigint; subscribeDuration(nanos: bigint): WasiPollable; subscribeInstant(instant: bigint): WasiPollable } {
     const p3clock = p3['wasi:clocks/monotonic-clock'];
 
     return {
@@ -63,7 +63,7 @@ export function adaptMonotonicClock(p3: WasiP3Imports) {
     };
 }
 
-export function adaptWallClock(p3: WasiP3Imports) {
+export function adaptWallClock(p3: WasiP3Imports): { now(): WasiDatetime; resolution(): WasiDatetime } {
     const p3clock = p3['wasi:clocks/system-clock'];
 
     return {
@@ -84,7 +84,7 @@ export function adaptWallClock(p3: WasiP3Imports) {
     };
 }
 
-export function adaptTimezone(p3: WasiP3Imports) {
+export function adaptTimezone(p3: WasiP3Imports): { display(when: WasiDatetime): TimezoneDisplay } {
     const p3tz = p3['wasi:clocks/timezone'];
 
     return {

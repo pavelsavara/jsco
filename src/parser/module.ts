@@ -32,7 +32,7 @@ function toWasmResponse(
     src: Source,
     size: number,
     resolveWhenDoneReading: (_: unknown) => void
-) {
+): Response {
     let remaining = size;
     const pull = async (controller: ReadableByteStreamController): Promise<void> => {
         const data = await src.readAvailable(remaining);

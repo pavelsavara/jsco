@@ -22,6 +22,20 @@ module.exports = {
         "dist/**/*.*",
         "wit/**/*.*",
     ],
+    "overrides": [
+        {
+            "files": ["src/**/*.ts"],
+            "rules": {
+                "@typescript-eslint/explicit-function-return-type": ["error", {
+                    "allowExpressions": false,
+                    "allowTypedFunctionExpressions": true,
+                    "allowHigherOrderFunctions": true,
+                    "allowDirectConstAssertionInArrowFunctions": true,
+                    "allowConciseArrowFunctionExpressionsStartingWithVoid": false
+                }]
+            }
+        }
+    ],
     "rules": {
         "@typescript-eslint/no-unused-vars": ["warn", {
             "argsIgnorePattern": "^_",

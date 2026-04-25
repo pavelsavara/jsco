@@ -379,7 +379,7 @@ class P2DirectoryEntryStreamAdapter {
 
     private pumpNext(): void {
         if (this.done || this.nextPromise) return;
-        this.nextPromise = (async () => {
+        this.nextPromise = (async (): Promise<void> => {
             try {
                 const { done, value } = await this.iterator.next();
                 if (done) {
@@ -411,7 +411,7 @@ class P2DirectoryEntryStreamAdapter {
     }
 }
 
-export function adaptPreopens(p3: WasiP3Imports) {
+export function adaptPreopens(p3: WasiP3Imports): { getDirectories(): [P2DescriptorAdapter, string][] } {
     const p3preopens = p3['wasi:filesystem/preopens'];
     return {
         getDirectories(): [P2DescriptorAdapter, string][] {

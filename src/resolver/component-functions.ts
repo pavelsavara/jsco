@@ -13,7 +13,7 @@ import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
-import { Resolver, ResolvedContext, ResolverRes, MarshalingContext, resolveCanonicalOptions } from './types';
+import { Resolver, ResolvedContext, ResolverRes, MarshalingContext, BinderRes, resolveCanonicalOptions } from './types';
 import type { WasmPointer, WasmSize } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
@@ -270,7 +270,7 @@ export const resolveComponentAliasInstanceExport: Resolver<ComponentAliasInstanc
         return {
             callerElement: rargs.callerElement,
             element: componentAliasInstanceExport,
-            binder: async (mctx, bargs) => {
+            binder: async (mctx, bargs): Promise<BinderRes> => {
                 const instanceResult = await instanceResolution.binder(mctx, {
                     arguments: bargs.arguments,
                     imports: bargs.imports,

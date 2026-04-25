@@ -175,7 +175,7 @@ async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8A
     return result;
 }
 
-export function getBuildInfo() {
+export function getBuildInfo(): { gitHash: string; configuration: string } {
     return {
         gitHash: gitHash,
         configuration: configuration,

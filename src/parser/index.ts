@@ -107,7 +107,7 @@ async function parseSection(ctx: ParserContext, src: Source): Promise<WITSection
     const start = src.pos;
     const asyncSub: Source | undefined = type == 1 || type == 4 ? src.subSource(size) : undefined; // if this is module, we need to stream it
     const sub: SyncSource | undefined = type != 1 && type != 4 ? await src.subSyncSource(size) : undefined; // otherwise it's not worth all the async overhead
-    const sections = await (() => {
+    const sections = await ((): WITSection[] | Promise<WITSection[]> => {
         switch (type) {
             ///
             /// https://github.com/WebAssembly/component-model/blob/main/design/mvp/Binary.md#component-definitions

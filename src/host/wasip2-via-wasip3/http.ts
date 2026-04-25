@@ -225,12 +225,21 @@ class AdapterFutureIncomingResponse {
 
 // ─── Adapter factory functions ───
 
-export function adaptHttpTypes() {
+export function adaptHttpTypes(): {
+    createFields: () => AdapterFields;
+    createFieldsFromList: (entries: [string, Uint8Array][]) => AdapterFields;
+    createOutgoingRequest: (headers: AdapterFields) => AdapterOutgoingRequest;
+    createRequestOptions: () => AdapterRequestOptions;
+    AdapterOutgoingBody: typeof AdapterOutgoingBody;
+    AdapterIncomingResponse: typeof AdapterIncomingResponse;
+    AdapterIncomingBody: typeof AdapterIncomingBody;
+    AdapterFutureIncomingResponse: typeof AdapterFutureIncomingResponse;
+    } {
     return {
-        createFields: () => new AdapterFields(),
-        createFieldsFromList: (entries: [string, Uint8Array][]) => new AdapterFields(entries),
-        createOutgoingRequest: (headers: AdapterFields) => new AdapterOutgoingRequest(headers),
-        createRequestOptions: () => new AdapterRequestOptions(),
+        createFields: (): AdapterFields => new AdapterFields(),
+        createFieldsFromList: (entries: [string, Uint8Array][]): AdapterFields => new AdapterFields(entries),
+        createOutgoingRequest: (headers: AdapterFields): AdapterOutgoingRequest => new AdapterOutgoingRequest(headers),
+        createRequestOptions: (): AdapterRequestOptions => new AdapterRequestOptions(),
         AdapterOutgoingBody,
         AdapterIncomingResponse,
         AdapterIncomingBody,
@@ -238,7 +247,7 @@ export function adaptHttpTypes() {
     };
 }
 
-export function adaptOutgoingHandler(_p3: WasiP3Imports) {
+export function adaptOutgoingHandler(_p3: WasiP3Imports): { handle(_request: AdapterOutgoingRequest, _options?: AdapterRequestOptions): HttpResult<AdapterFutureIncomingResponse> } {
     // P3 has wasi:http/client.send() — but for browser adapter we provide
     // a stub since actual HTTP is complex. Real adapter would delegate to P3.
     return {

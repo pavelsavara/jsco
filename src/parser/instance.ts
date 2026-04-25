@@ -15,7 +15,7 @@ export function parseSectionInstance(
     const sections: ComponentInstance[] = [];
     const count = readU32(src);
     for (let i = 0; i < count; i++) {
-        const section: ComponentInstance = (() => {
+        const section: ComponentInstance = ((): ComponentInstance => {
             const type = readU32(src);
             switch (type) {
                 case 0x00: {

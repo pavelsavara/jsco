@@ -15,7 +15,7 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
     // is enforced: get/remove/has validate that the requested type matches.
     const handles = new Map<number, { typeIdx: number; obj: unknown; numLends: number }>();
 
-    function getEntry(resourceTypeIdx: number, handle: number) {
+    function getEntry(resourceTypeIdx: number, handle: number): { typeIdx: number; obj: unknown; numLends: number } {
         const entry = handles.get(handle);
         if (entry === undefined) throw new Error(`Invalid resource handle: ${handle}`);
         if (entry.typeIdx !== resourceTypeIdx) throw new Error(`Resource handle ${handle} belongs to type ${entry.typeIdx}, not ${resourceTypeIdx}`);

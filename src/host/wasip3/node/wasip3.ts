@@ -47,7 +47,7 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
 
     // Helper: override both unversioned and versioned alias
     const p3version = '0.3.0-rc-2026-03-15';
-    function override(key: string, value: unknown) {
+    function override(key: string, value: unknown): void {
         host[key] = value;
         host[key + '@' + p3version] = value;
     }

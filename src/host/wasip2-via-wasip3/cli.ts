@@ -14,7 +14,7 @@ import type { WasiInputStream, WasiOutputStream } from './io';
 import { createInputStreamFromP3, createOutputStreamFromP3 } from './io';
 import { createStreamPair } from '../wasip3/streams';
 
-export function adaptEnvironment(p3: WasiP3Imports) {
+export function adaptEnvironment(p3: WasiP3Imports): { getEnvironment(): [string, string][]; getArguments(): string[]; initialCwd(): string | undefined } {
     const p3env = p3['wasi:cli/environment'];
     return {
         getEnvironment(): [string, string][] {
@@ -29,7 +29,7 @@ export function adaptEnvironment(p3: WasiP3Imports) {
     };
 }
 
-export function adaptExit(p3: WasiP3Imports) {
+export function adaptExit(p3: WasiP3Imports): { exit(status: { tag: 'ok' } | { tag: 'err' }): void; exitWithCode(statusCode: number): void } {
     const p3exit = p3['wasi:cli/exit'];
     return {
         exit(status: { tag: 'ok' } | { tag: 'err' }): void {
@@ -41,7 +41,7 @@ export function adaptExit(p3: WasiP3Imports) {
     };
 }
 
-export function adaptStdin(p3: WasiP3Imports) {
+export function adaptStdin(p3: WasiP3Imports): { getStdin(): WasiInputStream } {
     const p3stdin = p3['wasi:cli/stdin'];
     let cached: WasiInputStream | null = null;
 
@@ -56,7 +56,7 @@ export function adaptStdin(p3: WasiP3Imports) {
     };
 }
 
-export function adaptStdout(p3: WasiP3Imports) {
+export function adaptStdout(p3: WasiP3Imports): { getStdout(): WasiOutputStream } {
     const p3stdout = p3['wasi:cli/stdout'];
     let cached: WasiOutputStream | null = null;
 
@@ -73,7 +73,7 @@ export function adaptStdout(p3: WasiP3Imports) {
     };
 }
 
-export function adaptStderr(p3: WasiP3Imports) {
+export function adaptStderr(p3: WasiP3Imports): { getStderr(): WasiOutputStream } {
     const p3stderr = p3['wasi:cli/stderr'];
     let cached: WasiOutputStream | null = null;
 
@@ -89,7 +89,7 @@ export function adaptStderr(p3: WasiP3Imports) {
     };
 }
 
-export function adaptTerminalInput(p3: WasiP3Imports) {
+export function adaptTerminalInput(p3: WasiP3Imports): { getTerminalStdin(): unknown } {
     const p3ti = p3['wasi:cli/terminal-stdin'];
     return {
         getTerminalStdin(): unknown {
@@ -98,7 +98,7 @@ export function adaptTerminalInput(p3: WasiP3Imports) {
     };
 }
 
-export function adaptTerminalStdout(p3: WasiP3Imports) {
+export function adaptTerminalStdout(p3: WasiP3Imports): { getTerminalStdout(): unknown } {
     const p3to = p3['wasi:cli/terminal-stdout'];
     return {
         getTerminalStdout(): unknown {
@@ -107,7 +107,7 @@ export function adaptTerminalStdout(p3: WasiP3Imports) {
     };
 }
 
-export function adaptTerminalStderr(p3: WasiP3Imports) {
+export function adaptTerminalStderr(p3: WasiP3Imports): { getTerminalStderr(): unknown } {
     const p3te = p3['wasi:cli/terminal-stderr'];
     return {
         getTerminalStderr(): unknown {

@@ -217,7 +217,7 @@ export async function serve(
             res.end('Gateway Timeout');
         }, requestTimeoutMs);
 
-        (async () => {
+        (async (): Promise<void> => {
             try {
                 const [request, completionFuture] = nodeRequestToWasi(req, limits);
                 const response = await handler.handle(request);

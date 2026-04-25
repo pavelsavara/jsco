@@ -3,7 +3,7 @@
 import { WITModel, parse } from '.';
 import { ModelTag } from './model/tags';
 
-export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel) {
+export function expectModelToEqual(actualModel: WITModel, expectedModel: WITModel): void {
     const noModules = actualModel.map((section) => {
         if (section.tag === ModelTag.CoreModule) {
             delete section.module;
@@ -18,12 +18,12 @@ export async function jcoCompileWat(wat: string): Promise<Uint8Array> {
     return jco.parse(wat);
 }
 
-export async function expectModelToEqualWat(watSections: string, expectedModel: WITModel) {
+export async function expectModelToEqualWat(watSections: string, expectedModel: WITModel): Promise<void> {
     const wasmBuffer = await jcoCompileWat(`(component ${watSections})`);
     expectModelToEqualWasm(wasmBuffer, expectedModel);
 }
 
-export async function expectModelToEqualWasm(wasmBuffer: Uint8Array, expectedModel: WITModel) {
+export async function expectModelToEqualWasm(wasmBuffer: Uint8Array, expectedModel: WITModel): Promise<void> {
     const model = await parse(wasmBuffer);
     expectModelToEqual(model, expectedModel);
 }

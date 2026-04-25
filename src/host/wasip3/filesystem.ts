@@ -173,7 +173,7 @@ class FsDescriptor {
         const backend = this.backend;
         const path = this.path;
 
-        const future: WasiFuture<Result<void, ErrorCode>> = (async () => {
+        const future: WasiFuture<Result<void, ErrorCode>> = (async (): Promise<Result<void, ErrorCode>> => {
             try {
                 let currentOffset = offset;
                 for (; ;) {
@@ -211,7 +211,7 @@ class FsDescriptor {
         const backend = this.backend;
         const path = this.path;
 
-        return (async () => {
+        return (async (): Promise<void> => {
             try {
                 let currentOffset = offset;
                 for await (const chunk of data) {
@@ -231,7 +231,7 @@ class FsDescriptor {
         const backend = this.backend;
         const path = this.path;
 
-        return (async () => {
+        return (async (): Promise<void> => {
             try {
                 for await (const chunk of data) {
                     backend.append(path, chunk);
@@ -353,7 +353,7 @@ class FsDescriptor {
         const backend = this.backend;
         const path = this.path;
 
-        const future: WasiFuture<Result<void, ErrorCode>> = (async () => {
+        const future: WasiFuture<Result<void, ErrorCode>> = (async (): Promise<Result<void, ErrorCode>> => {
             try {
                 const entries = backend.readDirectory(path);
                 for (const entry of entries) {

@@ -157,7 +157,7 @@ export function flattenResource(
     result[name] = cls;
     if (typeof cls.create === 'function') {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        result[`[static]${name}.create`] = (...args: any[]) => wrapResultCall(cls, 'create', ...args);
+        result[`[static]${name}.create`] = (...args: any[]): unknown => wrapResultCall(cls, 'create', ...args);
     }
     for (const key of Object.getOwnPropertyNames(cls.prototype)) {
         if (key === 'constructor') continue;
@@ -165,13 +165,13 @@ export function flattenResource(
         const kebab = camelToKebab(key);
         if (nonResultMethods?.has(kebab)) {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]) => self[key](...args);
+            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]): unknown => self[key](...args);
         } else {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]) => wrapResultCall(self, key, ...args);
+            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]): unknown => wrapResultCall(self, key, ...args);
         }
     }
-    result[`[resource-drop]${name}`] = (self: any) => { if (self && typeof self.drop === 'function') self.drop(); };
+    result[`[resource-drop]${name}`] = (self: any): void => { if (self && typeof self.drop === 'function') self.drop(); };
     return result;
 }
 

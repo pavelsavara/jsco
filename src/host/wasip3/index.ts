@@ -109,7 +109,7 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
 
     const result: Record<string, unknown> = {};
     const p3version = '0.3.0-rc-2026-03-15';
-    function register(key: string, value: unknown) {
+    function register(key: string, value: unknown): void {
         result[key] = value;
         result[key + '@' + p3version] = value;
     }

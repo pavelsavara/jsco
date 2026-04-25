@@ -51,10 +51,10 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     const wasiPrefix = 'wasi:';
     const methodPrefix = '[method]';
     const resourceDropPrefix = '[resource-drop]';
-    const method = (cls: string, name: string) => methodPrefix + cls + '.' + name;
-    const drop = (cls: string) => resourceDropPrefix + cls;
+    const method = (cls: string, name: string): string => methodPrefix + cls + '.' + name;
+    const drop = (cls: string): string => resourceDropPrefix + cls;
 
-    function register(ns: string, methods: Record<string, Function>) {
+    function register(ns: string, methods: Record<string, Function>): void {
         const key = wasiPrefix + ns;
         result[key] = methods;
         for (const v of versions) result[key + '@' + v] = methods;
@@ -266,8 +266,8 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         '[resource-drop]incoming-body': () => { /* GC */ },
         '[method]incoming-body.stream': (self: { stream: () => unknown }) => self.stream(),
         '[static]incoming-body.finish': () => ({
-            subscribe: () => createSyncPollable(() => true),
-            get: () => ({ tag: 'ok', val: { tag: 'ok', val: undefined } }),
+            subscribe: (): WasiPollable => createSyncPollable(() => true),
+            get: (): unknown => ({ tag: 'ok', val: { tag: 'ok', val: undefined } }),
         }),
         '[resource-drop]future-incoming-response': () => { /* GC */ },
         '[method]future-incoming-response.subscribe': (self: { subscribe: () => WasiPollable }) => self.subscribe(),
@@ -277,10 +277,10 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         '[constructor]outgoing-response': (headers: unknown) => ({
             _statusCode: 200,
             _headers: headers,
-            statusCode: function () { return (this as { _statusCode: number })._statusCode; },
-            setStatusCode: function (code: number) { (this as { _statusCode: number })._statusCode = code; return true; },
-            headers: function () { return (this as { _headers: unknown })._headers; },
-            body: function () { return { tag: 'ok', val: { write: () => ({ tag: 'ok', val: createOutputStream() }) } }; },
+            statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
+            setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
+            headers: function (): unknown { return (this as { _headers: unknown })._headers; },
+            body: function (): unknown { return { tag: 'ok', val: { write: (): unknown => ({ tag: 'ok', val: createOutputStream() }) } }; },
         }),
         '[resource-drop]outgoing-response': () => { /* GC */ },
         '[resource-drop]response-outparam': () => { /* GC */ },

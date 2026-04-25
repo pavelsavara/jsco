@@ -80,7 +80,7 @@ export function createHandleTable<T>(config?: HandleTableConfig): HandleTable<T>
             return value;
         },
 
-        get size() {
+        get size(): number {
             return liveCount;
         },
     };

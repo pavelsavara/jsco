@@ -127,9 +127,9 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     const resolved = rctx.resolved;
     let firstInstantiation = true;
     const component = {
-        exports: () => exportNames,
-        imports: () => importNames,
-        instantiate: async (imports?: JsImports) => {
+        exports: (): string[] => exportNames,
+        imports: (): string[] => importNames,
+        instantiate: async (imports?: JsImports): Promise<WasmComponentInstance<TJSExports>> => {
             const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
             if (firstInstantiation) {
                 firstInstantiation = false;

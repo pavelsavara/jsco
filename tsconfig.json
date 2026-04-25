@@ -21,52 +21,12 @@
         "types": [
             "node",
             "jest"
-        ],
-        "rootDirs": [
-            "src"
         ]
     },
     "include": [
         "src/**/*",
         "src/__mocks__/.types.d.ts",
-        "tests/*.ts",
-        "tests/*.d.ts",
-        "tests/runtime/abort-dispose-integration.test.ts",
-        "tests/runtime/abort-dispose.test.ts",
-        "tests/runtime/future-table.test.ts",
-        "tests/runtime/memory.test.ts",
-        "tests/runtime/resources.test.ts",
-        "tests/runtime/stream-table.test.ts",
-        "tests/runtime/subtask-table.test.ts",
-        "tests/runtime/waitable-set.test.ts",
-        "tests/resolver/calling-convention.test.ts",
-        "tests/resolver/error-paths.test.ts",
-        "tests/resolver/function-imports.test.ts",
-        "tests/resolver/import-index.test.ts",
-        "tests/resolver/import-names.test.ts",
-        "tests/resolver/indices.test.ts",
-        "tests/resolver/type-isolation.test.ts",
-        "tests/resolver/type-resolution.test.ts",
-        "tests/resolver/type-validation.test.ts",
-        "tests/resolver/types.test.ts",
-        "tests/host/wasip3/node/filesystem-node.test.ts",
-        "tests/host/wasip3/node/http-server.test.ts",
-        "tests/host/wasip3/node/sockets.test.ts",
-        "tests/host/wasip3/node/stdio-node.test.ts",
-        "tests/host/wasip2-via-wasip3/node/filesystem-node.test.ts",
-        "tests/host/wasip2-via-wasip3/node/http-server.test.ts",
-        "tests/host/wasip2-via-wasip3/integration-helpers.ts",
-        "tests/host/wasip2-via-wasip3/integration.test.ts",
-        "tests/host/wasip2-via-wasip3/http.test.ts",
-        "tests/host/wasip2-via-wasip3/hello-world.test.ts",
-        "tests/host/wasip2-via-wasip3/filesystem.test.ts",
-        "tests/host/wasip2-via-wasip3/echo-reactor.test.ts",
-        "tests/host/wasip2-via-wasip3/monotonic-clock.test.ts",
-        "tests/host/wasip2-via-wasip3/poll.test.ts",
-        "tests/host/wasip2-via-wasip3/streams.test.ts",
-        "tests/host/wasip2-via-wasip3/use-number-for-int64.test.ts",
-        "tests/host/wasip2-via-wasip3/wall-clock.test.ts",
-        "tests/host/wasip2-via-wasip3/wasi-host.test.ts"
+        "tests/**/*"
     ],
     "exclude": [
         "node_modules",
