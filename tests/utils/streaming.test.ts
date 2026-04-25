@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { newSource, bufferToHex } from './streaming';
-import type { SyncSource } from './streaming';
+import { newSource, bufferToHex } from '../../src/utils/streaming';
+import type { SyncSource } from '../../src/utils/streaming';
 
 describe('streaming.ts', () => {
     describe('ArraySource', () => {

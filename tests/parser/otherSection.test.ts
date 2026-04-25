@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { ModelTag } from './model/tags';
-import { newSource } from '../utils/streaming';
-import { parseSectionCustom, skipSection } from './otherSection';
-import type { ParserContext, CustomSection } from './types';
+import { ModelTag } from '../../src/parser/model/tags';
+import { newSource } from '../../src/utils/streaming';
+import { parseSectionCustom, skipSection } from '../../src/parser/otherSection';
+import type { ParserContext, CustomSection } from '../../src/parser/types';
 
 function makeCtx(opts: { otherSectionData?: boolean, processCustomSection?: (s: CustomSection) => CustomSection } = {}): ParserContext {
     return {

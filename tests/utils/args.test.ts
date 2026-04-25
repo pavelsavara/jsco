@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { parseCliArgs, HELP_TEXT, getHelpText, RUN_HELP_TEXT, SERVE_HELP_TEXT } from './args';
+import { parseCliArgs, HELP_TEXT, getHelpText, RUN_HELP_TEXT, SERVE_HELP_TEXT } from '../../src/utils/args';
 
 describe('parseCliArgs', () => {
     // ─── Command detection ───

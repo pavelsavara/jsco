@@ -5,7 +5,7 @@ import {
     VfsError,
     VfsNodeType,
     resolvePathComponents,
-} from './vfs';
+} from '../../../src/host/wasip3/vfs';
 
 describe('resolvePathComponents', () => {
     test('resolves simple relative path', () => {

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createEnvironment, createExit, createCliTypes, WasiExit } from './cli';
+import { createEnvironment, createExit, createCliTypes, WasiExit } from '../../../src/host/wasip3/cli';
 
 describe('wasi:cli/environment', () => {
     describe('getEnvironment', () => {

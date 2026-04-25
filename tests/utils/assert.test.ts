@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts, jsco_assert, setLogger, jsco_log, LogLevel, defaultVerbosity, debugStack, withDebugTrace, registerInitDebugNames } from './assert';
+import { initializeAsserts, jsco_assert, setLogger, jsco_log, LogLevel, defaultVerbosity, debugStack, withDebugTrace, registerInitDebugNames } from '../../src/utils/assert';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 describe('assert.ts', () => {

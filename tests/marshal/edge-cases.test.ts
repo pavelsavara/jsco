@@ -1,17 +1,17 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../parser/model/tags';
-import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, MarshalingContext, StringEncoding } from '../resolver/types';
-import { createResourceTable } from '../runtime';
-import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
-import { createLowering, createFunctionLowering } from '../binder/to-js';
+import { ModelTag } from '../../src/parser/model/tags';
+import { ComponentValType, PrimitiveValType } from '../../src/parser/model/types';
+import { ResolverContext, MarshalingContext, StringEncoding } from '../../src/resolver/types';
+import { createResourceTable } from '../../src/runtime';
+import { createLifting as _createLifting, createFunctionLifting } from '../../src/binder/to-abi';
+import { createLowering, createFunctionLowering } from '../../src/binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
-import { WasmPointer, WasmSize, WasmValue } from './model/types';
-import { deepResolveType } from '../resolver/calling-convention';
+import { WasmPointer, WasmSize, WasmValue } from '../../src/marshal/model/types';
+import { deepResolveType } from '../../src/resolver/calling-convention';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience

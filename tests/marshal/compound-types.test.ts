@@ -1,14 +1,14 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../parser/model/tags';
-import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, MarshalingContext } from '../resolver/types';
-import { createLifting as _createLifting } from '../binder/to-abi';
-import { createLowering } from '../binder/to-js';
-import { WasmPointer, WasmSize, WasmValue } from './model/types';
+import { ModelTag } from '../../src/parser/model/tags';
+import { ComponentValType, PrimitiveValType } from '../../src/parser/model/types';
+import { ResolverContext, MarshalingContext } from '../../src/resolver/types';
+import { createLifting as _createLifting } from '../../src/binder/to-abi';
+import { createLowering } from '../../src/binder/to-js';
+import { WasmPointer, WasmSize, WasmValue } from '../../src/marshal/model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience

@@ -6,7 +6,7 @@ import {
     createStreamPair,
     collectStream,
     collectBytes,
-} from './streams';
+} from '../../../src/host/wasip3/streams';
 
 describe('StreamBridge', () => {
     // ─── 1.2 Happy path ─────────────────────────────────────────────

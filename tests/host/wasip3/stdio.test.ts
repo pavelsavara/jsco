@@ -3,8 +3,8 @@
 import {
     createStdin, createStdout, createStderr,
     createTerminalStdin, createTerminalStdout, createTerminalStderr,
-} from './stdio';
-import { createStreamPair, readableFromAsyncIterable, collectBytes } from './streams';
+} from '../../../src/host/wasip3/stdio';
+import { createStreamPair, readableFromAsyncIterable, collectBytes } from '../../../src/host/wasip3/streams';
 
 describe('wasi:cli/stdin', () => {
     describe('readViaStream', () => {
@@ -336,7 +336,7 @@ describe('wasi:cli/stderr', () => {
                 write(chunk) { stderrChunks.push(new Uint8Array(chunk)); },
             });
 
-            const { createStdout: createOut, createStderr: createErr } = await import('./stdio');
+            const { createStdout: createOut, createStderr: createErr } = await import('../../../src/host/wasip3/stdio');
             const stdout = createOut({ stdout: stdoutStream });
             const stderr = createErr({ stderr: stderrStream });
 
@@ -397,7 +397,7 @@ describe('wasi:cli/stdin + stdout multi-step', () => {
             write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
         });
 
-        const { createStdin: createIn, createStdout: createOut } = await import('./stdio');
+        const { createStdin: createIn, createStdout: createOut } = await import('../../../src/host/wasip3/stdio');
         const stdin = createIn({ stdin: inputStream });
         const stdout = createOut({ stdout: outputStream });
 
@@ -426,7 +426,7 @@ describe('wasi:cli/stdin + stdout multi-step', () => {
             write(chunk) { collected.push(new Uint8Array(chunk)); },
         });
 
-        const { createStdout: createOut } = await import('./stdio');
+        const { createStdout: createOut } = await import('../../../src/host/wasip3/stdio');
         const stdout = createOut({ stdout: outputStream });
 
         // "日" = U+65E5 = [0xE6, 0x97, 0xA5] in UTF-8

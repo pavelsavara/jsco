@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { getView, readIovecs, gatherBytes, scatterBytes, readString } from './memory';
-import { CiovecLayout } from './types/wasi-snapshot-preview1';
+import { getView, readIovecs, gatherBytes, scatterBytes, readString } from '../../../src/host/wasip1-via-wasip3/memory';
+import { CiovecLayout } from '../../../src/host/wasip1-via-wasip3/types/wasi-snapshot-preview1';
 
 describe('WASI P1 memory utilities', () => {
     function makeMemory(pages = 1): WebAssembly.Memory {

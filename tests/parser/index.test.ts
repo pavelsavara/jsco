@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { parse } from './index';
+import { parse } from '../../src/parser/index';
 
 describe('parser test', () => {
     test('to fail on invalid header', async () => {

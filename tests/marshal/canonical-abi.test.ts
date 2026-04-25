@@ -1,17 +1,17 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../parser/model/tags';
-import { ComponentValType, PrimitiveValType } from '../parser/model/types';
-import { ResolverContext, MarshalingContext, StringEncoding } from '../resolver/types';
-import { createResourceTable } from '../runtime';
-import { createLifting as _createLifting, createFunctionLifting } from '../binder/to-abi';
-import { createLowering } from '../binder/to-js';
+import { ModelTag } from '../../src/parser/model/tags';
+import { ComponentValType, PrimitiveValType } from '../../src/parser/model/types';
+import { ResolverContext, MarshalingContext, StringEncoding } from '../../src/resolver/types';
+import { createResourceTable } from '../../src/runtime';
+import { createLifting as _createLifting, createFunctionLifting } from '../../src/binder/to-abi';
+import { createLowering } from '../../src/binder/to-js';
 import { storeToMemory, loadFromMemory } from '../binder/test-helpers';
-import { WasmPointer, WasmSize, WasmValue } from '../marshal/model/types';
-import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from '../marshal/validation';
+import { WasmPointer, WasmSize, WasmValue } from '../../src/marshal/model/types';
+import { validateAllocResult, validatePointerAlignment, checkNotPoisoned, checkNotReentrant } from '../../src/marshal/validation';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 /** Test-only UTF-8 validator with detailed error messages. */
@@ -59,7 +59,7 @@ function createLifting(rctx: any, model: any): (ctx: MarshalingContext, value: a
         return out.slice(0, count);
     };
 }
-import { deepResolveType } from '../resolver/calling-convention';
+import { deepResolveType } from '../../src/resolver/calling-convention';
 
 // --- Test helpers ---
 

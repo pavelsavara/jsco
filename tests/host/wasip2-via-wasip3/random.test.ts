@@ -5,8 +5,8 @@
  * Mirrors wasip2/random.test.ts.
  */
 
-import { createWasiP2ViaP3Adapter } from './index';
-import { createMockP3 } from './test-helpers';
+import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
+import { createMockP3 } from '../../../src/host/wasip2-via-wasip3/test-helpers';
 
 describe('wasi:random/random (via P3 adapter)', () => {
     function getRandomIface() {

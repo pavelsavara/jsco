@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createMonotonicClock, createSystemClock, createTimezone, createClocksTypes } from './clocks';
+import { createMonotonicClock, createSystemClock, createTimezone, createClocksTypes } from '../../../src/host/wasip3/clocks';
 
 describe('wasi:clocks/monotonic-clock', () => {
     const clock = createMonotonicClock();

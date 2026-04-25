@@ -1,13 +1,13 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from './index';
-import { createWasiP3Host, WasiExit } from './host/wasip3/wasip3';
-import { createWasiP2ViaP3Adapter } from './host/wasip2-via-wasip3';
-import { detectWasiType, WasiType, isCoreModule } from './wasi-auto';
-import { createWasiP1ViaP3Adapter } from './host/wasip1-via-wasip3';
-import { parse } from './parser';
+import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from '../src/index';
+import { createWasiP3Host, WasiExit } from '../src/host/wasip3/wasip3';
+import { createWasiP2ViaP3Adapter } from '../src/host/wasip2-via-wasip3';
+import { detectWasiType, WasiType, isCoreModule } from '../src/wasi-auto';
+import { createWasiP1ViaP3Adapter } from '../src/host/wasip1-via-wasip3';
+import { parse } from '../src/parser';
 import isDebug from 'env:isDebug';
-import { initializeAsserts } from './utils/assert';
+import { initializeAsserts } from '../src/utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
 
 initializeAsserts();

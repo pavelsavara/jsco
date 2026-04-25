@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createSocketsTypes, createIpNameLookup } from './sockets';
+import { createSocketsTypes, createIpNameLookup } from '../../../src/host/wasip3/sockets';
 
 describe('Browser sockets stubs', () => {
     describe('TcpSocket', () => {

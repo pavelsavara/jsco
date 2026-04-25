@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createHandleTable } from './resources';
-import type { HandleId } from './resources';
+import { createHandleTable } from '../../../src/host/wasip3/resources';
+import type { HandleId } from '../../../src/host/wasip3/resources';
 
 describe('HandleTable', () => {
     // ─── 1.1 Happy path ─────────────────────────────────────────────

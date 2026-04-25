@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { FdTable, FdKind, createDefaultFdTable, ALL_RIGHTS } from './fd-table';
-import { Filetype, Fdflags, Rights } from './types/wasi-snapshot-preview1';
+import { FdTable, FdKind, createDefaultFdTable, ALL_RIGHTS } from '../../../src/host/wasip1-via-wasip3/fd-table';
+import { Filetype, Fdflags, Rights } from '../../../src/host/wasip1-via-wasip3/types/wasi-snapshot-preview1';
 
 describe('WASI P1 FD table', () => {
 

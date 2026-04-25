@@ -1,14 +1,14 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { ModelTag } from '../parser/model/tags';
-import { ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedRecord } from '../parser/model/types';
-import { ResolverContext, MarshalingContext } from '../resolver/types';
-import { createFunctionLifting } from '../binder/to-abi';
-import { createFunctionLowering } from '../binder/to-js';
-import { WasmPointer, WasmSize } from './types';
+import { ModelTag } from '../../src/parser/model/tags';
+import { ComponentTypeFunc, ComponentValType, PrimitiveValType, ComponentTypeDefinedRecord } from '../../src/parser/model/types';
+import { ResolverContext, MarshalingContext } from '../../src/resolver/types';
+import { createFunctionLifting } from '../../src/binder/to-abi';
+import { createFunctionLowering } from '../../src/binder/to-js';
+import type { WasmPointer, WasmSize } from '../../src/marshal/model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // ─── Mock helpers ──────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createRandom, createInsecure, createInsecureSeed } from './random';
+import { createRandom, createInsecure, createInsecureSeed } from '../../../src/host/wasip3/random';
 
 describe('wasi:random/random', () => {
     const random = createRandom();

@@ -1,8 +1,8 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initFilesystem, createPreopens } from './filesystem';
-import { collectStream, collectBytes } from './streams';
-import type { WasiStreamReadable } from './streams';
+import { initFilesystem, createPreopens } from '../../../src/host/wasip3/filesystem';
+import { collectStream, collectBytes } from '../../../src/host/wasip3/streams';
+import type { WasiStreamReadable } from '../../../src/host/wasip3/streams';
 
 // Helper to create a readable stream from a Uint8Array
 function readableFrom(data: Uint8Array): WasiStreamReadable<Uint8Array> {

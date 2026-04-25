@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
 import * as leb from '@thi.ng/leb128';
-import { newSource } from '../utils/streaming';
-import { ModelTag } from './model/tags';
-import { PrimitiveValType } from './model/types';
+import { newSource } from '../../src/utils/streaming';
+import { ModelTag } from '../../src/parser/model/tags';
+import { PrimitiveValType } from '../../src/parser/model/types';
 import {
     readU32, readName, readStringArray,
     parseAsExternalKind, readComponentExternalKind, parseAsComponentExternalKind,
@@ -22,8 +22,8 @@ import {
     parsePrimitiveValType, parseAsComponentOuterAliasKind,
     readCoreInstance, readInstantiationArgKind,
     readInstanceTypeDeclarations,
-} from './values';
-import type { SyncSource } from '../utils/streaming';
+} from '../../src/parser/values';
+import type { SyncSource } from '../../src/utils/streaming';
 
 // Helper: encode LEB128
 function encU32(val: number): number[] {

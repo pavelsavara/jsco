@@ -1,10 +1,10 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { ResolvedType } from '../resolver/type-resolution';
-import { MarshalingContext, StringEncoding } from '../resolver/types';
-import { createMemoryStorer } from './to-abi';
-import { createMemoryLoader } from './to-js';
-import type { JsValue } from '../marshal/model/types';
+import type { ResolvedType } from '../../src/resolver/type-resolution';
+import { MarshalingContext, StringEncoding } from '../../src/resolver/types';
+import { createMemoryStorer } from '../../src/binder/to-abi';
+import { createMemoryLoader } from '../../src/binder/to-js';
+import type { JsValue } from '../../src/marshal/model/types';
 
 export function storeToMemory(ctx: MarshalingContext, ptr: number, type: ResolvedType, jsValue: JsValue, stringEncoding: StringEncoding, canonicalResourceIds: Map<number, number>): void {
     createMemoryStorer(type, stringEncoding, canonicalResourceIds)(ctx, ptr, jsValue);

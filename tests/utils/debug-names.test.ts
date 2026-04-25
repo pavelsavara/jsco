@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from './assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { modelTagName, primitiveValTypeName, callingConventionName, planOpKindName } from './debug-names';
+import { modelTagName, primitiveValTypeName, callingConventionName, planOpKindName } from '../../src/utils/debug-names';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 describe('debug-names.ts', () => {

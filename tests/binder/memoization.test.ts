@@ -1,11 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ModelTag } from '../parser/model/tags';
-import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../parser/model/types';
-import { ResolvedContext, MarshalingContext, StringEncoding } from '../resolver/types';
-import { createLifting as _createLifting, createFunctionLifting } from './to-abi';
-import { createLowering, createFunctionLowering } from './to-js';
-import type { WasmValue } from '../marshal/model/types';
+import { ModelTag } from '../../src/parser/model/tags';
+import { ComponentValType, PrimitiveValType, ComponentTypeFunc } from '../../src/parser/model/types';
+import { ResolvedContext, MarshalingContext, StringEncoding } from '../../src/resolver/types';
+import { createLifting as _createLifting, createFunctionLifting } from '../../src/binder/to-abi';
+import { createLowering, createFunctionLowering } from '../../src/binder/to-js';
+import type { WasmValue } from '../../src/marshal/model/types';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 // Wrap BYO-buffer lifters to return arrays for test convenience

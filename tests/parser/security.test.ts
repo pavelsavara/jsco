@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { parse, WIT_MAGIC, WIT_VERSION, WIT_LAYER } from './index';
+import { parse, WIT_MAGIC, WIT_VERSION, WIT_LAYER } from '../../src/parser/index';
 
 // Component model binary preamble
 const PREAMBLE = [...WIT_MAGIC, ...WIT_VERSION, ...WIT_LAYER];

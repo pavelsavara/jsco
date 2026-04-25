@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { fetchLike, getBodyIfResponse } from './fetch-like';
+import { fetchLike, getBodyIfResponse } from '../../src/utils/fetch-like';
 
 describe('fetch-like.ts', () => {
     describe('getBodyIfResponse', () => {

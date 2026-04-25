@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
-import type { HostConfig } from './types';
+import { createHttpTypes, createHttpClient, createHttpHandler } from '../../../src/host/wasip3/http';
+import type { HostConfig } from '../../../src/host/wasip3/types';
 
 // ──────────────────── Helper: text encoder ────────────────────
 const enc = new TextEncoder();

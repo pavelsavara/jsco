@@ -1,11 +1,11 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import { memoize } from './cache';
-import { LogLevel } from '../utils/assert';
-import { ModelTag } from '../parser/model/tags';
+import { memoize } from '../../src/binder/cache';
+import { LogLevel } from '../../src/utils/assert';
+import { ModelTag } from '../../src/parser/model/tags';
 import { describeDebugOnly } from '../test-utils/debug-only';
 
 function mockFn<T extends (...args: any[]) => any>(impl: T): T & { calls: any[][] } {

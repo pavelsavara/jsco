@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { ok, err, WasiError } from './result';
+import { ok, err, WasiError } from '../../../src/host/wasip3/result';
 
 describe('Result/Error Helpers', () => {
     // ─── 1.3 Happy path ─────────────────────────────────────────────

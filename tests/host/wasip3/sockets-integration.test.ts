@@ -12,12 +12,12 @@
  * Requires Node.js (real sockets via node:net / node:dgram / node:dns).
  */
 
-import { createComponent } from '../../resolver';
-import { createWasiP2ViaP3Adapter } from '../wasip2-via-wasip3/index';
-import { createWasiP3Host } from './node/wasip3';
-import { initializeAsserts } from '../../utils/assert';
+import { createComponent } from '../../../src/resolver';
+import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
+import { createWasiP3Host } from '../../../src/host/wasip3/node/wasip3';
+import { initializeAsserts } from '../../../src/utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
-import type { JsImports } from '../../resolver/api-types';
+import type { JsImports } from '../../../src/resolver/api-types';
 
 initializeAsserts();
 

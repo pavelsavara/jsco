@@ -1,26 +1,26 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { AdapterContext } from './adapter-context';
-import { createDefaultFdTable } from './fd-table';
-import { MemoryVfsBackend } from '../wasip3/vfs';
+import type { AdapterContext } from '../../../src/host/wasip1-via-wasip3/adapter-context';
+import { createDefaultFdTable } from '../../../src/host/wasip1-via-wasip3/fd-table';
+import { MemoryVfsBackend } from '../../../src/host/wasip3/vfs';
 import {
     Errno, Clockid, Eventtype, Filetype, Fdflags, Rights, Whence,
     FdstatLayout, FilestatLayout, PrestatLayout, EventLayout, SubscriptionLayout,
     CiovecLayout,
-} from './types/wasi-snapshot-preview1';
-import { args_get, args_sizes_get, environ_get, environ_sizes_get, fd_prestat_get, fd_prestat_dir_name, proc_exit, sched_yield } from './cli';
-import { clock_res_get, clock_time_get } from './clocks';
-import { random_get } from './random';
-import { poll_oneoff } from './poll';
-import { sock_accept, sock_recv, sock_send, sock_shutdown } from './sockets';
+} from '../../../src/host/wasip1-via-wasip3/types/wasi-snapshot-preview1';
+import { args_get, args_sizes_get, environ_get, environ_sizes_get, fd_prestat_get, fd_prestat_dir_name, proc_exit, sched_yield } from '../../../src/host/wasip1-via-wasip3/cli';
+import { clock_res_get, clock_time_get } from '../../../src/host/wasip1-via-wasip3/clocks';
+import { random_get } from '../../../src/host/wasip1-via-wasip3/random';
+import { poll_oneoff } from '../../../src/host/wasip1-via-wasip3/poll';
+import { sock_accept, sock_recv, sock_send, sock_shutdown } from '../../../src/host/wasip1-via-wasip3/sockets';
 import {
     fd_advise, fd_allocate, fd_close, fd_datasync,
     fd_fdstat_get, fd_fdstat_set_flags, fd_fdstat_set_rights,
     fd_filestat_get,
     fd_read, fd_write, fd_seek, fd_tell, fd_renumber, fd_sync,
     path_create_directory, path_filestat_get, path_open, path_unlink_file, path_remove_directory,
-} from './filesystem';
-import { getView } from './memory';
+} from '../../../src/host/wasip1-via-wasip3/filesystem';
+import { getView } from '../../../src/host/wasip1-via-wasip3/memory';
 
 function makeCtx(opts?: {
     args?: string[];

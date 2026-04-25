@@ -17,8 +17,8 @@
  *   });
  */
 
-import type { Verbosity, LogFn } from '../utils/assert';
-import { LogLevel } from '../utils/assert';
+import type { Verbosity, LogFn } from '../../src/utils/assert';
+import { LogLevel } from '../../src/utils/assert';
 
 export type VerboseCapture = {
     messages: string[];

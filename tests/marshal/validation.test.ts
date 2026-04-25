@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { validateAllocResult, validatePointerAlignment, validateUtf16, checkNotPoisoned, checkNotReentrant } from './validation';
-import type { MarshalingContext } from '../resolver/types';
+import { validateAllocResult, validatePointerAlignment, validateUtf16, checkNotPoisoned, checkNotReentrant } from '../../src/marshal/validation';
+import type { MarshalingContext } from '../../src/resolver/types';
 
 function makeCtx(memorySize: number, opts?: Partial<MarshalingContext>): MarshalingContext {
     return {

@@ -24,11 +24,11 @@
  *   K: consumer-p3 ← (fwd ← (fwd ← implementer)) nested wac
  */
 
-import { createComponent } from '../../resolver';
-import { createWasiP3Host } from './index';
-import { createWasiP2ViaP3Adapter } from '../wasip2-via-wasip3/index';
-import { WasiExit } from './cli';
-import { initializeAsserts } from '../../utils/assert';
+import { createComponent } from '../../../src/resolver';
+import { createWasiP3Host } from '../../../src/host/wasip3/index';
+import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
+import { WasiExit } from '../../../src/host/wasip3/cli';
+import { initializeAsserts } from '../../../src/utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 import { createEchoImports } from '../../../integration-tests/echo-reactor-ts/index';
 

@@ -1,13 +1,13 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { createMonotonicClock, createSystemClock } from './clocks';
-import { initFilesystem, createPreopens } from './filesystem';
-import { createHttpTypes } from './http';
-import { createStreamPair, collectBytes } from './streams';
-import { createStdout, createStderr, createStdin } from './stdio';
-import { createExit, createEnvironment, WasiExit } from './cli';
-import { createHandleTable } from './resources';
-import type { WasiStreamReadable } from './streams';
+import { createMonotonicClock, createSystemClock } from '../../../src/host/wasip3/clocks';
+import { initFilesystem, createPreopens } from '../../../src/host/wasip3/filesystem';
+import { createHttpTypes } from '../../../src/host/wasip3/http';
+import { createStreamPair, collectBytes } from '../../../src/host/wasip3/streams';
+import { createStdout, createStderr, createStdin } from '../../../src/host/wasip3/stdio';
+import { createExit, createEnvironment, WasiExit } from '../../../src/host/wasip3/cli';
+import { createHandleTable } from '../../../src/host/wasip3/resources';
+import type { WasiStreamReadable } from '../../../src/host/wasip3/streams';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

@@ -8,10 +8,10 @@
  * adapter layer) with a P3 host (for the guest's actual P3 calls).
  */
 
-import { createComponent } from '../../resolver';
-import { createWasiP2ViaP3Adapter } from '../wasip2-via-wasip3/index';
-import { createWasiP3Host as createP3Host } from './index';
-import { initializeAsserts } from '../../utils/assert';
+import { createComponent } from '../../../src/resolver';
+import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
+import { createWasiP3Host as createP3Host } from '../../../src/host/wasip3/index';
+import { initializeAsserts } from '../../../src/utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
 
 initializeAsserts();

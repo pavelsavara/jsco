@@ -1,10 +1,10 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import { initializeAsserts } from '../utils/assert';
+import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import type { WasmPointer, WasmSize, MarshalingContext, MemoryStorer } from './model/types';
-import type { RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan, StringStorerPlan } from './model/store-plans';
+import type { WasmPointer, WasmSize, MarshalingContext, MemoryStorer } from '../../src/marshal/model/types';
+import type { RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, FutureStorerPlan, StringStorerPlan } from '../../src/marshal/model/store-plans';
 import {
     boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Storer,
     s64Storer, u64Storer, f32Storer, f64Storer, charStorer, stringStorer,
@@ -16,7 +16,7 @@ import {
     ownResourceStorer, borrowResourceStorer, borrowResourceDirectStorer,
     streamStorer, futureMemStorer, errorContextStorer,
     createResultWrappingStorer,
-} from './memory-store';
+} from '../../src/marshal/memory-store';
 
 // --- Mock helpers ---
 
