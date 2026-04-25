@@ -234,7 +234,7 @@ export function adaptHttpTypes(): {
     AdapterIncomingResponse: typeof AdapterIncomingResponse;
     AdapterIncomingBody: typeof AdapterIncomingBody;
     AdapterFutureIncomingResponse: typeof AdapterFutureIncomingResponse;
-    } {
+} {
     return {
         createFields: (): AdapterFields => new AdapterFields(),
         createFieldsFromList: (entries: [string, Uint8Array][]): AdapterFields => new AdapterFields(entries),
