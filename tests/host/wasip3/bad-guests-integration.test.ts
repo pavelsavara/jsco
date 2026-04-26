@@ -32,7 +32,7 @@
 
 import { createComponent } from '../../../src/resolver';
 import { initializeAsserts } from '../../../src/utils/assert';
-import { useVerboseOnFailure, verboseOptions, runWithVerbose } from '../../test-utils/verbose-logger';
+import { useVerboseOnFailure, verboseOptions, runWithVerbose, type VerboseCapture } from '../../test-utils/verbose-logger';
 
 initializeAsserts();
 
@@ -57,7 +57,7 @@ interface AttackProbe {
     elapsedMs: number;
 }
 
-async function probeAttack(label: string, fn: () => Promise<unknown> | unknown): Promise<AttackProbe> {
+async function probeAttack(capture: VerboseCapture, label: string, fn: () => Promise<unknown> | unknown): Promise<AttackProbe> {
     let tickCount = 0;
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < PRE_SCHEDULED_TICKS; i++) {
@@ -75,8 +75,10 @@ async function probeAttack(label: string, fn: () => Promise<unknown> | unknown):
 
     for (const t of timers) clearTimeout(t);
 
-    // eslint-disable-next-line no-console
-    console.log(`[probe] ${label}: ticked=${tickedDuringCall}/${PRE_SCHEDULED_TICKS} iterations=${iterations} elapsed=${elapsedMs}ms`);
+    // Recorded into the per-test verbose capture; only printed when the
+    // test fails. Keeps passing-suite output quiet while preserving the
+    // diagnostic trail for failures.
+    capture.messages.push(`[probe] ${label}: ticked=${tickedDuringCall}/${PRE_SCHEDULED_TICKS} iterations=${iterations} elapsed=${elapsedMs}ms`);
 
     return { tickedDuringCall, iterations, elapsedMs };
 }
@@ -102,7 +104,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A1: stream.read → cancel-read yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a1', () => iface['a1StreamReadCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a1', () => iface['a1StreamReadCancelSpin']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -112,7 +114,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A2: stream.write → cancel-write yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a2', () => iface['a2StreamWriteCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a2', () => iface['a2StreamWriteCancelSpin']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -122,7 +124,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A3: future.read → cancel-read yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a3', () => iface['a3FutureReadCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a3', () => iface['a3FutureReadCancelSpin']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -132,7 +134,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A4: future.write → cancel-write yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a4', () => iface['a4FutureWriteCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a4', () => iface['a4FutureWriteCancelSpin']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -142,7 +144,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A5: waitable-set.poll yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a5', () => iface['a5WaitablePollSpin']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a5', () => iface['a5WaitablePollSpin']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -152,7 +154,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A7: stream.new + drop churn yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a7', () => iface['a7StreamNewDropChurn']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a7', () => iface['a7StreamNewDropChurn']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -162,7 +164,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('A8: waitable-set.new + drop churn yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('a8', () => iface['a8WaitableSetNewDropChurn']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a8', () => iface['a8WaitableSetNewDropChurn']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -174,7 +176,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('B1: unbounded stream.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('b1', () => iface['b1StreamLeak']!(ITERATION_CAP_ALLOC));
+            const probe = await probeAttack(verbose, 'b1', () => iface['b1StreamLeak']!(ITERATION_CAP_ALLOC));
             expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
@@ -184,7 +186,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('B2: unbounded future.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('b2', () => iface['b2FutureLeak']!(ITERATION_CAP_ALLOC));
+            const probe = await probeAttack(verbose, 'b2', () => iface['b2FutureLeak']!(ITERATION_CAP_ALLOC));
             expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
@@ -194,7 +196,7 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     test('B3: unbounded waitable-set.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack('b3', () => iface['b3WaitableSetLeak']!(ITERATION_CAP_ALLOC));
+            const probe = await probeAttack(verbose, 'b3', () => iface['b3WaitableSetLeak']!(ITERATION_CAP_ALLOC));
             expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
