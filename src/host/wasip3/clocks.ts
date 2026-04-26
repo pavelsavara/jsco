@@ -38,7 +38,10 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
             if (delayNs <= 0n) return undefined as unknown as Promise<void>;
             const clampedNs = delayNs > MAX_DELAY_NS ? MAX_DELAY_NS : delayNs;
             const delayMs = Number(clampedNs) / 1_000_000;
-            return new Promise(resolve => setTimeout(resolve, delayMs));
+            return new Promise(resolve => {
+                const t = setTimeout(resolve, delayMs);
+                if (typeof t === 'object' && 'unref' in t) t.unref();
+            });
         },
 
         waitFor(howLong: bigint): Promise<void> {
@@ -46,7 +49,10 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
             if (typeof howLong !== 'bigint' || howLong <= 0n) return undefined as unknown as Promise<void>;
             const clampedNs = howLong > MAX_DELAY_NS ? MAX_DELAY_NS : howLong;
             const delayMs = Number(clampedNs) / 1_000_000;
-            return new Promise(resolve => setTimeout(resolve, delayMs));
+            return new Promise(resolve => {
+                const t = setTimeout(resolve, delayMs);
+                if (typeof t === 'object' && 'unref' in t) t.unref();
+            });
         },
     };
 }

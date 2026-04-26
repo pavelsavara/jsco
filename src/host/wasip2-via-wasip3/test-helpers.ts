@@ -62,13 +62,19 @@ export function createMockP3(overrides?: Partial<Record<string, unknown>>): Wasi
                 if (delayNs <= 0n) return undefined;
                 const MAX_NS = BigInt(0x7fffffff) * 1_000_000n;
                 const delayMs = Number(delayNs > MAX_NS ? MAX_NS : delayNs) / 1_000_000;
-                return new Promise(resolve => setTimeout(resolve, delayMs));
+                return new Promise(resolve => {
+                    const t = setTimeout(resolve, delayMs);
+                    if (typeof t === 'object' && 'unref' in t) t.unref();
+                });
             },
             waitFor: (howLong: bigint) => {
                 if (howLong <= 0n) return undefined;
                 const MAX_NS = BigInt(0x7fffffff) * 1_000_000n;
                 const delayMs = Number(howLong > MAX_NS ? MAX_NS : howLong) / 1_000_000;
-                return new Promise(resolve => setTimeout(resolve, delayMs));
+                return new Promise(resolve => {
+                    const t = setTimeout(resolve, delayMs);
+                    if (typeof t === 'object' && 'unref' in t) t.unref();
+                });
             },
         },
         'wasi:clocks/system-clock': {
