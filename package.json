@@ -22,6 +22,7 @@
         "build:hello-city-wat": "wasm-tools parse integration-tests/hello-city-wat/hello-city.wat -o integration-tests/hello-city-wat/hello-city.wasm",
         "build:hello-p1-wat": "wasm-tools parse integration-tests/hello-p1-world-wat/hello.wat -o integration-tests/hello-p1-world-wat/hello.wasm",
         "build:file-io-p1-wat": "wasm-tools parse integration-tests/file-io-p1-wat/file-io.wat -o integration-tests/file-io-p1-wat/file-io.wasm",
+        "build:bad-guests-p3-wat": "wasm-tools parse integration-tests/bad-guests-p3-wat/bad-guests-p3.wat -o integration-tests/bad-guests-p3-wat/bad-guests-p3.wasm",
         "test:integration": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --no-coverage --testPathPattern=integration",
         "lint": "eslint --no-color --max-warnings=0 \"./**/*.ts\"",
         "lint:fix": "eslint --fix --max-warnings=0 \"./**/*.ts\"",

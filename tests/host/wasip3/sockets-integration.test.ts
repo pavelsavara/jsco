@@ -105,7 +105,7 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
             }
         }));
 
-        test.skip('p3_sockets_tcp_streams — send and receive data streams', () => runWithVerbose(verbose, async () => {
+        test('p3_sockets_tcp_streams — send and receive data streams', () => runWithVerbose(verbose, async () => {
             const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_sockets_tcp_streams.component.wasm',
