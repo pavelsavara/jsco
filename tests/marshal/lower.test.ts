@@ -186,7 +186,7 @@ describe('lower.ts enum/flags/record/tuple lowering', () => {
 
     test('flagsLowering decodes bitfield', () => {
         const { ctx } = createMockCtx();
-        const plan = { memberNames: ['a', 'b', 'c', 'd'] };
+        const plan = { wordCount: 1, memberNames: ['a', 'b', 'c', 'd'] };
         const result = flagsLowering(plan, ctx, 0b0101) as Record<string, boolean>;
         expect(result.a).toBe(true);
         expect(result.b).toBe(false);
