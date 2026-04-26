@@ -128,14 +128,6 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
         };
     }
 
-    function yieldNextTick<T>(P: Promise<T>): Promise<T> {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                P.then(resolve, reject);
-            }, 0);
-        });
-    }
-
     /** Read typed (non-byte) elements from a stream: encode each via elementStorer. */
     function readTypedElements(entry: StreamEntry, ptr: number, len: number): number {
         const elemSize = entry.elementSize!;
