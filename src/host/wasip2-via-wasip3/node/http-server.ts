@@ -112,7 +112,7 @@ function convertP2ResponseToP3(p2Response: WasiOutgoingResponse): _HttpResponse 
     let contents: WasiStreamReadable<Uint8Array> | undefined;
     if (bodyChunks.length > 0) {
         contents = {
-            async *[Symbol.asyncIterator]() {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
                 for (const chunk of bodyChunks) {
                     yield chunk;
                 }

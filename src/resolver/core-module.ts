@@ -3,7 +3,7 @@
 import { ModelTag } from '../parser/model/tags';
 import { CoreModule } from '../parser/types';
 import { jsco_assert } from '../utils/assert';
-import { Resolver } from './types';
+import { BinderRes, Resolver } from './types';
 
 export const resolveCoreModule: Resolver<CoreModule> = (rctx, rargs) => {
     const coreModule = rargs.element;
@@ -11,7 +11,7 @@ export const resolveCoreModule: Resolver<CoreModule> = (rctx, rargs) => {
     return {
         callerElement: rargs.callerElement,
         element: coreModule,
-        binder: async (_mctx, _bargs) => {
+        binder: async (_mctx, _bargs): Promise<BinderRes> => {
             const binderResult = {
                 result: await coreModule.module!
             };

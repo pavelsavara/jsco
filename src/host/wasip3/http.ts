@@ -516,7 +516,7 @@ class HttpRequest {
 
         // If no contents, return an empty stream
         const bodyStream: WasiStreamReadable<Uint8Array> = this_._contents ?? {
-            async *[Symbol.asyncIterator]() { /* empty body */ },
+            async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> { /* empty body */ },
         };
 
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
@@ -594,7 +594,7 @@ class HttpResponse {
         });
 
         const bodyStream: WasiStreamReadable<Uint8Array> = this_._contents ?? {
-            async *[Symbol.asyncIterator]() { /* empty body */ },
+            async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> { /* empty body */ },
         };
 
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
@@ -643,7 +643,7 @@ function wrapBodyAsReadableStream(
     const iter = (stream as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
     let totalBytes = 0;
     return new ReadableStream<Uint8Array>({
-        async pull(controller) {
+        async pull(controller): Promise<void> {
             try {
                 const { done, value } = await iter.next();
                 if (done) {
@@ -660,7 +660,7 @@ function wrapBodyAsReadableStream(
                 controller.error(e);
             }
         },
-        cancel() {
+        cancel(): void {
             iter.return?.();
         },
     });
@@ -744,7 +744,7 @@ async function sendImpl(
         const reader = fetchResponse.body.getReader();
         let totalResponseBytes = 0;
         responseContents = {
-            async *[Symbol.asyncIterator]() {
+            async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
                 try {
                     for (; ;) {
                         const { done, value } = await reader.read();

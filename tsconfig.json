@@ -21,16 +21,12 @@
         "types": [
             "node",
             "jest"
-        ],
-        "rootDirs": [
-            "src"
         ]
     },
     "include": [
         "src/**/*",
         "src/__mocks__/.types.d.ts",
-        "tests/*.ts",
-        "tests/*.d.ts"
+        "tests/**/*"
     ],
     "exclude": [
         "node_modules",

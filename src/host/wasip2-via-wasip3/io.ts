@@ -35,7 +35,7 @@ export type PollResult = Uint32Array;
 export function createSyncPollable(isReady: () => boolean): WasiPollable {
     return {
         ready: isReady,
-        block() {
+        block(): void {
             if (isReady()) return;
             throw new Error('Synchronous pollable is not ready and cannot block');
         },
@@ -47,7 +47,7 @@ export function createAsyncPollable(promise: Promise<void>): WasiPollable {
     promise.then(() => { resolved = true; });
     return {
         ready: () => resolved,
-        block() {
+        block(): void {
             if (resolved) return;
             throw new JspiBlockSignal(promise);
         },
@@ -167,7 +167,7 @@ export function createInputStreamFromP3(
     function startPumping(): void {
         if (nextChunkPromise || closed) return;
         nextChunkReady = false;
-        nextChunkPromise = (async () => {
+        nextChunkPromise = (async (): Promise<void> => {
             try {
                 const { done, value } = await iterator.next();
                 if (done) {
@@ -397,7 +397,7 @@ export function createOutputStream(
 ): WasiOutputStream {
     let buf: number[] = [];
     let closed = false;
-    const sink = onFlush ?? (() => { });
+    const sink = onFlush ?? ((): void => { });
 
     function doFlush(): StreamResult<void> {
         if (closed) return streamClosed();

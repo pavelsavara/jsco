@@ -266,7 +266,7 @@ class NodeTcpSocket {
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 this._server = null;
                 try { mapNodeError(err); } catch (e) { reject(e); }
             };
@@ -307,7 +307,7 @@ class NodeTcpSocket {
                 (options as net.TcpSocketConnectOpts).localAddress = socketAddressToString(bindAddr);
                 (options as net.TcpSocketConnectOpts).localPort = socketAddressPort(bindAddr);
             }
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 try { mapNodeError(err); } catch (e) { reject(e); }
             };
             socket.connect(options, () => {
@@ -420,12 +420,12 @@ class NodeTcpSocket {
         this._activeOps++;
         // Track socket errors so we can abort the iteration
         let socketError: ErrorCode | undefined;
-        const onError = (err: NodeJS.ErrnoException) => {
+        const onError = (err: NodeJS.ErrnoException): void => {
             socketError = mapNodeErrorTag(err);
         };
         socket.on('error', onError);
 
-        return (async () => {
+        return (async (): Promise<void> => {
             try {
                 const iter = data[Symbol.asyncIterator]();
                 try {
@@ -454,7 +454,7 @@ class NodeTcpSocket {
                 // 'error' or 'close'.
                 await new Promise<void>((resolve) => {
                     let resolved = false;
-                    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+                    const done = (): void => { if (!resolved) { resolved = true; resolve(); } };
                     socket.once('error', done);
                     socket.once('close', done);
                     socket.end(done);
@@ -507,7 +507,7 @@ class NodeTcpSocket {
                 let waiting: ((result: IteratorResult<Uint8Array>) => void) | null = null;
                 let done = false;
 
-                pushFn = (value: Uint8Array) => {
+                pushFn = (value: Uint8Array): void => {
                     if (waiting) {
                         const w = waiting;
                         waiting = null;
@@ -516,7 +516,7 @@ class NodeTcpSocket {
                         queue.push(value);
                     }
                 };
-                closeFn = () => {
+                closeFn = (): void => {
                     done = true;
                     if (waiting) {
                         const w = waiting;
@@ -537,34 +537,34 @@ class NodeTcpSocket {
             },
         };
 
-        const releaseOnce = (() => {
+        const releaseOnce = ((): () => void => {
             let released = false;
-            return () => { if (!released) { released = true; this._releaseOp(); } };
+            return (): void => { if (!released) { released = true; this._releaseOp(); } };
         })();
 
         const future = new Promise<void>((resolve, reject) => {
-            function removeAll() {
+            function removeAll(): void {
                 socket.removeListener('data', onData);
                 socket.removeListener('end', onEnd);
                 socket.removeListener('error', onError);
                 socket.removeListener('close', onClose);
             }
-            const onData = (chunk: Buffer) => {
+            const onData = (chunk: Buffer): void => {
                 if (pushFn) pushFn(new Uint8Array(chunk));
             };
-            const onEnd = () => {
+            const onEnd = (): void => {
                 removeAll();
                 if (closeFn) closeFn();
                 releaseOnce();
                 resolve(undefined);
             };
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 removeAll();
                 if (closeFn) closeFn();
                 releaseOnce();
                 reject(mapNodeErrorTag(err));
             };
-            const onClose = () => {
+            const onClose = (): void => {
                 // 'close' fires after 'end' or 'error'. Only release the op
                 // (let the socket be destroyed when _dropPending). Do NOT call
                 // closeFn — the stream should only close on 'end' or 'error'.
@@ -575,7 +575,7 @@ class NodeTcpSocket {
             // When the WASM drops the receive stream reader, the receive
             // future should resolve. Per WIT spec: "Dropping the stream
             // should've caused the future to resolve."
-            stream.onReadableDrop = () => {
+            stream.onReadableDrop = (): void => {
                 removeAll();
                 if (closeFn) closeFn();
                 releaseOnce();
@@ -743,7 +743,7 @@ class NodeUdpSocket {
         const port = socketAddressPort(localAddress);
 
         return new Promise<void>((resolve, reject) => {
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 try { mapNodeError(err); } catch (e) { reject(e); }
             };
             this._socket.bind(port, host, () => {
@@ -777,7 +777,7 @@ class NodeUdpSocket {
         const port = socketAddressPort(remoteAddress);
 
         return new Promise<void>((resolve, reject) => {
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 try { mapNodeError(err); } catch (e) { reject(e); }
             };
             this._socket.connect(port, host, () => {
@@ -818,7 +818,7 @@ class NodeUdpSocket {
         // list<u8> may arrive as a plain Array from the component model
         const buf = data instanceof Uint8Array ? data : new Uint8Array(data);
         return new Promise<void>((resolve, reject) => {
-            const callback = (err: Error | null) => {
+            const callback = (err: Error | null): void => {
                 if (err) {
                     try { mapNodeError(err as NodeJS.ErrnoException); } catch (e) { reject(e); }
                 } else {
@@ -845,12 +845,12 @@ class NodeUdpSocket {
         }
         return new Promise<[Uint8Array, IpSocketAddress]>((resolve, reject) => {
             const sock = this._socket;
-            const onMessage = (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+            const onMessage = (msg: Buffer, rinfo: dgram.RemoteInfo): void => {
                 sock.removeListener('error', onError);
                 const addr = nodeAddressToIpSocket(rinfo.address, rinfo.port, rinfo.family);
                 resolve([new Uint8Array(msg), addr]);
             };
-            const onError = (err: NodeJS.ErrnoException) => {
+            const onError = (err: NodeJS.ErrnoException): void => {
                 sock.removeListener('message', onMessage);
                 try { mapNodeError(err); } catch (e) { reject(e); }
             };

@@ -8,11 +8,11 @@ function notYetImplemented(name: string): never {
 
 export function createErrorContextTable(): ErrorContextTable {
     return {
-        newErrorContext() { return notYetImplemented('error-context.new'); },
-        debugMessage() { notYetImplemented('error-context.debug-message'); },
-        drop() { notYetImplemented('error-context.drop'); },
-        add() { return notYetImplemented('error-context.add'); },
-        get() { return notYetImplemented('error-context.get'); },
-        remove() { return notYetImplemented('error-context.remove'); },
+        newErrorContext(): never { return notYetImplemented('error-context.new'); },
+        debugMessage(): void { notYetImplemented('error-context.debug-message'); },
+        drop(): void { notYetImplemented('error-context.drop'); },
+        add(): never { return notYetImplemented('error-context.add'); },
+        get(): never { return notYetImplemented('error-context.get'); },
+        remove(): never { return notYetImplemented('error-context.remove'); },
     };
 }

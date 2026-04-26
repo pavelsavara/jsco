@@ -302,7 +302,7 @@ class SubSource {
         return new SyncArraySource(buf);
     }
 
-    checkLimit(needs: number) {
+    checkLimit(needs: number): void {
         if (this.rest < needs) {
             throw new Error('limit reached.');
         }
@@ -372,6 +372,6 @@ class SyncArraySource implements SyncSource {
 }
 
 
-export function bufferToHex(data: Uint8Array) {
+export function bufferToHex(data: Uint8Array): string {
     return data.reduce((t, x) => t + ' ' + x.toString(16).padStart(2, '0'), '');
 }

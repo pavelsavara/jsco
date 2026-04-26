@@ -81,7 +81,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
     /** Build an async-iterable backed by the stream entry's internal buffer. */
     function makeAsyncIterable(entry: StreamEntry): AsyncIterable<unknown> {
         return {
-            [Symbol.asyncIterator]() {
+            [Symbol.asyncIterator](): AsyncIterator<unknown> {
                 return {
                     next(): Promise<IteratorResult<unknown>> {
                         if (entry.chunks.length > 0) {
@@ -96,16 +96,17 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                             return Promise.resolve({ value: undefined as any, done: true });
                         }
                         return new Promise<IteratorResult<unknown>>((resolve) => {
-                            entry.waitingReader = (chunk) => {
+                            entry.waitingReader = (chunk): void => {
                                 entry.waitingReader = undefined;
                                 signal.removeEventListener('abort', onAbort);
+                                // give the browser/event loop a chance to process other pending tasks
                                 if (chunk === null) {
                                     resolve({ value: undefined as any, done: true });
                                 } else {
                                     resolve({ value: chunk, done: false });
                                 }
                             };
-                            function onAbort() {
+                            function onAbort(): void {
                                 if (entry.waitingReader) {
                                     entry.waitingReader(null);
                                 }

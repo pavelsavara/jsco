@@ -49,7 +49,7 @@ export async function cliMain(): Promise<void> {
     await main(parsedArgs);
 }
 
-export async function main({ command, componentUrl, options }: CliParseResult) {
+export async function main({ command, componentUrl, options }: CliParseResult): Promise<void> {
     try {
         const config = createConfig(options);
 

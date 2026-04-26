@@ -212,7 +212,7 @@ export const resolveComponentTypeInstance: Resolver<ComponentTypeInstance> = (rc
     return {
         callerElement: rargs.callerElement,
         element: componentTypeInstance,
-        binder: async (mctx, bargs) => {
+        binder: async (mctx, bargs): Promise<BinderRes> => {
             const binderResult = lookupComponentInstance(mctx, componentTypeInstance.selfSortIndex!);
             Object.assign(binderResult.result.exports, bargs.imports);
             Object.assign(binderResult.result.types, componentTypeInstance.declarations);

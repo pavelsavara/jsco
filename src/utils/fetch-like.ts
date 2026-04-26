@@ -2,7 +2,7 @@
 
 const isNode = typeof process == 'object' && typeof process['versions'] == 'object' && typeof process['versions']['node'] == 'string';
 
-export function fetchLike(url: string) {
+export function fetchLike(url: string): Promise<any> {
     const isFileUrl = url.startsWith('file://');
     const isHttpUrl = url.startsWith('https://') || url.startsWith('http://');
     if (isNode && (isFileUrl || !isHttpUrl)) {

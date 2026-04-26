@@ -24,7 +24,7 @@ export interface WasiStreamWritable<T> {
 export function readableFromStream<T>(stream: ReadableStream<T>): WasiStreamReadable<T> {
     const reader = stream.getReader();
     return {
-        async *[Symbol.asyncIterator]() {
+        async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
             try {
                 for (; ;) {
                     const { done, value } = await reader.read();
@@ -43,7 +43,7 @@ export function readableFromStream<T>(stream: ReadableStream<T>): WasiStreamRead
  */
 export function readableFromAsyncIterable<T>(iterable: AsyncIterable<T>): WasiStreamReadable<T> {
     return {
-        async *[Symbol.asyncIterator]() {
+        async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
             yield* iterable;
         },
     };
@@ -80,7 +80,7 @@ export function createStreamPair<T>(): StreamPair<T> {
     let waiter: ((item: QueueItem) => void) | undefined;
     let closed = false;
 
-    function enqueue(item: QueueItem) {
+    function enqueue(item: QueueItem): void {
         if (waiter) {
             const w = waiter;
             waiter = undefined;
@@ -121,13 +121,13 @@ export function createStreamPair<T>(): StreamPair<T> {
             });
         },
 
-        close() {
+        close(): void {
             if (closed) return;
             closed = true;
             enqueue({ tag: 'done' });
         },
 
-        error(err: unknown) {
+        error(err: unknown): void {
             if (closed) return;
             closed = true;
             enqueue({ tag: 'error', error: err });

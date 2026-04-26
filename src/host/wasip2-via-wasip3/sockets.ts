@@ -17,7 +17,7 @@ function socketErr<T>(code: SocketErrorCode): SocketResult<T> {
     return { tag: 'err', val: code };
 }
 
-export function adaptInstanceNetwork() {
+export function adaptInstanceNetwork(): { instanceNetwork(): object } {
     return {
         instanceNetwork(): object {
             return {};
@@ -25,7 +25,7 @@ export function adaptInstanceNetwork() {
     };
 }
 
-export function adaptNetwork() {
+export function adaptNetwork(): { networkErrorCode(): undefined } {
     return {
         networkErrorCode(): undefined {
             return undefined;
@@ -33,7 +33,7 @@ export function adaptNetwork() {
     };
 }
 
-export function adaptTcpCreateSocket(p3: WasiP3Imports) {
+export function adaptTcpCreateSocket(p3: WasiP3Imports): { createTcpSocket(family: IpAddressFamily): SocketResult<unknown> } {
     const p3types = p3['wasi:sockets/types'];
     return {
         createTcpSocket(family: IpAddressFamily): SocketResult<unknown> {
@@ -52,7 +52,7 @@ export function adaptTcpCreateSocket(p3: WasiP3Imports) {
     };
 }
 
-export function adaptUdpCreateSocket(p3: WasiP3Imports) {
+export function adaptUdpCreateSocket(p3: WasiP3Imports): { createUdpSocket(family: IpAddressFamily): SocketResult<unknown> } {
     const p3types = p3['wasi:sockets/types'];
     return {
         createUdpSocket(family: IpAddressFamily): SocketResult<unknown> {
@@ -70,7 +70,7 @@ export function adaptUdpCreateSocket(p3: WasiP3Imports) {
     };
 }
 
-export function adaptIpNameLookup(p3: WasiP3Imports) {
+export function adaptIpNameLookup(p3: WasiP3Imports): { resolveAddresses(_network: unknown, name: string): SocketResult<unknown> } {
     const p3lookup = p3['wasi:sockets/ip-name-lookup'];
     return {
         resolveAddresses(_network: unknown, name: string): SocketResult<unknown> {
@@ -88,7 +88,7 @@ export function adaptIpNameLookup(p3: WasiP3Imports) {
     };
 }
 
-function createResolveStream(promise: Promise<unknown[]>) {
+function createResolveStream(promise: Promise<unknown[]>): { resolveNextAddress(): SocketResult<unknown | undefined>; subscribe(): { ready(): boolean; block(): void } } {
     let addresses: unknown[] | null = null;
     let index = 0;
     let resolved = false;
@@ -111,10 +111,10 @@ function createResolveStream(promise: Promise<unknown[]>) {
             }
             return { tag: 'ok' as const, val: addresses[index++] };
         },
-        subscribe() {
+        subscribe(): { ready(): boolean; block(): void } {
             return {
-                ready: () => resolved,
-                block() {
+                ready: (): boolean => resolved,
+                block(): void {
                     if (resolved) return;
                     throw new Error('not-supported');
                 },

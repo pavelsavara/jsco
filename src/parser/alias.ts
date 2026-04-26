@@ -28,7 +28,7 @@ export function readAlias(src: SyncSource): ComponentAlias {
     return parseAliasTarget(src, b1, b2);
 }
 
-function parseAliasTarget(src: SyncSource, b1: number, b2?: number,) {
+function parseAliasTarget(src: SyncSource, b1: number, b2?: number,): ComponentAlias {
     const k1 = readU32(src);
     switch (k1) {
         case 0x00:

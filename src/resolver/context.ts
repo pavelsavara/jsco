@@ -17,13 +17,13 @@ import { hasJspi } from '../utils/jspi';
 function createJspiWrappers(noJspi?: boolean | string[]): { wrapLift?: (fn: Function, exportName?: string) => Function; wrapLower?: (fn: Function) => Function } {
     if (!hasJspi() || noJspi === true) return {};
     return {
-        wrapLift: (fn, exportName) => {
+        wrapLift: (fn, exportName): Function => {
             const shouldWrap = Array.isArray(noJspi)
                 ? (exportName !== undefined && !noJspi.includes(exportName))
                 : true;
             return shouldWrap ? (WebAssembly as any).promising(fn) : fn;
         },
-        wrapLower: (fn) => new (WebAssembly as any).Suspending(fn),
+        wrapLower: (fn): Function => new (WebAssembly as any).Suspending(fn),
     };
 }
 
@@ -54,7 +54,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             logger,
         },
         validateTypes: (options.validateTypes === false) ? false : true,
-        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject) => WebAssembly.instantiate(module, importObject)),
+        wasmInstantiate: options.wasmInstantiate ?? ((module, importObject): Promise<WebAssembly.Instance> => WebAssembly.instantiate(module, importObject)),
         importToInstanceIndex: new Map(),
         resourceAliasGroups: new Map(),
         componentInstanceCache: new Map(),
@@ -217,8 +217,8 @@ function populateIndexes(rctx: ResolverContext, sections: Iterable<TaggedElement
     }
 }
 
-export function setSelfIndex(rctx: ResolverContext) {
-    function setSelfIndex(sort: IndexedElement[]) {
+export function setSelfIndex(rctx: ResolverContext): void {
+    function setSelfIndex(sort: IndexedElement[]): void {
         for (let i = 0; i < sort.length; i++) {
             const elem = sort[i];
             if (!elem) throw new Error(`setSelfIndex: missing element at index ${i}`);

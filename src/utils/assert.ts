@@ -36,23 +36,23 @@ export const defaultVerbosity: Verbosity = {
 // eslint-disable-next-line no-console
 let _logger: LogFn = (phase, _level, ...args) => console.log(`[${phase}]`, ...args);
 
-export function setLogger(fn: LogFn) { _logger = fn; }
+export function setLogger(fn: LogFn): void { _logger = fn; }
 
 export function jsco_log(phase: string, level: LogLevel, ...args: unknown[]): void {
     _logger(phase, level, ...args);
 }
 
-export function initializeAsserts() {
+export function initializeAsserts(): void {
     if (isDebug) {
         initDebugNames();
     }
 }
 
 let _initDebugNames: (() => void) | undefined;
-export function registerInitDebugNames(fn: () => void) { _initDebugNames = fn; }
-function initDebugNames() { if (_initDebugNames) _initDebugNames(); }
+export function registerInitDebugNames(fn: () => void): void { _initDebugNames = fn; }
+function initDebugNames(): void { if (_initDebugNames) _initDebugNames(); }
 
-export function debugStack(src: any, target: any, position: string) {
+export function debugStack(src: any, target: any, position: string): void {
     if (!isDebug) return;
     const orig = src['debugStack'] ?? [];
     target['debugStack'] = [position, ...(orig)];

@@ -45,7 +45,7 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                     return;
                 }
                 let settled = false;
-                function onAbort() {
+                function onAbort(): void {
                     if (settled) return;
                     settled = true;
                     reject(signal.reason);
