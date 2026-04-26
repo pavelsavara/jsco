@@ -32,7 +32,7 @@
         "setup:rust:cargo": "cargo install cargo-component --locked",
         "test:ci": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest",
         "test:unix": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --watch",
-        "test:win": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --watch",
+        "test:win": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js",
         "test:cover": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --coverage",
         "test:browser": "npx playwright test",
         "demo": "node --experimental-wasm-jspi demo.mjs",

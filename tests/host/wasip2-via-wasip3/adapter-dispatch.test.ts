@@ -8,7 +8,7 @@
  */
 
 import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
-import { createMockP3 } from '../../../src/host/wasip2-via-wasip3/test-helpers';
+import { createMockP3 } from './test-helpers';
 import { createInputStream, createOutputStream } from '../../../src/host/wasip2-via-wasip3/io';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from '../../../src/host/wasip2-via-wasip3/io';
 
