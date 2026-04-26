@@ -253,7 +253,10 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
 
     // A6: Repeatedly call an async-lower JS import that returns a Promise,
     // then `subtask.cancel` + `subtask.drop` on each resulting subtask.
-    // Subtask handle table churns sync \u2014 host never yields.
+    // Subtask handle table churns sync — host never yields.
+    // Blocked: ModelTag.CanonicalFunctionSubtaskCancel currently routes to
+    // resolveCanonicalFunctionNotImplemented; needs an actual implementation
+    // before this test can run.
     test.skip('A6: subtask.cancel churn yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
@@ -265,10 +268,10 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     }));
 
     // A9: Toggle task.backpressure on/off in a tight loop.
-    test.skip('A9: task.backpressure flip-flop yields to event loop', () => runWithVerbose(verbose, async () => {
+    test('A9: task.backpressure flip-flop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack(verbose, 'a9', () => iface['a9TaskBackpressureFlip']!(ITERATION_CAP));
+            const probe = await probeAttack(verbose, 'a9', () => iface['a9BackpressureFlip']!(ITERATION_CAP));
             expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
@@ -342,8 +345,8 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     // ---- Class D \u2014 trap-flooding / error-path spin ----
 
     // D1: Drop the readable end then call stream.read on the dead handle in a loop.
-    // Each call returns DROPPED sync \u2014 mitigation: yield throttle on cumulative DROPPED returns.
-    test.skip('D1: read-from-dropped-stream loop yields to event loop', () => runWithVerbose(verbose, async () => {
+    // Each call returns DROPPED sync — the throttle still has to yield.
+    test('D1: read-from-dropped-stream loop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
             const probe = await probeAttack(verbose, 'd1', () => iface['d1ReadDroppedStreamSpin']!(ITERATION_CAP));
@@ -364,9 +367,8 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
         }
     }));
 
-    // D3: waitable-set.poll on an empty set in a loop.
-    // Largely overlaps with A5; add only if a distinct empty-set codepath emerges.
-    test.skip('D3: waitable-set.poll on empty set yields to event loop', () => runWithVerbose(verbose, async () => {
+    // D3: waitable-set.poll on an empty set in a loop. Sibling of A5 (populated set).
+    test('D3: waitable-set.poll on empty set yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
             const probe = await probeAttack(verbose, 'd3', () => iface['d3PollEmptyWaitableSet']!(ITERATION_CAP));

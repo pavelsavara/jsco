@@ -54,6 +54,10 @@
   (core func $ws-poll             (canon waitable-set.poll  (memory $mem)))
   (core func $ws-drop             (canon waitable-set.drop))
 
+  ;; Canon backpressure ops (component-level; no params/results)
+  (core func $bp-inc              (canon backpressure.inc))
+  (core func $bp-dec              (canon backpressure.dec))
+
   ;; Core implementation: each attack export is a separate core function.
   (core module $impl
     (import "host" "memory"               (memory 0))
@@ -74,6 +78,8 @@
     (import "host" "ws-new"               (func $ws-new               (result i32)))
     (import "host" "ws-poll"              (func $ws-poll              (param i32 i32) (result i32)))
     (import "host" "ws-drop"              (func $ws-drop              (param i32)))
+    (import "host" "bp-inc"               (func $bp-inc))
+    (import "host" "bp-dec"               (func $bp-dec))
 
     ;; ---------------------------------------------------------------------
     ;; A1: stream.read → stream.cancel-read spin (no waitable-set.wait)
@@ -341,6 +347,82 @@
     )
 
     ;; ---------------------------------------------------------------------
+    ;; A9: task.backpressure flip-flop spin
+    ;; Toggle backpressure on/off in a tight loop. Each call is O(1) on the
+    ;; host (counter increment/decrement). Without yield-throttle the WASM
+    ;; never returns to JS.
+    ;; ---------------------------------------------------------------------
+    (func $a9-backpressure-flip (export "a9-backpressure-flip")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          (call $bp-inc)
+          (call $bp-dec)
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; D1: read-from-dropped-stream spin
+    ;; Drop both ends of a stream, then call stream.read on the dead handle
+    ;; in a loop. Each read returns DROPPED sync — the host must still yield
+    ;; via the throttle so the JS event loop ticks.
+    ;; ---------------------------------------------------------------------
+    (func $d1-read-dropped-stream-spin (export "d1-read-dropped-stream-spin")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $packed i64)
+      (local $rd i32) (local $wr i32)
+
+      (local.set $packed (call $stream-new))
+      (local.set $rd (i32.wrap_i64 (local.get $packed)))
+      (local.set $wr (i32.wrap_i64 (i64.shr_u (local.get $packed) (i64.const 32))))
+      (call $stream-drop-writable (local.get $wr))
+      (call $stream-drop-readable (local.get $rd))
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          (drop (call $stream-read (local.get $rd) (i32.const 0) (i32.const 1)))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; D3: poll-empty-waitable-set spin
+    ;; Create one waitable-set, never join anything to it, poll forever.
+    ;; ws-poll on an empty set returns NONE sync; without throttle the WASM
+    ;; never yields. (Sibling of A5 which polls a populated set.)
+    ;; ---------------------------------------------------------------------
+    (func $d3-poll-empty-waitable-set (export "d3-poll-empty-waitable-set")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $ws i32)
+
+      (local.set $ws (call $ws-new))
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          (drop (call $ws-poll (local.get $ws) (i32.const 0)))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (call $ws-drop (local.get $ws))
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
     ;; B7: linear memory growth via memory.grow until the host cap traps.
     ;;
     ;; Grow N pages (64 KB each) per iteration up to the iteration cap, then
@@ -391,6 +473,8 @@
     (export "ws-new"               (func $ws-new))
     (export "ws-poll"              (func $ws-poll))
     (export "ws-drop"              (func $ws-drop))
+    (export "bp-inc"               (func $bp-inc))
+    (export "bp-dec"               (func $bp-dec))
   )
   (core instance $core (instantiate $impl
     (with "host" (instance $host-exports))
@@ -410,6 +494,9 @@
   (alias core export $core "b2-future-leak"              (core func $b2-core))
   (alias core export $core "b3-waitable-set-leak"        (core func $b3-core))
   (alias core export $core "b7-memory-grow-spin"         (core func $b7-core))
+  (alias core export $core "a9-backpressure-flip"        (core func $a9-core))
+  (alias core export $core "d1-read-dropped-stream-spin" (core func $d1-core))
+  (alias core export $core "d3-poll-empty-waitable-set"  (core func $d3-core))
 
   (func $a1 (type $fn-spin) (canon lift (core func $a1-core)))
   (func $a2 (type $fn-spin) (canon lift (core func $a2-core)))
@@ -422,6 +509,9 @@
   (func $b2 (type $fn-spin) (canon lift (core func $b2-core)))
   (func $b3 (type $fn-spin) (canon lift (core func $b3-core)))
   (func $b7 (type $fn-spin) (canon lift (core func $b7-core)))
+  (func $a9 (type $fn-spin) (canon lift (core func $a9-core)))
+  (func $d1 (type $fn-spin) (canon lift (core func $d1-core)))
+  (func $d3 (type $fn-spin) (canon lift (core func $d3-core)))
 
   (instance $attacks
     (export "a1-stream-read-cancel-spin"  (func $a1) (func (type $fn-spin)))
@@ -435,6 +525,9 @@
     (export "b2-future-leak"              (func $b2) (func (type $fn-spin)))
     (export "b3-waitable-set-leak"        (func $b3) (func (type $fn-spin)))
     (export "b7-memory-grow-spin"         (func $b7) (func (type $fn-spin)))
+    (export "a9-backpressure-flip"        (func $a9) (func (type $fn-spin)))
+    (export "d1-read-dropped-stream-spin" (func $d1) (func (type $fn-spin)))
+    (export "d3-poll-empty-waitable-set"  (func $d3) (func (type $fn-spin)))
   )
   (export "test:bad-guests/attacks@0.1.0" (instance $attacks))
 )

@@ -929,13 +929,15 @@ const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> 
 };
 
 /** backpressure — inc/dec/set the backpressure counter (no-op for now). */
-const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
-            let fn: Function;
+            let fn: (...args: number[]) => void;
             if (elem.tag === ModelTag.CanonicalFunctionBackpressureInc) {
                 fn = (): void => { mctx.backpressure++; };
             } else if (elem.tag === ModelTag.CanonicalFunctionBackpressureDec) {
@@ -944,7 +946,7 @@ const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rar
                 // backpressure.set (legacy) — treat 0 as dec, non-0 as inc
                 fn = (value: number): void => { mctx.backpressure += value ? 1 : -1; };
             }
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `backpressure:${elem.selfSortIndex}`)
     };
 };
