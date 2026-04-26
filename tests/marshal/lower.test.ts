@@ -3,7 +3,7 @@
 import { initializeAsserts } from '../../src/utils/assert';
 initializeAsserts();
 
-import type { WasmPointer, WasmSize, WasmValue, JsValue } from '../../src/marshal/model/types';
+import type { WasmPointer, WasmSize, WasmValue } from '../../src/marshal/model/types';
 import type { MarshalingContext } from '../../src/resolver/types';
 import {
     u64LoweringNumber,
@@ -45,7 +45,6 @@ function createMockCtx(bufferSize = 4096): { ctx: MarshalingContext, buffer: Arr
 
     const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
-    let nextHandle = 1;
     const resources = {
         get(_typeIdx: number, _handle: number): unknown { return { id: _handle }; },
         remove(_typeIdx: number, _handle: number): unknown { return { id: _handle }; },

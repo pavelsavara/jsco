@@ -659,7 +659,7 @@ describe('WASI P1 filesystem functions', () => {
 
             // pread 5 bytes from offset 6 ("world")
             view.setUint32(600, 700, true); // buf at 700
-            view.setUint32(604, 5, true);   // len=5
+            view.setUint32(604, 5, true); // len=5
             const readRc = fd_pread(ctx, fileFd, 600, 1, 6n, 800);
             expect(readRc).toBe(Errno.Success);
             expect(view.getUint32(800, true)).toBe(5);
@@ -672,8 +672,7 @@ describe('WASI P1 filesystem functions', () => {
         });
 
         test('pread returns Badf for invalid fd', () => {
-            const { ctx, memory } = makeCtx();
-            const view = getView(memory);
+            const { ctx } = makeCtx();
             expect(fd_pread(ctx, 99, 0, 0, 0n, 0)).toBe(Errno.Badf);
         });
 
