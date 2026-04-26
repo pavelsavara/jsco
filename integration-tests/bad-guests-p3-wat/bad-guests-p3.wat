@@ -23,6 +23,18 @@
   ;; Component-level types
   (type $stream-u8 (stream u8))
   (type $future-u8 (future u8))
+  ;; Component-defined resource type for B6 (resource-leak)
+  (type $r (resource (rep i32)))
+
+  ;; Component-level import: a host function that returns a Promise on the JS
+  ;; side (we lower it `async` to obtain a subtask handle each call).
+  ;; Used by A6 (subtask-cancel-spin) and B4 (subtask-handle-leak).
+  (type $fn-async-fn (func (result u8)))
+  (type $async-host-iface (instance
+    (export "async-fn" (func (type $fn-async-fn)))
+  ))
+  (import "test:bad-guests/async-host@0.1.0" (instance $async-host (type $async-host-iface)))
+  (alias export $async-host "async-fn" (func $async-fn-comp))
 
   ;; Shared linear memory
   (core module $mem-module
@@ -58,6 +70,15 @@
   (core func $bp-inc              (canon backpressure.inc))
   (core func $bp-dec              (canon backpressure.dec))
 
+  ;; Canon resource ops for the component-defined resource (B6)
+  (core func $resource-new        (canon resource.new  $r))
+  (core func $resource-drop       (canon resource.drop $r))
+
+  ;; Canon subtask ops (A6, B4) and async-lowered host call.
+  (core func $async-call          (canon lower (func $async-fn-comp) async))
+  (core func $subtask-cancel      (canon subtask.cancel))
+  (core func $subtask-drop        (canon subtask.drop))
+
   ;; Core implementation: each attack export is a separate core function.
   (core module $impl
     (import "host" "memory"               (memory 0))
@@ -80,6 +101,11 @@
     (import "host" "ws-drop"              (func $ws-drop              (param i32)))
     (import "host" "bp-inc"               (func $bp-inc))
     (import "host" "bp-dec"               (func $bp-dec))
+    (import "host" "resource-new"         (func $resource-new         (param i32) (result i32)))
+    (import "host" "resource-drop"        (func $resource-drop        (param i32)))
+    (import "host" "async-call"           (func $async-call           (result i32)))
+    (import "host" "subtask-cancel"       (func $subtask-cancel       (param i32) (result i32)))
+    (import "host" "subtask-drop"         (func $subtask-drop         (param i32)))
 
     ;; ---------------------------------------------------------------------
     ;; A1: stream.read → stream.cancel-read spin (no waitable-set.wait)
@@ -451,6 +477,119 @@
 
       (local.get $i)
     )
+
+    ;; ---------------------------------------------------------------------
+    ;; D2: double-drop on the same readable handle.
+    ;; The first drop is legal; the second MUST trap because the handle is
+    ;; gone from the table. Without trap behavior a malicious guest could
+    ;; spin in a tight loop calling drop on a stale handle, never yielding.
+    ;; ---------------------------------------------------------------------
+    (func $d2-double-drop-spin (export "d2-double-drop-spin")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $packed i64)
+      (local $rd i32) (local $wr i32)
+
+      (local.set $packed (call $stream-new))
+      (local.set $rd (i32.wrap_i64 (local.get $packed)))
+      (local.set $wr (i32.wrap_i64 (i64.shr_u (local.get $packed) (i64.const 32))))
+
+      ;; First drop — legal.
+      (call $stream-drop-readable (local.get $rd))
+      (call $stream-drop-writable (local.get $wr))
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          ;; Second drop on the same (now-dead) handle MUST trap.
+          (call $stream-drop-readable (local.get $rd))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; A6: subtask.cancel spin. Each iteration creates an async subtask via
+    ;; canon.lower (async) of a Promise-returning host import, then cancels
+    ;; and drops it. Without yielding the loop monopolizes the WASM thread.
+    ;; The host MUST yield via wrapWithThrottle on subtask.cancel/drop and
+    ;; the async-lower trampoline.
+    ;; ---------------------------------------------------------------------
+    (func $a6-subtask-cancel-spin (export "a6-subtask-cancel-spin")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $packed i32)
+      (local $handle i32)
+      (local $state i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          ;; async-lower of host fn returning Promise -> packed (handle<<4)|state
+          (local.set $packed (call $async-call))
+          ;; Extract state (low 4 bits)
+          (local.set $state (i32.and (local.get $packed) (i32.const 15)))
+          ;; If RETURNED (state=2) the host returned non-Promise — skip cancel/drop.
+          (block $skip
+            (br_if $skip (i32.eq (local.get $state) (i32.const 2)))
+            (local.set $handle (i32.shr_u (local.get $packed) (i32.const 4)))
+            (drop (call $subtask-cancel (local.get $handle)))
+            (call $subtask-drop  (local.get $handle))
+          )
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; B4: subtask handle leak. Each iteration creates an async subtask via
+    ;; async-lower and NEVER cancels nor drops it. The host MUST throttle
+    ;; (yield) and/or cap memory to prevent the JS process from being
+    ;; starved while subtasks accumulate.
+    ;; ---------------------------------------------------------------------
+    (func $b4-subtask-leak (export "b4-subtask-leak")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          (drop (call $async-call))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; B6: component-resource handle leak. Each iteration creates a new
+    ;; resource and never drops it. The host MUST cap maxHandles (default
+    ;; 10_000) on resource.new and trap when the cap is exceeded.
+    ;; ---------------------------------------------------------------------
+    (func $b6-resource-leak (export "b6-resource-leak")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          ;; resource rep is i32; reuse $i as the rep value.
+          (drop (call $resource-new (local.get $i)))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
   )
 
   ;; Wire host-imports → core-funcs
@@ -475,6 +614,11 @@
     (export "ws-drop"              (func $ws-drop))
     (export "bp-inc"               (func $bp-inc))
     (export "bp-dec"               (func $bp-dec))
+    (export "resource-new"         (func $resource-new))
+    (export "resource-drop"        (func $resource-drop))
+    (export "async-call"           (func $async-call))
+    (export "subtask-cancel"       (func $subtask-cancel))
+    (export "subtask-drop"         (func $subtask-drop))
   )
   (core instance $core (instantiate $impl
     (with "host" (instance $host-exports))
@@ -497,6 +641,10 @@
   (alias core export $core "a9-backpressure-flip"        (core func $a9-core))
   (alias core export $core "d1-read-dropped-stream-spin" (core func $d1-core))
   (alias core export $core "d3-poll-empty-waitable-set"  (core func $d3-core))
+  (alias core export $core "d2-double-drop-spin"          (core func $d2-core))
+  (alias core export $core "a6-subtask-cancel-spin"       (core func $a6-core))
+  (alias core export $core "b4-subtask-leak"              (core func $b4-core))
+  (alias core export $core "b6-resource-leak"             (core func $b6-core))
 
   (func $a1 (type $fn-spin) (canon lift (core func $a1-core)))
   (func $a2 (type $fn-spin) (canon lift (core func $a2-core)))
@@ -512,6 +660,10 @@
   (func $a9 (type $fn-spin) (canon lift (core func $a9-core)))
   (func $d1 (type $fn-spin) (canon lift (core func $d1-core)))
   (func $d3 (type $fn-spin) (canon lift (core func $d3-core)))
+  (func $d2 (type $fn-spin) (canon lift (core func $d2-core)))
+  (func $a6 (type $fn-spin) (canon lift (core func $a6-core)))
+  (func $b4 (type $fn-spin) (canon lift (core func $b4-core)))
+  (func $b6 (type $fn-spin) (canon lift (core func $b6-core)))
 
   (instance $attacks
     (export "a1-stream-read-cancel-spin"  (func $a1) (func (type $fn-spin)))
@@ -528,6 +680,10 @@
     (export "a9-backpressure-flip"        (func $a9) (func (type $fn-spin)))
     (export "d1-read-dropped-stream-spin" (func $d1) (func (type $fn-spin)))
     (export "d3-poll-empty-waitable-set"  (func $d3) (func (type $fn-spin)))
+    (export "d2-double-drop-spin"         (func $d2) (func (type $fn-spin)))
+    (export "a6-subtask-cancel-spin"      (func $a6) (func (type $fn-spin)))
+    (export "b4-subtask-leak"             (func $b4) (func (type $fn-spin)))
+    (export "b6-resource-leak"            (func $b6) (func (type $fn-spin)))
   )
   (export "test:bad-guests/attacks@0.1.0" (instance $attacks))
 )

@@ -87,6 +87,10 @@ export type StreamEntry = {
     onWriteReady?: (() => void)[];
     /** Callback invoked when the readable end is dropped (dropReadable). */
     onReadableDrop?: () => void;
+    /** True after dropReadable has fired; second drop traps. */
+    readableDropped?: boolean;
+    /** True after dropWritable has fired; second drop traps. */
+    writableDropped?: boolean;
 };
 
 export interface FutureTable {
@@ -124,6 +128,13 @@ export interface SubtaskTable {
     create(promise: Promise<unknown>): number;
     /** Get the subtask entry for waitable-set integration. */
     getEntry(handle: number): SubtaskEntry | undefined;
+    /**
+     * Cancel a still-running subtask. Marks it RETURNED, fires onResolve callbacks.
+     * Returns the new subtask state (always RETURNED in our model). If the handle
+     * is unknown, traps via WebAssembly.RuntimeError so a malicious guest cannot
+     * silently spam invalid handles.
+     */
+    cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
     /** Dispose all subtasks: clear onResolve, clear entries. */

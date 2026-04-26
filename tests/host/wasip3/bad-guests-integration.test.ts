@@ -91,9 +91,17 @@ function expectYielded(probe: AttackProbe, expectedIterations: number): void {
 describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     const verbose = useVerboseOnFailure();
 
-    async function loadAttacks() {
+    async function loadAttacks(extraConfig?: { limits?: { maxHandles?: number; maxMemoryBytes?: number } }) {
         const component = await createComponent(BAD_GUESTS_WASM, { ...verboseOptions(verbose), yieldThrottle: YIELD_THROTTLE });
-        const instance = await component.instantiate({});
+        // The async-host import is consumed by `canon lower (... async)` for
+        // the A6/B4 attacks. Returning a never-resolving Promise keeps each
+        // subtask in STARTED state so cancel/leak paths exercise the host.
+        const imports = {
+            'test:bad-guests/async-host@0.1.0': {
+                'async-fn': () => new Promise<number>(() => { /* never resolves */ }),
+            },
+        };
+        const instance = await component.instantiate(imports, extraConfig);
         const iface = instance.exports[ATTACKS_INTERFACE] as Record<string, (it: number) => Promise<number> | number>;
         if (!iface) throw new Error(`Missing export ${ATTACKS_INTERFACE}`);
         return { instance, iface };
@@ -253,15 +261,14 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
 
     // A6: Repeatedly call an async-lower JS import that returns a Promise,
     // then `subtask.cancel` + `subtask.drop` on each resulting subtask.
-    // Subtask handle table churns sync — host never yields.
-    // Blocked: ModelTag.CanonicalFunctionSubtaskCancel currently routes to
-    // resolveCanonicalFunctionNotImplemented; needs an actual implementation
-    // before this test can run.
-    test.skip('A6: subtask.cancel churn yields to event loop', () => runWithVerbose(verbose, async () => {
+    // Mitigation: subtask.cancel + subtask.drop + the async-lower trampoline
+    // are all wrapped with `wrapWithThrottle`, so the WASM thread yields
+    // every `yieldThrottle` ops.
+    test('A6: subtask.cancel churn yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            const probe = await probeAttack(verbose, 'a6', () => iface['a6SubtaskCancelChurn']!(ITERATION_CAP));
-            expectYielded(probe, ITERATION_CAP);
+            const probe = await probeAttack(verbose, 'a6', () => iface['a6SubtaskCancelSpin']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
         }
@@ -281,8 +288,9 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     // ---- Class B continued ----
 
     // B4: Async-lower a Promise-returning JS import and never call subtask.drop \u2014
-    // subtask handle table grows unboundedly.
-    test.skip('B4: unbounded subtask creation without drop yields to event loop', () => runWithVerbose(verbose, async () => {
+    // subtask handle table grows unboundedly. Mitigation: the async-lower
+    // trampoline is throttle-wrapped so the spin yields.
+    test('B4: unbounded subtask creation without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
             const probe = await probeAttack(verbose, 'b4', () => iface['b4SubtaskLeak']!(ITERATION_CAP_ALLOC));
@@ -293,12 +301,12 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     }));
 
     // B6: resource.new on a component-defined resource, never disposed.
-    // Per-component resource table grows.
-    test.skip('B6: unbounded resource.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
-        const { instance, iface } = await loadAttacks();
+    // Per-component resource table grows. Mitigation: maxHandles cap on
+    // ResourceTable traps before the table grows unboundedly.
+    test('B6: resource.new past maxHandles cap traps', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks({ limits: { maxHandles: 64 } });
         try {
-            const probe = await probeAttack(verbose, 'b6', () => iface['b6ResourceLeak']!(ITERATION_CAP_ALLOC));
-            expectYielded(probe, ITERATION_CAP_ALLOC);
+            await expect(Promise.resolve(iface['b6ResourceLeak']!(ITERATION_CAP_ALLOC))).rejects.toThrow(/handle limit \(64\) exceeded/);
         } finally {
             instance.dispose();
         }
@@ -310,10 +318,8 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
         // Cap the instance to ~4 MB. The B7 attack grows 16 pages (1 MB) per
         // iteration AND issues stream.new each cycle, so the cap-check fires
         // within ~4 iterations and aborts the instance with a RuntimeError.
-        const component = await createComponent(BAD_GUESTS_WASM, { ...verboseOptions(verbose), yieldThrottle: YIELD_THROTTLE });
-        const instance = await component.instantiate({}, { limits: { maxMemoryBytes: 4_194_304 } });
+        const { instance, iface } = await loadAttacks({ limits: { maxMemoryBytes: 4_194_304 } });
         try {
-            const iface = instance.exports[ATTACKS_INTERFACE] as Record<string, (it: number) => Promise<number> | number>;
             await expect(Promise.resolve(iface['b7MemoryGrowSpin']!(ITERATION_CAP_ALLOC))).rejects.toThrow(/memory cap exceeded/);
         } finally {
             instance.dispose();
@@ -357,11 +363,12 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     }));
 
     // D2: Call stream.drop-readable twice on the same handle in a loop.
-    // Spec: trap on double-drop. Mitigation: ensure trap path itself yields.
-    test.skip('D2: double-drop-readable loop traps consistently', () => runWithVerbose(verbose, async () => {
+    // Spec: trap on double-drop. Mitigation: stream-table tracks per-side
+    // dropped flags and throws a RuntimeError on the second call.
+    test('D2: double-drop-readable loop traps consistently', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await expect(iface['d2DoubleDropSpin']!(ITERATION_CAP)).rejects.toThrow();
+            await expect(Promise.resolve(iface['d2DoubleDropSpin']!(ITERATION_CAP))).rejects.toThrow(/already dropped/);
         } finally {
             instance.dispose();
         }

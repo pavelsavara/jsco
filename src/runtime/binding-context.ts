@@ -19,7 +19,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
-    const resources = createResourceTable(resolved.verbose, resolved.logger);
+    const resources = createResourceTable(resolved.verbose, resolved.logger, config?.limits?.maxHandles);
 
     const abortController = new AbortController();
 

@@ -270,26 +270,32 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
 
         dropReadable(_typeIdx: number, handle: number): void {
             const base = baseHandle(handle);
-            jsReadables.delete(handle);
             const entry = entries.get(base);
-            if (entry) {
-                entry.closed = true;
-                if (entry.onReadableDrop) entry.onReadableDrop();
-                checkWriteReady(entry);
+            if (!entry || entry.readableDropped) {
+                throw new WebAssembly.RuntimeError(`stream.drop-readable: handle ${handle} already dropped`);
             }
+            entry.readableDropped = true;
+            jsReadables.delete(handle);
+            entry.closed = true;
+            if (entry.onReadableDrop) entry.onReadableDrop();
+            checkWriteReady(entry);
+            if (entry.writableDropped) entries.delete(base);
         },
 
         dropWritable(_typeIdx: number, handle: number): void {
             const base = baseHandle(handle);
-            jsWritables.delete(handle);
             const entry = entries.get(base);
-            if (entry) {
-                entry.closed = true;
-                if (entry.waitingReader) {
-                    entry.waitingReader(null);
-                }
-                signalReady(entry);
+            if (!entry || entry.writableDropped) {
+                throw new WebAssembly.RuntimeError(`stream.drop-writable: handle ${handle} already dropped`);
             }
+            entry.writableDropped = true;
+            jsWritables.delete(handle);
+            entry.closed = true;
+            if (entry.waitingReader) {
+                entry.waitingReader(null);
+            }
+            signalReady(entry);
+            if (entry.readableDropped) entries.delete(base);
         },
 
         addReadable(_typeIdx: number, value: unknown, elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: MarshalingContext): number {

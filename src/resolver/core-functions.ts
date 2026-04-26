@@ -76,8 +76,9 @@ export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
             result = resolveCanonicalFunctionContextSet(rctx, rargs as any); break;
         case ModelTag.CanonicalFunctionTaskCancel:
         case ModelTag.CanonicalFunctionThreadYield:
-        case ModelTag.CanonicalFunctionSubtaskCancel:
             result = resolveCanonicalFunctionNotImplemented(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionSubtaskCancel:
+            result = resolveCanonicalFunctionSubtaskCancel(rctx, rargs); break;
         case ModelTag.CanonicalFunctionSubtaskDrop:
             result = resolveCanonicalFunctionSubtaskDrop(rctx, rargs); break;
         case ModelTag.CanonicalFunctionWaitableSetNew:
@@ -141,6 +142,8 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
 
     const wrapLower = rctx.resolved.wrapLower;
     const isAsyncLower = canonOpts.async;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = wrapLower !== undefined;
 
     return {
         callerElement: rargs.callerElement,
@@ -183,7 +186,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                     return SubtaskState.RETURNED;
                 };
 
-                return { result: asyncLowerTrampoline };
+                return { result: wrapWithThrottle(asyncLowerTrampoline, effectivemctx, yieldThrottle, jspiEnabled) };
             }
 
             const wasmFunction = loweringBinder(effectivemctx, functionResult.result as JsFunction);
@@ -1051,6 +1054,23 @@ const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (rctx, rargs
             };
             return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `subtask.drop:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionSubtaskCancel: Resolver<CoreFunction> = (rctx, rargs) => {
+    const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number): number => {
+                mctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
+                return mctx.subtasks.cancel(handle);
+            };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
+        }, `subtask.cancel:${elem.selfSortIndex}`)
     };
 };
 
