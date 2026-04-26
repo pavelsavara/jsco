@@ -339,6 +339,36 @@
 
       (local.get $i)
     )
+
+    ;; ---------------------------------------------------------------------
+    ;; B7: linear memory growth via memory.grow until the host cap traps.
+    ;;
+    ;; Grow N pages (64 KB each) per iteration up to the iteration cap, then
+    ;; call a sync canon op (stream.new) so the host's memory-cap check trips
+    ;; on the next guest→host transition. Without the cap the WASM would
+    ;; simply allocate 4 GB and OOM the JS process.
+    ;; ---------------------------------------------------------------------
+    (func $b7-memory-grow-spin (export "b7-memory-grow-spin")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          ;; Grow 16 pages (1 MB) per iteration. Returns -1 on failure
+          ;; (engine-side max reached) — we ignore that and let the host
+          ;; cap-check on the next canon op be the gate.
+          (drop (memory.grow (i32.const 16)))
+          ;; Issue any sync canon built-in to force the host's cap check.
+          ;; stream.new is cheap and pure (one resource alloc).
+          (drop (call $stream-new))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
   )
 
   ;; Wire host-imports → core-funcs
@@ -379,6 +409,7 @@
   (alias core export $core "b1-stream-leak"              (core func $b1-core))
   (alias core export $core "b2-future-leak"              (core func $b2-core))
   (alias core export $core "b3-waitable-set-leak"        (core func $b3-core))
+  (alias core export $core "b7-memory-grow-spin"         (core func $b7-core))
 
   (func $a1 (type $fn-spin) (canon lift (core func $a1-core)))
   (func $a2 (type $fn-spin) (canon lift (core func $a2-core)))
@@ -390,6 +421,7 @@
   (func $b1 (type $fn-spin) (canon lift (core func $b1-core)))
   (func $b2 (type $fn-spin) (canon lift (core func $b2-core)))
   (func $b3 (type $fn-spin) (canon lift (core func $b3-core)))
+  (func $b7 (type $fn-spin) (canon lift (core func $b7-core)))
 
   (instance $attacks
     (export "a1-stream-read-cancel-spin"  (func $a1) (func (type $fn-spin)))
@@ -402,6 +434,7 @@
     (export "b1-stream-leak"              (func $b1) (func (type $fn-spin)))
     (export "b2-future-leak"              (func $b2) (func (type $fn-spin)))
     (export "b3-waitable-set-leak"        (func $b3) (func (type $fn-spin)))
+    (export "b7-memory-grow-spin"         (func $b7) (func (type $fn-spin)))
   )
   (export "test:bad-guests/attacks@0.1.0" (instance $attacks))
 )

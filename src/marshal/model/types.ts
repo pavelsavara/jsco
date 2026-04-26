@@ -55,4 +55,6 @@ export type MarshalingContext = {
     pendingBackgroundTasks: Promise<unknown>[];
     /** Counter incremented on each call to a throttled canon built-in; reset when a yield is forced. */
     opsSinceYield?: number;
+    /** Per-instance linear-memory cap in bytes. When the WASM grows past this, the next canon op traps. 0/undefined disables the check. */
+    maxMemoryBytes?: number;
 }

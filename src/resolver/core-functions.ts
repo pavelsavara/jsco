@@ -21,6 +21,7 @@ import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDe
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLowering } from '../binder';
 import { JsFunction } from '../marshal/model/types';
+import type { MarshalingContext } from '../marshal/model/types';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
@@ -570,18 +571,48 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
  * macrotask round-trip every Nth call. The non-throttled path is the
  * original sync function — zero overhead when the option is unset or
  * JSPI unavailable.
+ *
+ * In addition, when `mctx.maxMemoryBytes` is set, every wrapped call
+ * verifies the WASM linear-memory size before invoking the built-in.
+ * When the guest has grown its memory past the cap (via memory.grow),
+ * the next canon op aborts the instance — preventing a malicious or
+ * runaway component from OOM'ing the JS process. The check is `mctx`-
+ * scoped and bypassed entirely when the cap is unset or zero.
  */
 function wrapWithThrottle<TArgs extends unknown[], TRet>(
     fn: (...args: TArgs) => TRet,
-    mctx: { opsSinceYield?: number },
+    mctx: MarshalingContext,
     yieldThrottle: number | undefined,
     jspiEnabled: boolean,
 ): (...args: TArgs) => TRet | Promise<TRet> {
-    if (yieldThrottle === undefined || !jspiEnabled) return fn;
+    const memCap = mctx.maxMemoryBytes;
+    const checkEnabled = memCap !== undefined && memCap > 0;
+    const throttleEnabled = yieldThrottle !== undefined && jspiEnabled;
+    if (!checkEnabled && !throttleEnabled) return fn;
+
+    const enforceMemCap = checkEnabled
+        ? (): void => {
+            const buf = mctx.memory.getMemory().buffer;
+            if (buf.byteLength > (memCap as number)) {
+                mctx.abort(`memory cap exceeded: ${buf.byteLength} > ${memCap}`);
+                throw new WebAssembly.RuntimeError(`memory cap exceeded: ${buf.byteLength} > ${memCap}`);
+            }
+        }
+        : (): void => { /* no-op */ };
+
+    if (!throttleEnabled) {
+        // Pure memory-cap wrapper — no JSPI, no Promise return, no Suspending wrap.
+        return (...args: TArgs): TRet => {
+            enforceMemCap();
+            return fn(...args);
+        };
+    }
+
     const throttled = (...args: TArgs): TRet | Promise<TRet> => {
+        enforceMemCap();
         const result = fn(...args);
         const n = (mctx.opsSinceYield ?? 0) + 1;
-        if (n >= yieldThrottle) {
+        if (n >= (yieldThrottle as number)) {
             mctx.opsSinceYield = 0;
             return new Promise<TRet>((resolve) => {
                 setImmediate(() => resolve(result));

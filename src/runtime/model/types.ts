@@ -220,12 +220,20 @@ export interface AllocationLimits {
     maxHandles?: number;
     /** Maximum filesystem path length in bytes. Default: 4_096 */
     maxPathLength?: number;
+    /**
+     * Maximum total WASM linear-memory size in bytes per component instance.
+     * Enforced lazily on canon-op transitions: when the guest grows its memory
+     * past this cap, the next canonical built-in call traps the instance.
+     * Default: 268_435_456 (256 MB). Set to 0 to disable the check.
+     */
+    maxMemoryBytes?: number;
 }
 
 export const ALLOCATION_DEFAULTS = {
     maxAllocationSize: 16_777_216,
     maxHandles: 10_000,
     maxPathLength: 4_096,
+    maxMemoryBytes: 268_435_456,
 } as const;
 
 /** WASI-specific host configuration. */

@@ -234,4 +234,202 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
             instance.dispose();
         }
     }));
+
+    // ====================================================================
+    // PLACEHOLDERS — un-skip and implement as each mitigation lands.
+    // See proposals.md "DOS / Event-Loop-Starvation Attack Surface" for the
+    // full taxonomy. Each `test.skip` below references a single attack class.
+    //
+    // Implementing one of these requires three things:
+    //   1. A new export in `bad-guests-p3.wat` that performs the spin
+    //      (or a host-level fixture for the F-class tests).
+    //   2. A host-side mitigation in `src/runtime/` that breaks the spin.
+    //   3. Flipping `test.skip` to `test` and asserting `expectYielded(...)`.
+    //
+    // Until then, the placeholder documents the contract.
+    // ====================================================================
+
+    // ---- Class A continued ----
+
+    // A6: Repeatedly call an async-lower JS import that returns a Promise,
+    // then `subtask.cancel` + `subtask.drop` on each resulting subtask.
+    // Subtask handle table churns sync \u2014 host never yields.
+    test.skip('A6: subtask.cancel churn yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'a6', () => iface['a6SubtaskCancelChurn']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // A9: Toggle task.backpressure on/off in a tight loop.
+    test.skip('A9: task.backpressure flip-flop yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'a9', () => iface['a9TaskBackpressureFlip']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // ---- Class B continued ----
+
+    // B4: Async-lower a Promise-returning JS import and never call subtask.drop \u2014
+    // subtask handle table grows unboundedly.
+    test.skip('B4: unbounded subtask creation without drop yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'b4', () => iface['b4SubtaskLeak']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // B6: resource.new on a component-defined resource, never disposed.
+    // Per-component resource table grows.
+    test.skip('B6: unbounded resource.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'b6', () => iface['b6ResourceLeak']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // B7: Linear-memory growth via memory.grow until the host traps.
+    // Mitigation: maxMemoryBytes cap enforced at every canon-op transition.
+    test('B7: memory.grow loop traps before exhausting JS heap', () => runWithVerbose(verbose, async () => {
+        // Cap the instance to ~4 MB. The B7 attack grows 16 pages (1 MB) per
+        // iteration AND issues stream.new each cycle, so the cap-check fires
+        // within ~4 iterations and aborts the instance with a RuntimeError.
+        const component = await createComponent(BAD_GUESTS_WASM, { ...verboseOptions(verbose), yieldThrottle: YIELD_THROTTLE });
+        const instance = await component.instantiate({}, { limits: { maxMemoryBytes: 4_194_304 } });
+        try {
+            const iface = instance.exports[ATTACKS_INTERFACE] as Record<string, (it: number) => Promise<number> | number>;
+            await expect(Promise.resolve(iface['b7MemoryGrowSpin']!(ITERATION_CAP_ALLOC))).rejects.toThrow(/memory cap exceeded/);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // ---- Class C \u2014 re-entrant / nested call abuse ----
+
+    // C1: Reentrant export call from inside an import handler.
+    // Guest calls JS, JS calls a guest export that calls JS again \u2014 unbounded JS stack.
+    // Mitigation: depth counter on the binding context, trap above N.
+    test.skip('C1: reentrant export-from-import recursion traps before stack overflow', () => runWithVerbose(verbose, async () => {
+        // Fixture must wire a JS import that calls back into a guest export.
+        // Skipped \u2014 fixture not yet written.
+        expect(true).toBe(false);
+    }));
+
+    // C2: task.return called while a subtask is still pending.
+    test.skip('C2: task.return on still-pending subtask traps', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // C3: resource.drop on a borrowed handle that the host still references,
+    // triggering host-side [dtor] reentrancy.
+    test.skip('C3: resource.drop reentrancy on borrowed handle traps', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // ---- Class D \u2014 trap-flooding / error-path spin ----
+
+    // D1: Drop the readable end then call stream.read on the dead handle in a loop.
+    // Each call returns DROPPED sync \u2014 mitigation: yield throttle on cumulative DROPPED returns.
+    test.skip('D1: read-from-dropped-stream loop yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'd1', () => iface['d1ReadDroppedStreamSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // D2: Call stream.drop-readable twice on the same handle in a loop.
+    // Spec: trap on double-drop. Mitigation: ensure trap path itself yields.
+    test.skip('D2: double-drop-readable loop traps consistently', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            await expect(iface['d2DoubleDropSpin']!(ITERATION_CAP)).rejects.toThrow();
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // D3: waitable-set.poll on an empty set in a loop.
+    // Largely overlaps with A5; add only if a distinct empty-set codepath emerges.
+    test.skip('D3: waitable-set.poll on empty set yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack(verbose, 'd3', () => iface['d3PollEmptyWaitableSet']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    // ---- Class E \u2014 JSPI-specific (post-Proposal-1 redesign) ----
+
+    // E1: Suspending in a `futures::join!` arm starves the other arm.
+    // The `cli_hello_stdout` deadlock reproduced during the original Proposal-1
+    // attempt. Mitigation: never suspend a single Rust future from the host;
+    // only yield a microtask. Test would assert that a JSPI-suspending built-in
+    // does NOT block sibling futures inside the same task.
+    test.skip('E1: JSPI suspend in join! arm does not starve sibling arms', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // E2: Forcing the host to allocate one Promise per call with no upper bound.
+    // Mitigation: cap microtask queue depth or use a shared resolver.
+    test.skip('E2: Promise-per-call attack does not exhaust JS heap', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // E3: A cancel-read/cancel-write Promise that resolves but never lets the
+    // suspending guest continue.
+    test.skip('E3: cancel Promise resolution lets suspending guest continue', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // E4: Mixing JSPI-yielding built-ins with non-JSPI hosts.
+    // Same bytecode behaves differently on JSPI vs non-JSPI; security audit
+    // must cover both. Test: run identical attack under both modes, assert
+    // both terminate within the same iteration budget.
+    test.skip('E4: JSPI vs non-JSPI parity for yielding built-ins', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // ---- Class F \u2014 host-implementation-specific (jsco today) ----
+    // F1 and F5 (chunk pile-up, pumpIterable bound) are covered by tests in
+    // tests/runtime/stream-table.test.ts.
+
+    // F2: signalReady callbacks queued in entry.onReady[] accumulating without drain.
+    // Test: register many callbacks, signal once, verify the array is emptied
+    // (not just that callbacks fire). Mitigation already in stream-table:
+    // checkWriteReady clears entry.onWriteReady before firing.
+    test.skip('F2: signalReady callback list is cleared after dispatch', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // F3: AbortSignal listeners accumulating on a stream that is read/cancel-read spun.
+    // Test: spin A1 for N iterations, assert the stream entry's signal listener
+    // count stays bounded.
+    test.skip('F3: AbortSignal listeners do not accumulate during read/cancel spin', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
+
+    // F4: Verbose logger accumulating messages in the test buffer under a long spin.
+    // Not a runtime DOS \u2014 a test-infrastructure concern. Mitigation: cap
+    // capture.messages length when isDebug is false in CI.
+    test.skip('F4: verbose logger does not accumulate unbounded messages under spin', () => runWithVerbose(verbose, async () => {
+        expect(true).toBe(false);
+    }));
 });
