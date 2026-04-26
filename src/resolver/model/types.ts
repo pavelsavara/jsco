@@ -34,6 +34,7 @@ export type ComponentFactoryOptions = {
     useNumberForInt64?: boolean | string[]
     noJspi?: boolean | string[]
     validateTypes?: boolean
+    yieldThrottle?: number
     wasmInstantiate?: (moduleObject: WebAssembly.Module, importObject?: WebAssembly.Imports) => Promise<WebAssembly.Instance>
 }
 
@@ -96,6 +97,7 @@ export type ResolvedContext = {
     numberModeLoweringCache?: Map<unknown, unknown>
     verbose?: Verbosity
     logger?: LogFn
+    yieldThrottle?: number
 }
 
 export type ResolverContext = {

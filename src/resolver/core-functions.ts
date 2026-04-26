@@ -564,8 +564,39 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
 
 // --- Stream canonical built-ins ---
 
-export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStreamNew> = (_rctx, rargs) => {
+/**
+ * When `yieldThrottle` is set AND JSPI is enabled,
+ * wrap a sync canon built-in `fn` with `WebAssembly.Suspending` and force a
+ * macrotask round-trip every Nth call. The non-throttled path is the
+ * original sync function — zero overhead when the option is unset or
+ * JSPI unavailable.
+ */
+function wrapWithThrottle<TArgs extends unknown[], TRet>(
+    fn: (...args: TArgs) => TRet,
+    mctx: { opsSinceYield?: number },
+    yieldThrottle: number | undefined,
+    jspiEnabled: boolean,
+): (...args: TArgs) => TRet | Promise<TRet> {
+    if (yieldThrottle === undefined || !jspiEnabled) return fn;
+    const throttled = (...args: TArgs): TRet | Promise<TRet> => {
+        const result = fn(...args);
+        const n = (mctx.opsSinceYield ?? 0) + 1;
+        if (n >= yieldThrottle) {
+            mctx.opsSinceYield = 0;
+            return new Promise<TRet>((resolve) => {
+                setImmediate(() => resolve(result));
+            });
+        }
+        mctx.opsSinceYield = n;
+        return result;
+    };
+    return new (WebAssembly as unknown as { Suspending: new (fn: Function) => Function }).Suspending(throttled) as (...args: TArgs) => TRet | Promise<TRet>;
+}
+
+export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStreamNew> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -573,13 +604,15 @@ export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStream
             const streamNewFn = (): bigint => {
                 return mctx.streams.newStream(elem.type);
             };
-            return { result: streamNewFn };
+            return { result: wrapWithThrottle(streamNewFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.new:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStreamRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStreamRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -587,13 +620,15 @@ export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStrea
             const streamReadFn = (handle: number, ptr: number, len: number): number => {
                 return mctx.streams.read(elem.type, handle, ptr, len);
             };
-            return { result: streamReadFn };
+            return { result: wrapWithThrottle(streamReadFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStreamWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStreamWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -601,13 +636,15 @@ export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStre
             const streamWriteFn = (handle: number, ptr: number, len: number): number => {
                 return mctx.streams.write(elem.type, handle, ptr, len);
             };
-            return { result: streamWriteFn };
+            return { result: wrapWithThrottle(streamWriteFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctionStreamCancelRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctionStreamCancelRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -615,13 +652,15 @@ export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctio
             const fn = (handle: number): number => {
                 return mctx.streams.cancelRead(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.cancel-read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFunctionStreamCancelWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFunctionStreamCancelWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -629,7 +668,7 @@ export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFuncti
             const fn = (handle: number): number => {
                 return mctx.streams.cancelWrite(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.cancel-write:${elem.selfSortIndex}`)
     };
 };
@@ -664,8 +703,10 @@ export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunct
 
 // --- Future canonical built-ins ---
 
-export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFutureNew> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFutureNew> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -673,13 +714,15 @@ export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFuture
             const fn = (): bigint => {
                 return mctx.futures.newFuture(elem.type);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.new:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutureRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutureRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -687,13 +730,15 @@ export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutur
             const fn = (handle: number, ptr: number): number => {
                 return mctx.futures.read(elem.type, handle, ptr, mctx);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutureWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutureWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -701,13 +746,15 @@ export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutu
             const fn = (handle: number, ptr: number): number => {
                 return mctx.futures.write(elem.type, handle, ptr);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctionFutureCancelRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctionFutureCancelRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -715,13 +762,15 @@ export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctio
             const fn = (handle: number): number => {
                 return mctx.futures.cancelRead(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.cancel-read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFunctionFutureCancelWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFunctionFutureCancelWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -729,7 +778,7 @@ export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFuncti
             const fn = (handle: number): number => {
                 return mctx.futures.cancelWrite(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.cancel-write:${elem.selfSortIndex}`)
     };
 };
@@ -879,14 +928,16 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (_rctx, rargs
 
 // --- Waitable-set canonical built-ins ---
 
-const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (): number => mctx.waitableSets.newSet();
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.new:${elem.selfSortIndex}`)
     };
 };
@@ -903,14 +954,16 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
     };
 };
 
-const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (setId: number, ptr: number): number => mctx.waitableSets.poll(setId, ptr);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.poll:${elem.selfSortIndex}`)
     };
 };

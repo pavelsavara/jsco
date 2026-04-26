@@ -53,4 +53,6 @@ export type MarshalingContext = {
     backpressure: number;
     /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
     pendingBackgroundTasks: Promise<unknown>[];
+    /** Counter incremented on each call to a throttled canon built-in; reset when a yield is forced. */
+    opsSinceYield?: number;
 }

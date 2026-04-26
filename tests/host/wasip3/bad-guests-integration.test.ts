@@ -11,12 +11,23 @@
  * See `proposals.md` → "DOS / Event-Loop-Starvation Attack Surface" for the
  * full enumeration of attack classes (A1, A2, A3, A5, A7, B1, B3 covered here).
  *
- * Each test is run with a wall-clock timeout. `assertBounded()` races the
- * call against a setTimeout; if the call exceeds the timeout, the JS event
- * loop was successfully starved → the test fails. With no host mitigation
- * in place yet, ALL of these tests are expected to time out — they are
- * therefore marked `test.skip`. Enable them once a mitigation lands to
- * confirm the chosen mitigation handles each attack class.
+ * What the test actually measures
+ * -------------------------------
+ * We do NOT measure wall-clock time — a fast spin (10M cheap sync ops in
+ * 300 ms) would pass a wall-clock budget while still completely starving
+ * the JS event loop for those 300 ms. The real DOS property is: **did the
+ * JS event loop get to run any task during the call?**
+ *
+ * We schedule N `setTimeout(0)` ticks BEFORE invoking the attack. Each
+ * timer increments a counter. If the WASM yields control to JS at any
+ * point during the call, the timer queue drains and the counter advances.
+ * If the WASM spins without yielding, the timers stay parked and the
+ * counter stays at 0.
+ *
+ * `tickedDuringCall === 0` ⇒ WASM monopolized the thread for the whole
+ * call ⇒ DOS confirmed. Tests that stay `test.skip` document attack
+ * classes for which no host mitigation is yet implemented; un-skip when
+ * adding the corresponding mitigation.
  */
 
 import { createComponent } from '../../../src/resolver';
@@ -28,38 +39,58 @@ initializeAsserts();
 const BAD_GUESTS_WASM = './integration-tests/bad-guests-p3-wat/bad-guests-p3.wasm';
 const ATTACKS_INTERFACE = 'test:bad-guests/attacks@0.1.0';
 
-// Wall-clock budget per attack call. If the export runs longer than this
-// without yielding, JS event loop is starved and we consider the host to
-// have failed at bounding the bad guest.
-const STARVATION_BUDGET_MS = 1000;
-
-// Iteration cap passed to each attack. Large enough that without mitigation
-// the spin will exceed STARVATION_BUDGET_MS by orders of magnitude.
+// Iteration cap passed to each attack. Large enough that any *yielding*
+// implementation should let dozens of timer ticks fire during the call.
 const ITERATION_CAP = 10_000_000;
+const ITERATION_CAP_ALLOC = 100_000; // smaller for allocation-heavy attacks
 
-/**
- * Race `promise` against a setTimeout. setTimeout fires only if the JS
- * event loop is alive — so a hang inside the WASM thread will NOT fire
- * the timeout in some impls. To make starvation detectable, we instead
- * use a separate watchdog: the test framework's outer timeout will
- * eventually kill us. Here we mostly assert the call returns at all
- * within the framework timeout.
- */
-async function assertBounded<T>(label: string, fn: () => Promise<T>, budgetMs = STARVATION_BUDGET_MS): Promise<T> {
-    const start = Date.now();
-    const result = await fn();
-    const elapsed = Date.now() - start;
-    if (elapsed > budgetMs) {
-        throw new Error(`${label} took ${elapsed}ms (> ${budgetMs}ms budget) — host failed to bound bad guest`);
+// Number of setTimeout(0) ticks pre-scheduled before each attack call.
+const PRE_SCHEDULED_TICKS = 1000;
+
+// Yield throttle interval enabled for these tests. With yieldThrottle=1000,
+// a 10M-iteration spin should produce ~10K macrotask yields.
+const YIELD_THROTTLE = 1000;
+
+interface AttackProbe {
+    tickedDuringCall: number;
+    iterations: number;
+    elapsedMs: number;
+}
+
+async function probeAttack(label: string, fn: () => Promise<unknown> | unknown): Promise<AttackProbe> {
+    let tickCount = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < PRE_SCHEDULED_TICKS; i++) {
+        timers.push(setTimeout(() => { tickCount++; }, 0));
     }
-    return result;
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const ticksBefore = tickCount;
+
+    const t0 = Date.now();
+    const iterations = await fn() as number;
+    const elapsedMs = Date.now() - t0;
+
+    const tickedDuringCall = tickCount - ticksBefore;
+
+    for (const t of timers) clearTimeout(t);
+
+    // eslint-disable-next-line no-console
+    console.log(`[probe] ${label}: ticked=${tickedDuringCall}/${PRE_SCHEDULED_TICKS} iterations=${iterations} elapsed=${elapsedMs}ms`);
+
+    return { tickedDuringCall, iterations, elapsedMs };
+}
+
+function expectYielded(probe: AttackProbe, expectedIterations: number): void {
+    expect(probe.iterations).toBe(expectedIterations);
+    expect(probe.tickedDuringCall).toBeGreaterThan(0);
 }
 
 describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     const verbose = useVerboseOnFailure();
 
     async function loadAttacks() {
-        const component = await createComponent(BAD_GUESTS_WASM, verboseOptions(verbose));
+        const component = await createComponent(BAD_GUESTS_WASM, { ...verboseOptions(verbose), yieldThrottle: YIELD_THROTTLE });
         const instance = await component.instantiate({});
         const iface = instance.exports[ATTACKS_INTERFACE] as Record<string, (it: number) => Promise<number> | number>;
         if (!iface) throw new Error(`Missing export ${ATTACKS_INTERFACE}`);
@@ -68,46 +99,51 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
 
     // ---- Class A: tight polling loops on sync canon built-ins ----
 
-    test.skip('A1: stream.read → cancel-read spin is bounded', () => runWithVerbose(verbose, async () => {
+    test('A1: stream.read → cancel-read yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('a1', async () => iface['a1StreamReadCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack('a1', () => iface['a1StreamReadCancelSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
         }
     }));
 
-    test.skip('A2: stream.write → cancel-write spin is bounded', () => runWithVerbose(verbose, async () => {
+    test('A2: stream.write → cancel-write yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('a2', async () => iface['a2StreamWriteCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack('a2', () => iface['a2StreamWriteCancelSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
         }
     }));
 
-    test.skip('A3: future.read → cancel-read spin is bounded', () => runWithVerbose(verbose, async () => {
+    test('A3: future.read → cancel-read yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('a3', async () => iface['a3FutureReadCancelSpin']!(ITERATION_CAP));
+            const probe = await probeAttack('a3', () => iface['a3FutureReadCancelSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
         }
     }));
 
-    test.skip('A5: waitable-set.poll spin is bounded', () => runWithVerbose(verbose, async () => {
+    test('A5: waitable-set.poll yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('a5', async () => iface['a5WaitablePollSpin']!(ITERATION_CAP));
+            const probe = await probeAttack('a5', () => iface['a5WaitablePollSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
         }
     }));
 
-    test.skip('A7: stream.new + drop churn is bounded', () => runWithVerbose(verbose, async () => {
+    test('A7: stream.new + drop churn yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('a7', async () => iface['a7StreamNewDropChurn']!(ITERATION_CAP));
+            const probe = await probeAttack('a7', () => iface['a7StreamNewDropChurn']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
         } finally {
             instance.dispose();
         }
@@ -115,20 +151,21 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
 
     // ---- Class B: resource-table exhaustion (allocation churn without drop) ----
 
-    test.skip('B1: unbounded stream.new without drop is bounded or rejected', () => runWithVerbose(verbose, async () => {
+    test('B1: unbounded stream.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            // smaller cap because every iteration grows host memory
-            await assertBounded('b1', async () => iface['b1StreamLeak']!(100_000));
+            const probe = await probeAttack('b1', () => iface['b1StreamLeak']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
         }
     }));
 
-    test.skip('B3: unbounded waitable-set.new without drop is bounded or rejected', () => runWithVerbose(verbose, async () => {
+    test('B3: unbounded waitable-set.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
-            await assertBounded('b3', async () => iface['b3WaitableSetLeak']!(100_000));
+            const probe = await probeAttack('b3', () => iface['b3WaitableSetLeak']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();
         }

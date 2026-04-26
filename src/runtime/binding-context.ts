@@ -57,6 +57,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         taskContextSlots: [0, 0],
         backpressure: 0,
         pendingBackgroundTasks: [],
+        opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,
         abortSignal: abortController.signal,
         abort: (reason?: string) => {
             ctx.poisoned = true;

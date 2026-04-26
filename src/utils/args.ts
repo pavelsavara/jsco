@@ -12,6 +12,7 @@ export interface FsMount {
 export interface CliOptions {
     useNumberForInt64: boolean;
     noJspi: boolean;
+    yieldThrottle: number | undefined;
     validateTypes: boolean;
     network: NetworkConfig;
     env: Record<string, string>;
@@ -51,6 +52,7 @@ If a subcommand is not provided, the \`run\` subcommand will be used.
 Common Options:
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest
@@ -73,6 +75,7 @@ Arguments:
 Options:
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest.
@@ -122,6 +125,7 @@ Options:
   --addr <SOCKADDR>          Socket address to bind to [default: 0.0.0.0:8080]
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest
@@ -160,6 +164,7 @@ function createDefaultOptions(): CliOptions {
     return {
         useNumberForInt64: false,
         noJspi: false,
+        yieldThrottle: undefined,
         validateTypes: true,
         network: {},
         env: {},
@@ -228,6 +233,19 @@ export function parseCliArgs(args: string[]): CliParseResult {
             options.useNumberForInt64 = true;
         } else if (arg === '--no-jspi') {
             options.noJspi = true;
+        } else if (arg.startsWith('--yield-throttle')) {
+            const cv = consumeValue(arg, '--yield-throttle', args, i);
+            if (!cv) {
+                error = 'Missing value for --yield-throttle';
+                return { command, componentUrl, options, error, help };
+            }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n <= 0) {
+                error = `Invalid value for --yield-throttle: ${cv.val} (expected positive integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.yieldThrottle = n;
         } else if (arg === '--validate-types') {
             options.validateTypes = true;
         } else if (arg.startsWith('--component=')) {
