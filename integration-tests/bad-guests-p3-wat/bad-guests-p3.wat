@@ -43,7 +43,9 @@
   ;; Canon future ops
   (core func $future-new          (canon future.new           $future-u8))
   (core func $future-read         (canon future.read          $future-u8 (memory $mem) async))
+  (core func $future-write        (canon future.write         $future-u8 (memory $mem) async))
   (core func $future-cancel-read  (canon future.cancel-read   $future-u8 async))
+  (core func $future-cancel-write (canon future.cancel-write  $future-u8 async))
   (core func $future-drop-readable (canon future.drop-readable $future-u8))
   (core func $future-drop-writable (canon future.drop-writable $future-u8))
 
@@ -64,7 +66,9 @@
     (import "host" "stream-drop-writable" (func $stream-drop-writable (param i32)))
     (import "host" "future-new"           (func $future-new           (result i64)))
     (import "host" "future-read"          (func $future-read          (param i32 i32) (result i32)))
+    (import "host" "future-write"         (func $future-write         (param i32 i32) (result i32)))
     (import "host" "future-cancel-read"   (func $future-cancel-read   (param i32) (result i32)))
+    (import "host" "future-cancel-write"  (func $future-cancel-write  (param i32) (result i32)))
     (import "host" "future-drop-readable" (func $future-drop-readable (param i32)))
     (import "host" "future-drop-writable" (func $future-drop-writable (param i32)))
     (import "host" "ws-new"               (func $ws-new               (result i32)))
@@ -170,6 +174,38 @@
     )
 
     ;; ---------------------------------------------------------------------
+    ;; A4: future.write → future.cancel-write spin
+    ;; Guest writes to its own writable end with no reader; canceling and
+    ;; retrying with no reader → BLOCKED forever, sync canon both sides.
+    ;; ---------------------------------------------------------------------
+    (func $a4-future-write-cancel-spin (export "a4-future-write-cancel-spin")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $packed i64)
+      (local $rd i32) (local $wr i32)
+
+      (local.set $packed (call $future-new))
+      (local.set $rd (i32.wrap_i64 (local.get $packed)))
+      (local.set $wr (i32.wrap_i64 (i64.shr_u (local.get $packed) (i64.const 32))))
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+
+          (drop (call $future-write (local.get $wr) (i32.const 0)))
+          (drop (call $future-cancel-write (local.get $wr)))
+
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (call $future-drop-readable (local.get $rd))
+      (call $future-drop-writable (local.get $wr))
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
     ;; A5: waitable-set.poll spin (no wait, no events ever)
     ;; ---------------------------------------------------------------------
     (func $a5-waitable-poll-spin (export "a5-waitable-poll-spin")
@@ -224,6 +260,30 @@
     )
 
     ;; ---------------------------------------------------------------------
+    ;; A8: waitable-set.new + waitable-set.drop churn (table thrash on
+    ;; waitable-set ids). Same shape as A7 on a different resource table.
+    ;; ---------------------------------------------------------------------
+    (func $a8-waitable-set-new-drop-churn (export "a8-waitable-set-new-drop-churn")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+      (local $ws i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+
+          (local.set $ws (call $ws-new))
+          (call $ws-drop (local.get $ws))
+
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
     ;; B1: unbounded stream creation without dropping (resource table grows)
     ;; ---------------------------------------------------------------------
     (func $b1-stream-leak (export "b1-stream-leak")
@@ -234,6 +294,25 @@
         (loop $L
           (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
           (drop (call $stream-new))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $L)
+        )
+      )
+
+      (local.get $i)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; B2: unbounded future creation without dropping
+    ;; ---------------------------------------------------------------------
+    (func $b2-future-leak (export "b2-future-leak")
+          (param $iterations i32) (result i32)
+      (local $i i32)
+
+      (block $done
+        (loop $L
+          (br_if $done (i32.ge_u (local.get $i) (local.get $iterations)))
+          (drop (call $future-new))
           (local.set $i (i32.add (local.get $i) (i32.const 1)))
           (br $L)
         )
@@ -274,7 +353,9 @@
     (export "stream-drop-writable" (func $stream-drop-writable))
     (export "future-new"           (func $future-new))
     (export "future-read"          (func $future-read))
+    (export "future-write"         (func $future-write))
     (export "future-cancel-read"   (func $future-cancel-read))
+    (export "future-cancel-write"  (func $future-cancel-write))
     (export "future-drop-readable" (func $future-drop-readable))
     (export "future-drop-writable" (func $future-drop-writable))
     (export "ws-new"               (func $ws-new))
@@ -291,26 +372,35 @@
   (alias core export $core "a1-stream-read-cancel-spin"  (core func $a1-core))
   (alias core export $core "a2-stream-write-cancel-spin" (core func $a2-core))
   (alias core export $core "a3-future-read-cancel-spin"  (core func $a3-core))
+  (alias core export $core "a4-future-write-cancel-spin" (core func $a4-core))
   (alias core export $core "a5-waitable-poll-spin"       (core func $a5-core))
   (alias core export $core "a7-stream-new-drop-churn"    (core func $a7-core))
+  (alias core export $core "a8-waitable-set-new-drop-churn" (core func $a8-core))
   (alias core export $core "b1-stream-leak"              (core func $b1-core))
+  (alias core export $core "b2-future-leak"              (core func $b2-core))
   (alias core export $core "b3-waitable-set-leak"        (core func $b3-core))
 
   (func $a1 (type $fn-spin) (canon lift (core func $a1-core)))
   (func $a2 (type $fn-spin) (canon lift (core func $a2-core)))
   (func $a3 (type $fn-spin) (canon lift (core func $a3-core)))
+  (func $a4 (type $fn-spin) (canon lift (core func $a4-core)))
   (func $a5 (type $fn-spin) (canon lift (core func $a5-core)))
   (func $a7 (type $fn-spin) (canon lift (core func $a7-core)))
+  (func $a8 (type $fn-spin) (canon lift (core func $a8-core)))
   (func $b1 (type $fn-spin) (canon lift (core func $b1-core)))
+  (func $b2 (type $fn-spin) (canon lift (core func $b2-core)))
   (func $b3 (type $fn-spin) (canon lift (core func $b3-core)))
 
   (instance $attacks
     (export "a1-stream-read-cancel-spin"  (func $a1) (func (type $fn-spin)))
     (export "a2-stream-write-cancel-spin" (func $a2) (func (type $fn-spin)))
     (export "a3-future-read-cancel-spin"  (func $a3) (func (type $fn-spin)))
+    (export "a4-future-write-cancel-spin" (func $a4) (func (type $fn-spin)))
     (export "a5-waitable-poll-spin"       (func $a5) (func (type $fn-spin)))
     (export "a7-stream-new-drop-churn"    (func $a7) (func (type $fn-spin)))
+    (export "a8-waitable-set-new-drop-churn" (func $a8) (func (type $fn-spin)))
     (export "b1-stream-leak"              (func $b1) (func (type $fn-spin)))
+    (export "b2-future-leak"              (func $b2) (func (type $fn-spin)))
     (export "b3-waitable-set-leak"        (func $b3) (func (type $fn-spin)))
   )
   (export "test:bad-guests/attacks@0.1.0" (instance $attacks))

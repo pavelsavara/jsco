@@ -9,7 +9,7 @@
  * never yields to JS unless the host injects a yield point.
  *
  * See `proposals.md` → "DOS / Event-Loop-Starvation Attack Surface" for the
- * full enumeration of attack classes (A1, A2, A3, A5, A7, B1, B3 covered here).
+ * full enumeration of attack classes (A1–A4, A5, A7, A8, B1–B3 covered here).
  *
  * What the test actually measures
  * -------------------------------
@@ -129,6 +129,16 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
         }
     }));
 
+    test('A4: future.write → cancel-write yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack('a4', () => iface['a4FutureWriteCancelSpin']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
     test('A5: waitable-set.poll yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
@@ -149,12 +159,32 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
         }
     }));
 
+    test('A8: waitable-set.new + drop churn yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack('a8', () => iface['a8WaitableSetNewDropChurn']!(ITERATION_CAP));
+            expectYielded(probe, ITERATION_CAP);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
     // ---- Class B: resource-table exhaustion (allocation churn without drop) ----
 
     test('B1: unbounded stream.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
         const { instance, iface } = await loadAttacks();
         try {
             const probe = await probeAttack('b1', () => iface['b1StreamLeak']!(ITERATION_CAP_ALLOC));
+            expectYielded(probe, ITERATION_CAP_ALLOC);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    test('B2: unbounded future.new without drop yields to event loop', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks();
+        try {
+            const probe = await probeAttack('b2', () => iface['b2FutureLeak']!(ITERATION_CAP_ALLOC));
             expectYielded(probe, ITERATION_CAP_ALLOC);
         } finally {
             instance.dispose();

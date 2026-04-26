@@ -673,8 +673,10 @@ export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFuncti
     };
 };
 
-export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunctionStreamDropReadable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunctionStreamDropReadable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -682,13 +684,15 @@ export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.streams.dropReadable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.drop-readable:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunctionStreamDropWritable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunctionStreamDropWritable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -696,7 +700,7 @@ export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.streams.dropWritable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.drop-writable:${elem.selfSortIndex}`)
     };
 };
@@ -783,8 +787,10 @@ export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFuncti
     };
 };
 
-export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunctionFutureDropReadable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunctionFutureDropReadable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -792,13 +798,15 @@ export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.futures.dropReadable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.drop-readable:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunctionFutureDropWritable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunctionFutureDropWritable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -806,7 +814,7 @@ export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.futures.dropWritable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.drop-writable:${elem.selfSortIndex}`)
     };
 };
@@ -968,32 +976,38 @@ const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (rctx, r
     };
 };
 
-const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (setId: number): void => mctx.waitableSets.drop(setId);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.drop:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (waitableHandle: number, setId: number): void => mctx.waitableSets.join(waitableHandle, setId);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable.join:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -1002,7 +1016,7 @@ const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rarg
                 mctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
                 mctx.subtasks.drop(handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `subtask.drop:${elem.selfSortIndex}`)
     };
 };
