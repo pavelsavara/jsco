@@ -24,7 +24,10 @@ import {
     borrowLowering,
     borrowLoweringDirect,
     charLowering,
+    f32Lowering,
+    f64Lowering,
 } from '../../src/marshal/lower';
+import { _f32, _i32, _f64, _i64 } from '../../src/utils/shared';
 
 function createMockCtx(bufferSize = 4096): { ctx: MarshalingContext, buffer: ArrayBuffer, dv: DataView } {
     const buffer = new ArrayBuffer(bufferSize);
@@ -79,6 +82,43 @@ describe('lower.ts primitive lowering', () => {
         const { ctx } = createMockCtx();
         expect(() => charLowering(ctx, 0xD800)).toThrow('surrogate');
         expect(() => charLowering(ctx, 0xDFFF)).toThrow('surrogate');
+    });
+
+    test('charLowering accepts max valid codepoint 0x10FFFF', () => {
+        const { ctx } = createMockCtx();
+        const result = charLowering(ctx, 0x10FFFF);
+        expect(result).toBe(String.fromCodePoint(0x10FFFF));
+    });
+
+    test('charLowering accepts ASCII codepoint', () => {
+        const { ctx } = createMockCtx();
+        expect(charLowering(ctx, 0x41)).toBe('A');
+    });
+
+    test('f32Lowering canonicalizes NaN to canonical bit pattern (0x7fc00000)', () => {
+        const { ctx } = createMockCtx();
+        const result = f32Lowering(ctx, NaN) as number;
+        expect(result).toBeNaN();
+        _f32[0] = result;
+        expect(_i32[0]).toBe(0x7fc00000);
+    });
+
+    test('f64Lowering canonicalizes NaN to canonical bit pattern (0x7ff8000000000000)', () => {
+        const { ctx } = createMockCtx();
+        const result = f64Lowering(ctx, NaN) as number;
+        expect(result).toBeNaN();
+        _f64[0] = result;
+        expect(_i64[0]).toBe(0x7ff8000000000000n);
+    });
+
+    test('f32Lowering preserves normal values', () => {
+        const { ctx } = createMockCtx();
+        expect(f32Lowering(ctx, 3.14)).toBe(Math.fround(3.14));
+    });
+
+    test('f64Lowering preserves normal values', () => {
+        const { ctx } = createMockCtx();
+        expect(f64Lowering(ctx, 3.14)).toBe(3.14);
     });
 });
 

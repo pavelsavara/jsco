@@ -14,6 +14,7 @@ import {
     flagsLifting,
     ownLifting, borrowLifting, borrowLiftingDirect,
 } from '../../src/marshal/lift';
+import { _f32, _i32, _f64, _i64 } from '../../src/utils/shared';
 
 function createMockCtx(bufferSize = 4096): MarshalingContext {
     const buffer = new ArrayBuffer(bufferSize);
@@ -70,11 +71,27 @@ describe('lift.ts f32/f64 NaN canonicalization', () => {
         expect(out[0]).toBeNaN();
     });
 
+    test('f32Lifting produces canonical NaN bit pattern (0x7fc00000)', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        f32Lifting(ctx, NaN, out, 0);
+        _f32[0] = out[0] as number;
+        expect(_i32[0]).toBe(0x7fc00000);
+    });
+
     test('f64Lifting canonicalizes NaN', () => {
         const ctx = createMockCtx();
         const out: WasmValue[] = [0];
         f64Lifting(ctx, NaN, out, 0);
         expect(out[0]).toBeNaN();
+    });
+
+    test('f64Lifting produces canonical NaN bit pattern (0x7ff8000000000000)', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        f64Lifting(ctx, NaN, out, 0);
+        _f64[0] = out[0] as number;
+        expect(_i64[0]).toBe(0x7ff8000000000000n);
     });
 
     test('f32Lifting throws for non-number', () => {
@@ -87,6 +104,20 @@ describe('lift.ts f32/f64 NaN canonicalization', () => {
         const ctx = createMockCtx();
         const out: WasmValue[] = [0];
         expect(() => f64Lifting(ctx, 'not-a-number', out, 0)).toThrow('expected a number');
+    });
+
+    test('f32Lifting preserves normal values', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        f32Lifting(ctx, 3.14, out, 0);
+        expect(out[0]).toBe(Math.fround(3.14));
+    });
+
+    test('f64Lifting preserves normal values', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        f64Lifting(ctx, 3.14, out, 0);
+        expect(out[0]).toBe(3.14);
     });
 });
 
@@ -103,6 +134,20 @@ describe('lift.ts charLifting', () => {
         const ctx = createMockCtx();
         const out: WasmValue[] = [0];
         expect(() => charLifting(ctx, 42, out, 0)).toThrow('expected a string');
+    });
+
+    test('charLifting accepts max valid codepoint U+10FFFF', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        charLifting(ctx, String.fromCodePoint(0x10FFFF), out, 0);
+        expect(out[0]).toBe(0x10FFFF);
+    });
+
+    test('charLifting accepts ASCII character', () => {
+        const ctx = createMockCtx();
+        const out: WasmValue[] = [0];
+        charLifting(ctx, 'A', out, 0);
+        expect(out[0]).toBe(0x41);
     });
 });
 

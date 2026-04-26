@@ -2,6 +2,8 @@
 
 import type { AdapterContext } from '../../../src/host/wasip1-via-wasip3/adapter-context';
 import { createDefaultFdTable } from '../../../src/host/wasip1-via-wasip3/fd-table';
+import type { FdEntry } from '../../../src/host/wasip1-via-wasip3/fd-table';
+import { FdKind } from '../../../src/host/wasip1-via-wasip3/fd-table';
 import { MemoryVfsBackend } from '../../../src/host/wasip3/vfs';
 import {
     Errno, Clockid, Eventtype, Filetype, Fdflags, Rights, Whence,
@@ -23,7 +25,7 @@ import {
     path_link, path_open, path_readlink, path_rename, path_symlink, path_unlink_file, path_remove_directory,
 } from '../../../src/host/wasip1-via-wasip3/filesystem';
 import { getView } from '../../../src/host/wasip1-via-wasip3/memory';
-import { vfsErrorToErrno, vfsNodeTypeToFiletype, writeFilestat } from '../../../src/host/wasip1-via-wasip3/vfs-helpers';
+import { vfsErrorToErrno, vfsNodeTypeToFiletype, writeFilestat, vfsReadScatter, vfsReadScatterAt, vfsWriteGatherAt } from '../../../src/host/wasip1-via-wasip3/vfs-helpers';
 import { VfsError, VfsNodeType } from '../../../src/host/wasip3/vfs';
 import type { FsErrorCode } from '../../../src/host/wasip3/vfs';
 
@@ -961,6 +963,243 @@ describe('vfs-helpers unit tests', () => {
             expect(view.getBigUint64(FilestatLayout.atim.offset, true)).toBe(100n);
             expect(view.getBigUint64(FilestatLayout.mtim.offset, true)).toBe(200n);
             expect(view.getBigUint64(FilestatLayout.ctim.offset, true)).toBe(300n);
+        });
+    });
+});
+
+describe('scatter-gather I/O', () => {
+    function makeFileEntry(vfsPath: string[]): FdEntry {
+        return {
+            kind: FdKind.File,
+            filetype: Filetype.RegularFile,
+            flags: 0 as Fdflags,
+            rightsBase: Rights.FdRead | Rights.FdWrite | Rights.FdSeek,
+            rightsInheriting: 0 as Rights,
+            vfsPath,
+            position: 0n,
+        };
+    }
+
+    describe('vfsReadScatter', () => {
+        test('reads into multiple iovecs', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['multi.txt', 'abcdefghij']]) });
+            const view = getView(memory);
+            const entry = makeFileEntry(['multi.txt']);
+
+            // iovec[0]: buf=1000, len=3
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 3, true);
+            // iovec[1]: buf=1100, len=4
+            view.setUint32(808, 1100, true);
+            view.setUint32(812, 4, true);
+            // iovec[2]: buf=1200, len=3
+            view.setUint32(816, 1200, true);
+            view.setUint32(820, 3, true);
+
+            const rc = vfsReadScatter(ctx, entry, memory, 800, 3, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(10);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 3))).toBe('abc');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 4))).toBe('defg');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1200, 3))).toBe('hij');
+        });
+
+        test('handles partial EOF mid-read across iovecs', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['short.txt', 'abcde']]) });
+            const view = getView(memory);
+            const entry = makeFileEntry(['short.txt']);
+
+            // iovec[0]: buf=1000, len=3
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 3, true);
+            // iovec[1]: buf=1100, len=10 (more than remaining)
+            view.setUint32(808, 1100, true);
+            view.setUint32(812, 10, true);
+
+            const rc = vfsReadScatter(ctx, entry, memory, 800, 2, 900);
+            expect(rc).toBe(Errno.Success);
+            // Only 5 bytes available: 3 in first iovec + 2 in second (short read)
+            expect(view.getUint32(900, true)).toBe(5);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 3))).toBe('abc');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 2))).toBe('de');
+        });
+
+        test('skips zero-length iovecs', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['zero.txt', 'hello']]) });
+            const view = getView(memory);
+            const entry = makeFileEntry(['zero.txt']);
+
+            // iovec[0]: buf=1000, len=0 (zero-length)
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 0, true);
+            // iovec[1]: buf=1100, len=5
+            view.setUint32(808, 1100, true);
+            view.setUint32(812, 5, true);
+
+            const rc = vfsReadScatter(ctx, entry, memory, 800, 2, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(5);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 5))).toBe('hello');
+        });
+
+        test('reads zero bytes from empty file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['empty.txt', '']]) });
+            const view = getView(memory);
+            const entry = makeFileEntry(['empty.txt']);
+
+            // iovec[0]: buf=1000, len=10
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 10, true);
+
+            const rc = vfsReadScatter(ctx, entry, memory, 800, 1, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(0);
+        });
+
+        test('advances file position after scatter read', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['pos.txt', 'abcdefghij']]) });
+            const view = getView(memory);
+            const entry = makeFileEntry(['pos.txt']);
+
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 4, true);
+
+            vfsReadScatter(ctx, entry, memory, 800, 1, 900);
+            expect(entry.position).toBe(4n);
+
+            // Second read should start from position 4
+            vfsReadScatter(ctx, entry, memory, 800, 1, 900);
+            expect(view.getUint32(900, true)).toBe(4);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 4))).toBe('efgh');
+        });
+    });
+
+    describe('vfsReadScatterAt', () => {
+        test('reads at offset without changing entry position', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['at.txt', 'hello world']]) });
+            const view = getView(memory);
+
+            // iovec[0]: buf=1000, len=5
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 5, true);
+
+            const rc = vfsReadScatterAt(ctx, ['at.txt'], 6n, memory, 800, 1, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(5);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 5))).toBe('world');
+        });
+
+        test('reads across multiple iovecs at offset with partial EOF', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['atp.txt', 'abcdefgh']]) });
+            const view = getView(memory);
+
+            // Read from offset 5: "fgh" (3 bytes)
+            // iovec[0]: buf=1000, len=2
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 2, true);
+            // iovec[1]: buf=1100, len=10 (more than remaining)
+            view.setUint32(808, 1100, true);
+            view.setUint32(812, 10, true);
+
+            const rc = vfsReadScatterAt(ctx, ['atp.txt'], 5n, memory, 800, 2, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(3);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 2))).toBe('fg');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 1))).toBe('h');
+        });
+    });
+
+    describe('vfsWriteGatherAt', () => {
+        test('writes gathered bytes from multiple iovecs at offset', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['wg.txt', 'xxxxxxxxxx']]) });
+            const view = getView(memory);
+
+            // First data buffer at 1000: "AB"
+            new Uint8Array(memory.buffer, 1000, 2).set(new TextEncoder().encode('AB'));
+            // Second data buffer at 1100: "CD"
+            new Uint8Array(memory.buffer, 1100, 2).set(new TextEncoder().encode('CD'));
+
+            // iovec[0]: buf=1000, len=2
+            view.setUint32(800, 1000, true);
+            view.setUint32(804, 2, true);
+            // iovec[1]: buf=1100, len=2
+            view.setUint32(808, 1100, true);
+            view.setUint32(812, 2, true);
+
+            const rc = vfsWriteGatherAt(ctx, ['wg.txt'], 3n, memory, 800, 2, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(4);
+
+            // Verify written data by reading back
+            const readBuf = ctx.vfs.read(['wg.txt'], 3n, 4);
+            expect(new TextDecoder().decode(readBuf)).toBe('ABCD');
+        });
+
+        test('writes with zero iovecs writes nothing', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['wg0.txt', 'original']]) });
+            const view = getView(memory);
+
+            const rc = vfsWriteGatherAt(ctx, ['wg0.txt'], 0n, memory, 800, 0, 900);
+            expect(rc).toBe(Errno.Success);
+            expect(view.getUint32(900, true)).toBe(0);
+        });
+    });
+
+    describe('fd_read with multiple iovecs', () => {
+        test('scatter-reads a VFS file across multiple iovecs', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['scatter.txt', 'hello world!']]) });
+            const view = getView(memory);
+            const path = 'scatter.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // iovec[0]: buf=1000, len=5
+            view.setUint32(600, 1000, true);
+            view.setUint32(604, 5, true);
+            // iovec[1]: buf=1100, len=1
+            view.setUint32(608, 1100, true);
+            view.setUint32(612, 1, true);
+            // iovec[2]: buf=1200, len=6
+            view.setUint32(616, 1200, true);
+            view.setUint32(620, 6, true);
+
+            const readRc = fd_read(ctx, fileFd, 600, 3, 700);
+            expect(readRc).toBe(Errno.Success);
+            expect(view.getUint32(700, true)).toBe(12);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 5))).toBe('hello');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 1))).toBe(' ');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1200, 6))).toBe('world!');
+        });
+
+        test('scatter-reads with partial EOF across iovecs', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['eof.txt', 'abc']]) });
+            const view = getView(memory);
+            const path = 'eof.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // iovec[0]: buf=1000, len=2
+            view.setUint32(600, 1000, true);
+            view.setUint32(604, 2, true);
+            // iovec[1]: buf=1100, len=10 (more than remaining)
+            view.setUint32(608, 1100, true);
+            view.setUint32(612, 10, true);
+
+            const readRc = fd_read(ctx, fileFd, 600, 2, 700);
+            expect(readRc).toBe(Errno.Success);
+            expect(view.getUint32(700, true)).toBe(3);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1000, 2))).toBe('ab');
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 1100, 1))).toBe('c');
         });
     });
 });
