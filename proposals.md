@@ -1,7 +1,10 @@
 # Proposals: Fixing Node.js Event-Loop Starvation in JSPI Stream/Future Path
 
-> **STATUS — Investigation Update (after attempting Proposal 1):**
-> Proposal 1 as designed below **does not work** with the cargo-component / wit-bindgen async runtime. See **"Investigation Findings"** at the end of this file. The proposals below remain documented for context. A revised plan needs to be designed.
+> **STATUS — Update 2026-04-27:**
+> - **Group 1 mitigations LANDED.** D2 stream double-drop trap, A6 `subtask.cancel` impl, B4 async-lower throttle, and B6 `maxHandles` cap are all wired through `wrapWithThrottle` and verified by `tests/host/wasip3/bad-guests-integration.test.ts`.
+> - **Multi-async concurrency mechanic VALIDATED.** New fixture `integration-tests/multi-async-p3-wat/multi-async-p3.wat` + `tests/host/wasip3/multi-async.test.ts` prove that the runtime correctly multiplexes N parallel guest subtasks on a single waitable set, with per-task ctx slots and concurrent JS-side export invocations.
+> - **NEW GOAL — real wasi:http reactor concurrency.** See "HTTP Reactor Concurrency" section appended below. Discovered today that `wasi:http/types` resource flattening was missing; a partial fix is in `src/host/wasip3/http.ts` but a guest-side panic (`assertion failed: handle != 0`) still blocks. Investigation parked.
+> - **Proposal 1** as originally designed **does not work** with the cargo-component / wit-bindgen async runtime. See **"Investigation Findings"** below. The proposals are kept for context.
 
 ## Problem Recap
 
@@ -302,3 +305,114 @@ A1 is the only class with a known reproducer (the OOM). Before designing a gener
 2. Re-run full sockets test to confirm no regression in non-spin tests (especially `cli_hello_stdout`, the `join!` case).
 3. If green, generalize to A2–A9 by mechanism.
 4. B-class needs separate analysis (allocation rate-limit), not a yield strategy.
+
+---
+
+## HTTP Reactor Concurrency (NEW — opened 2026-04-27)
+
+### Goal
+
+Prove end-to-end that a real `wasi:http/handler` P3 reactor can serve multiple HTTP requests concurrently against a single component instance, using the existing `serve()` adapter. This is the production-shaped follow-up to the synthetic `multi-async-p3.wat` proof.
+
+Concretely:
+1. Boot `integration-tests/wasmtime/p3_http_echo.component.wasm` (a real wasi:http reactor from the wasmtime test-programs suite — uses `wit_future`, `wit_stream`, `wit_bindgen::spawn`).
+2. Plumb its `wasi:http/handler@0.3.0-rc-2026-03-15` export into `serve()`.
+3. Fire `Promise.all([request(/a), request(/b), request(/c), …])` against the same instance.
+4. Assert all responses round-trip headers/body correctly and the runtime keeps multiple guest subtasks in flight (overlapping pending count > 1 at some point during the run).
+
+### Status
+
+- **Test scaffold written:** `tests/host/wasip3/node/http-reactor-concurrent.test.ts`. Component instantiation succeeds, all 12 imports bind, the `wasi:http/handler` export is reachable from JS.
+- **First blocker (FIXED):** `wasi:http/types` was returning resource classes only, no flat `[constructor]/[static]/[method]/[resource-drop]` table — every WASM call to e.g. `[method]request.get-headers` failed with "Export not found in instance". Added `buildHttpTypesFlat()` in `src/host/wasip3/http.ts` covering `fields`, `request`, `request-options`, `response`. Lint clean.
+- **Second blocker (OPEN):** Guest panics with `assertion failed: handle != 0 && handle != u32::MAX` at `crates/test-programs/src/p3/mod.rs:4:1`. The panic message reaches the host via `fallbackLog` to stderr; HTTP response is `500`. Root cause: the JS `HttpRequest` instance handed to `handler.handle(request)` is being lifted into a resource handle of `0` (or u32::MAX). Investigation parked here.
+
+### Open question — handle 0 origin
+
+The lifted handler signature is `params=[request] count=1 results=1 convention: params=Scalar results=Spilled flatParams=1 spilledSize=4`. `request` is an `own<request>` parameter being lifted via `ownLifting → ctx.resources.add(typeIdx, jsObject)`. `add()` starts handles at `1` and never returns `0`, so something else in the chain is producing the 0:
+
+- Possibility 1: the `instance.exports[wasi:http/handler@…]` JS function we get back is *not* the lifted-handler trampoline; we may be accidentally invoking an unlifted core `funcref` and passing the JS object straight into the WASM stack. Need to verify by stepping through `executor` Detailed logs around the ExportBind for handler.
+- Possibility 2: `consume-body` and downstream stream/future handles (which DO start at 0 by spec when no ID is allocated) are being mis-typed as resource handles. The Rust assert is in `wit_bindgen` resource shim, so a stream/future handle of 0 leaking into a resource-table position would match.
+- Possibility 3: The host calls into the component before `start_task()` runs, so the canonical resource instance map isn't populated; `getCanonicalResourceId(borrow<request>)` returns `-1` or `undefined`, lifting silently emits 0.
+
+Diagnostic next step: add `executor: LogLevel.Detailed` and grep specifically for `ownLifting`/`borrowLifting` calls and the `resource.add` it produces, correlating with the trampoline `args=[…]` print of the handler call.
+
+### Test goals (deferred until handle issue resolved)
+
+- **G1 — basic concurrent POSTs:** N parallel POSTs with `x-host-to-host: true` (echo fast-path), expect all 200 with correct body echo, expect serve() handler queue depth > 1 during run.
+- **G2 — non-fast-path (default echo path):** drop `x-host-to-host`; reactor uses `wit_bindgen::spawn` + `wit_stream` to forward body. Same assertion. Stresses the spawned-task waitable-set machinery.
+- **G3 — interleaved blocking + concurrent (see next section):** tests in the new "JSPI + Parallel" matrix.
+
+### Files involved
+
+| File | Status |
+|---|---|
+| `src/host/wasip3/http.ts` | `buildHttpTypesFlat()` added; covers fields/request/request-options/response. Tests still failing downstream of this. |
+| `tests/host/wasip3/node/http-reactor-concurrent.test.ts` | Scaffold present, `Expected: 200, Received: 500` due to handle-0 issue. |
+| `src/host/wasip3/node/http-server.ts` | Server-side dispatch is already fire-and-forget IIFE per request — no changes needed for concurrency. |
+| `integration-tests/wasmtime/p3_http_echo.component.wasm` | Real reactor binary already in tree. |
+
+---
+
+## JSPI + Parallel: interleaved blocking & concurrent request scenarios (NEW)
+
+Once the HTTP reactor concurrency baseline (above) is green, the runtime needs explicit coverage of how a single component instance behaves when **JSPI-suspending** host calls are mixed with **multiple in-flight guest tasks**. The Group-1 multi-async test only covered Promise-resolving host imports without JSPI involvement.
+
+### Why these scenarios matter
+
+JSPI suspends the **whole WASM execution** (one thread). The guest's wit-bindgen async runtime, however, expects to interleave futures cooperatively. Whenever the host suspends mid-call:
+- All other in-flight guest tasks on the same instance are frozen.
+- Microtasks scheduled *before* the suspend still run (so the JS `serve()` event loop keeps accepting new TCP connections).
+- New `handler.handle(request)` invocations from JS arrive on the queue but cannot enter the guest until the suspended call returns.
+
+This creates a richer state machine than either "pure Promise host" (multi-async test) or "pure synchronous guest". Each combination below is a distinct integration risk.
+
+### Scenario matrix
+
+Assume one component instance, the `serve()` adapter, and N concurrent `request(/X)` clients. Let "blocking host" = a host import wrapped in `WebAssembly.Suspending` that returns a Promise (e.g. `wasi:http/client.send`, `wasi:filesystem/types.read`, a hypothetical `wasi:clocks/monotonic.subscribe-duration`).
+
+| # | Pattern | Expected behavior | Risk if broken |
+|---|---|---|---|
+| **P1** | One JSPI-blocking host call, N concurrent JS-side handler invocations queued behind it | All N proceed in turn after suspend resolves. JS event loop stays responsive (server keeps accepting). | If JSPI suspends *all* JS too → server stalls, clients time out. |
+| **P2** | N concurrent handlers, each making one JSPI-blocking host call (e.g. fan-out HTTP fetches) | Suspends interleave: handler A suspends → handler B enters guest → B suspends → A resumes when its Promise resolves. Per-task ctx and waitable-set isolation must hold across suspend boundaries. | Cross-task ctx slot bleed; or only one suspend at a time honored, others see stale state. |
+| **P3** | Handler issues JSPI-blocking call, then guest spawns an internal subtask via `wit_bindgen::spawn` that itself makes a JSPI-blocking call | Inner subtask suspends independently. When outer Promise resolves first, outer task resumes; inner remains suspended until its Promise. Resource tables shared correctly. | Subtask handle reused or cancelled when outer resumes; inner subtask leaks. |
+| **P4** | Mixed: one handler awaits a Promise host import while another handler awaits a JSPI-suspending host import on the same instance | Per-`asyncLowerTrampoline` Promise machinery + JSPI suspension must not deadlock each other. | Promise-mode subtask sees `BLOCKED` while JSPI suspend never gets scheduled. Whole instance hangs. |
+| **P5** | N concurrent handlers, each holds a `borrow<request>` handle that spans a JSPI suspend | After suspend, the borrow is still valid (numLends accounting unchanged across the suspend). | Resource-table GC during suspend drops a borrow that is still in use, post-suspend get fails with "type X != Y". |
+| **P6** | Backpressure: while one handler suspends on JSPI, the host signals `task.backpressure=1` from the JS side | Queued handlers stop entering the guest until backpressure clears. Suspended task can still complete. | New handlers enter anyway, exceeding designed concurrency; or suspended task is killed when backpressure fires. |
+| **P7** | Cancellation across suspend: client disconnects mid-request while the corresponding handler is JSPI-suspended | The host side `serve()` aborts the response stream; the suspended Promise must reject (via AbortSignal); guest's resumed call sees `CANCELLED`/`DROPPED`. | Suspended Promise never rejects → handler permanently parked → instance leaks tasks until OOM. |
+| **P8** | JSPI-suspending call inside a `futures::join!` arm (the cli_hello_stdout deadlock pattern) but in a server context | Already proven to deadlock for streams. Need to confirm whether it also deadlocks for `wasi:http/client.send` if a guest does `join!(send_a, send_b)`. | If yes → document as a known guest-toolchain incompatibility; do **not** add new JSPI suspends without auditing this case. |
+| **P9** | Many concurrent handlers each create + drop short-lived streams/futures while another is JSPI-suspended | Stream/future tables grow during the suspend window, then drain after resume. Must not exceed `maxHandles` cap; must not regress E2 (Promise-per-call OOM). | Long suspend → unbounded resource growth → B6 cap fires → all handlers fail. Need adaptive backpressure. |
+| **P10** | Re-entrant JSPI: host import suspends, its Promise is awaited, and during the await another `serve()`-driven `handler.handle()` call begins for the same instance | Reentrancy is intentional here (multi-task). Must validate: (a) ctx slot per task, (b) waitable-set per task, (c) resource handles partitioned correctly, (d) `mctx.opsSinceYield` counter is per-task, not global. | Global counters (e.g. throttle counters in `wrapWithThrottle`) bleed across reentrant tasks → false positives or false negatives on yield. |
+| **P11** | JSPI-suspending host call that fails synchronously after a Node.js I/O error mid-suspend (e.g. socket reset during `wasi:http/client.send`) | The Promise rejects; trampoline converts rejection to `result.err` per WIT signature; concurrent handlers untouched. | Rejection propagates as unhandled and aborts the whole instance via `abortController.abort()`. |
+| **P12** | Client closes connection while server is reading request body (JSPI-suspended on `stream.read`) | Body stream closes → `pendingRead` resolves with `DROPPED`; guest sees end-of-stream. Other handlers continue. | `pendingRead` not resolved on close → that handler hangs forever. (Already partially fixed but needs explicit P3-level test.) |
+
+### Test design (rough)
+
+Each scenario above maps to one Jest test in a new file `tests/host/wasip3/node/http-reactor-jspi-parallel.test.ts`:
+- Use `p3_http_echo.component.wasm` for the basic shape, but several scenarios will need a custom WAT or custom rust reactor (P3, P8, P10) that issues outgoing host calls. Likely build `integration-tests/jspi-parallel-p3-wat/jspi-parallel-p3.wat` once the handle-0 issue is fixed.
+- Use a controllable JSPI-blocking host import: replace `wasi:http/client.send` with a test stub that returns a deferred Promise so the test owns the suspend timing.
+- Assert (a) HTTP status, (b) overlapping-pending count, (c) `resources.size` / `subtasks.size` invariants before/during/after suspend windows, (d) JS event loop liveness via `setImmediate` watchdog timestamps.
+
+### Acceptance criteria
+
+A scenario is "green" when:
+1. The functional assertion passes (correct status / body / order).
+2. No resource handle leaks (table sizes return to baseline after `instance.dispose()`).
+3. No `unhandledRejection` / `uncaughtException` during the run.
+4. Watchdog `setImmediate` ticks during every suspend window > 0 (proves event loop liveness).
+5. With `verbose: { executor: LogLevel.Detailed }`, no `resource.get` returns the wrong typeIdx and no `subtask.cancel: unknown handle` errors appear.
+
+### Priority
+
+Defer until **HTTP Reactor Concurrency** baseline is green. P1, P2, P10 are highest-value (cover multi-task ctx + JSPI). P5, P7, P12 are correctness-critical for production use. P3, P4, P8 are research-grade — likely uncover spec-level questions about wit-bindgen + JSPI compatibility.
+
+---
+
+## Other goals discovered today
+
+- **`wasi:http/types` resource flattening parity with the `wasip2-via-wasip3` adapter.** The P2 adapter already had a flat `[method]…` table; the P3 host did not. Today's partial fix added one but coverage of the static-then-tuple-result methods (`request.new`, `request.consume-body`, `response.new`, `response.consume-body`) needs verification once the handle-0 blocker is cleared — the tuple-result lifting may also need attention.
+- **`flattenResource` helper unification.** `src/host/wasip3/sockets.ts:flattenResource(...)` and the new ad-hoc `buildHttpTypesFlat()` do similar work. After both are confirmed correct, fold them into one shared utility (move to `src/host/wasip3/resource-flatten.ts` or similar).
+- **Group 2 — yield-from-cancel-only.** Still pending the user's choice between "default-on when JSPI is enabled" vs "RuntimeConfig flag". Keep on the backlog; lower priority than the HTTP reactor work.
+- **Test for `flattenResource` correctness** — none exists today; the sockets path was only validated indirectly via integration tests. A unit test that asserts every WIT method on `Fields`/`Request`/`Response` has a matching `[method]…` entry would have caught today's blocker pre-runtime.
+
+
+

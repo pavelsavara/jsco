@@ -775,10 +775,113 @@ async function sendImpl(
 // ──────────────────── Factory functions ────────────────────
 
 /**
+ * Wrap a synchronous call so that thrown errors with a `.tag` property are
+ * converted to `result.err`. Used for WIT methods declared `result<T, E>`.
+ */
+function tryResult<T>(fn: () => T): Result<T, unknown> {
+    try {
+        return ok(fn());
+    } catch (e) {
+        if (e && typeof e === 'object' && typeof (e as { tag?: unknown }).tag === 'string') {
+            return err(e);
+        }
+        throw e;
+    }
+}
+
+/**
+ * Build the flat `[constructor]/[static]/[method]/[resource-drop]` import table
+ * for the `wasi:http/types` interface. The component model expects flat keys
+ * — this is what the resolver looks up when an alias targets a resource method.
+ */
+function buildHttpTypesFlat(
+    FieldsClass: typeof HttpFields,
+): Record<string, unknown> {
+    return {
+        // ──── fields ────
+        '[constructor]fields': () => new FieldsClass(),
+        '[static]fields.from-list': (entries: Array<[FieldName, FieldValue]>) =>
+            tryResult(() => FieldsClass.fromList(entries)),
+        '[resource-drop]fields': () => { /* GC */ },
+        '[method]fields.get': (self: HttpFields, name: FieldName) => self.get(name),
+        '[method]fields.has': (self: HttpFields, name: FieldName) => self.has(name),
+        '[method]fields.set': (self: HttpFields, name: FieldName, values: FieldValue[]) =>
+            tryResult(() => { self.set(name, values); }),
+        '[method]fields.delete': (self: HttpFields, name: FieldName) =>
+            tryResult(() => { self.delete(name); }),
+        '[method]fields.get-and-delete': (self: HttpFields, name: FieldName) =>
+            tryResult(() => self.getAndDelete(name)),
+        '[method]fields.append': (self: HttpFields, name: FieldName, value: FieldValue) =>
+            tryResult(() => { self.append(name, value); }),
+        '[method]fields.entries': (self: HttpFields) => self.copyAll(),
+        '[method]fields.clone': (self: HttpFields) => self.clone(),
+
+        // ──── request ────
+        '[static]request.new': (
+            headers: Headers,
+            contents: WasiStreamReadable<Uint8Array> | undefined,
+            trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
+            options: HttpRequestOptions | undefined,
+        ) => HttpRequest.new(headers, contents, trailers, options),
+        '[resource-drop]request': () => { /* GC */ },
+        '[method]request.get-method': (self: HttpRequest) => self.getMethod(),
+        '[method]request.set-method': (self: HttpRequest, method: Method) =>
+            tryResult(() => { self.setMethod(method); }),
+        '[method]request.get-path-with-query': (self: HttpRequest) => self.getPathWithQuery(),
+        '[method]request.set-path-with-query': (self: HttpRequest, p: string | undefined) =>
+            tryResult(() => { self.setPathWithQuery(p); }),
+        '[method]request.get-scheme': (self: HttpRequest) => self.getScheme(),
+        '[method]request.set-scheme': (self: HttpRequest, s: Scheme | undefined) =>
+            tryResult(() => { self.setScheme(s); }),
+        '[method]request.get-authority': (self: HttpRequest) => self.getAuthority(),
+        '[method]request.set-authority': (self: HttpRequest, a: string | undefined) =>
+            tryResult(() => { self.setAuthority(a); }),
+        '[method]request.get-options': (self: HttpRequest) => self.getOptions(),
+        '[method]request.get-headers': (self: HttpRequest) => self.getHeaders(),
+        '[static]request.consume-body': (
+            this_: HttpRequest,
+            res: Promise<Result<void, ErrorCode>>,
+        ) => HttpRequest.consumeBody(this_, res),
+
+        // ──── request-options ────
+        '[constructor]request-options': () => new HttpRequestOptions(),
+        '[resource-drop]request-options': () => { /* GC */ },
+        '[method]request-options.get-connect-timeout': (self: HttpRequestOptions) => self.getConnectTimeout(),
+        '[method]request-options.set-connect-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+            tryResult(() => { self.setConnectTimeout(d); }),
+        '[method]request-options.get-first-byte-timeout': (self: HttpRequestOptions) => self.getFirstByteTimeout(),
+        '[method]request-options.set-first-byte-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+            tryResult(() => { self.setFirstByteTimeout(d); }),
+        '[method]request-options.get-between-bytes-timeout': (self: HttpRequestOptions) => self.getBetweenBytesTimeout(),
+        '[method]request-options.set-between-bytes-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+            tryResult(() => { self.setBetweenBytesTimeout(d); }),
+        '[method]request-options.clone': (self: HttpRequestOptions) => self.clone(),
+
+        // ──── response ────
+        '[static]response.new': (
+            headers: Headers,
+            contents: WasiStreamReadable<Uint8Array> | undefined,
+            trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
+        ) => HttpResponse.new(headers, contents, trailers),
+        '[resource-drop]response': () => { /* GC */ },
+        '[method]response.get-status-code': (self: HttpResponse) => self.getStatusCode(),
+        '[method]response.set-status-code': (self: HttpResponse, code: StatusCode) =>
+            tryResult(() => { self.setStatusCode(code); }),
+        '[method]response.get-headers': (self: HttpResponse) => self.getHeaders(),
+        '[static]response.consume-body': (
+            this_: HttpResponse,
+            res: Promise<Result<void, ErrorCode>>,
+        ) => HttpResponse.consumeBody(this_, res),
+    };
+}
+
+/**
  * Create the `wasi:http/types` interface.
  *
  * Returns the `Fields`, `Request`, `RequestOptions`, and `Response` resource
- * classes configured with the current network limits.
+ * classes configured with the current network limits, plus the flat
+ * `[constructor]/[static]/[method]/[resource-drop]` table the component
+ * resolver looks up when WASM guests import these resources.
  */
 export function createHttpTypes(config?: HostConfig): typeof WasiHttpTypes {
     const limits = getHttpLimits(config?.network);
@@ -798,6 +901,7 @@ export function createHttpTypes(config?: HostConfig): typeof WasiHttpTypes {
         Request: HttpRequest,
         RequestOptions: HttpRequestOptions,
         Response: HttpResponse,
+        ...buildHttpTypesFlat(FieldsClass),
     } as unknown as typeof WasiHttpTypes;
 }
 
