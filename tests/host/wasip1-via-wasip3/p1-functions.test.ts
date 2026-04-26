@@ -16,11 +16,16 @@ import { sock_accept, sock_recv, sock_send, sock_shutdown } from '../../../src/h
 import {
     fd_advise, fd_allocate, fd_close, fd_datasync,
     fd_fdstat_get, fd_fdstat_set_flags, fd_fdstat_set_rights,
-    fd_filestat_get,
-    fd_read, fd_write, fd_seek, fd_tell, fd_renumber, fd_sync,
-    path_create_directory, path_filestat_get, path_open, path_unlink_file, path_remove_directory,
+    fd_filestat_get, fd_filestat_set_size, fd_filestat_set_times,
+    fd_pread, fd_pwrite,
+    fd_read, fd_write, fd_seek, fd_tell, fd_renumber, fd_sync, fd_readdir,
+    path_create_directory, path_filestat_get, path_filestat_set_times,
+    path_link, path_open, path_readlink, path_rename, path_symlink, path_unlink_file, path_remove_directory,
 } from '../../../src/host/wasip1-via-wasip3/filesystem';
 import { getView } from '../../../src/host/wasip1-via-wasip3/memory';
+import { vfsErrorToErrno, vfsNodeTypeToFiletype, writeFilestat } from '../../../src/host/wasip1-via-wasip3/vfs-helpers';
+import { VfsError, VfsNodeType } from '../../../src/host/wasip3/vfs';
+import type { FsErrorCode } from '../../../src/host/wasip3/vfs';
 
 function makeCtx(opts?: {
     args?: string[];
@@ -609,6 +614,353 @@ describe('WASI P1 filesystem functions', () => {
             const writeRc = fd_write(ctx, fileFd, 600, 1, 800);
             expect(writeRc).toBe(Errno.Success);
             expect(view.getUint32(800, true)).toBe(4);
+        });
+    });
+
+    describe('fd_pread / fd_pwrite', () => {
+        test('pwrite writes at offset without changing position', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['ptest.txt', 'abcdef']]) });
+            const view = getView(memory);
+            const path = 'ptest.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdWrite | Rights.FdSeek | Rights.FdTell), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // pwrite "XY" at offset 2
+            const data = new TextEncoder().encode('XY');
+            new Uint8Array(memory.buffer, 700, data.length).set(data);
+            view.setUint32(600, 700, true);
+            view.setUint32(604, 2, true);
+            const writeRc = fd_pwrite(ctx, fileFd, 600, 1, 2n, 800);
+            expect(writeRc).toBe(Errno.Success);
+            expect(view.getUint32(800, true)).toBe(2);
+
+            // position should still be 0
+            const tellRc = fd_tell(ctx, fileFd, 900);
+            expect(tellRc).toBe(Errno.Success);
+            expect(view.getBigUint64(900, true)).toBe(0n);
+        });
+
+        test('pread reads at offset without changing position', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['pread.txt', 'hello world']]) });
+            const view = getView(memory);
+            const path = 'pread.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek | Rights.FdTell), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // pread 5 bytes from offset 6 ("world")
+            view.setUint32(600, 700, true); // buf at 700
+            view.setUint32(604, 5, true);   // len=5
+            const readRc = fd_pread(ctx, fileFd, 600, 1, 6n, 800);
+            expect(readRc).toBe(Errno.Success);
+            expect(view.getUint32(800, true)).toBe(5);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 700, 5))).toBe('world');
+
+            // position should still be 0
+            const tellRc = fd_tell(ctx, fileFd, 900);
+            expect(tellRc).toBe(Errno.Success);
+            expect(view.getBigUint64(900, true)).toBe(0n);
+        });
+
+        test('pread returns Badf for invalid fd', () => {
+            const { ctx, memory } = makeCtx();
+            const view = getView(memory);
+            expect(fd_pread(ctx, 99, 0, 0, 0n, 0)).toBe(Errno.Badf);
+        });
+
+        test('pwrite returns Badf for invalid fd', () => {
+            const { ctx } = makeCtx();
+            expect(fd_pwrite(ctx, 99, 0, 0, 0n, 0)).toBe(Errno.Badf);
+        });
+    });
+
+    describe('fd_readdir', () => {
+        test('reads directory entries', () => {
+            const { ctx, memory } = makeCtx({
+                fs: new Map([['sub/a.txt', 'a'], ['sub/b.txt', 'b']]),
+            });
+            const view = getView(memory);
+
+            // Open "sub" directory
+            const path = 'sub';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 2 /* Oflags.Directory */,
+                BigInt(Rights.FdReaddir), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const dirFd = view.getUint32(500, true);
+
+            // Read directory with large buffer
+            const readdirRc = fd_readdir(ctx, dirFd, 1000, 4096, 0n, 5000);
+            expect(readdirRc).toBe(Errno.Success);
+            const bytesUsed = view.getUint32(5000, true);
+            expect(bytesUsed).toBeGreaterThan(0);
+        });
+
+        test('returns Badf for invalid fd', () => {
+            const { ctx } = makeCtx();
+            expect(fd_readdir(ctx, 99, 0, 0, 0n, 0)).toBe(Errno.Badf);
+        });
+    });
+
+    describe('fd_filestat_set_size', () => {
+        test('truncates a file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['trunc.txt', 'hello world']]) });
+            const view = getView(memory);
+            const path = 'trunc.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdWrite | Rights.FdFilestatGet), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            const setRc = fd_filestat_set_size(ctx, fileFd, 5n);
+            expect(setRc).toBe(Errno.Success);
+        });
+
+        test('returns Badf for invalid fd', () => {
+            const { ctx } = makeCtx();
+            expect(fd_filestat_set_size(ctx, 99, 0n)).toBe(Errno.Badf);
+        });
+    });
+
+    describe('fd_filestat_set_times', () => {
+        test('sets times on a file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['times.txt', 'data']]) });
+            const view = getView(memory);
+            const path = 'times.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdWrite | Rights.FdFilestatGet), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // Set both atim and mtim to now
+            const setRc = fd_filestat_set_times(ctx, fileFd, 0n, 0n, 2 | 8); // AtimNow | MtimNow
+            expect(setRc).toBe(Errno.Success);
+        });
+
+        test('returns Badf for invalid fd', () => {
+            const { ctx } = makeCtx();
+            expect(fd_filestat_set_times(ctx, 99, 0n, 0n, 0)).toBe(Errno.Badf);
+        });
+    });
+
+    describe('fd_read from VFS file', () => {
+        test('reads data from a VFS file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['read-me.txt', 'file content here']]) });
+            const view = getView(memory);
+            const path = 'read-me.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // iovec: buf=700, len=17
+            view.setUint32(600, 700, true);
+            view.setUint32(604, 17, true);
+            const readRc = fd_read(ctx, fileFd, 600, 1, 800);
+            expect(readRc).toBe(Errno.Success);
+            expect(view.getUint32(800, true)).toBe(17);
+            expect(new TextDecoder().decode(new Uint8Array(memory.buffer, 700, 17))).toBe('file content here');
+        });
+    });
+
+    describe('fd_seek whence variants', () => {
+        test('seek Cur from current position', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['seektest.txt', 'abcdefghij']]) });
+            const view = getView(memory);
+            const path = 'seektest.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek | Rights.FdTell), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            // First seek to 3
+            fd_seek(ctx, fileFd, 3n, Whence.Set, 600);
+            // Then seek +2 from Cur
+            const seekRc = fd_seek(ctx, fileFd, 2n, Whence.Cur, 600);
+            expect(seekRc).toBe(Errno.Success);
+            expect(view.getBigUint64(600, true)).toBe(5n);
+        });
+
+        test('seek End from end of file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['seekend.txt', 'abcdefghij']]) });
+            const view = getView(memory);
+            const path = 'seekend.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const rc = path_open(ctx, 3, 0, 400, pathBytes.length, 0,
+                BigInt(Rights.FdRead | Rights.FdSeek | Rights.FdTell | Rights.FdFilestatGet), 0n, 0, 500);
+            expect(rc).toBe(Errno.Success);
+            const fileFd = view.getUint32(500, true);
+
+            const seekRc = fd_seek(ctx, fileFd, 0n, Whence.End, 600);
+            expect(seekRc).toBe(Errno.Success);
+            expect(view.getBigUint64(600, true)).toBe(10n);
+        });
+    });
+
+    describe('path_filestat_set_times', () => {
+        test('sets times on a path', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['timed.txt', 'data']]) });
+            const path = 'timed.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const setRc = path_filestat_set_times(ctx, 3, 0, 400, pathBytes.length, 0n, 0n, 2 | 8);
+            expect(setRc).toBe(Errno.Success);
+        });
+
+        test('returns Noent for missing path', () => {
+            const { ctx, memory } = makeCtx();
+            const path = 'missing.txt';
+            const pathBytes = new TextEncoder().encode(path);
+            new Uint8Array(memory.buffer, 400, pathBytes.length).set(pathBytes);
+            const setRc = path_filestat_set_times(ctx, 3, 0, 400, pathBytes.length, 0n, 0n, 0);
+            expect(setRc).toBe(Errno.Noent);
+        });
+    });
+
+    describe('path_link', () => {
+        test('links a file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['orig.txt', 'data']]) });
+            const old = 'orig.txt';
+            const oldBytes = new TextEncoder().encode(old);
+            new Uint8Array(memory.buffer, 400, oldBytes.length).set(oldBytes);
+            const newp = 'link.txt';
+            const newBytes = new TextEncoder().encode(newp);
+            new Uint8Array(memory.buffer, 500, newBytes.length).set(newBytes);
+            const rc = path_link(ctx, 3, 0, 400, oldBytes.length, 3, 500, newBytes.length);
+            expect(rc).toBe(Errno.Success);
+        });
+    });
+
+    describe('path_rename', () => {
+        test('renames a file', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['old.txt', 'data']]) });
+            const old = 'old.txt';
+            const oldBytes = new TextEncoder().encode(old);
+            new Uint8Array(memory.buffer, 400, oldBytes.length).set(oldBytes);
+            const newp = 'new.txt';
+            const newBytes = new TextEncoder().encode(newp);
+            new Uint8Array(memory.buffer, 500, newBytes.length).set(newBytes);
+            const rc = path_rename(ctx, 3, 400, oldBytes.length, 3, 500, newBytes.length);
+            expect(rc).toBe(Errno.Success);
+        });
+    });
+
+    describe('path_symlink', () => {
+        test('creates a symlink', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['target.txt', 'data']]) });
+            const target = 'target.txt';
+            const targetBytes = new TextEncoder().encode(target);
+            new Uint8Array(memory.buffer, 400, targetBytes.length).set(targetBytes);
+            const link = 'sym.txt';
+            const linkBytes = new TextEncoder().encode(link);
+            new Uint8Array(memory.buffer, 500, linkBytes.length).set(linkBytes);
+            const rc = path_symlink(ctx, 400, targetBytes.length, 3, 500, linkBytes.length);
+            expect(rc).toBe(Errno.Success);
+        });
+    });
+
+    describe('path_readlink', () => {
+        test('reads a symlink', () => {
+            const { ctx, memory } = makeCtx({ fs: new Map([['target.txt', 'data']]) });
+            const view = getView(memory);
+            // Create symlink first
+            const target = 'target.txt';
+            const targetBytes = new TextEncoder().encode(target);
+            new Uint8Array(memory.buffer, 400, targetBytes.length).set(targetBytes);
+            const link = 'mylink';
+            const linkBytes = new TextEncoder().encode(link);
+            new Uint8Array(memory.buffer, 500, linkBytes.length).set(linkBytes);
+            path_symlink(ctx, 400, targetBytes.length, 3, 500, linkBytes.length);
+
+            // Read it back
+            const rc = path_readlink(ctx, 3, 500, linkBytes.length, 700, 256, 800);
+            expect(rc).toBe(Errno.Success);
+            const len = view.getUint32(800, true);
+            expect(len).toBe(target.length);
+        });
+    });
+});
+
+describe('vfs-helpers unit tests', () => {
+    describe('vfsErrorToErrno', () => {
+        test('maps known VfsError codes', () => {
+            expect(vfsErrorToErrno(new VfsError('access'))).toBe(Errno.Acces);
+            expect(vfsErrorToErrno(new VfsError('exist'))).toBe(Errno.Exist);
+            expect(vfsErrorToErrno(new VfsError('invalid'))).toBe(Errno.Inval);
+            expect(vfsErrorToErrno(new VfsError('io'))).toBe(Errno.Io);
+            expect(vfsErrorToErrno(new VfsError('is-directory'))).toBe(Errno.Isdir);
+            expect(vfsErrorToErrno(new VfsError('name-too-long'))).toBe(Errno.Nametoolong);
+            expect(vfsErrorToErrno(new VfsError('no-entry'))).toBe(Errno.Noent);
+            expect(vfsErrorToErrno(new VfsError('not-directory'))).toBe(Errno.Notdir);
+            expect(vfsErrorToErrno(new VfsError('not-empty'))).toBe(Errno.Notempty);
+            expect(vfsErrorToErrno(new VfsError('not-permitted'))).toBe(Errno.Perm);
+            expect(vfsErrorToErrno(new VfsError('read-only'))).toBe(Errno.Rofs);
+            expect(vfsErrorToErrno(new VfsError('cross-device'))).toBe(Errno.Xdev);
+            expect(vfsErrorToErrno(new VfsError('insufficient-space'))).toBe(Errno.Nospc);
+            expect(vfsErrorToErrno(new VfsError('overflow'))).toBe(Errno.Overflow);
+            expect(vfsErrorToErrno(new VfsError('unsupported'))).toBe(Errno.Notsup);
+            expect(vfsErrorToErrno(new VfsError('bad-descriptor'))).toBe(Errno.Badf);
+            expect(vfsErrorToErrno(new VfsError('loop'))).toBe(Errno.Loop);
+        });
+
+        test('maps unknown VfsError code to Io', () => {
+            expect(vfsErrorToErrno(new VfsError('unknown-code' as FsErrorCode))).toBe(Errno.Io);
+        });
+
+        test('maps non-VfsError to Io', () => {
+            expect(vfsErrorToErrno(new Error('random error'))).toBe(Errno.Io);
+            expect(vfsErrorToErrno('string error')).toBe(Errno.Io);
+            expect(vfsErrorToErrno(null)).toBe(Errno.Io);
+        });
+    });
+
+    describe('vfsNodeTypeToFiletype', () => {
+        test('maps all node types', () => {
+            expect(vfsNodeTypeToFiletype(VfsNodeType.File)).toBe(Filetype.RegularFile);
+            expect(vfsNodeTypeToFiletype(VfsNodeType.Directory)).toBe(Filetype.Directory);
+            expect(vfsNodeTypeToFiletype(VfsNodeType.Symlink)).toBe(Filetype.SymbolicLink);
+            expect(vfsNodeTypeToFiletype(99 as VfsNodeType)).toBe(Filetype.Unknown);
+        });
+    });
+
+    describe('writeFilestat', () => {
+        test('writes filestat fields to DataView', () => {
+            const buf = new ArrayBuffer(128);
+            const view = new DataView(buf);
+            const stat = {
+                nodeId: 42,
+                type: VfsNodeType.File,
+                linkCount: 1n,
+                size: 1024n,
+                accessTime: 100n,
+                modifyTime: 200n,
+                changeTime: 300n,
+            };
+            writeFilestat(view, 0, stat);
+            expect(view.getBigUint64(FilestatLayout.ino.offset, true)).toBe(42n);
+            expect(view.getUint8(FilestatLayout.filetype.offset)).toBe(Filetype.RegularFile);
+            expect(view.getBigUint64(FilestatLayout.nlink.offset, true)).toBe(1n);
+            expect(view.getBigUint64(FilestatLayout.size.offset, true)).toBe(1024n);
+            expect(view.getBigUint64(FilestatLayout.atim.offset, true)).toBe(100n);
+            expect(view.getBigUint64(FilestatLayout.mtim.offset, true)).toBe(200n);
+            expect(view.getBigUint64(FilestatLayout.ctim.offset, true)).toBe(300n);
         });
     });
 });

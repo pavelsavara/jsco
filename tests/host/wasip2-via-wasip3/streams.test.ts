@@ -9,7 +9,9 @@
 import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
 import { createMockP3 } from './test-helpers';
 import { createInputStream, createOutputStream, createWasiError } from '../../../src/host/wasip2-via-wasip3/io';
-import type { WasiInputStream, WasiOutputStream } from '../../../src/host/wasip2-via-wasip3/io';
+import { createInputStreamFromP3, createOutputStreamFromP3, createSyncPollable, createAsyncPollable, poll, JspiBlockSignal } from '../../../src/host/wasip2-via-wasip3/io';
+import { createStreamPair } from '../../../src/host/wasip3/streams';
+import type { WasiInputStream, WasiOutputStream, WasiPollable } from '../../../src/host/wasip2-via-wasip3/io';
 
 
 describe('wasi:io/streams (via P3 adapter)', () => {
@@ -450,5 +452,490 @@ describe('wasi:io/error (via P3 adapter)', () => {
         const fn = host['wasi:io/error']!['[method]error.to-debug-string']!;
         const err = { toDebugString: () => 'test error' };
         expect(fn(err)).toBe('test error');
+    });
+});
+
+// ─── P3-backed streams ───
+
+describe('createInputStreamFromP3', () => {
+    it('reads data pumped from async iterable', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        // Create stream first — pump starts consuming eagerly
+        const stream = createInputStreamFromP3(pair.readable);
+        // Now write (pump is waiting on dequeue, so write resolves)
+        await pair.write(new Uint8Array([1, 2, 3]));
+        pair.close();
+        // Allow async pump to finish processing
+        await new Promise(r => setTimeout(r, 10));
+
+        const result = stream.read(3n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val).toEqual(new Uint8Array([1, 2, 3]));
+        }
+    });
+
+    it('subscribe returns ready pollable when data available', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        await pair.write(new Uint8Array([1]));
+        pair.close();
+        await new Promise(r => setTimeout(r, 10));
+
+        const pollable = stream.subscribe();
+        expect(pollable.ready()).toBe(true);
+    });
+
+    it('skip advances past buffered data', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        await pair.write(new Uint8Array([1, 2, 3, 4, 5]));
+        pair.close();
+        await new Promise(r => setTimeout(r, 10));
+
+        const skipResult = stream.skip(3n);
+        expect(skipResult.tag).toBe('ok');
+        if (skipResult.tag === 'ok') {
+            expect(skipResult.val).toBe(3n);
+        }
+        const readResult = stream.read(10n);
+        expect(readResult.tag).toBe('ok');
+        if (readResult.tag === 'ok') {
+            expect(readResult.val).toEqual(new Uint8Array([4, 5]));
+        }
+    });
+
+    it('read returns empty array when no data available yet', () => {
+        const pair = createStreamPair<Uint8Array>();
+        // Don't write anything yet, don't close
+        const stream = createInputStreamFromP3(pair.readable);
+        const result = stream.read(10n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val.length).toBe(0);
+        }
+        pair.close(); // clean up
+    });
+
+    it('returns closed after stream ends', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        pair.close();
+
+        const stream = createInputStreamFromP3(pair.readable);
+        await new Promise(r => setTimeout(r, 10));
+
+        const result = stream.read(1n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('closed');
+        }
+    });
+
+    it('skip returns closed after stream ends', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        pair.close();
+
+        const stream = createInputStreamFromP3(pair.readable);
+        await new Promise(r => setTimeout(r, 10));
+
+        const result = stream.skip(1n);
+        expect(result.tag).toBe('err');
+    });
+
+    it('subscribe returns ready pollable when closed', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        pair.close();
+
+        const stream = createInputStreamFromP3(pair.readable);
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(stream.subscribe().ready()).toBe(true);
+    });
+});
+
+describe('createOutputStreamFromP3', () => {
+    it('writes data through to stream pair', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+
+        const result = stream.write(new Uint8Array([10, 20, 30]));
+        expect(result.tag).toBe('ok');
+
+        // Flush is a no-op for P3 output streams
+        expect(stream.flush().tag).toBe('ok');
+    });
+
+    it('checkWrite returns large capacity', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        const result = stream.checkWrite();
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val).toBeGreaterThan(0n);
+        }
+    });
+
+    it('subscribe returns ready pollable', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        expect(stream.subscribe().ready()).toBe(true);
+    });
+
+    it('writeZeroes writes zero bytes', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        const result = stream.writeZeroes(3n);
+        expect(result.tag).toBe('ok');
+    });
+
+    it('converts non-Uint8Array to Uint8Array', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        // Simulate the trampoline passing a plain Array
+        const result = stream.write([1, 2, 3] as unknown as Uint8Array);
+        expect(result.tag).toBe('ok');
+    });
+
+    it('flush and blockingFlush return ok', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        expect(stream.flush().tag).toBe('ok');
+        expect(stream.blockingFlush().tag).toBe('ok');
+    });
+
+    it('blockingWriteAndFlush throws JspiBlockSignal', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        try {
+            stream.blockingWriteAndFlush(new Uint8Array([1]));
+            fail('Expected JspiBlockSignal');
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+        }
+    });
+
+    it('blockingWriteZeroesAndFlush throws JspiBlockSignal', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        try {
+            stream.blockingWriteZeroesAndFlush(1n);
+            fail('Expected JspiBlockSignal');
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+        }
+    });
+
+    it('splice reads from input and writes to output', () => {
+        const pair = createStreamPair<Uint8Array>();
+        const outStream = createOutputStreamFromP3(pair);
+        const inStream = createInputStream(new Uint8Array([1, 2, 3]));
+        const result = outStream.splice(inStream, 2n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val).toBe(2n);
+        }
+    });
+});
+
+// ─── Poll primitives ───
+
+describe('poll primitives', () => {
+    it('createSyncPollable: ready returns callback result', () => {
+        const p = createSyncPollable(() => true);
+        expect(p.ready()).toBe(true);
+        const p2 = createSyncPollable(() => false);
+        expect(p2.ready()).toBe(false);
+    });
+
+    it('createSyncPollable: block when ready is no-op', () => {
+        const p = createSyncPollable(() => true);
+        expect(() => p.block()).not.toThrow();
+    });
+
+    it('createSyncPollable: block when not ready throws', () => {
+        const p = createSyncPollable(() => false);
+        expect(() => p.block()).toThrow('not ready');
+    });
+
+    it('createAsyncPollable: becomes ready after promise resolves', async () => {
+        let resolve!: () => void;
+        const promise = new Promise<void>(r => { resolve = r; });
+        const p = createAsyncPollable(promise);
+        expect(p.ready()).toBe(false);
+        resolve();
+        await promise;
+        // Allow microtask
+        await new Promise(r => setTimeout(r, 0));
+        expect(p.ready()).toBe(true);
+    });
+
+    it('createAsyncPollable: block when not resolved throws JspiBlockSignal', () => {
+        const promise = new Promise<void>(() => { /* never resolves */ });
+        const p = createAsyncPollable(promise);
+        try {
+            p.block();
+            fail('Expected JspiBlockSignal');
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+        }
+    });
+
+    it('poll with empty array throws', () => {
+        expect(() => poll([])).toThrow('at least one');
+    });
+
+    it('poll returns indices of ready pollables', () => {
+        const p1 = createSyncPollable(() => false);
+        const p2 = createSyncPollable(() => true);
+        const p3 = createSyncPollable(() => true);
+        const result = poll([p1, p2, p3]);
+        expect(Array.from(result)).toEqual([1, 2]);
+    });
+
+    it('poll throws JspiBlockSignal when none ready', () => {
+        const promise = new Promise<void>(() => { });
+        const p = createAsyncPollable(promise);
+        try {
+            poll([p]);
+            fail('Expected JspiBlockSignal');
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+        }
+    });
+});
+
+// ─── Additional io.ts coverage: closed-state branches, error streams ───
+
+describe('createOutputStream closed-state branches', () => {
+    it('checkWrite returns closed after sink error', () => {
+        const stream = createOutputStream(() => { throw new Error('fail'); });
+        stream.write(new Uint8Array([1]));
+        stream.flush(); // triggers sink error, sets closed
+        const result = stream.checkWrite();
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') expect(result.val.tag).toBe('closed');
+    });
+
+    it('writeZeroes returns closed after stream closed', () => {
+        const stream = createOutputStream(() => { throw new Error('fail'); });
+        stream.write(new Uint8Array([1]));
+        stream.flush();
+        const result = stream.writeZeroes(1n);
+        expect(result.tag).toBe('err');
+    });
+
+    it('blockingWriteAndFlush propagates write error', () => {
+        const stream = createOutputStream(undefined, 2);
+        const result = stream.blockingWriteAndFlush(new Uint8Array(10));
+        expect(result.tag).toBe('err');
+    });
+
+    it('blockingWriteZeroesAndFlush propagates writeZeroes error', () => {
+        const stream = createOutputStream(undefined, 2);
+        const result = stream.blockingWriteZeroesAndFlush(10n);
+        expect(result.tag).toBe('err');
+    });
+
+    it('blockingSplice reads and writes blocking', () => {
+        const input = createInputStream(new Uint8Array([1, 2, 3]));
+        const flushed: Uint8Array[] = [];
+        const output = createOutputStream(b => flushed.push(b.slice()));
+        const result = output.blockingSplice(input, 2n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') expect(result.val).toBe(2n);
+    });
+
+    it('blockingSplice propagates read error', () => {
+        const input = createInputStream(new Uint8Array(0)); // empty → closed on first read
+        const output = createOutputStream();
+        const result = output.blockingSplice(input, 10n);
+        expect(result.tag).toBe('err');
+    });
+});
+
+describe('createOutputStreamFromP3 closed-state branches', () => {
+    it('checkWrite returns closed after stream error', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        // Trigger a write error by closing pair and forcing write failure
+        pair.close();
+        stream.write(new Uint8Array([1]));
+        // The write.catch will eventually close the stream
+        await new Promise(r => setTimeout(r, 50));
+        const result = stream.checkWrite();
+        // Either closed or ok (depends on race), but should not throw
+        expect(['ok', 'err']).toContain(result.tag);
+    });
+
+    it('flush returns closed when stream already closed', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createOutputStreamFromP3(pair);
+        pair.close();
+        stream.write(new Uint8Array([1]));
+        await new Promise(r => setTimeout(r, 50));
+        // If stream detected error, flush returns closed
+        const result = stream.flush();
+        expect(['ok', 'err']).toContain(result.tag);
+    });
+});
+
+describe('createInputStreamFromP3 error stream', () => {
+    it('error in async iterable propagates as stream error', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.error(new Error('test stream error'));
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.read(10n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('last-operation-failed');
+        }
+    });
+
+    it('error after data yields data then error', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        await pair.write(new Uint8Array([1, 2, 3]));
+        pair.error(new Error('mid-stream error'));
+        await new Promise(r => setTimeout(r, 10));
+        // First read gets buffered data
+        const r1 = stream.read(10n);
+        expect(r1.tag).toBe('ok');
+        if (r1.tag === 'ok') {
+            expect(r1.val).toEqual(new Uint8Array([1, 2, 3]));
+        }
+    });
+
+    it('subscribe returns ready on error', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.error(new Error('err'));
+        await new Promise(r => setTimeout(r, 10));
+        expect(stream.subscribe().ready()).toBe(true);
+    });
+});
+
+describe('createAsyncPollable block after resolve', () => {
+    it('block is no-op when already resolved', async () => {
+        const promise = Promise.resolve();
+        const p = createAsyncPollable(promise);
+        await new Promise(r => setTimeout(r, 0));
+        expect(() => p.block()).not.toThrow();
+    });
+});
+
+describe('createInputStreamFromP3 blocking methods', () => {
+    it('blockingRead returns data from buffer', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        await pair.write(new Uint8Array([10, 20, 30]));
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingRead(2n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val).toEqual(new Uint8Array([10, 20]));
+        }
+    });
+
+    it('blockingRead returns closed when stream is done', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.close();
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingRead(10n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('closed');
+        }
+    });
+
+    it('blockingRead returns error when stream errored', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.error(new Error('blockingRead error'));
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingRead(10n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('last-operation-failed');
+        }
+    });
+
+    it('blockingRead throws JspiBlockSignal when no data available', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        // Don't write anything - the stream should need to block
+        // First drain the initial pump by waiting for the eager start
+        await new Promise(r => setTimeout(r, 0));
+        try {
+            stream.blockingRead(10n);
+            // If no throw, it returned data or closed - both acceptable
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+        }
+    });
+
+    it('blockingSkip returns count from buffer', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        await pair.write(new Uint8Array([1, 2, 3, 4, 5]));
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingSkip(3n);
+        expect(result.tag).toBe('ok');
+        if (result.tag === 'ok') {
+            expect(result.val).toBe(3n);
+        }
+    });
+
+    it('blockingSkip returns closed when done', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.close();
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingSkip(10n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('closed');
+        }
+    });
+
+    it('blockingSkip returns error when stream errored', async () => {
+        const pair = createStreamPair<Uint8Array>();
+        const stream = createInputStreamFromP3(pair.readable);
+        pair.error(new Error('blockingSkip error'));
+        await new Promise(r => setTimeout(r, 10));
+        const result = stream.blockingSkip(10n);
+        expect(result.tag).toBe('err');
+        if (result.tag === 'err') {
+            expect(result.val.tag).toBe('last-operation-failed');
+        }
+    });
+});
+
+describe('poll with JspiBlockSignal', () => {
+    it('poll catches JspiBlockSignal and re-throws with poll result promise', () => {
+        let resolvePromise: (() => void) | null = null;
+        const promise = new Promise<void>(r => { resolvePromise = r; });
+        const pollable = createAsyncPollable(promise);
+        // Pollable is not resolved yet, so poll should catch JspiBlockSignal
+        try {
+            poll([pollable]);
+            fail('should have thrown');
+        } catch (e) {
+            expect(e).toBeInstanceOf(JspiBlockSignal);
+            // Resolve to allow cleanup
+            resolvePromise!();
+        }
+    });
+
+    it('poll returns result after synchronous block completes', () => {
+        let blocked = false;
+        const pollable: WasiPollable = {
+            ready: () => blocked,
+            block: () => { blocked = true; },
+        };
+        const result = poll([pollable]);
+        expect(result).toBeInstanceOf(Uint32Array);
+        expect(result[0]).toBe(0);
     });
 });

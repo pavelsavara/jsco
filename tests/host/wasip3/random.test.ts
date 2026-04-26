@@ -6,10 +6,23 @@ describe('wasi:random/random', () => {
     const random = createRandom();
 
     describe('getRandomBytes', () => {
+        // Spec: "This function returns a list of cryptographically-random bytes."
+        // Spec: "Implementations MAY return fewer bytes than requested (short reads).
+        //        Callers that require exactly max-len bytes MUST call in a loop."
+        // Our implementation always returns exactly max-len bytes, which is compliant.
+
         it('returns exactly the requested number of bytes', () => {
             const bytes = random.getRandomBytes(16n);
             expect(bytes).toBeInstanceOf(Uint8Array);
             expect(bytes.length).toBe(16);
+        });
+
+        it('returns at least 1 byte when max-len > 0 (spec invariant)', () => {
+            // Spec requires at least 1 byte for non-zero max-len
+            for (let i = 0; i < 10; i++) {
+                const bytes = random.getRandomBytes(1n);
+                expect(bytes.length).toBeGreaterThanOrEqual(1);
+            }
         });
 
         it('returns empty Uint8Array for 0', () => {

@@ -1107,3 +1107,44 @@ describe('WASI P1 clocks/random/poll integration (WAT)', () => {
         expect(text).toBe('ok\n');
     });
 });
+
+describe('instantiateWasiComponent input normalization', () => {
+    test('accepts Uint8Array input', async () => {
+        const fs = await import('node:fs');
+        const bytes = fs.readFileSync(helloP1WorldWatWasm);
+        const instance = await instantiateWasiComponent(new Uint8Array(bytes));
+        instance.dispose();
+    });
+
+    test('accepts ArrayBuffer input', async () => {
+        const fs = await import('node:fs');
+        const bytes = fs.readFileSync(helloP1WorldWatWasm);
+        const instance = await instantiateWasiComponent(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+        instance.dispose();
+    });
+
+    test('accepts ArrayLike<number> input', async () => {
+        const fs = await import('node:fs');
+        const bytes = fs.readFileSync(helloP1WorldWatWasm);
+        const arrayLike: ArrayLike<number> = { length: bytes.length, ...Array.from(bytes) };
+        const instance = await instantiateWasiComponent(arrayLike as any);
+        instance.dispose();
+    });
+
+    test('accepts ReadableStream input for P1 module', async () => {
+        const fs = await import('node:fs');
+        const bytes = fs.readFileSync(helloP1WorldWatWasm);
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new Uint8Array(bytes));
+                controller.close();
+            }
+        });
+        const instance = await instantiateWasiComponent(stream as any);
+        instance.dispose();
+    });
+
+    test('rejects unsupported input type', async () => {
+        await expect(instantiateWasiComponent(42 as any)).rejects.toThrow('Unsupported input type');
+    });
+});

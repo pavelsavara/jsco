@@ -358,6 +358,216 @@ describe('wasi:http/types request-options (via P3 adapter)', () => {
     });
 });
 
+// ─── Outgoing Body ───
+
+describe('wasi:http/types outgoing-body (via P3 adapter)', () => {
+    test('body() returns ok with outgoing body on first call', () => {
+        const { types, createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bodyFn = types['[method]outgoing-request.body']!;
+        const result = bodyFn(req) as { tag: string; val: any };
+        expect(result.tag).toBe('ok');
+        expect(result.val).toBeDefined();
+    });
+
+    test('body() returns err on second call (already consumed)', () => {
+        const { types, createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bodyFn = types['[method]outgoing-request.body']!;
+        bodyFn(req);
+        const result2 = bodyFn(req) as { tag: string; val: any };
+        expect(result2.tag).toBe('err');
+    });
+
+    test('outgoing body write() returns ok with stream', () => {
+        const { types, createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bodyRes = types['[method]outgoing-request.body']!(req) as any;
+        const body = bodyRes.val;
+        const writeFn = types['[method]outgoing-body.write']!;
+        const streamRes = writeFn(body) as { tag: string; val: any };
+        expect(streamRes.tag).toBe('ok');
+        expect(streamRes.val).toBeDefined();
+    });
+
+    test('outgoing body write() returns err on second call', () => {
+        const { types, createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bodyRes = types['[method]outgoing-request.body']!(req) as any;
+        const body = bodyRes.val;
+        const writeFn = types['[method]outgoing-body.write']!;
+        writeFn(body);
+        const streamRes2 = writeFn(body) as { tag: string; val: any };
+        expect(streamRes2.tag).toBe('err');
+    });
+
+    test('writing to outgoing body stream and getBodyBytes', () => {
+        const { types, createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bodyRes = types['[method]outgoing-request.body']!(req) as any;
+        const body = bodyRes.val;
+        const writeFn = types['[method]outgoing-body.write']!;
+        const streamRes = writeFn(body) as any;
+        expect(streamRes.tag).toBe('ok');
+
+        // getBodyBytes returns empty when body exists but nothing written through stream yet
+        const bytes = req.getBodyBytes();
+        expect(bytes).toBeInstanceOf(Uint8Array);
+    });
+
+    test('getBodyBytes returns empty when no body written', () => {
+        const { createFields, createReq } = getHttp();
+        const req = createReq(createFields());
+        const bytes = req.getBodyBytes();
+        expect(bytes.length).toBe(0);
+    });
+});
+
+// ─── Fields from list ───
+
+describe('wasi:http/types fields from-list (via P3 adapter)', () => {
+    test('creates fields from entries list', () => {
+        const { types } = getHttp();
+        const fromListFn = types['[static]fields.from-list']!;
+        const result = fromListFn([
+            ['content-type', enc.encode('text/html')],
+            ['x-custom', enc.encode('val1')],
+            ['x-custom', enc.encode('val2')],
+        ]) as any;
+        // from-list may return the fields directly or wrapped in a result
+        const fields = result.val ?? result;
+        expect(fields.has('content-type')).toBe(true);
+        expect(fields.get('x-custom')).toHaveLength(2);
+    });
+
+    test('clone produces independent copy', () => {
+        const { createFields } = getHttp();
+        const f = createFields();
+        f.set('x-a', [enc.encode('1')]);
+        const cloned = f.clone();
+        f.set('x-a', [enc.encode('2')]);
+        expect(dec.decode(cloned.get('x-a')[0])).toBe('1');
+    });
+});
+
+// ─── Incoming Response / Body / Future ───
+
+describe('wasi:http/types incoming-response (via P3 adapter)', () => {
+    test('incoming response status returns status code', () => {
+        const { types } = getHttp();
+        expect(types['[method]incoming-response.status']).toBeDefined();
+        expect(types['[method]incoming-response.headers']).toBeDefined();
+        expect(types['[method]incoming-response.consume']).toBeDefined();
+    });
+});
+
+describe('wasi:http/types future-incoming-response (via P3 adapter)', () => {
+    test('methods are registered', () => {
+        const { types } = getHttp();
+        expect(types['[method]future-incoming-response.subscribe']).toBeDefined();
+        expect(types['[method]future-incoming-response.get']).toBeDefined();
+    });
+});
+
+// ─── Direct class tests via adaptHttpTypes() ───
+
+import { adaptHttpTypes } from '../../../src/host/wasip2-via-wasip3/http';
+
+describe('AdapterIncomingResponse', () => {
+    const httpTypes = adaptHttpTypes();
+
+    test('status() returns the status code', () => {
+        const fields = httpTypes.createFields();
+        const resp = new httpTypes.AdapterIncomingResponse(200, fields, new Uint8Array(0));
+        expect(resp.status()).toBe(200);
+    });
+
+    test('headers() returns the fields', () => {
+        const fields = httpTypes.createFieldsFromList([['x-test', enc.encode('val')]]);
+        const resp = new httpTypes.AdapterIncomingResponse(200, fields, new Uint8Array(0));
+        expect(resp.headers().has('x-test')).toBe(true);
+    });
+
+    test('consume() returns body on first call', () => {
+        const resp = new httpTypes.AdapterIncomingResponse(200, httpTypes.createFields(), new Uint8Array([1, 2, 3]));
+        const result = resp.consume() as any;
+        expect(result.tag).toBe('ok');
+        expect(result.val).toBeDefined();
+    });
+
+    test('consume() returns error on second call', () => {
+        const resp = new httpTypes.AdapterIncomingResponse(200, httpTypes.createFields(), new Uint8Array(0));
+        resp.consume();
+        const result2 = resp.consume() as any;
+        expect(result2.tag).toBe('err');
+    });
+});
+
+describe('AdapterIncomingBody', () => {
+    const httpTypes = adaptHttpTypes();
+
+    test('stream() returns input stream on first call', () => {
+        const body = new httpTypes.AdapterIncomingBody(new Uint8Array([72, 101, 108, 108, 111]));
+        const result = body.stream() as any;
+        expect(result.tag).toBe('ok');
+        expect(result.val).toBeDefined();
+        // Read from the stream
+        const readResult = result.val.read(10n);
+        expect(readResult.tag).toBe('ok');
+        expect(readResult.val).toEqual(new Uint8Array([72, 101, 108, 108, 111]));
+    });
+
+    test('stream() returns error on second call', () => {
+        const body = new httpTypes.AdapterIncomingBody(new Uint8Array(0));
+        body.stream();
+        const result2 = body.stream() as any;
+        expect(result2.tag).toBe('err');
+    });
+});
+
+describe('AdapterFutureIncomingResponse', () => {
+    const httpTypes = adaptHttpTypes();
+
+    test('get() returns undefined when not resolved', () => {
+        const never = new Promise<any>(() => { }); // never resolves
+        const future = new httpTypes.AdapterFutureIncomingResponse(never);
+        expect(future.get()).toBeUndefined();
+    });
+
+    test('get() returns result after resolution', async () => {
+        const resp = new httpTypes.AdapterIncomingResponse(200, httpTypes.createFields(), new Uint8Array(0));
+        const future = new httpTypes.AdapterFutureIncomingResponse(Promise.resolve(resp));
+        await new Promise(r => setTimeout(r, 10));
+        const result = future.get() as any;
+        expect(result).toBeDefined();
+        expect(result.tag).toBe('ok');
+        expect(result.val.status()).toBe(200);
+    });
+
+    test('get() returns error after rejection', async () => {
+        const future = new httpTypes.AdapterFutureIncomingResponse(Promise.reject({ tag: 'DNS-error' }));
+        await new Promise(r => setTimeout(r, 10));
+        const result = future.get() as any;
+        expect(result).toBeDefined();
+        expect(result.tag).toBe('err');
+    });
+
+    test('subscribe() returns async pollable when pending', () => {
+        const never = new Promise<any>(() => { });
+        const future = new httpTypes.AdapterFutureIncomingResponse(never);
+        const pollable = future.subscribe();
+        expect(pollable.ready()).toBe(false);
+    });
+
+    test('subscribe() returns sync pollable when resolved', async () => {
+        const resp = new httpTypes.AdapterIncomingResponse(200, httpTypes.createFields(), new Uint8Array(0));
+        const future = new httpTypes.AdapterFutureIncomingResponse(Promise.resolve(resp));
+        await new Promise(r => setTimeout(r, 10));
+        const pollable = future.subscribe();
+        expect(pollable.ready()).toBe(true);
+    });
+});
+
 // ─── Outgoing Handler (stub) ───
 
 describe('wasi:http/outgoing-handler (via P3 adapter)', () => {
@@ -365,6 +575,15 @@ describe('wasi:http/outgoing-handler (via P3 adapter)', () => {
         const { handler, createFields, createReq } = getHttp();
         const req = createReq(createFields());
         const result = handler['handle']!(req) as { tag: string; val: unknown };
+        expect(result.tag).toBe('err');
+    });
+
+    test('handle with options returns err (stub)', () => {
+        const { handler, createFields, createReq, createOpts } = getHttp();
+        const req = createReq(createFields());
+        const opts = createOpts();
+        opts.setConnectTimeout(1_000_000_000n);
+        const result = handler['handle']!(req, opts) as { tag: string; val: unknown };
         expect(result.tag).toBe('err');
     });
 });

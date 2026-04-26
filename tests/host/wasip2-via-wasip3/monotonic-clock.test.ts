@@ -86,5 +86,33 @@ describe('wasi:clocks/monotonic-clock (via P3 adapter)', () => {
             const p = getClock()['subscribe-instant']!(0n) as WasiPollable;
             expect(p.ready()).toBe(true);
         });
+
+        it('future instant that returns non-Promise creates a ready pollable', () => {
+            const host = createWasiP2ViaP3Adapter(createMockP3({
+                'wasi:clocks/monotonic-clock': {
+                    now: () => 1000n,
+                    getResolution: () => 1_000n,
+                    waitUntil: () => undefined, // returns undefined instead of Promise
+                    waitFor: () => undefined,
+                },
+            }));
+            const p = host['wasi:clocks/monotonic-clock']!['subscribe-instant']!(9999999n) as WasiPollable;
+            expect(p.ready()).toBe(true);
+        });
+    });
+
+    describe('subscribeDuration() edge cases', () => {
+        it('duration that returns non-Promise creates a ready pollable', () => {
+            const host = createWasiP2ViaP3Adapter(createMockP3({
+                'wasi:clocks/monotonic-clock': {
+                    now: () => 1000n,
+                    getResolution: () => 1_000n,
+                    waitUntil: () => undefined,
+                    waitFor: () => undefined,
+                },
+            }));
+            const p = host['wasi:clocks/monotonic-clock']!['subscribe-duration']!(5000n) as WasiPollable;
+            expect(p.ready()).toBe(true);
+        });
     });
 });

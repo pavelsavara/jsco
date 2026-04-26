@@ -198,6 +198,27 @@ describeDebugOnly('primitive lifting edge cases', () => {
             expect(Number.isNaN(result[0])).toBe(true);
         });
 
+        test('f32: NaN lifts to canonical NaN bit pattern (0x7fc00000)', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
+            const result = lifter(mctx, NaN);
+            // Verify canonical bit pattern: the implementation stores canonicalNaN32
+            const f32 = new Float32Array(1);
+            const u32 = new Uint32Array(f32.buffer);
+            f32[0] = result[0] as number;
+            expect(u32[0]).toBe(0x7fc00000);
+        });
+
+        test('f64: NaN lifts to canonical NaN bit pattern (0x7ff8000000000000)', () => {
+            const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float64));
+            const result = lifter(mctx, NaN);
+            const f64 = new Float64Array(1);
+            const u32 = new Uint32Array(f64.buffer);
+            f64[0] = result[0] as number;
+            // Little-endian: low word at [0], high word at [1]
+            expect(u32[0]).toBe(0x00000000);
+            expect(u32[1]).toBe(0x7ff80000);
+        });
+
         test('f32: Infinity lifts to Infinity', () => {
             const lifter = createLifting(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(lifter(mctx, Infinity)).toEqual([Infinity]);
@@ -379,6 +400,25 @@ describeDebugOnly('primitive lowering edge cases', () => {
         test('f32: NaN lowers to NaN', () => {
             const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float32));
             expect(Number.isNaN(lowerer(mctx, NaN))).toBe(true);
+        });
+
+        test('f32: NaN lowers to canonical NaN bit pattern (0x7fc00000)', () => {
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float32));
+            const result = lowerer(mctx, NaN) as number;
+            const f32 = new Float32Array(1);
+            const u32 = new Uint32Array(f32.buffer);
+            f32[0] = result;
+            expect(u32[0]).toBe(0x7fc00000);
+        });
+
+        test('f64: NaN lowers to canonical NaN bit pattern (0x7ff8000000000000)', () => {
+            const lowerer = createLowering(rctx.resolved, prim(PrimitiveValType.Float64));
+            const result = lowerer(mctx, NaN) as number;
+            const f64 = new Float64Array(1);
+            const u32 = new Uint32Array(f64.buffer);
+            f64[0] = result;
+            expect(u32[0]).toBe(0x00000000);
+            expect(u32[1]).toBe(0x7ff80000);
         });
 
         test('f32: Infinity lowers to Infinity', () => {
