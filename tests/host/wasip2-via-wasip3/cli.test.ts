@@ -6,7 +6,7 @@
  */
 
 import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
-import { createMockP3 } from '../../../src/host/wasip2-via-wasip3/test-helpers';
+import { createMockP3 } from './test-helpers';
 import { createStreamPair } from '../../../src/host/wasip3/streams';
 import type { WasiStreamReadable } from '../../../src/host/wasip3/streams';
 import type { WasiInputStream, WasiOutputStream } from '../../../src/host/wasip2-via-wasip3/io';

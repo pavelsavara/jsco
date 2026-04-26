@@ -25,9 +25,28 @@ export { NETWORK_DEFAULTS } from '../wasip3/types';
 import type { _HttpMethod, _HttpScheme } from '../wasip3/http';
 export type { _HttpMethod as HttpMethod, _HttpScheme as HttpScheme } from '../wasip3/http';
 
+import type {
+    AdapterFields, AdapterOutgoingRequest, AdapterRequestOptions,
+    AdapterOutgoingBody, AdapterIncomingResponse, AdapterIncomingBody,
+    AdapterFutureIncomingResponse,
+} from './http';
+
 // Local aliases for use in this file
 type HttpMethod = _HttpMethod;
 type HttpScheme = _HttpScheme;
+
+// ─── Adapter factory return type ───
+
+export interface AdaptedHttpTypes {
+    createFields: () => AdapterFields;
+    createFieldsFromList: (entries: [string, Uint8Array][]) => AdapterFields;
+    createOutgoingRequest: (headers: AdapterFields) => AdapterOutgoingRequest;
+    createRequestOptions: () => AdapterRequestOptions;
+    AdapterOutgoingBody: typeof AdapterOutgoingBody;
+    AdapterIncomingResponse: typeof AdapterIncomingResponse;
+    AdapterIncomingBody: typeof AdapterIncomingBody;
+    AdapterFutureIncomingResponse: typeof AdapterFutureIncomingResponse;
+}
 
 // ─── HTTP Types ───
 

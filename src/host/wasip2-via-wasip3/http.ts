@@ -12,7 +12,7 @@
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
 import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream } from './io';
-import type { HttpMethod, HttpScheme } from './http-types';
+import type { HttpMethod, HttpScheme, AdaptedHttpTypes } from './http-types';
 
 type HttpErrorCode = { tag: string; val?: unknown };
 type HeaderError = { tag: string };
@@ -20,7 +20,7 @@ type HttpResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: HttpErrorCode };
 
 // ─── Fields ───
 
-class AdapterFields {
+export class AdapterFields {
     private map: Map<string, Uint8Array[]>;
 
     constructor(entries?: [string, Uint8Array][]) {
@@ -78,7 +78,7 @@ class AdapterFields {
 
 // ─── Outgoing Request ───
 
-class AdapterOutgoingRequest {
+export class AdapterOutgoingRequest {
     private _method: HttpMethod = { tag: 'get' };
     private _path: string | undefined;
     private _scheme: HttpScheme | undefined;
@@ -113,7 +113,7 @@ class AdapterOutgoingRequest {
     }
 }
 
-class AdapterOutgoingBody {
+export class AdapterOutgoingBody {
     private _stream: WasiOutputStream | null = null;
     private _bytes: Uint8Array = new Uint8Array(0);
     private _streamConsumed = false;
@@ -146,7 +146,7 @@ class AdapterOutgoingBody {
 
 // ─── Request Options ───
 
-class AdapterRequestOptions {
+export class AdapterRequestOptions {
     private _connectTimeout: bigint | undefined;
     private _firstByteTimeout: bigint | undefined;
     private _betweenBytesTimeout: bigint | undefined;
@@ -161,7 +161,7 @@ class AdapterRequestOptions {
 
 // ─── Incoming Response / Body / Future ───
 
-class AdapterIncomingResponse {
+export class AdapterIncomingResponse {
     private _status: number;
     private _headers: AdapterFields;
     private _bodyData: Uint8Array;
@@ -182,7 +182,7 @@ class AdapterIncomingResponse {
     }
 }
 
-class AdapterIncomingBody {
+export class AdapterIncomingBody {
     private _data: Uint8Array;
     private _streamConsumed = false;
 
@@ -197,7 +197,7 @@ class AdapterIncomingBody {
     }
 }
 
-class AdapterFutureIncomingResponse {
+export class AdapterFutureIncomingResponse {
     private _promise: Promise<AdapterIncomingResponse>;
     private _result: AdapterIncomingResponse | null = null;
     private _error: HttpErrorCode | null = null;
@@ -225,16 +225,7 @@ class AdapterFutureIncomingResponse {
 
 // ─── Adapter factory functions ───
 
-export function adaptHttpTypes(): {
-    createFields: () => AdapterFields;
-    createFieldsFromList: (entries: [string, Uint8Array][]) => AdapterFields;
-    createOutgoingRequest: (headers: AdapterFields) => AdapterOutgoingRequest;
-    createRequestOptions: () => AdapterRequestOptions;
-    AdapterOutgoingBody: typeof AdapterOutgoingBody;
-    AdapterIncomingResponse: typeof AdapterIncomingResponse;
-    AdapterIncomingBody: typeof AdapterIncomingBody;
-    AdapterFutureIncomingResponse: typeof AdapterFutureIncomingResponse;
-} {
+export function adaptHttpTypes(): AdaptedHttpTypes {
     return {
         createFields: (): AdapterFields => new AdapterFields(),
         createFieldsFromList: (entries: [string, Uint8Array][]): AdapterFields => new AdapterFields(entries),

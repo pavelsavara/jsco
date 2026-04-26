@@ -5,8 +5,8 @@
  */
 
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
-import { createStreamPair } from '../wasip3/streams';
-import type { WasiStreamReadable } from '../wasip3/streams';
+import { createStreamPair } from '../../../src/host/wasip3/streams';
+import type { WasiStreamReadable } from '../../../src/host/wasip3/streams';
 
 /**
  * Build a minimal mock P3 host with all required interfaces.
