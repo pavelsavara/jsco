@@ -259,6 +259,8 @@ export interface HostConfig {
 
 /** Runtime configuration extending host config with runtime-generic fields. */
 export interface RuntimeConfig extends HostConfig {
-    /** Stream backpressure threshold in bytes. Default: 65536 (64 KB). */
+    /** Stream backpressure threshold in bytes (byte streams). Default: 65536 (64 KB). */
     streamBackpressureBytes?: number;
+    /** Stream backpressure threshold in chunks (typed/non-byte streams). Default: 1024. */
+    streamBackpressureChunks?: number;
 }
