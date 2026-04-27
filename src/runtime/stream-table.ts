@@ -317,14 +317,23 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             return jsReadables.get(handle);
         },
         removeReadable(_typeIdx: number, handle: number): unknown {
+            // If the value was an AsyncIterable that we pumped into the entry
+            // buffer in addReadable, the original iterable is now (partially or
+            // fully) drained. In that case, return an iterable backed by the
+            // buffer so the host can read whatever was buffered (and whatever
+            // is still being pumped). Otherwise, return the original value
+            // (e.g. a non-iterable host-side handle).
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
             const val = jsReadables.get(handle);
-            if (val) {
+            if (val !== undefined) {
                 jsReadables.delete(handle);
+                if (entry && typeof (val as any)[Symbol.asyncIterator] === 'function') {
+                    return makeAsyncIterable(entry);
+                }
                 return val;
             }
             // For stream.new()-created handles, create an async iterable from the buffer
-            const base = baseHandle(handle);
-            const entry = entries.get(base);
             if (entry) return makeAsyncIterable(entry);
             return undefined;
         },

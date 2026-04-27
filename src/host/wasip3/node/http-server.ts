@@ -241,12 +241,10 @@ export async function serve(
                 completionFuture.then(() => { /* consumed by request internals */ });
 
                 await writeWasiResponse(res, response);
-            } catch (e) {
+            } catch {
                 if (!res.headersSent) {
                     res.writeHead(500, { 'Content-Type': 'text/plain' });
                 }
-                // eslint-disable-next-line no-console
-                console.error('[serve] handler failed:', e);
                 res.end('Internal Server Error');
             } finally {
                 clearTimeout(timer);

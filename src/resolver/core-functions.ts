@@ -21,7 +21,7 @@ import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDe
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLowering, createLowering, createMemoryLoader } from '../binder';
 import { flatCount, deepResolveType, resolveValType } from './calling-convention';
-import { MAX_FLAT_RESULTS } from './model/calling-convention';
+import { MAX_FLAT_PARAMS } from './model/calling-convention';
 import { JsFunction } from '../marshal/model/types';
 import type { MarshalingContext } from '../marshal/model/types';
 import { resolveComponentFunction } from './component-functions';
@@ -1007,7 +1007,11 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs)
         const flat = flatCount(resolvedResult);
         if (flat === 0) {
             // void payload
-        } else if (flat <= MAX_FLAT_RESULTS) {
+        } else if (flat <= MAX_FLAT_PARAMS) {
+            // task.return receives the result as PARAMS to a core function
+            // (the guest lowers the result and passes flat values as args).
+            // The flat-vs-spilled threshold is therefore MAX_FLAT_PARAMS, not
+            // MAX_FLAT_RESULTS.
             const lowerer = createLowering(rctx.resolved, resolvedResult);
             liftToJs = (mctx: MarshalingContext, ...args: number[]): unknown => lowerer(mctx, ...args as any);
         } else {

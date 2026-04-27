@@ -65,10 +65,10 @@
   ;; --- Canonical resource.drop for incoming request ---
   (core func $drop-request-core (canon resource.drop $request))   ;; (param i32)
 
-  ;; --- task.return: takes a single i32 (pointer) for the spilled result ---
+  ;; --- task.return: takes flat (disc, payload) per canonical ABI ---
   ;; result type: result<own<response>, error-code>
   ;; error-code is an intentional 1-case stub; the canon abi only cares about its
-  ;; flat layout (1 byte disc, no payload) when computing the result struct size.
+  ;; flat layout (1 byte disc, no payload) when computing the flattened layout.
   (type $error-code (variant (case "internal-error")))
   (type $result-type (result (own $response) (error $error-code)))
   (core func $task-return-core
@@ -78,21 +78,19 @@
   ;; Core module — implements handle-start and handle-cb.
   ;; =====================================================================
   ;;
-  ;; Result struct layout in linear memory at fixed offset 0 (8 bytes total):
-  ;;   offset 0: discriminant byte (0 = Ok, 1 = Err)
-  ;;   offset 4: payload (own<response> handle for Ok; unused for Err)
-  ;;
   ;; flat(result) = 1 + max(flat(own<response>), flat(error-code))
-  ;;              = 1 + max(1, 1) = 2  → Spilled (>MAX_FLAT_RESULTS=1)
-  ;; align(result) = max(align(own<response>), align(error-code), 1) = 4
-  ;; size(result) = 4 (disc + padding) + max(4, 1) = 8
+  ;;              = 1 + max(1, 1) = 2 → Flat (≤MAX_FLAT_PARAMS=16)
+  ;;
+  ;; task.return is called from guest with (i32 disc, i32 payload):
+  ;;   disc=0 (Ok),  payload = own<response> handle
+  ;;   disc=1 (Err), payload = unused (error-code has no payload)
   ;;
   (core module $impl
     (import "host" "memory"              (memory 0))
     (import "host" "make-hello-response" (func $mhr (result i32)))
     (import "host" "fail-mode"           (func $fm  (result i32)))
     (import "host" "drop-request"        (func $drop-req     (param i32)))
-    (import "host" "task-return"         (func $task-return  (param i32)))
+    (import "host" "task-return"         (func $task-return  (param i32 i32)))
 
     ;; handle-start(request_handle: i32) -> i32 (initial async status)
     (func $handle-start (export "handle-start") (param $req i32) (result i32)
@@ -104,20 +102,15 @@
       ;; 2. Branch on the host-driven fail-mode flag (0 = Ok, 1 = Err).
       (if (i32.eqz (call $fm))
         (then
-          ;; --- Ok branch: get response handle, encode Ok(resp) ---
+          ;; --- Ok branch: get response handle, deliver Ok(resp) ---
           (local.set $resp (call $mhr))
-          (i32.store8 (i32.const 0) (i32.const 0))         ;; disc = Ok
-          (i32.store  (i32.const 4) (local.get $resp)))    ;; payload = resp handle
+          (call $task-return (i32.const 0) (local.get $resp)))
         (else
-          ;; --- Err branch: encode Err(internal-error). 1-case variant has
-          ;; no payload, so only the discriminant byte is meaningful. ---
-          (i32.store8 (i32.const 0) (i32.const 1))         ;; disc = Err
-          (i32.store  (i32.const 4) (i32.const 0))))       ;; payload zeroed
+          ;; --- Err branch: deliver Err(internal-error). 1-case variant has
+          ;; no payload, so the second arg is unused. ---
+          (call $task-return (i32.const 1) (i32.const 0))))
 
-      ;; 3. Deliver the result via task.return.
-      (call $task-return (i32.const 0))
-
-      ;; 4. EXIT — no async work to wait for, callback never fires.
+      ;; 3. EXIT — no async work to wait for, callback never fires.
       (i32.const 0)
     )
 

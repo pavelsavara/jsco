@@ -32,7 +32,6 @@ import {
     verboseOptions,
     runWithVerbose,
 } from '../../../test-utils/verbose-logger';
-import { LogLevel, setLogger } from '../../../../src/utils/assert';
 
 initializeAsserts();
 
@@ -95,13 +94,8 @@ describe('wasi:http P3 reactor — concurrent requests on a single instance', ()
 
     test('p3_http_echo serves N parallel POST requests', () =>
         runWithVerbose(verbose, async () => {
-            // eslint-disable-next-line no-console
-            setLogger((phase, _level, ...args) => console.log(`[${phase}]`, ...args));
             const imports = createMergedHosts();
-            const component = await createComponent(
-                ECHO_WASM,
-                { verbose: { resolver: LogLevel.Summary, executor: LogLevel.Detailed, binder: LogLevel.Summary } },
-            );
+            const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
             const instance = await component.instantiate(imports);
             let handle: ServeHandle | undefined;
             try {
@@ -113,7 +107,7 @@ describe('wasi:http P3 reactor — concurrent requests on a single instance', ()
 
                 handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
 
-                const N = 1;
+                const N = 4;
                 const bodies = Array.from({ length: N }, (_, i) =>
                     `concurrent-request-${i}-${'x'.repeat(64)}`,
                 );
