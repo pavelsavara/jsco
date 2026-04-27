@@ -799,10 +799,10 @@ function buildHttpTypesFlat(
 ): Record<string, unknown> {
     return {
         // ──── fields ────
-        '[constructor]fields': () => new FieldsClass(),
+        '[constructor]fields': (): HttpFields => new FieldsClass(),
         '[static]fields.from-list': (entries: Array<[FieldName, FieldValue]>) =>
             tryResult(() => FieldsClass.fromList(entries)),
-        '[resource-drop]fields': () => { /* GC */ },
+        '[resource-drop]fields': (): void => { /* GC */ },
         '[method]fields.get': (self: HttpFields, name: FieldName) => self.get(name),
         '[method]fields.has': (self: HttpFields, name: FieldName) => self.has(name),
         '[method]fields.set': (self: HttpFields, name: FieldName, values: FieldValue[]) =>
@@ -822,8 +822,8 @@ function buildHttpTypesFlat(
             contents: WasiStreamReadable<Uint8Array> | undefined,
             trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
             options: HttpRequestOptions | undefined,
-        ) => HttpRequest.new(headers, contents, trailers, options),
-        '[resource-drop]request': () => { /* GC */ },
+        ): [HttpRequest, Promise<Result<void, ErrorCode>>] => HttpRequest.new(headers, contents, trailers, options),
+        '[resource-drop]request': (): void => { /* GC */ },
         '[method]request.get-method': (self: HttpRequest) => self.getMethod(),
         '[method]request.set-method': (self: HttpRequest, method: Method) =>
             tryResult(() => { self.setMethod(method); }),
@@ -844,8 +844,8 @@ function buildHttpTypesFlat(
         ) => HttpRequest.consumeBody(this_, res),
 
         // ──── request-options ────
-        '[constructor]request-options': () => new HttpRequestOptions(),
-        '[resource-drop]request-options': () => { /* GC */ },
+        '[constructor]request-options': (): HttpRequestOptions => new HttpRequestOptions(),
+        '[resource-drop]request-options': (): void => { /* GC */ },
         '[method]request-options.get-connect-timeout': (self: HttpRequestOptions) => self.getConnectTimeout(),
         '[method]request-options.set-connect-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
             tryResult(() => { self.setConnectTimeout(d); }),
@@ -862,8 +862,8 @@ function buildHttpTypesFlat(
             headers: Headers,
             contents: WasiStreamReadable<Uint8Array> | undefined,
             trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
-        ) => HttpResponse.new(headers, contents, trailers),
-        '[resource-drop]response': () => { /* GC */ },
+        ): [HttpResponse, Promise<Result<void, ErrorCode>>] => HttpResponse.new(headers, contents, trailers),
+        '[resource-drop]response': (): void => { /* GC */ },
         '[method]response.get-status-code': (self: HttpResponse) => self.getStatusCode(),
         '[method]response.set-status-code': (self: HttpResponse, code: StatusCode) =>
             tryResult(() => { self.setStatusCode(code); }),
