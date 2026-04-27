@@ -212,37 +212,44 @@ function createAsyncLiftWrapper(
         // handle=0 bug where async exports previously bypassed lifting.
         const wasmArgs = liftAsyncFlatParams(liftPlan, mctx, args);
 
-        // Install the task.return target. Single-slot — sequential async
-        // exports only. A previous slot (recursive/concurrent) is preserved
-        // and restored on completion so nesting doesn't permanently lose it.
-        // We capture into a plain local rather than rejecting an external
-        // Promise so the success path doesn't leave an orphaned rejected
-        // Promise on the catch path (which would surface as an unhandled
-        // rejection in unrelated downstream tests).
-        let taskReturned = false;
-        let taskReturnValue: unknown = undefined;
+        // Install the task.return target. The trampoline returns a Promise
+        // that resolves as soon as the guest invokes `task.return`, NOT when
+        // the entire event loop reaches EXIT. This lets the host start
+        // consuming the returned value (e.g. drain a response body stream)
+        // concurrently with post-return spawned subtasks. Without this,
+        // patterns like p3_http_echo's wit_bindgen::spawn forwarder deadlock
+        // when the response body is larger than the stream backpressure
+        // threshold: the forwarder blocks writing to the pipe, the host is
+        // stuck in `await handler.handle()`, and no one drains the pipe.
+        let taskReturnSettle: ((v: { ok: true; value: unknown } | { ok: false; error: unknown }) => void) | undefined;
+        const taskReturnPromise = new Promise<unknown>((resolve, reject) => {
+            taskReturnSettle = (r): void => {
+                if (r.ok) resolve(r.value); else reject(r.error);
+            };
+        });
         const previousTaskReturn = mctx.currentTaskReturn;
         mctx.currentTaskReturn = (value: unknown): void => {
-            taskReturned = true;
-            taskReturnValue = value;
+            if (taskReturnSettle) {
+                taskReturnSettle({ ok: true, value });
+                taskReturnSettle = undefined;
+            }
         };
 
-        // For now, call coreFn directly (async exports may not have params in
-        // the standard lifting sense — the core function takes flat params + returns status).
-        // coreFn may be JSPI Promising-wrapped, so await to extract the i32 status.
-        let status: number;
-        try {
-            status = await coreFn(...wasmArgs) as number;
-        } catch (e) {
-            mctx.currentTaskReturn = previousTaskReturn;
-            throw e;
-        }
+        // Background event-loop driver. Runs until the guest callback returns
+        // EXIT. Drives post-return spawned subtasks (e.g. wit_stream forwarders).
+        // Errors thrown before task.return surface to the caller; errors after
+        // task.return are swallowed (the host already received its result and
+        // there's no caller awaiting them).
+        const eventLoop = (async (): Promise<void> => {
+            // For now, call coreFn directly (async exports may not have params in
+            // the standard lifting sense — the core function takes flat params + returns status).
+            // coreFn may be JSPI Promising-wrapped, so await to extract the i32 status.
+            let status = await coreFn(...wasmArgs) as number;
 
-        // Async event loop
-        let eventPtr = 0;
-        let eventBufAllocated = false;
+            // Async event loop
+            let eventPtr = 0;
+            let eventBufAllocated = false;
 
-        try {
             while (status !== EXIT) {
                 if (status === YIELD) {
                     // Yield: immediately call callback again
@@ -276,26 +283,40 @@ function createAsyncLiftWrapper(
                     if (status === EXIT) break;
                 }
             }
-        } catch (e) {
-            mctx.currentTaskReturn = previousTaskReturn;
-            // If the wait() was aborted, exit the event loop cleanly.
-            // The instance is already poisoned by the abort signal.
-            if (e instanceof Error && e.message === 'component instance trapped') throw e;
-            if (e instanceof Error && e.message === 'component instance disposed') throw e;
-            if (mctx.poisoned) throw e;
-            throw e;
-        }
-        mctx.currentTaskReturn = previousTaskReturn;
-        // Await any background tasks from sync canon.lower with stream/future params.
-        // These are host functions (e.g. writeViaStream) that consume streams
-        // in the background while the WASM continues writing to them.
-        if (mctx.pendingBackgroundTasks.length > 0) {
-            await Promise.all(mctx.pendingBackgroundTasks);
-            mctx.pendingBackgroundTasks.length = 0;
-        }
-        // Return whatever task.return delivered (or undefined if the guest
-        // never called task.return — e.g. void-result tests pre-F2).
-        return taskReturned ? taskReturnValue : undefined;
+
+            // Await any background tasks from sync canon.lower with stream/future params.
+            // These are host functions (e.g. writeViaStream) that consume streams
+            // in the background while the WASM continues writing to them.
+            if (mctx.pendingBackgroundTasks.length > 0) {
+                await Promise.all(mctx.pendingBackgroundTasks);
+                mctx.pendingBackgroundTasks.length = 0;
+            }
+        })();
+
+        eventLoop.then(
+            () => {
+                // Event loop finished. If task.return was never called, surface
+                // `undefined` (matches pre-F2 behaviour for void-result tests).
+                if (taskReturnSettle) {
+                    taskReturnSettle({ ok: true, value: undefined });
+                    taskReturnSettle = undefined;
+                }
+                mctx.currentTaskReturn = previousTaskReturn;
+            },
+            (e: unknown) => {
+                // Event loop threw. If task.return was never called, propagate
+                // the error to the caller. If task.return was already called,
+                // the caller has already received its value; swallow to avoid
+                // an unhandled rejection (the failure is in post-return work).
+                if (taskReturnSettle) {
+                    taskReturnSettle({ ok: false, error: e });
+                    taskReturnSettle = undefined;
+                }
+                mctx.currentTaskReturn = previousTaskReturn;
+            },
+        );
+
+        return taskReturnPromise;
     };
 }
 

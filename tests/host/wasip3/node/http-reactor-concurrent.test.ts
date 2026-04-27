@@ -192,4 +192,144 @@ describe('wasi:http P3 reactor — concurrent requests on a single instance', ()
                 instance.dispose();
             }
         }), 30000);
+
+    /**
+     * G3 — large body streaming through the forwarder path.
+     * Sends a 256 KiB body that must round-trip via `wit_stream` chunked
+     * forwarding. Validates that the host can drain `pipe_rx` concurrently
+     * with the spawned forwarder filling `pipe_tx` — without this concurrency
+     * the forwarder deadlocks when the body exceeds the stream backpressure
+     * threshold (64 KiB by default).
+     */
+    test('G3: forwarder path round-trips a 256 KiB body intact', () =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE] as
+                    | WasiHttpHandlerExport
+                    | undefined;
+                expect(handler).toBeDefined();
+
+                handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
+
+                const body = 'z'.repeat(256 * 1024);
+                const res = await request(`http://127.0.0.1:${handle!.port}/big`, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/octet-stream' },
+                    body,
+                });
+
+                expect(res.statusCode).toBe(200);
+                expect(res.body.length).toBe(body.length);
+                expect(res.body).toBe(body);
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 30000);
+
+    /**
+     * G4 — mixed concurrent paths.
+     * Fires N parallel requests where odd-indexed clients take the
+     * fast-path (`x-host-to-host: true`) and even-indexed clients take
+     * the forwarder spawn path. Both kinds of guest tasks run on the
+     * same instance simultaneously, validating that the two code paths
+     * do not interfere via shared per-instance state (waitable-set
+     * table, ctx slots, subtask handles, stream/future tables).
+     */
+    test('G4: mixed fast-path + forwarder requests on one instance', () =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE] as
+                    | WasiHttpHandlerExport
+                    | undefined;
+                expect(handler).toBeDefined();
+
+                handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
+
+                const N = 8;
+                const bodies = Array.from({ length: N }, (_, i) =>
+                    `mixed-${i}-${'m'.repeat(64)}`,
+                );
+
+                const responses = await Promise.all(
+                    bodies.map((body, i) => {
+                        const headers: Record<string, string> = {
+                            'content-type': 'text/plain',
+                        };
+                        if (i % 2 === 1) headers['x-host-to-host'] = 'true';
+                        return request(
+                            `http://127.0.0.1:${handle!.port}/req${i}`,
+                            { method: 'POST', headers, body },
+                        );
+                    }),
+                );
+
+                expect(responses).toHaveLength(N);
+                for (let i = 0; i < N; i++) {
+                    expect(responses[i]!.statusCode).toBe(200);
+                    expect(responses[i]!.body).toBe(bodies[i]);
+                }
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 30000);
+
+    /**
+     * G5 — instance lifecycle stability under sequential rounds.
+     * Issues 3 sequential rounds of K parallel requests against ONE instance.
+     * Validates that resource handle tables, waitable-set tables, and
+     * subtask tables drain back to a clean state between rounds — a
+     * regression guard against cumulative leaks across requests.
+     */
+    test('G5: same instance handles 3 sequential rounds of parallel requests', () =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE] as
+                    | WasiHttpHandlerExport
+                    | undefined;
+                expect(handler).toBeDefined();
+
+                handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
+
+                const ROUNDS = 3;
+                const K = 4;
+                for (let round = 0; round < ROUNDS; round++) {
+                    const bodies = Array.from({ length: K }, (_, i) =>
+                        `round${round}-req${i}-${'r'.repeat(48)}`,
+                    );
+                    const responses = await Promise.all(
+                        bodies.map((body, i) =>
+                            request(`http://127.0.0.1:${handle!.port}/round${round}/req${i}`, {
+                                method: 'POST',
+                                headers: {
+                                    'x-host-to-host': 'true',
+                                    'content-type': 'text/plain',
+                                },
+                                body,
+                            }),
+                        ),
+                    );
+                    for (let i = 0; i < K; i++) {
+                        expect(responses[i]!.statusCode).toBe(200);
+                        expect(responses[i]!.body).toBe(bodies[i]);
+                    }
+                }
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 30000);
 });
