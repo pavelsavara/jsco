@@ -19,7 +19,9 @@ import { ComponentTypeIndex, CoreFuncIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../parser/model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
-import { createFunctionLowering } from '../binder';
+import { createFunctionLowering, createLowering, createMemoryLoader } from '../binder';
+import { flatCount, deepResolveType, resolveValType } from './calling-convention';
+import { MAX_FLAT_RESULTS } from './model/calling-convention';
 import { JsFunction } from '../marshal/model/types';
 import type { MarshalingContext } from '../marshal/model/types';
 import { resolveComponentFunction } from './component-functions';
@@ -381,6 +383,30 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
     // to registerInstanceLocalTypes for the same instance type sharing the same objects).
     const ownBorrowFixups: { type: ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow; localValueIdx: number }[] = [];
     let localTypeIdx = 0;
+
+    // Phase 0: Pre-scan SubResource exports and populate localCanonicalIds
+    // BEFORE the main loop. This is required so the main loop's Eq(N) alias
+    // case (e.g. `type headers = fields;`) can inherit the canonical id of a
+    // SubResource declared earlier in the same instance type. Without this
+    // pre-scan, Phase 2a runs after the main loop and Eq aliases never get
+    // their canonical id propagated, causing own<headers> / borrow<headers>
+    // fixups to fail and the resource table to use raw local indices.
+    {
+        let preIdx = 0;
+        for (const decl of instance.declarations) {
+            if (!isTypeCreatingDeclaration(decl)) continue;
+            if (decl.tag === ModelTag.InstanceTypeDeclarationExport &&
+                decl.ty.tag === ModelTag.ComponentTypeRefType &&
+                decl.ty.value.tag === ModelTag.TypeBoundsSubResource) {
+                const key = `${instanceIndex}:${decl.name.name}`;
+                const canonicalId = rctx.resourceAliasGroups?.get(key);
+                if (canonicalId !== undefined) {
+                    localCanonicalIds.set(preIdx, canonicalId);
+                }
+            }
+            preIdx++;
+        }
+    }
 
     for (const decl of instance.declarations) {
         if (!isTypeCreatingDeclaration(decl)) {
@@ -954,16 +980,56 @@ const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (rctx, rarg
     };
 };
 
-/** task.return — delivers the result of an async export to the caller. For now, a no-op stub. */
-const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (_rctx, rargs) => {
-    const elem = rargs.element;
+/** task.return — delivers the result of an async-lifted export to the awaiting JS caller.
+ *
+ * The guest calls this with the WASM-flat representation of the function's
+ * declared result type:
+ *   - flatCount = 0 (void result): no args.
+ *   - flatCount = 1 (Scalar):       one core arg, lowered via the flat lowerer.
+ *   - flatCount > 1 (Spilled):      one i32 ptr arg, loaded via the memory loader.
+ *
+ * The lowered JS value is delivered through `mctx.currentTaskReturn` which is
+ * set by `createAsyncLiftWrapper` for the duration of the in-flight task.
+ * If the slot is missing the call is silently ignored (matches the previous
+ * stub behaviour for tests that don't await results yet). */
+const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs) => {
+    const elem = rargs.element as import('../parser/model/canonicals').CanonicalFunctionTaskReturn;
+    jsco_assert(elem.tag === ModelTag.CanonicalFunctionTaskReturn,
+        () => `expected CanonicalFunctionTaskReturn, got ${elem.tag}`);
+    const resultValType = elem.results.type;
+
+    let liftToJs: ((mctx: MarshalingContext, ...args: number[]) => unknown) | undefined;
+    if (resultValType !== undefined) {
+        // Deep-resolve type aliases first so flatCountForValType / lift plans
+        // operate on a fully-concrete type. Calling flatCountForValType on a
+        // raw ComponentValTypeType (alias to a section type) throws.
+        const resolvedResult = deepResolveType(rctx.resolved, resolveValType(rctx.resolved, resultValType));
+        const flat = flatCount(resolvedResult);
+        if (flat === 0) {
+            // void payload
+        } else if (flat <= MAX_FLAT_RESULTS) {
+            const lowerer = createLowering(rctx.resolved, resolvedResult);
+            liftToJs = (mctx: MarshalingContext, ...args: number[]): unknown => lowerer(mctx, ...args as any);
+        } else {
+            const loader = createMemoryLoader(
+                resolvedResult,
+                rctx.resolved.stringEncoding,
+                rctx.resolved.canonicalResourceIds,
+                rctx.resolved.ownInstanceResources,
+                rctx.resolved.usesNumberForInt64,
+            );
+            liftToJs = (mctx: MarshalingContext, ptr: number): unknown => loader(mctx, ptr);
+        }
+    }
+
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (): Promise<BinderRes> => {
-            const fn = (..._args: number[]): void => {
-                // task.return delivers the result. In our synchronous-ish execution model,
-                // the result is returned via the normal lifting path. This is a no-op.
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (...args: number[]): void => {
+                if (!mctx.currentTaskReturn) return;
+                const value = liftToJs ? liftToJs(mctx, ...args) : undefined;
+                mctx.currentTaskReturn(value);
             };
             return { result: fn };
         }, `task.return:${elem.selfSortIndex}`)

@@ -50,6 +50,8 @@
 - write article on how it works
 - review which jsco_assert could be trimmed in release and which need to stay permanent
 - HTTP handler instance per call
+- document async in component model
+- review symmetries in the code
 
 # Resolver todo
 - export and import ABI interfaces for direct binding without JS ("fused adapters")

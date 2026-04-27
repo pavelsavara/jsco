@@ -7,8 +7,10 @@ import { ComponentExport, ComponentExternalKind } from '../parser/model/exports'
 import { CoreFuncIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
-import { createFunctionLifting } from '../binder';
+import { createFunctionLiftingArtifacts } from '../binder';
 import { WasmFunction } from '../marshal/model/types';
+import { liftAsyncFlatParams } from '../marshal/trampoline-lift';
+import type { FunctionLiftPlan } from '../marshal/model/lift-plans';
 import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
@@ -89,7 +91,12 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         }
     }
 
-    const liftingBinder = createFunctionLifting(localResolved, sectionFunType);
+    // Compute the lifting artifacts for sync exports + the param plan for async
+    // exports. Async-lifted exports skip the trampoline and instead lift their
+    // params manually before calling the core function (which returns a status
+    // code, not the function result — the result is delivered via task.return).
+    const liftingArtifacts = createFunctionLiftingArtifacts(localResolved, sectionFunType);
+    const liftingBinder = liftingArtifacts.lifter;
 
     const wrapLift = rctx.resolved.wrapLift;
     const isAsyncWithCallback = canonOpts.async === true && canonOpts.callbackIndex !== undefined;
@@ -139,7 +146,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
                     coreFn = wrapLift(coreFn, exportName) as WasmFunction;
                     callbackWasm = wrapLift(callbackWasm) as WasmFunction;
                 }
-                const jsFunction = createAsyncLiftWrapper(mctx, coreFn, callbackWasm, liftingBinder);
+                const jsFunction = createAsyncLiftWrapper(mctx, coreFn, callbackWasm, liftingArtifacts.plan);
                 return { result: jsFunction };
             }
 
@@ -171,12 +178,25 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
  *
  * The core function signature: (...flat_params) → i32 status
  * The status is the initial callback return (from start_task).
+ *
+ * Param lifting: this wrapper invokes the lift plan's `paramLifters` to convert
+ * JS args to WASM-flat values *before* calling the core function (resources
+ * become i32 handles via `ctx.resources.add`, etc.).
+ *
+ * Result delivery: the function result is passed back via the `task.return`
+ * canon built-in. We install `mctx.currentTaskReturn` for the duration of the
+ * task so that `resolveCanonicalFunctionTaskReturn`'s bound function can route
+ * the lifted JS value into our pending Deferred.
+ *
+ * NOTE: only the Flat-params path is supported (async exports cap at
+ * MAX_FLAT_ASYNC_PARAMS=4 flat values; spilled async params are extremely rare).
+ * If a Spilled-params plan is encountered an explicit error is thrown.
  */
 function createAsyncLiftWrapper(
     mctx: MarshalingContext,
     coreFn: WasmFunction,
     callbackWasm: WasmFunction,
-    _syncLiftingBinder: (ctx: MarshalingContext, fn: WasmFunction) => Function,
+    liftPlan: FunctionLiftPlan,
 ): Function {
     // Callback return code constants
     const EXIT = 0;
@@ -186,19 +206,37 @@ function createAsyncLiftWrapper(
     const EVENT_BUF_EVENTS = 16;
     const EVENT_BUF_SIZE = 12 * EVENT_BUF_EVENTS;
 
-    // Create the sync lifting wrapper for the core function. This handles
-    // JS→WASM parameter conversion and WASM→JS result conversion.
-    // For async functions, the core function returns a status i32, not the
-    // actual result. The sync wrapper will interpret that i32 as the "result"
-    // — we intercept it before the result conversion path runs.
-    // Actually, we call coreFn directly for async since the return semantics differ.
-
     return async function asyncLiftTrampoline(...args: unknown[]) {
+        // Lift JS args → WASM flat args. Resources become integer handles via
+        // ctx.resources.add (typeIdx, jsValue). This is the fix for the
+        // handle=0 bug where async exports previously bypassed lifting.
+        const wasmArgs = liftAsyncFlatParams(liftPlan, mctx, args);
+
+        // Install the task.return target. Single-slot — sequential async
+        // exports only. A previous slot (recursive/concurrent) is preserved
+        // and restored on completion so nesting doesn't permanently lose it.
+        // We capture into a plain local rather than rejecting an external
+        // Promise so the success path doesn't leave an orphaned rejected
+        // Promise on the catch path (which would surface as an unhandled
+        // rejection in unrelated downstream tests).
+        let taskReturned = false;
+        let taskReturnValue: unknown = undefined;
+        const previousTaskReturn = mctx.currentTaskReturn;
+        mctx.currentTaskReturn = (value: unknown): void => {
+            taskReturned = true;
+            taskReturnValue = value;
+        };
+
         // For now, call coreFn directly (async exports may not have params in
         // the standard lifting sense — the core function takes flat params + returns status).
-        // TODO: properly lift parameters for async functions with arguments
         // coreFn may be JSPI Promising-wrapped, so await to extract the i32 status.
-        let status: number = await coreFn(...args) as number;
+        let status: number;
+        try {
+            status = await coreFn(...wasmArgs) as number;
+        } catch (e) {
+            mctx.currentTaskReturn = previousTaskReturn;
+            throw e;
+        }
 
         // Async event loop
         let eventPtr = 0;
@@ -239,6 +277,7 @@ function createAsyncLiftWrapper(
                 }
             }
         } catch (e) {
+            mctx.currentTaskReturn = previousTaskReturn;
             // If the wait() was aborted, exit the event loop cleanly.
             // The instance is already poisoned by the abort signal.
             if (e instanceof Error && e.message === 'component instance trapped') throw e;
@@ -246,6 +285,7 @@ function createAsyncLiftWrapper(
             if (mctx.poisoned) throw e;
             throw e;
         }
+        mctx.currentTaskReturn = previousTaskReturn;
         // Await any background tasks from sync canon.lower with stream/future params.
         // These are host functions (e.g. writeViaStream) that consume streams
         // in the background while the WASM continues writing to them.
@@ -253,6 +293,9 @@ function createAsyncLiftWrapper(
             await Promise.all(mctx.pendingBackgroundTasks);
             mctx.pendingBackgroundTasks.length = 0;
         }
+        // Return whatever task.return delivered (or undefined if the guest
+        // never called task.return — e.g. void-result tests pre-F2).
+        return taskReturned ? taskReturnValue : undefined;
     };
 }
 

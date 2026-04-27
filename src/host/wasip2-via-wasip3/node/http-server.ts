@@ -177,7 +177,7 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
             // Enforce URL length limit (P2-specific check, not done by P3 serve)
             const url = req.getPathWithQuery();
             if (url && url.length > maxUrlBytes) {
-                return createP3ErrorResponse(414);
+                return { tag: 'ok' as const, val: createP3ErrorResponse(414) };
             }
 
             // Consume P3 request body
@@ -197,7 +197,7 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
             try {
                 handler(p2Request, outparam);
             } catch {
-                return createP3ErrorResponse(500);
+                return { tag: 'ok' as const, val: createP3ErrorResponse(500) };
             }
 
             // Await P2 response
@@ -205,11 +205,11 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
 
             // Check for error code (has 'tag' property; WasiOutgoingResponse does not)
             if (typeof result === 'object' && 'tag' in result) {
-                return createP3ErrorResponse(502);
+                return { tag: 'ok' as const, val: createP3ErrorResponse(502) };
             }
 
             // Convert P2 response to P3 response
-            return convertP2ResponseToP3(result as WasiOutgoingResponse);
+            return { tag: 'ok' as const, val: convertP2ResponseToP3(result as WasiOutgoingResponse) };
         },
     };
 
