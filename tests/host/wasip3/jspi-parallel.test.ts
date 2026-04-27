@@ -343,4 +343,136 @@ describe('JSPI + Parallel scenarios (P1, P2, P10)', () => {
             expect(ticks).toBeGreaterThan(0);
         }
     }));
+
+    /**
+     * P11 — host-import Promise rejection is recoverable, not catastrophic.
+     *
+     * jsco's lowering trampoline (`handleLowerResult` in
+     * `src/marshal/trampoline-lower.ts`) used to call `ctx.abort()` on a
+     * rejected host Promise, permanently poisoning the whole component
+     * instance for any rejection — even from a void-return import.
+     *
+     * The rejection is now propagated without aborting:
+     *   - Async-lower path: the subtask table transitions to RETURNED (per
+     *     `src/runtime/subtask-table.ts`); the rejection is consumed there
+     *     and the guest sees a normal subtask completion.
+     *   - Sync-lower JSPI path: the rejection surfaces as a regular wasm
+     *     trap to the suspended caller, recoverable at the task level.
+     *
+     * This test exercises the async-lower path: a slow-fn() invocation
+     * rejects, the guest task completes cleanly, and the instance stays
+     * usable for further calls. None of the rejections may escape as a
+     * Node.js process-level unhandledRejection.
+     */
+    test('P11: rejected host-import Promise does not poison the instance', () => runWithVerbose(verbose, async () => {
+        const errs = watchProcessErrors();
+        const watchdog = startWatchdog();
+
+        const pending: Deferred<void>[] = [];
+        const imports = {
+            [HOST_INTERFACE]: {
+                'slow-fn': (): Promise<void> => {
+                    const d = deferred<void>();
+                    pending.push(d);
+                    return d.promise;
+                },
+            },
+        };
+
+        const component = await createComponent(MULTI_ASYNC_WASM, verboseOptions(verbose));
+        const instance = await component.instantiate(imports);
+        try {
+            const runner = instance.exports[RUNNER_INTERFACE] as Record<string, () => Promise<void>>;
+
+            // Round 1: invoke and reject the host call.
+            const c1 = runner['waitOnce']!();
+            await drain();
+            expect(pending.length).toBe(1);
+            pending[0]!.reject(new Error('simulated host I/O failure'));
+            await c1; // resolves cleanly: subtask transitions to RETURNED on rejection
+
+            // Round 2: instance must still be usable after a rejected subtask.
+            const c2 = runner['waitOnce']!();
+            await drain();
+            expect(pending.length).toBe(2);
+            pending[1]!.resolve();
+            await c2;
+
+            // Round 3: mixed — one rejects, one resolves, both delivered.
+            const c3 = runner['waitOnce']!();
+            const c4 = runner['waitOnce']!();
+            await drain();
+            expect(pending.length).toBe(4);
+            pending[2]!.reject(new Error('another simulated failure'));
+            pending[3]!.resolve();
+            await Promise.all([c3, c4]);
+
+            // Drain microtasks so any unhandled-rejection detector has a
+            // chance to fire before we assert below.
+            await drain(20);
+        } finally {
+            instance.dispose();
+            const ticks = watchdog.stop();
+            errs.stop();
+
+            expect(errs.rejections).toEqual([]);
+            expect(errs.exceptions).toEqual([]);
+            expect(ticks).toBeGreaterThan(0);
+        }
+    }));
+
+    /**
+     * P9-lite — table stability under burst load.
+     * Fires N=32 concurrent invocations, settles them, then verifies the
+     * instance handles another burst of the same size without degradation.
+     * This is the externally-observable proxy for "tables drain after
+     * every round" since `instance.dispose()` is the only public lifecycle
+     * hook — handle-table sizes are not exposed. If subtask/waitable-set
+     * tables leaked entries, the second burst would either grow unbounded
+     * memory or run into the `maxHandles` cap.
+     */
+    test('P9-lite: two N=32 bursts on one instance complete cleanly', () => runWithVerbose(verbose, async () => {
+        const errs = watchProcessErrors();
+        const watchdog = startWatchdog();
+
+        const pending: Deferred<void>[] = [];
+        const imports = {
+            [HOST_INTERFACE]: {
+                'slow-fn': (): Promise<void> => {
+                    const d = deferred<void>();
+                    pending.push(d);
+                    return d.promise;
+                },
+            },
+        };
+
+        const component = await createComponent(MULTI_ASYNC_WASM, verboseOptions(verbose));
+        const instance = await component.instantiate(imports);
+        try {
+            const runner = instance.exports[RUNNER_INTERFACE] as Record<string, () => Promise<void>>;
+
+            const N = 32;
+
+            for (let burst = 0; burst < 2; burst++) {
+                pending.length = 0;
+                const handlers: Promise<void>[] = [];
+                for (let i = 0; i < N; i++) handlers.push(runner['waitOnce']!());
+
+                for (let i = 0; i < 100 && pending.length < N; i++) await drain(1);
+                expect(pending.length).toBe(N);
+
+                // Resolve in arrival order.
+                for (const d of pending) d.resolve();
+                await Promise.all(handlers);
+            }
+        } finally {
+            instance.dispose();
+            const ticks = watchdog.stop();
+            errs.stop();
+
+            expect(errs.rejections).toEqual([]);
+            expect(errs.exceptions).toEqual([]);
+            expect(ticks).toBeGreaterThan(0);
+        }
+    }));
 });
