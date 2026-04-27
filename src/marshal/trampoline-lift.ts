@@ -52,6 +52,41 @@ function handleLiftResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawRes
 
 // --- Flat params, Flat result ---
 
+/**
+ * Lift JS args into WASM-flat args for an async-lifted export.
+ *
+ * The async-lift trampoline (see `createAsyncLiftWrapper`) needs to lift its
+ * params before invoking the core function (which returns a status code, not
+ * the function result — the result is delivered via `task.return`). This is a
+ * subset of the flat-param trampolines: param lifting + i64 BigInt conversion,
+ * without any result handling.
+ *
+ * Async-lifted exports cap params at MAX_FLAT_ASYNC_PARAMS=4 flat values, so
+ * the spilled-param path is rare; callers must handle that separately.
+ */
+export function liftAsyncFlatParams(plan: FunctionLiftPlan, ctx: MarshalingContext, args: unknown[]): unknown[] {
+    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+        ctx.logger!('executor', LogLevel.Summary, `→ async lifting args=${JSON.stringify(args, bigIntReplacer)}`);
+    }
+    if (args.length !== plan.paramLifters.length) {
+        throw new Error(`Expected ${plan.paramLifters.length} arguments, got ${args.length}`);
+    }
+    const wasmArgs = new Array(plan.totalFlatParams);
+    let pos = 0;
+    for (let i = 0; i < plan.paramLifters.length; i++) {
+        pos += plan.paramLifters[i]!(ctx, args[i], wasmArgs as WasmValue[], pos);
+    }
+    for (let k = 0; k < plan.i64ParamPositions.length; k++) {
+        const idx = plan.i64ParamPositions[k]!;
+        if (typeof wasmArgs[idx] !== 'bigint') {
+            wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
+        }
+    }
+    return wasmArgs;
+}
+
+// --- Flat params, Flat result ---
+
 export function liftFlatFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, wasmFunction: WasmFunction, ...args: any[]): any {
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);

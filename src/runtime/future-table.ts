@@ -2,7 +2,7 @@
 
 import type { MarshalingContext } from '../marshal/model/types';
 import type { MemoryView, FutureTable, FutureStorer } from './model/types';
-import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_BLOCKED } from './constants';
+import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_STATUS_CANCELLED, STREAM_BLOCKED } from './constants';
 
 type FutureEntry = {
     resolved: boolean;
@@ -55,6 +55,10 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number,
                 // When the Promise resolves, resolveEntry will write data to this ptr.
                 if (mctx && entry.storer) {
                     entry.pendingRead = { ptr, mctx };
+                } else {
+                    // Track that a read was attempted (returned BLOCKED) so a
+                    // subsequent cancel-read can correctly return CANCELLED.
+                    entry.pendingRead = { ptr, mctx: mctx as MarshalingContext };
                 }
                 return STREAM_BLOCKED;
             }
@@ -86,12 +90,23 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number,
             return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
 
-        cancelRead(_typeIdx: number, _handle: number): number {
+        cancelRead(_typeIdx: number, handle: number): number {
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            const hadPending = entry.pendingRead !== undefined;
+            entry.pendingRead = undefined;
+            if (entry.resolved) return (0 << 4) | STREAM_STATUS_COMPLETED;
+            if (hadPending) return (0 << 4) | STREAM_STATUS_CANCELLED;
             return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
 
-        cancelWrite(_typeIdx: number, _handle: number): number {
-            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        cancelWrite(_typeIdx: number, handle: number): number {
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (entry.resolved) return (0 << 4) | STREAM_STATUS_COMPLETED;
+            return (0 << 4) | STREAM_STATUS_CANCELLED;
         },
 
         dropReadable(_typeIdx: number, handle: number): void {
@@ -137,8 +152,31 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number,
         },
         removeReadable(_typeIdx: number, handle: number): unknown {
             const val = jsReadables.get(handle);
-            jsReadables.delete(handle);
-            return val;
+            if (val !== undefined) {
+                jsReadables.delete(handle);
+                return val;
+            }
+            // Guest-created future (`future.new`): no JS-side Promise was ever
+            // installed via `addReadable`. Synthesize one that settles when the
+            // entry resolves (writer wrote, or writer dropped and the default
+            // value applies). The resolved JS value is whatever was captured
+            // by the entry — undefined for write-then-drop without a typed
+            // loader, or the stored resolvedValue if a host-side Promise had
+            // resolved before this lower call.
+            const base = handle & ~1;
+            const entry = entries.get(base);
+            if (!entry) return undefined;
+            if (entry.resolved) {
+                return entry.rejected
+                    ? Promise.reject(entry.resolvedValue)
+                    : Promise.resolve(entry.resolvedValue);
+            }
+            return new Promise<unknown>((resolve, reject) => {
+                (entry.onResolve ??= []).push(() => {
+                    if (entry.rejected) reject(entry.resolvedValue);
+                    else resolve(entry.resolvedValue);
+                });
+            });
         },
         addWritable(_typeIdx: number, value: unknown): number {
             const writHandle = allocHandle() + 1;

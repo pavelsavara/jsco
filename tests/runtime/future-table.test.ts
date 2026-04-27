@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { createFutureTable } from '../../src/runtime/future-table';
 import { createMemoryView } from '../../src/runtime/memory';
-import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_BLOCKED } from '../../src/runtime/constants';
+import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_STATUS_CANCELLED, STREAM_BLOCKED } from '../../src/runtime/constants';
 import type { MarshalingContext } from '../../src/marshal/model/types';
 import type { FutureStorer } from '../../src/runtime/model/types';
 
@@ -65,10 +65,28 @@ describe('FutureTable', () => {
             expect(result).toBe((0 << 4) | STREAM_STATUS_DROPPED);
         });
 
-        test('cancelRead and cancelWrite return completed', () => {
+        test('cancelRead and cancelWrite return dropped on non-existent handle', () => {
             const ft = createFutureTable(createTestMemory(), makeAllocHandle());
-            expect(ft.cancelRead(0, 0)).toBe((0 << 4) | STREAM_STATUS_COMPLETED);
-            expect(ft.cancelWrite(0, 0)).toBe((0 << 4) | STREAM_STATUS_COMPLETED);
+            // No entry for handle 0 → cancel returns DROPPED.
+            expect(ft.cancelRead(0, 0)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+            expect(ft.cancelWrite(0, 0)).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+        });
+
+        test('cancelRead returns CANCELLED when a read was pending', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const pair = ft.newFuture(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            // Trigger pending read — future is unresolved, no storer set.
+            ft.read(0, readHandle, 0);
+            // cancel-read on unresolved future returns CANCELLED(0).
+            expect(ft.cancelRead(0, readHandle)).toBe((0 << 4) | STREAM_STATUS_CANCELLED);
+        });
+
+        test('cancelWrite on unresolved future returns CANCELLED', () => {
+            const ft = createFutureTable(createTestMemory(), makeAllocHandle());
+            const pair = ft.newFuture(0);
+            const writHandle = Number(pair >> 32n);
+            expect(ft.cancelWrite(0, writHandle)).toBe((0 << 4) | STREAM_STATUS_CANCELLED);
         });
 
         test('dropReadable removes readable handle', () => {

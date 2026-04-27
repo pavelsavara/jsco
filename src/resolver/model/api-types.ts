@@ -1,5 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
+import type { RuntimeConfig } from '../../runtime/model/types';
+
 export type JsInterface = Record<string, Function>;
 export type JsInterfaceCollection = Record<string, JsInterface>;
 
@@ -27,4 +29,4 @@ export type WasmComponent<TJSExports> = {
     exports: () => string[]
     imports: () => string[]
 }
-export type WasmComponentFactory<TJSExports> = (imports?: JsImports) => Promise<WasmComponentInstance<TJSExports>>
+export type WasmComponentFactory<TJSExports> = (imports?: JsImports, config?: RuntimeConfig) => Promise<WasmComponentInstance<TJSExports>>

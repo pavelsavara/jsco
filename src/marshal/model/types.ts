@@ -53,4 +53,14 @@ export type MarshalingContext = {
     backpressure: number;
     /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
     pendingBackgroundTasks: Promise<unknown>[];
+    /** Counter incremented on each call to a throttled canon built-in; reset when a yield is forced. */
+    opsSinceYield?: number;
+    /** Per-instance linear-memory cap in bytes. When the WASM grows past this, the next canon op traps. 0/undefined disables the check. */
+    maxMemoryBytes?: number;
+    /** Slot set by `createAsyncLiftWrapper` while an async-lifted export is in flight.
+     * The bound `task.return` core function (see `resolveCanonicalFunctionTaskReturn`)
+     * lowers its WASM-flat result to JS and invokes this callback to deliver the value
+     * to the awaiting JS-side Promise. Cleared on EXIT. Single-slot — sequential async
+     * exports only; concurrent on-instance handlers will need a per-task lookup. */
+    currentTaskReturn?: (jsResult: unknown) => void;
 }

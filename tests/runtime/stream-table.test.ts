@@ -5,7 +5,7 @@ initializeAsserts();
 
 import { createStreamTable } from '../../src/runtime/stream-table';
 import { createMemoryView } from '../../src/runtime/memory';
-import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_BLOCKED } from '../../src/runtime/constants';
+import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_STATUS_CANCELLED, STREAM_BLOCKED } from '../../src/runtime/constants';
 import type { MarshalingContext } from '../../src/marshal/model/types';
 
 function makeAllocHandle() {
@@ -94,7 +94,7 @@ describe('StreamTable', () => {
             expect(result).toBe((0 << 4) | STREAM_STATUS_DROPPED);
         });
 
-        test('cancelRead clears pending read, returns completed', () => {
+        test('cancelRead clears pending read, returns cancelled', () => {
             const memory = createTestMemory();
             const st = createStreamTable(memory, makeAllocHandle());
             const pair = st.newStream(0);
@@ -102,14 +102,27 @@ describe('StreamTable', () => {
             // Trigger pending read
             st.read(0, readHandle, 100, 10);
             const result = st.cancelRead(0, readHandle);
+            // Per canonical ABI: cancel-read on a pending read with no data
+            // delivered returns CANCELLED(0).
+            expect(result).toBe((0 << 4) | STREAM_STATUS_CANCELLED);
+        });
+
+        test('cancelRead with no pending read returns completed', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const result = st.cancelRead(0, readHandle);
             expect(result).toBe((0 << 4) | STREAM_STATUS_COMPLETED);
         });
 
-        test('cancelWrite returns completed', () => {
+        test('cancelWrite returns cancelled', () => {
             const memory = createTestMemory();
             const st = createStreamTable(memory, makeAllocHandle());
-            const result = st.cancelWrite(0, 0);
-            expect(result).toBe((0 << 4) | STREAM_STATUS_COMPLETED);
+            const pair = st.newStream(0);
+            const writHandle = Number(pair >> 32n);
+            const result = st.cancelWrite(0, writHandle);
+            expect(result).toBe((0 << 4) | STREAM_STATUS_CANCELLED);
         });
 
         test('dropWritable closes the stream, signals pending readers', () => {
@@ -352,6 +365,88 @@ describe('StreamTable', () => {
             // Wait for pump to error
             await new Promise(r => setTimeout(r, 50));
             expect(st.hasData(handle)).toBe(true); // closed = hasData
+        });
+
+        // F1/B5 mitigation: pumpIterable must apply backpressure to a fast
+        // JS-side producer when the guest doesn't read. Without this, an
+        // infinite iterable accumulates chunks indefinitely, OOMing the heap.
+        test('F1: pumpIterable bounds bufferedBytes for an infinite byte iterable', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 1024 });
+
+            let produced = 0;
+            async function* infiniteGen() {
+                while (true) {
+                    produced++;
+                    yield new Uint8Array(64); // 64 bytes per chunk
+                }
+            }
+            const handle = st.addReadable(0, infiniteGen());
+
+            // Let the pump run for a few macrotasks.
+            for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+
+            // Without backpressure, `produced` would be in the millions.
+            // With backpressure: pump pauses at threshold (1024 bytes / 64 = 16 chunks
+            // plus a few in flight), staying small.
+            expect(produced).toBeLessThan(100);
+            expect(st.hasData(handle)).toBe(true);
+        });
+
+        test('F1: pumpIterable resumes pumping after reader drains the buffer', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureBytes: 64 });
+
+            let produced = 0;
+            async function* gen() {
+                for (let i = 0; i < 1000; i++) {
+                    produced++;
+                    yield new Uint8Array(32); // 32 bytes per chunk
+                }
+            }
+            const pair = st.newStream(0); // unused, just to seed handle space
+            void pair;
+            const handle = st.addReadable(0, gen());
+
+            // Wait for pump to fill and pause.
+            for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0));
+            const initialProduced = produced;
+            expect(initialProduced).toBeGreaterThan(0);
+            expect(initialProduced).toBeLessThan(50);
+
+            // Drain the buffer — guest reads.
+            for (let i = 0; i < 200; i++) {
+                const r = st.read(0, handle, 0, 1024);
+                if (r === STREAM_BLOCKED) {
+                    // Allow pump to resume + produce more.
+                    await new Promise(res => setTimeout(res, 0));
+                }
+            }
+            // Pump should have resumed and produced more chunks than the initial pause.
+            expect(produced).toBeGreaterThan(initialProduced);
+        });
+
+        test('F1: pumpIterable bounds chunk count for an infinite typed iterable', async () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle(), { streamBackpressureChunks: 16 });
+
+            let produced = 0;
+            async function* infiniteGen() {
+                while (true) {
+                    produced++;
+                    yield { v: produced }; // non-byte chunks → bufferedBytes never set
+                }
+            }
+            const mctx = { memory } as unknown as MarshalingContext;
+            const storer = (): void => { /* noop */ };
+            const handle = st.addReadable(0, infiniteGen(), storer, 8, mctx);
+            void handle;
+
+            for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+
+            // Without chunk-count backpressure, `produced` would be millions.
+            // With cap=16, pump pauses; small initial overshoot due to in-flight pumps.
+            expect(produced).toBeLessThan(100);
         });
     });
 

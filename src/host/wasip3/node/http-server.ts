@@ -220,13 +220,28 @@ export async function serve(
         (async (): Promise<void> => {
             try {
                 const [request, completionFuture] = nodeRequestToWasi(req, limits);
-                const response = await handler.handle(request);
+                const handlerResult = await handler.handle(request);
+
+                // Per WIT spec `handle: async func(request) -> result<response, error-code>`.
+                // The handler must return a Result-shaped `{ tag: 'ok' | 'err', val }`.
+                if (handlerResult === null || typeof handlerResult !== 'object' || !('tag' in (handlerResult as object))) {
+                    throw new Error('handler returned non-Result value (expected { tag: "ok" | "err", val })');
+                }
+                const r = handlerResult as { tag: string; val?: unknown };
+                if (r.tag === 'err') {
+                    if (!res.headersSent) {
+                        res.writeHead(500, { 'Content-Type': 'text/plain' });
+                    }
+                    res.end('Handler returned error');
+                    return;
+                }
+                const response = r.val;
 
                 // If handler succeeded, resolve the request completion
                 completionFuture.then(() => { /* consumed by request internals */ });
 
                 await writeWasiResponse(res, response);
-            } catch (e) {
+            } catch {
                 if (!res.headersSent) {
                     res.writeHead(500, { 'Content-Type': 'text/plain' });
                 }

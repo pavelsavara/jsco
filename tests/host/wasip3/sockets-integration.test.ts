@@ -105,7 +105,7 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
             }
         }));
 
-        test.skip('p3_sockets_tcp_streams — send and receive data streams', () => runWithVerbose(verbose, async () => {
+        test('p3_sockets_tcp_streams — send and receive data streams', () => runWithVerbose(verbose, async () => {
             const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_sockets_tcp_streams.component.wasm',
@@ -187,10 +187,13 @@ describe('WASIp3 socket integration tests (Node.js)', () => {
             }
         }));
 
-        // Skipped: test_udp_connect_local_address_change sub-test asserts that
-        // connecting to a public IP selects a different local interface than loopback.
-        // This is platform/environment-specific and fails on GitHub Actions runners.
-        test.skip('p3_sockets_udp_connect — connect and disconnect', () => runWithVerbose(verbose, async () => {
+        // Skipped on CI only: test_udp_connect_local_address_change sub-test
+        // asserts that connecting to a public IP selects a different local
+        // interface than loopback. This requires a routable public network
+        // interface, which GitHub Actions runners do not reliably expose.
+        // Runs on local developer machines.
+        const udpConnectTest = process.env.CI ? test.skip : test;
+        udpConnectTest('p3_sockets_udp_connect — connect and disconnect', () => runWithVerbose(verbose, async () => {
             const imports = createMergedHosts();
             const component = await createComponent(
                 WASM_DIR + 'p3_sockets_udp_connect.component.wasm',

@@ -87,6 +87,10 @@ export type StreamEntry = {
     onWriteReady?: (() => void)[];
     /** Callback invoked when the readable end is dropped (dropReadable). */
     onReadableDrop?: () => void;
+    /** True after dropReadable has fired; second drop traps. */
+    readableDropped?: boolean;
+    /** True after dropWritable has fired; second drop traps. */
+    writableDropped?: boolean;
 };
 
 export interface FutureTable {
@@ -124,6 +128,13 @@ export interface SubtaskTable {
     create(promise: Promise<unknown>): number;
     /** Get the subtask entry for waitable-set integration. */
     getEntry(handle: number): SubtaskEntry | undefined;
+    /**
+     * Cancel a still-running subtask. Marks it RETURNED, fires onResolve callbacks.
+     * Returns the new subtask state (always RETURNED in our model). If the handle
+     * is unknown, traps via WebAssembly.RuntimeError so a malicious guest cannot
+     * silently spam invalid handles.
+     */
+    cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
     /** Dispose all subtasks: clear onResolve, clear entries. */
@@ -220,12 +231,20 @@ export interface AllocationLimits {
     maxHandles?: number;
     /** Maximum filesystem path length in bytes. Default: 4_096 */
     maxPathLength?: number;
+    /**
+     * Maximum total WASM linear-memory size in bytes per component instance.
+     * Enforced lazily on canon-op transitions: when the guest grows its memory
+     * past this cap, the next canonical built-in call traps the instance.
+     * Default: 268_435_456 (256 MB). Set to 0 to disable the check.
+     */
+    maxMemoryBytes?: number;
 }
 
 export const ALLOCATION_DEFAULTS = {
     maxAllocationSize: 16_777_216,
     maxHandles: 10_000,
     maxPathLength: 4_096,
+    maxMemoryBytes: 268_435_456,
 } as const;
 
 /** WASI-specific host configuration. */
@@ -259,6 +278,8 @@ export interface HostConfig {
 
 /** Runtime configuration extending host config with runtime-generic fields. */
 export interface RuntimeConfig extends HostConfig {
-    /** Stream backpressure threshold in bytes. Default: 65536 (64 KB). */
+    /** Stream backpressure threshold in bytes (byte streams). Default: 65536 (64 KB). */
     streamBackpressureBytes?: number;
+    /** Stream backpressure threshold in chunks (typed/non-byte streams). Default: 1024. */
+    streamBackpressureChunks?: number;
 }

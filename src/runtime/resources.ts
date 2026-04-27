@@ -5,8 +5,9 @@ import { LogLevel } from '../utils/assert';
 import type { LogFn, Verbosity } from '../utils/assert';
 import type { ResourceTable } from './model/types';
 
-export function createResourceTable(verbose?: Verbosity, logger?: LogFn): ResourceTable {
+export function createResourceTable(verbose?: Verbosity, logger?: LogFn, maxHandles?: number): ResourceTable {
     let nextHandle = 1;
+    const handleCap = maxHandles && maxHandles > 0 ? maxHandles : undefined;
 
     // Resource handle table — handles are globally unique (monotonic counter).
     // Each handle stores the canonical resource type index (the unified type
@@ -24,6 +25,9 @@ export function createResourceTable(verbose?: Verbosity, logger?: LogFn): Resour
 
     return {
         add(resourceTypeIdx: number, obj: unknown): number {
+            if (handleCap !== undefined && handles.size >= handleCap) {
+                throw new WebAssembly.RuntimeError(`resource.new: handle limit (${handleCap}) exceeded`);
+            }
             const handle = nextHandle++;
             handles.set(handle, { typeIdx: resourceTypeIdx, obj, numLends: 0 });
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {

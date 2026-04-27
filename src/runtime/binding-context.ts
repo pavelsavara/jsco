@@ -19,7 +19,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
-    const resources = createResourceTable(resolved.verbose, resolved.logger);
+    const resources = createResourceTable(resolved.verbose, resolved.logger, config?.limits?.maxHandles);
 
     const abortController = new AbortController();
 
@@ -57,6 +57,8 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         taskContextSlots: [0, 0],
         backpressure: 0,
         pendingBackgroundTasks: [],
+        opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,
+        maxMemoryBytes: config?.limits?.maxMemoryBytes,
         abortSignal: abortController.signal,
         abort: (reason?: string) => {
             ctx.poisoned = true;

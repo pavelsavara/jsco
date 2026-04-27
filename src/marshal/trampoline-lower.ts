@@ -38,7 +38,11 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
                 try { return processResult(plan, ctx, val); }
                 catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.abort(); throw e; },
+            // Rejection: do NOT abort the whole instance. For async-lower the
+            // subtask table cleanly transitions to RETURNED; for sync-lower
+            // JSPI the wasm caller receives a regular trap. Both paths are
+            // recoverable at the task level.
+            (e: unknown) => { throw e; },
         );
     }
     return processResult(plan, ctx, resJs);
@@ -51,7 +55,8 @@ function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContex
                 try { return processSpilledResult(plan, ctx, retptr, val); }
                 catch (e) { ctx.abort(); throw e; }
             },
-            (e: unknown) => { ctx.abort(); throw e; },
+            // Rejection: see handleLowerResult — do NOT abort the instance.
+            (e: unknown) => { throw e; },
         );
     }
     return processSpilledResult(plan, ctx, retptr, resJs);
