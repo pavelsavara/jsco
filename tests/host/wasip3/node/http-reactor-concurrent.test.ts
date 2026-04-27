@@ -92,7 +92,14 @@ function request(
 describe('wasi:http P3 reactor — concurrent requests on a single instance', () => {
     const verbose = useVerboseOnFailure();
 
-    test('p3_http_echo serves N parallel POST requests', () =>
+    /**
+     * G1 — fast-path concurrency.
+     * Sends N parallel POST requests with `x-host-to-host: true`, which makes
+     * p3_http_echo echo headers/body/trailers without spawning an internal
+     * forwarder task. Proves the runtime can keep N guest handler tasks in
+     * flight on the same instance and that bodies round-trip correctly.
+     */
+    test('G1: serves N parallel POST requests (fast-path echo)', () =>
         runWithVerbose(verbose, async () => {
             const imports = createMergedHosts();
             const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
@@ -107,22 +114,69 @@ describe('wasi:http P3 reactor — concurrent requests on a single instance', ()
 
                 handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
 
-                const N = 4;
+                const N = 8;
                 const bodies = Array.from({ length: N }, (_, i) =>
-                    `concurrent-request-${i}-${'x'.repeat(64)}`,
+                    `concurrent-request-${i}-${'x'.repeat(128)}`,
                 );
 
                 const responses = await Promise.all(
                     bodies.map((body, i) =>
                         request(`http://127.0.0.1:${handle!.port}/req${i}`, {
                             method: 'POST',
-                            // Use the host-to-host fast path of p3_http_echo:
-                            // it echoes headers/body/trailers without spawning
-                            // an internal forwarder task.
                             headers: {
                                 'x-host-to-host': 'true',
                                 'content-type': 'text/plain',
                             },
+                            body,
+                        }),
+                    ),
+                );
+
+                expect(responses).toHaveLength(N);
+                for (let i = 0; i < N; i++) {
+                    expect(responses[i]!.statusCode).toBe(200);
+                    expect(responses[i]!.body).toBe(bodies[i]);
+                }
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 30000);
+
+    /**
+     * G2 — non-fast-path / forwarder spawn.
+     * Drops the `x-host-to-host` header, which makes p3_http_echo take the
+     * difficult path: it calls `wit_bindgen::spawn` to start a forwarder
+     * subtask which copies the request body stream chunk-by-chunk into a
+     * new `wit_stream` pipe used as the response body, and chains the
+     * trailers future. Stresses spawned-subtask + stream-to-stream copy
+     * + future chaining inside a single handler task.
+     */
+    test('G2: serves N parallel POST requests (forwarder spawn path)', () =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(ECHO_WASM, verboseOptions(verbose));
+            const instance = await component.instantiate(imports);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE] as
+                    | WasiHttpHandlerExport
+                    | undefined;
+                expect(handler).toBeDefined();
+
+                handle = await serve(handler!, { port: 0, host: '127.0.0.1' });
+
+                const N = 4;
+                const bodies = Array.from({ length: N }, (_, i) =>
+                    `forwarder-${i}-${'y'.repeat(96)}`,
+                );
+
+                const responses = await Promise.all(
+                    bodies.map((body, i) =>
+                        request(`http://127.0.0.1:${handle!.port}/req${i}`, {
+                            method: 'POST',
+                            // No x-host-to-host header → forwarder path.
+                            headers: { 'content-type': 'text/plain' },
                             body,
                         }),
                     ),

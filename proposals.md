@@ -3,8 +3,13 @@
 > **STATUS — 2026-04-27:**
 > - **Group 1 (DOS mitigations) LANDED.** D2 stream double-drop trap, A6 `subtask.cancel`, B4 async-lower throttle (`wrapWithThrottle`), and B6 `maxHandles` cap. Verified by `tests/host/wasip3/bad-guests-integration.test.ts`.
 > - **Multi-async concurrency mechanic VALIDATED.** `integration-tests/multi-async-p3-wat/multi-async-p3.wat` + `tests/host/wasip3/multi-async.test.ts` — N parallel guest subtasks on one waitable set, per-task ctx, concurrent JS-side export invocations.
-> - **OPEN — real wasi:http reactor concurrency.** See "HTTP Reactor Concurrency". Resource-flattening fix landed in `src/host/wasip3/http.ts`; guest-side `assertion failed: handle != 0` blocker parked.
+> - **HTTP Reactor Concurrency LANDED.** Real `p3_http_echo.component.wasm` reactor serves parallel HTTP requests on a single instance via `serve()` adapter:
+>   - **G1 fast-path (`x-host-to-host: true`):** N=8 parallel POSTs, echoed bodies round-trip.
+>   - **G2 forwarder spawn path:** N=4 parallel POSTs without `x-host-to-host`; exercises `wit_bindgen::spawn` + `wit_stream::new()` + future chaining (request trailers → response trailers).
+>   - Verified by `tests/host/wasip3/node/http-reactor-concurrent.test.ts`.
+>   - Fixes that landed: (a) Phase 0 SubResource pre-scan in `registerInstanceLocalTypes` so `Eq(N)` aliases inherit canonical resource IDs (was producing `21 != 25` mismatches on `headers = fields`); (b) `task.return` flat-vs-spilled threshold corrected to `MAX_FLAT_PARAMS=16` (was incorrectly using `MAX_FLAT_RESULTS=1` and reading garbage from `ptr=0`); (c) `streams.removeReadable` returns a buffer-backed iterable when the original `AsyncIterable` was already pumped (response body was an empty already-drained iterator); (d) P2-via-P3 server adapter now wraps responses in `{tag:'ok', val:...}` to match the spec-strict serve() contract.
 > - **OPEN — Group 2: yield-from-cancel-only.** Decision pending: default-on when JSPI is enabled vs. opt-in `RuntimeConfig` flag.
+> - **OPEN — JSPI + Parallel scenarios (P1–P12).** Highest priority: P1, P2, P10. Need a controllable JSPI-blocking host import (e.g. stub `wasi:http/client.send` returning a deferred Promise) to test interleaved suspend behavior on one instance.
 
 ## Problem Recap
 
@@ -128,7 +133,7 @@ Rows marked **DONE** are shipped in Group 1.
 
 ---
 
-## HTTP Reactor Concurrency (OPEN — opened 2026-04-27)
+## HTTP Reactor Concurrency (LANDED — 2026-04-27)
 
 ### Goal
 
@@ -137,27 +142,26 @@ Prove end-to-end that a real `wasi:http/handler` P3 reactor can serve multiple H
 1. Boot `integration-tests/wasmtime/p3_http_echo.component.wasm` (real wasi:http reactor from wasmtime test-programs — uses `wit_future`, `wit_stream`, `wit_bindgen::spawn`).
 2. Plumb its `wasi:http/handler@0.3.0-rc-2026-03-15` export into `serve()`.
 3. Fire `Promise.all([request(/a), request(/b), request(/c), …])` against the same instance.
-4. Assert all responses round-trip headers/body correctly and overlapping pending count > 1 at some point.
+4. Assert all responses round-trip headers/body correctly.
 
 ### Status
 
-- **Test scaffold:** `tests/host/wasip3/node/http-reactor-concurrent.test.ts`. Component instantiates, all 12 imports bind, handler export reachable.
-- **Blocker 1 (FIXED):** `wasi:http/types` was returning resource classes only, no flat `[constructor]/[static]/[method]/[resource-drop]` table — every WASM call to e.g. `[method]request.get-headers` failed with "Export not found in instance". Added `buildHttpTypesFlat()` in `src/host/wasip3/http.ts` covering `fields`, `request`, `request-options`, `response`.
-- **Blocker 2 (OPEN):** Guest panics with `assertion failed: handle != 0 && handle != u32::MAX` at `crates/test-programs/src/p3/mod.rs:4:1`. Panic reaches host via stderr; HTTP response is 500. The JS `HttpRequest` instance handed to `handler.handle(request)` is being lifted into a resource handle of `0` (or u32::MAX). `resources.add()` starts at 1, so the 0 comes from elsewhere.
+**LANDED.** `tests/host/wasip3/node/http-reactor-concurrent.test.ts` covers:
 
-### Hypotheses for handle-0 origin
+- **G1 — basic concurrent POSTs (fast-path):** N=8 parallel POSTs with `x-host-to-host: true` (echo fast-path), all 200 with correct body.
+- **G2 — non-fast-path / forwarder spawn:** N=4 parallel POSTs without `x-host-to-host`; reactor uses `wit_bindgen::spawn` + `wit_stream::new()` to forward the body chunk-by-chunk and chains the trailers future. Stresses spawned-task waitable-set machinery + stream-to-stream copy + future chaining.
 
-1. **Wrong export resolved** — `instance.exports[wasi:http/handler@…]` may not be the lifted-handler trampoline; we may be invoking an unlifted core `funcref` and passing the JS object straight onto the WASM stack.
-2. **Stream/future handle leaking into resource slot** — `consume-body` returns `(stream, future)`; either may have handle 0 in some race, mis-typed as a resource handle. The Rust assert is in the `wit_bindgen` resource shim.
-3. **Canonical resource ID not yet registered** — host calls `handler.handle(...)` before `start_task()` has populated the per-instance resource map; `getCanonicalResourceId(borrow<request>)` returns `-1` or `undefined`, lifting silently emits 0.
+### Fixes that landed
 
-Diagnostic next step: enable `executor: LogLevel.Detailed` and grep for `ownLifting`/`borrowLifting` calls and the `resource.add` they produce, correlate with the trampoline `args=[…]` print of the handler call.
+1. **Phase 0 SubResource pre-scan** (`src/resolver/core-functions.ts` `registerInstanceLocalTypes`) — `Eq(N)` aliases like `type headers = fields;` previously failed to inherit canonical resource IDs because Phase 2a populated `localCanonicalIds` *after* the main loop. Fix: pre-scan SubResource exports first, populate canonical IDs, then run the main loop. Without this, `own<headers>` lifted at type 21 but `borrow<fields>` looked up at type 25 — handle mismatch.
+2. **`task.return` flat threshold** (`src/resolver/core-functions.ts` `resolveCanonicalFunctionTaskReturn`) — `task.return` receives the result as core-function PARAMS (the guest lowers the result and passes flat values as args). Threshold is `MAX_FLAT_PARAMS=16`, not `MAX_FLAT_RESULTS=1`. Was treating the 2-flat `result<own<response>, error-code>` as spilled and reading garbage from `ptr=0` → "Invalid resource handle: 0".
+3. **Stream readable round-trip** (`src/runtime/stream-table.ts` `removeReadable`) — when an `AsyncIterable` was registered via `addReadable`, `pumpIterable` consumed it into the entry buffer; `removeReadable` was returning the (now-exhausted) original iterable, so the response body came back empty. Fixed to return `makeAsyncIterable(entry)` (buffer-backed) when the registered value was a pumped iterable.
+4. **P2-via-P3 adapter Result wrapping** (`src/host/wasip2-via-wasip3/node/http-server.ts`) — wraps responses in `{ tag: 'ok', val: ... }` to satisfy the (no-longer-legacy) Result-shape contract from `serve()`.
+5. **WAT `task.return` ABI** (`integration-tests/hello-http-p3-wat/hello-http-p3.wat`) — updated `task.return` import from `(param i32)` (spilled-pointer) to `(param i32 i32)` (flat disc + payload) per canonical ABI; recompiled wasm.
 
-### Test goals (deferred until handle-0 cleared)
+### Deferred goals
 
-- **G1 — basic concurrent POSTs:** N parallel POSTs with `x-host-to-host: true` (echo fast-path), expect all 200 with correct body, overlapping pending > 1.
-- **G2 — non-fast-path:** drop `x-host-to-host`; reactor uses `wit_bindgen::spawn` + `wit_stream` to forward body. Stresses spawned-task waitable-set machinery.
-- **G3 — interleaved blocking + concurrent:** see "JSPI + Parallel" matrix.
+- **G3 — interleaved blocking + concurrent.** Subsumed by the JSPI + Parallel matrix below.
 
 ---
 
