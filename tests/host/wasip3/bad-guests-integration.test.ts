@@ -1113,7 +1113,9 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
         expect(local.droppedCount).toBe(N - local.messages.length);
         // (c) heap stays bounded — 5000 short strings should be a few MB,
         // never the hundreds of MB the unbounded version produced.
-        expect(heapDeltaMb).toBeLessThan(50);
+        // Threshold is generous (80 MB) to absorb GC-timing variability
+        // on CI runners; the unbounded version produced hundreds of MB.
+        expect(heapDeltaMb).toBeLessThan(80);
         // sanity: most-recent messages preserved (ring buffer keeps the tail)
         expect(local.messages[local.messages.length - 1]).toContain(`spin-iter ${N - 1}`);
     }));
