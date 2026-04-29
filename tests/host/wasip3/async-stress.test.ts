@@ -562,6 +562,62 @@ describe('WASIp3 async-lift stress / regression', () => {
         }
     }));
 
+    test('yield-spin: completes 8 YIELD cycles cleanly', () => runWithVerbose(verbose, async () => {
+        // Targets the YIELD-branch `await callbackWasm(0,0,0)` inside
+        // createAsyncLiftWrapper (status === 1). The `yield-spin` export
+        // returns YIELD from start and from each callback for 8 iterations
+        // before EXITing. No host import is involved.
+        const component = await createComponent(MULTI_ASYNC_WASM, verboseOptions(verbose));
+        const instance = await component.instantiate({ [HOST_INTERFACE]: { 'slow-fn': (): Promise<void> => Promise.resolve() } });
+        try {
+            const runner = instance.exports[RUNNER_INTERFACE] as Runner;
+            await runner['yieldSpin']!();
+            // Repeat to confirm no leak across calls.
+            await runner['yieldSpin']!();
+            await runner['yieldSpin']!();
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    test('yield-spin concurrent: N calls all complete in YIELD branch', () => runWithVerbose(verbose, async () => {
+        // N concurrent yield-spinners share the trampoline. Each must
+        // observe its own ctx-0 counter via the per-task field swap;
+        // any leakage would mis-count and trap (counter goes negative
+        // → never reaches 0 → spin forever) or EXIT early.
+        const component = await createComponent(MULTI_ASYNC_WASM, verboseOptions(verbose));
+        const instance = await component.instantiate({ [HOST_INTERFACE]: { 'slow-fn': (): Promise<void> => Promise.resolve() } });
+        try {
+            const runner = instance.exports[RUNNER_INTERFACE] as Runner;
+            const N = 6;
+            const calls: Promise<void>[] = [];
+            for (let i = 0; i < N; i++) calls.push(runner['yieldSpin']!());
+            await Promise.all(calls);
+        } finally {
+            instance.dispose();
+        }
+    }), 15_000);
+
+    test('yield-spin + dispose mid-flight: settles cleanly without orphan', () => runWithVerbose(verbose, async () => {
+        // Dispose during the YIELD spin. The trampoline does not check the
+        // abort signal between YIELD iterations, so the spin completes 8
+        // microtask cycles and then runs the post-EXIT cleanup. Validates
+        // that mid-spin dispose does not leak an orphan rejection and the
+        // final settlement direction is observable (no hang).
+        const component = await createComponent(MULTI_ASYNC_WASM, verboseOptions(verbose));
+        const instance = await component.instantiate({ [HOST_INTERFACE]: { 'slow-fn': (): Promise<void> => Promise.resolve() } });
+        try {
+            const runner = instance.exports[RUNNER_INTERFACE] as Runner;
+            const c = runner['yieldSpin']!();
+            instance.dispose(); // before the 8 yield cycles drain
+            const r = await settle(c);
+            expect(typeof r.ok).toBe('boolean');
+            await microtaskDrain(3);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
     test('verbose executor logs survive concurrent flow without throwing', () => runWithVerbose(verbose, async () => {
         // Ensures the verbose logging machinery is itself reentrancy-safe.
         // This is the safety net behind every other test in this file:
