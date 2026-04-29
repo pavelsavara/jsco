@@ -63,6 +63,11 @@ export type MarshalingContext = {
     opsSinceYield?: number;
     /** Per-instance linear-memory cap (bytes). 0/undefined disables. */
     maxMemoryBytes?: number;
+    /** Per-allocation byte cap enforced at the canonical-ABI lift/lower boundary
+     *  for length-bearing primitives (string, list, list-storer, stream-write copy).
+     *  Rejects guest- or host-supplied lengths that would exceed this many bytes
+     *  *before* allocating, with a `RangeError`. 0/undefined disables. */
+    maxAllocationSize?: number;
     /** Canon-op counter; reset on JSPI yield (host-import resume, `waitable-set.wait`
      *  resume, throttle setImmediate). Trips `maxCanonOpsWithoutYield`. */
     canonOpsSinceYield?: number;

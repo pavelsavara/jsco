@@ -97,7 +97,7 @@ async function* makeF2Gen(first: Promise<Uint8Array>, second: Promise<Uint8Array
 describe('Bad-guest DOS attack patterns (WASIp3)', () => {
     const verbose = useVerboseOnFailure();
 
-    async function loadAttacks(extraConfig?: { limits?: { maxHandles?: number; maxMemoryBytes?: number; maxCanonOpsWithoutYield?: number } }) {
+    async function loadAttacks(extraConfig?: { limits?: { maxHandles?: number; maxMemoryBytes?: number; maxCanonOpsWithoutYield?: number; maxAllocationSize?: number } }) {
         const component = await createComponent(BAD_GUESTS_WASM, { ...verboseOptions(verbose), yieldThrottle: YIELD_THROTTLE });
         // The async-host import is consumed by `canon lower (... async)` for
         // the A6/B4 attacks. Returning a never-resolving Promise keeps each
@@ -761,6 +761,45 @@ describe('Bad-guest DOS attack patterns (WASIp3)', () => {
             expect(() => rt.remove(typeIdx, handle)).not.toThrow();
         } finally {
             // ResourceTable has no explicit dispose — drop the reference.
+        }
+    }));
+
+    // ---- Class C-bomb — boundary OOM/size-bomb (size-bearing returns) ----
+
+    // C1/C2: a malicious guest returns a `string` or `list<u8>` whose declared
+    // length is `0xFFFFFFFF`. The host must reject with `RangeError` at the
+    // canonical-ABI lift boundary BEFORE attempting to read the bogus byte
+    // range from linear memory. Without the bound, the host would attempt a
+    // 4 GiB allocation and OOM.
+    test('C1: string-len-bomb is rejected with RangeError at lift boundary', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks({ limits: { maxAllocationSize: 16_777_216 } });
+        try {
+            let caught: unknown;
+            try {
+                await (iface as any)['c1StringLenBomb']!(0);
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).toBeInstanceOf(RangeError);
+            expect(String(caught)).toMatch(/exceeds maxAllocationSize/);
+        } finally {
+            instance.dispose();
+        }
+    }));
+
+    test('C2: list-len-bomb is rejected with RangeError at lift boundary', () => runWithVerbose(verbose, async () => {
+        const { instance, iface } = await loadAttacks({ limits: { maxAllocationSize: 16_777_216 } });
+        try {
+            let caught: unknown;
+            try {
+                await (iface as any)['c2ListLenBomb']!(0);
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).toBeInstanceOf(RangeError);
+            expect(String(caught)).toMatch(/exceeds maxAllocationSize/);
+        } finally {
+            instance.dispose();
         }
     }));
 

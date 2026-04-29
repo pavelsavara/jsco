@@ -4,7 +4,7 @@ import type { MarshalingContext, MemoryStorer } from './model/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
 import type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, StreamStorerPlan, FutureStorerPlan } from './model/store-plans';
 export type { StringStorerPlan, RecordStorerPlan, ListStorerPlan, OptionStorerPlan, ResultStorerPlan, VariantStorerPlan, EnumStorerPlan, FlagsStorerPlan, TupleStorerPlan, OwnResourceStorerPlan, StreamStorerPlan, FutureStorerPlan } from './model/store-plans';
-import { validateAllocResult } from './validation';
+import { validateAllocResult, validateBoundarySize } from './validation';
 import { OK, ERR } from './constants';
 
 // --- Primitive memory storers ---
@@ -83,6 +83,7 @@ export function listStorer(plan: ListStorerPlan, ctx: MarshalingContext, ptr: nu
     if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
     const len = jsValue.length;
     const totalSize = len * plan.elemSize;
+    validateBoundarySize(ctx, totalSize, 'list');
     // Always call realloc per canonical ABI spec — even for empty lists (totalSize=0).
     // Rust's cabi_realloc returns `align as *mut u8` for size=0, producing the
     // non-null dangling pointer that Vec::from_raw_parts / NonNull::new_unchecked requires.

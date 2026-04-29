@@ -24,6 +24,28 @@ export function validateAllocResult(ctx: MarshalingContext, ptr: WasmPointer, al
 }
 
 /**
+ * Boundary OOM/size guard for length-bearing canonical-ABI primitives
+ * (string, list, list-storer, stream-write copy). Throws `RangeError`
+ * with a clear message when `totalBytes` exceeds `ctx.maxAllocationSize`,
+ * *before* any allocation is attempted. 0/undefined disables.
+ *
+ * The check is a single integer compare against a cached field on the
+ * marshaling context — modern JIT inlines it on the hot path.
+ *
+ * Also rejects negative or non-finite byte counts, which would otherwise
+ * coerce to a tiny allocation and silently truncate.
+ */
+export function validateBoundarySize(ctx: MarshalingContext, totalBytes: number, kind: string): void {
+    if (!Number.isFinite(totalBytes) || totalBytes < 0) {
+        throw new RangeError(`${kind} byte length ${totalBytes} is invalid`);
+    }
+    const cap = ctx.maxAllocationSize;
+    if (cap !== undefined && cap > 0 && totalBytes > cap) {
+        throw new RangeError(`${kind} byte length ${totalBytes} exceeds maxAllocationSize ${cap}`);
+    }
+}
+
+/**
  * Validate a pointer being loaded/stored from memory for alignment.
  * Used when loading/storing list elements, record fields, etc.
  */
