@@ -590,6 +590,34 @@
 
       (local.get $i)
     )
+
+    ;; ---------------------------------------------------------------------
+    ;; C1: string-len-bomb — guest returns string {ptr=0, len=0xFFFFFFFF}
+    ;; through the canon-lift retptr. Host must reject with RangeError at
+    ;; the canonical-ABI boundary (validateBoundarySize) BEFORE attempting
+    ;; to read the bogus byte range from linear memory.
+    ;; ---------------------------------------------------------------------
+    (func $c1-string-len-bomb (export "c1-string-len-bomb")
+          (param $iterations i32) (result i32)
+      ;; Write {data_ptr=0, len=0xFFFFFFFF} at memory address 256.
+      ;; data_ptr=0 is fine — host should never dereference it.
+      (i32.store        (i32.const 256) (i32.const 0))
+      (i32.store offset=4 (i32.const 256) (i32.const -1))  ;; -1 = 0xFFFFFFFF
+      (i32.const 256)
+    )
+
+    ;; ---------------------------------------------------------------------
+    ;; C2: list-len-bomb — guest returns list<u8> {ptr=0, len=0xFFFFFFFF}
+    ;; through the canon-lift retptr. Host must reject with RangeError at
+    ;; the canonical-ABI boundary BEFORE attempting to read the bogus byte
+    ;; range from linear memory.
+    ;; ---------------------------------------------------------------------
+    (func $c2-list-len-bomb (export "c2-list-len-bomb")
+          (param $iterations i32) (result i32)
+      (i32.store        (i32.const 264) (i32.const 0))
+      (i32.store offset=4 (i32.const 264) (i32.const -1))
+      (i32.const 264)
+    )
   )
 
   ;; Wire host-imports → core-funcs
@@ -645,6 +673,8 @@
   (alias core export $core "a6-subtask-cancel-spin"       (core func $a6-core))
   (alias core export $core "b4-subtask-leak"              (core func $b4-core))
   (alias core export $core "b6-resource-leak"             (core func $b6-core))
+  (alias core export $core "c1-string-len-bomb"           (core func $c1-core))
+  (alias core export $core "c2-list-len-bomb"             (core func $c2-core))
 
   (func $a1 (type $fn-spin) (canon lift (core func $a1-core)))
   (func $a2 (type $fn-spin) (canon lift (core func $a2-core)))
@@ -665,6 +695,14 @@
   (func $b4 (type $fn-spin) (canon lift (core func $b4-core)))
   (func $b6 (type $fn-spin) (canon lift (core func $b6-core)))
 
+  ;; Size-bomb lifts use `(memory $mem)` so the canon-lift retptr is read
+  ;; from linear memory. Both string and list<u8> have flat result count = 2,
+  ;; so the core fn returns one i32 retptr to the {ptr,len} pair.
+  (type $fn-string-bomb (func (param "iterations" u32) (result string)))
+  (type $fn-list-bomb   (func (param "iterations" u32) (result (list u8))))
+  (func $c1 (type $fn-string-bomb) (canon lift (core func $c1-core) (memory $mem)))
+  (func $c2 (type $fn-list-bomb)   (canon lift (core func $c2-core) (memory $mem)))
+
   (instance $attacks
     (export "a1-stream-read-cancel-spin"  (func $a1) (func (type $fn-spin)))
     (export "a2-stream-write-cancel-spin" (func $a2) (func (type $fn-spin)))
@@ -684,6 +722,8 @@
     (export "a6-subtask-cancel-spin"      (func $a6) (func (type $fn-spin)))
     (export "b4-subtask-leak"             (func $b4) (func (type $fn-spin)))
     (export "b6-resource-leak"            (func $b6) (func (type $fn-spin)))
+    (export "c1-string-len-bomb"          (func $c1) (func (type $fn-string-bomb)))
+    (export "c2-list-len-bomb"            (func $c2) (func (type $fn-list-bomb)))
   )
   (export "test:bad-guests/attacks@0.1.0" (instance $attacks))
 )
