@@ -962,7 +962,7 @@ const resolveCanonicalFunctionContextGet: Resolver<CanonicalFunctionContextGet> 
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (): number => {
-                return mctx.currentTaskSlots[slotIndex] ?? 0;
+                return mctx.currentTask.slots[slotIndex] ?? 0;
             };
             return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `context.get:${elem.selfSortIndex}`)
@@ -980,7 +980,7 @@ const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> 
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (value: number): void => {
-                mctx.currentTaskSlots[slotIndex] = value;
+                mctx.currentTask.slots[slotIndex] = value;
             };
             return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `context.set:${elem.selfSortIndex}`)
@@ -1018,7 +1018,7 @@ const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (rctx, rarg
  *   - flatCount = 1 (Scalar):       one core arg, lowered via the flat lowerer.
  *   - flatCount > 1 (Spilled):      one i32 ptr arg, loaded via the memory loader.
  *
- * The lowered JS value is delivered through `mctx.currentTaskReturn` which is
+ * The lowered JS value is delivered through `mctx.currentTask.taskReturn` which is
  * set by `createAsyncLiftWrapper` for the duration of the in-flight task.
  * If the slot is missing (no in-flight async-lift task) the call is silently
  * ignored. If the slot is present but the task already resolved, the slot
@@ -1060,9 +1060,10 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs)
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (...args: number[]): void => {
-                if (!mctx.currentTaskReturn) return;
+                const taskReturn = mctx.currentTask.taskReturn;
+                if (!taskReturn) return;
                 const value = liftToJs ? liftToJs(mctx, ...args) : undefined;
-                mctx.currentTaskReturn(value);
+                taskReturn(value);
             };
             return { result: fn };
         }, `task.return:${elem.selfSortIndex}`)

@@ -2,12 +2,13 @@
 
 import isDebug from 'env:isDebug';
 import type { MarshalingContext } from '../resolver/types';
-import type { WasmPointer, WasmSize, WasmFunction, WasmValue } from './model/types';
+import type { WasmPointer, WasmSize, WasmFunction, WasmValue, TaskState } from './model/types';
 import type { FunctionLiftPlan } from './model/lift-plans';
 export type { FunctionLiftPlan } from './model/lift-plans';
 import { validateAllocResult, checkNotPoisoned, checkNotReentrant } from './validation';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
+import { pushTask } from './task-state';
 
 function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWasm: any): any {
     let result: any;
@@ -36,22 +37,22 @@ function processSpilledResult(plan: FunctionLiftPlan, ctx: MarshalingContext, ra
     return result;
 }
 
-function handleLiftResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawResult: any, processResult: typeof processFlatResult, prevTaskSlots: number[]): any {
+function handleLiftResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawResult: any, processResult: typeof processFlatResult, prevTask: TaskState): any {
     if (rawResult instanceof Promise) {
         return rawResult.then(
             (wasmResult) => {
-                ctx.currentTaskSlots = prevTaskSlots;
+                ctx.currentTask = prevTask;
                 try { return processResult(plan, ctx, wasmResult); }
                 catch (e) { ctx.abort(); throw e; }
                 finally { ctx.inExport = false; }
             },
-            (e: unknown) => { ctx.currentTaskSlots = prevTaskSlots; ctx.abort(); ctx.inExport = false; throw e; },
+            (e: unknown) => { ctx.currentTask = prevTask; ctx.abort(); ctx.inExport = false; throw e; },
         );
     }
     try {
         return processResult(plan, ctx, rawResult);
     } finally {
-        ctx.currentTaskSlots = prevTaskSlots;
+        ctx.currentTask = prevTask;
     }
 }
 
@@ -88,8 +89,7 @@ export function liftFlatFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, was
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
-    const prevTaskSlots = ctx.currentTaskSlots;
-    ctx.currentTaskSlots = [0, 0];
+    const prevTask = pushTask(ctx, { slots: [0, 0] });
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
     }
@@ -108,9 +108,9 @@ export function liftFlatFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, was
                 wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
             }
         }
-        return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processFlatResult, prevTaskSlots);
+        return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processFlatResult, prevTask);
     } catch (e) {
-        ctx.currentTaskSlots = prevTaskSlots;
+        ctx.currentTask = prevTask;
         ctx.abort();
         throw e;
     } finally {
@@ -124,8 +124,7 @@ export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: MarshalingContext, 
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
-    const prevTaskSlots = ctx.currentTaskSlots;
-    ctx.currentTaskSlots = [0, 0];
+    const prevTask = pushTask(ctx, { slots: [0, 0] });
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
     }
@@ -144,9 +143,9 @@ export function liftFlatSpilled(plan: FunctionLiftPlan, ctx: MarshalingContext, 
                 wasmArgs[idx] = BigInt(wasmArgs[idx] as number);
             }
         }
-        return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processSpilledResult, prevTaskSlots);
+        return handleLiftResult(plan, ctx, wasmFunction(...wasmArgs), processSpilledResult, prevTask);
     } catch (e) {
-        ctx.currentTaskSlots = prevTaskSlots;
+        ctx.currentTask = prevTask;
         ctx.abort();
         throw e;
     } finally {
@@ -160,8 +159,7 @@ export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, 
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
-    const prevTaskSlots = ctx.currentTaskSlots;
-    ctx.currentTaskSlots = [0, 0];
+    const prevTask = pushTask(ctx, { slots: [0, 0] });
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
     }
@@ -175,9 +173,9 @@ export function liftSpilledFlat(plan: FunctionLiftPlan, ctx: MarshalingContext, 
         for (let i = 0; i < plan.paramStorers.length; i++) {
             plan.paramStorers[i]!(ctx, ptr + plan.spilledParamOffsets[i]!, args[i]);
         }
-        return handleLiftResult(plan, ctx, wasmFunction(ptr), processFlatResult, prevTaskSlots);
+        return handleLiftResult(plan, ctx, wasmFunction(ptr), processFlatResult, prevTask);
     } catch (e) {
-        ctx.currentTaskSlots = prevTaskSlots;
+        ctx.currentTask = prevTask;
         ctx.abort();
         throw e;
     } finally {
@@ -191,8 +189,7 @@ export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: MarshalingContex
     checkNotPoisoned(ctx);
     checkNotReentrant(ctx);
     ctx.inExport = true;
-    const prevTaskSlots = ctx.currentTaskSlots;
-    ctx.currentTaskSlots = [0, 0];
+    const prevTask = pushTask(ctx, { slots: [0, 0] });
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
         ctx.logger!('executor', LogLevel.Summary, `→ lifting args=${JSON.stringify(args, bigIntReplacer)}`);
     }
@@ -206,9 +203,9 @@ export function liftSpilledSpilled(plan: FunctionLiftPlan, ctx: MarshalingContex
         for (let i = 0; i < plan.paramStorers.length; i++) {
             plan.paramStorers[i]!(ctx, ptr + plan.spilledParamOffsets[i]!, args[i]);
         }
-        return handleLiftResult(plan, ctx, wasmFunction(ptr), processSpilledResult, prevTaskSlots);
+        return handleLiftResult(plan, ctx, wasmFunction(ptr), processSpilledResult, prevTask);
     } catch (e) {
-        ctx.currentTaskSlots = prevTaskSlots;
+        ctx.currentTask = prevTask;
         ctx.abort();
         throw e;
     } finally {

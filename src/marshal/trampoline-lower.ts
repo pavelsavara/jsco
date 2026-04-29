@@ -35,13 +35,14 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: MarshalingContext, r
 function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any,
     processResult: (plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any) => any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
-        // Save caller's task slots; restore on resume so context.get/set sees
-        // the right TLS even after the await window.
-        const callerSlots = ctx.currentTaskSlots;
+        // Save caller's task; restore on resume so canon built-ins
+        // (context.get/set, task.return) see the right per-task state
+        // even after the await window.
+        const callerTask = ctx.currentTask;
         const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
         return guarded.then(
             (val: any) => {
-                ctx.currentTaskSlots = callerSlots;
+                ctx.currentTask = callerTask;
                 checkHeapGrowth(ctx);
                 try { return processResult(plan, ctx, val); }
                 catch (e) {
@@ -54,7 +55,7 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
             // Rejection: don't poison the instance. async-lower transitions
             // the subtask cleanly to RETURNED; sync-lower JSPI traps the
             // caller. Both are recoverable per-task.
-            (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
+            (e: unknown) => { ctx.currentTask = callerTask; throw e; },
         );
     }
     return processResult(plan, ctx, resJs);
@@ -62,11 +63,11 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
 
 function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, retptr: number, resJs: any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
-        const callerSlots = ctx.currentTaskSlots;
+        const callerTask = ctx.currentTask;
         const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
         return guarded.then(
             (val: any) => {
-                ctx.currentTaskSlots = callerSlots;
+                ctx.currentTask = callerTask;
                 checkHeapGrowth(ctx);
                 try { return processSpilledResult(plan, ctx, retptr, val); }
                 catch (e) {
@@ -77,7 +78,7 @@ function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContex
                 }
             },
             // See handleLowerResult: don't poison on rejection.
-            (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
+            (e: unknown) => { ctx.currentTask = callerTask; throw e; },
         );
     }
     return processSpilledResult(plan, ctx, retptr, resJs);
