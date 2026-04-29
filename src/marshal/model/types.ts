@@ -47,10 +47,14 @@ export type MarshalingContext = {
     verbose?: Verbosity;
     logger?: LogFn;
     waitableSets: WaitableSetTable;
-    /** Per-task `context.{get,set}` TLS (canonical ABI). Swapped at every wasm
-     *  boundary so reentrant concurrent async exports stay isolated.
-     *  Default `[0, 0]` when no task is active. */
-    currentTaskSlots: number[];
+    /** Currently-executing task at the canon-built-in boundary. JS is
+     *  single-threaded, so between awaits exactly one wasm context is
+     *  active and `currentTask` points at *its* `TaskState`. Concurrent
+     *  async-lift exports re-install this single field synchronously
+     *  before each wasm-boundary `await`; canon built-ins (`context.get`,
+     *  `context.set`, `task.return`, …) read all per-task state through
+     *  this one pointer instead of multiple parallel fields. */
+    currentTask: TaskState;
     /** Backpressure counter for async component model flow control. */
     backpressure: number;
     /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
@@ -73,8 +77,19 @@ export type MarshalingContext = {
     heapAtLastYield?: number;
     /** Consecutive over-cap heap samples. */
     heapGrowthOverCount?: number;
-    /** Set by `createAsyncLiftWrapper` while an async export is in flight; the
-     *  bound `task.return` invokes this to deliver the lowered result to the
-     *  awaiting JS Promise. Re-installed at every wasm boundary. */
-    currentTaskReturn?: (jsResult: unknown) => void;
+}
+
+/** Per-task state read by canonical built-ins. Owned by the in-flight task
+ *  (sync lift trampoline, async-lift trampoline, default idle task). Single
+ *  source of truth for everything the spec calls "the current task": adding
+ *  a new per-task field means extending this struct, not adding another
+ *  `mctx.currentXxx` slot that every wasm boundary has to remember to swap.
+ */
+export interface TaskState {
+    /** `context.{get,set}` per-task TLS (canonical ABI), default `[0, 0]`. */
+    slots: number[];
+    /** Result delivery for an in-flight async-lifted export; bound by
+     *  `createAsyncLiftWrapper` and invoked by `task.return`. Undefined when
+     *  no async lift is active (sync exports / idle). */
+    taskReturn?: (jsResult: unknown) => void;
 }

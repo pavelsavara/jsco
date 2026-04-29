@@ -55,7 +55,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
         logger: resolved.logger,
-        currentTaskSlots: [0, 0],
+        currentTask: { slots: [0, 0] },
         backpressure: 0,
         pendingBackgroundTasks: [],
         opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,

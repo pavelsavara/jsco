@@ -371,6 +371,36 @@
           (param $event i32) (param $handle i32) (param $rc i32) (result i32)
       (i32.const 0) ;; EXIT — never reached because start traps before WAIT.
     )
+
+    ;; ------------------------------------------------------------------
+    ;; yield-spin: exercise the YIELD branch of the async-lift trampoline.
+    ;; start  → return YIELD with counter=N stored in ctx-0.
+    ;; cb     → decrement counter; YIELD again until it hits 0, then
+    ;;          task.return + EXIT.
+    ;; This is the only export that drives `await callbackWasm(0,0,0)`
+    ;; inside the trampoline's YIELD branch (status === 1). Other exports
+    ;; only ever return WAIT or EXIT from start/cb.
+    ;; ------------------------------------------------------------------
+    (func $yield-spin-start (export "yield-spin-start") (result i32)
+      ;; Hard-coded N=8 yields. Small enough to finish synchronously
+      ;; in microtask drain; large enough to exercise the loop.
+      (call $ctx-set-0 (i32.const 8))
+      (i32.const 1) ;; YIELD
+    )
+    (func $yield-spin-cb (export "yield-spin-cb")
+          (param $event i32) (param $handle i32) (param $rc i32) (result i32)
+      (local $n i32)
+      (local.set $n (call $ctx-get-0))
+      (local.set $n (i32.sub (local.get $n) (i32.const 1)))
+      (if (i32.eqz (local.get $n))
+        (then
+          (call $task-return (i32.const 0))
+          (return (i32.const 0)) ;; EXIT
+        )
+      )
+      (call $ctx-set-0 (local.get $n))
+      (i32.const 1) ;; YIELD
+    )
   )
 
   (core instance $host-exports
@@ -408,6 +438,8 @@
   (alias core export $core "survive-resource"   (core func $survive-resource-core))
   (alias core export $core "c2-double-return-start" (core func $c2-double-return-start-core))
   (alias core export $core "c2-double-return-cb"    (core func $c2-double-return-cb-core))
+  (alias core export $core "yield-spin-start"       (core func $yield-spin-start-core))
+  (alias core export $core "yield-spin-cb"          (core func $yield-spin-cb-core))
 
   (type $fn-async-void (func async (result $result-void)))
   ;; SYNC lift type for wait-once-sync (no `async`, no callback).
@@ -447,6 +479,11 @@
       (callback $c2-double-return-cb-core) (memory $mem)
     )
   )
+  (func $yield-spin (type $fn-async-void)
+    (canon lift (core func $yield-spin-start-core) async
+      (callback $yield-spin-cb-core) (memory $mem)
+    )
+  )
 
   (instance $runner-inst
     (export "wait-once"          (func $wait-once)         (func (type $fn-async-void)))
@@ -456,6 +493,7 @@
     (export "wait-once-sync"     (func $wait-once-sync)    (func (type $fn-sync-void)))
     (export "survive-resource"   (func $survive-resource)  (func (type $fn-sync-void)))
     (export "c2-double-return"   (func $c2-double-return)  (func (type $fn-async-void)))
+    (export "yield-spin"         (func $yield-spin)        (func (type $fn-async-void)))
   )
   (export "test:multi/runner@0.1.0" (instance $runner-inst))
 )

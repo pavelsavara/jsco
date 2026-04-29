@@ -11,13 +11,14 @@ import { createFunctionLiftingArtifacts } from '../binder';
 import { WasmFunction } from '../marshal/model/types';
 import { liftAsyncFlatParams } from '../marshal/trampoline-lift';
 import { checkNotPoisoned } from '../marshal/validation';
+import { pushTask } from '../marshal/task-state';
 import type { FunctionLiftPlan } from '../marshal/model/lift-plans';
 import { resolveComponentInstance } from './component-instances';
 import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, MarshalingContext, BinderRes, resolveCanonicalOptions } from './types';
-import type { WasmPointer, WasmSize } from '../marshal/model/types';
+import type { WasmPointer, WasmSize, TaskState } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -172,7 +173,7 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
  * loops until EXIT, delivering events from the waitable set.
  *
  * The function result is delivered out-of-band via `task.return` (installed
- * into `mctx.currentTaskReturn`); this trampoline resolves as soon as that
+ * into `mctx.currentTask.taskReturn`); this trampoline resolves as soon as that
  * fires, so post-return spawned subtasks (e.g. body-stream forwarders) can
  * continue draining while the host already consumes the value.
  *
@@ -197,15 +198,6 @@ function createAsyncLiftWrapper(
         // Refuse re-entry on a poisoned instance (mirrors sync lift trampoline).
         checkNotPoisoned(mctx);
 
-        // Per-task context.get/set TLS; swapped at every wasm boundary so
-        // concurrent reentrant async exports stay isolated. Restored on settle.
-        const taskSlots: number[] = [0, 0];
-        const previousTaskSlots = mctx.currentTaskSlots;
-        mctx.currentTaskSlots = taskSlots;
-
-        // Lift JS args → WASM flat args (resources → i32 handles).
-        const wasmArgs = liftAsyncFlatParams(liftPlan, mctx, args);
-
         // The trampoline resolves on `task.return`, not on EXIT — lets the host
         // consume the result while post-return subtasks continue running.
         let taskReturnSettle: ((v: { ok: true; value: unknown } | { ok: false; error: unknown }) => void) | undefined;
@@ -218,9 +210,6 @@ function createAsyncLiftWrapper(
         // poisons the instance and throws (matches Wasmtime
         // `Trap::TaskCancelOrReturnTwice`).
         let taskReturned = false;
-        const previousTaskReturn = mctx.currentTaskReturn;
-        // `mctx.currentTaskReturn` is a single field, so we re-install before
-        // every wasm boundary (same pattern as `currentTaskSlots`).
         const taskReturnHandler = (value: unknown): void => {
             if (taskReturned) {
                 const msg = 'task.return called more than once on the same task';
@@ -233,14 +222,23 @@ function createAsyncLiftWrapper(
                 taskReturnSettle = undefined;
             }
         };
-        mctx.currentTaskReturn = taskReturnHandler;
+
+        // All per-task state lives on a single TaskState pointer. JS is
+        // single-threaded, so re-installing this one field synchronously
+        // before each wasm-boundary `await` is sufficient to keep concurrent
+        // reentrant async exports isolated; canon built-ins (context.{get,set},
+        // task.return, …) read everything they need through `mctx.currentTask`.
+        const task: TaskState = { slots: [0, 0], taskReturn: taskReturnHandler };
+        const previousTask = pushTask(mctx, task);
+
+        // Lift JS args → WASM flat args (resources → i32 handles).
+        const wasmArgs = liftAsyncFlatParams(liftPlan, mctx, args);
 
         // Background driver: runs until callback returns EXIT. Errors before
         // task.return surface to the caller; errors after are swallowed.
         const eventLoop = (async (): Promise<void> => {
             // coreFn may be JSPI Promising-wrapped; await to extract i32 status.
-            mctx.currentTaskSlots = taskSlots;
-            mctx.currentTaskReturn = taskReturnHandler;
+            mctx.currentTask = task;
             let status = await coreFn(...wasmArgs) as number;
 
             let eventPtr = 0;
@@ -249,8 +247,7 @@ function createAsyncLiftWrapper(
             while (status !== EXIT) {
                 if (status === YIELD) {
                     // Yield: immediately call callback again
-                    mctx.currentTaskSlots = taskSlots;
-                    mctx.currentTaskReturn = taskReturnHandler;
+                    mctx.currentTask = task;
                     status = await callbackWasm(0, 0, 0) as number;
                     continue;
                 }
@@ -277,8 +274,7 @@ function createAsyncLiftWrapper(
                     const eventCode = view.getInt32(i * 12, true);
                     const handle = view.getInt32(i * 12 + 4, true);
                     const returnCode = view.getInt32(i * 12 + 8, true);
-                    mctx.currentTaskSlots = taskSlots;
-                    mctx.currentTaskReturn = taskReturnHandler;
+                    mctx.currentTask = task;
                     status = await callbackWasm(eventCode, handle, returnCode) as number;
                     if (status === EXIT) break;
                 }
@@ -298,8 +294,7 @@ function createAsyncLiftWrapper(
                     taskReturnSettle({ ok: true, value: undefined });
                     taskReturnSettle = undefined;
                 }
-                mctx.currentTaskReturn = previousTaskReturn;
-                mctx.currentTaskSlots = previousTaskSlots;
+                mctx.currentTask = previousTask;
             },
             (e: unknown) => {
                 // Throw before task.return → propagate; after → swallow
@@ -308,8 +303,7 @@ function createAsyncLiftWrapper(
                     taskReturnSettle({ ok: false, error: e });
                     taskReturnSettle = undefined;
                 }
-                mctx.currentTaskReturn = previousTaskReturn;
-                mctx.currentTaskSlots = previousTaskSlots;
+                mctx.currentTask = previousTask;
             },
         );
 
