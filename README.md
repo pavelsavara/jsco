@@ -175,7 +175,7 @@ HTTP/socket budgets enforced by the host. Run `jsco run --help` for the full lis
 - streaming compilation of WASM core modules during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
 - WASIp2 and WASIp3 host
-- small download size (~150KB), fast enough
+- keep download size small enough to be practical for browser use
 
 ## Why
 - to provide host which could do the binding in the browser

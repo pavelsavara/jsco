@@ -4,7 +4,6 @@
 - scenarios testing memory leaks
 - consider too many HTTP headers or too large body
 - update consumer,forwarder,implementer to cover all wasip2 functions and fix tests
-- fix `collectCoverageFrom` many exclusions are just excuses
 - dedicated tests for new p3 types. future, stream
 - validate string, list and buffer sizes to not cause OOM or out of range
 - WASIp3: interleaved suspension
@@ -14,7 +13,6 @@
 - add checks into integration-tests\consumer-p3\src\lib.rs that would try to overstep the boundaries set by CLI args and validate that proper error was raised
 - are we integration testing real http client and server ?
 - are we using all tests in the integration-tests\wasmtime folder ?
-- are there any skipped tests ?
 - running all tests is slow, why ?
 - tests for memory and resource leaks. unsubscribed listeners.
 - tests for streams/buffer back-pressure. files, sockets, http
@@ -22,21 +20,16 @@
 - do unit tests match the spec ?
 
 # Build
-- add coverage to CI, fail if lower than some %
 - produce NPM package and release it to www.npmjs.com
 - rollup magic to eliminate debug helpers and asserts (jsco_assert TODO in assert.ts)
 - use quoted properties for identifiers that must survive terser mangling (e.g. `leb128DecodeU64`, `buf`, `memory`)
-- reduce Release bundle size (264KB debug — target <40KB minified+gzipped)
-
-# WASI Preview 1
-- implement by forwarding to WASIp2 or WASIp3
-- test with D:\nesm\tests\samples\wasi\
+- reduce Release bundle size
 
 # WASI Preview 3
 - zero copy bring-your-own-buffer
 
 # Demo
-- create demo web site
+- reimplement demo website (large project)
 - command line in the browser for WASI cli programs
 - update `Demo scope` in readme
 
