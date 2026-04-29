@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { NetworkConfig } from '../host/wasip3/types';
-import { NETWORK_DEFAULTS } from '../host/wasip3/types';
+import type { NetworkConfig, AllocationLimits } from '../host/wasip3/types';
+import { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from '../host/wasip3/types';
 
 export interface FsMount {
     hostPath: string;
@@ -12,8 +12,10 @@ export interface FsMount {
 export interface CliOptions {
     useNumberForInt64: boolean;
     noJspi: boolean;
+    yieldThrottle: number | undefined;
     validateTypes: boolean;
     network: NetworkConfig;
+    limits: AllocationLimits;
     env: Record<string, string>;
     envInheritNames: string[];
     envInheritAll: boolean;
@@ -51,6 +53,7 @@ If a subcommand is not provided, the \`run\` subcommand will be used.
 Common Options:
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest
@@ -73,6 +76,7 @@ Arguments:
 Options:
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest.
@@ -109,6 +113,15 @@ Networking options:
   --max-request-url-bytes <N>         Max request URL length in bytes (default: ${NETWORK_DEFAULTS.maxRequestUrlBytes})
   --http-headers-timeout-ms <N>       Slowloris protection: headers timeout (default: ${NETWORK_DEFAULTS.httpHeadersTimeoutMs})
   --http-keep-alive-timeout-ms <N>    HTTP keep-alive timeout (default: ${NETWORK_DEFAULTS.httpKeepAliveTimeoutMs})
+
+Resource limits:
+  --max-allocation-size <N>           Max single allocation size in bytes (default: ${LIMIT_DEFAULTS.maxAllocationSize})
+  --max-handles <N>                   Max live resource handles per table (default: ${LIMIT_DEFAULTS.maxHandles})
+  --max-path-length <N>               Max filesystem path length in bytes (default: ${LIMIT_DEFAULTS.maxPathLength})
+  --max-memory-bytes <N>              Max WASM linear-memory size in bytes; 0 disables (default: ${LIMIT_DEFAULTS.maxMemoryBytes})
+  --max-canon-ops-without-yield <N>   Max canon built-in ops between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxCanonOpsWithoutYield})
+  --max-blocking-time-ms <N>          Max ms any single JSPI suspension may block; 0 disables (default: ${LIMIT_DEFAULTS.maxBlockingTimeMs})
+  --max-heap-growth-per-yield <N>     Max host heap growth (bytes) between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxHeapGrowthPerYield})
 `;
 
 const SERVE_HELP_TEXT = `Serves requests from a wasi:http proxy component
@@ -122,6 +135,7 @@ Options:
   --addr <SOCKADDR>          Socket address to bind to [default: 0.0.0.0:8080]
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
+  --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
   --validate-types           Enable type validation
   --dir <HOST_DIR[::GUEST_DIR[::ro]]>
                              Grant access of a host directory to a guest
@@ -141,6 +155,15 @@ Networking options:
   --http-request-timeout-ms <N>       HTTP request timeout in ms (default: ${NETWORK_DEFAULTS.httpRequestTimeoutMs})
   --http-headers-timeout-ms <N>       Slowloris protection: headers timeout (default: ${NETWORK_DEFAULTS.httpHeadersTimeoutMs})
   --http-keep-alive-timeout-ms <N>    HTTP keep-alive timeout (default: ${NETWORK_DEFAULTS.httpKeepAliveTimeoutMs})
+
+Resource limits:
+  --max-allocation-size <N>           Max single allocation size in bytes (default: ${LIMIT_DEFAULTS.maxAllocationSize})
+  --max-handles <N>                   Max live resource handles per table (default: ${LIMIT_DEFAULTS.maxHandles})
+  --max-path-length <N>               Max filesystem path length in bytes (default: ${LIMIT_DEFAULTS.maxPathLength})
+  --max-memory-bytes <N>              Max WASM linear-memory size in bytes; 0 disables (default: ${LIMIT_DEFAULTS.maxMemoryBytes})
+  --max-canon-ops-without-yield <N>   Max canon built-in ops between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxCanonOpsWithoutYield})
+  --max-blocking-time-ms <N>          Max ms any single JSPI suspension may block; 0 disables (default: ${LIMIT_DEFAULTS.maxBlockingTimeMs})
+  --max-heap-growth-per-yield <N>     Max host heap growth (bytes) between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxHeapGrowthPerYield})
 `;
 
 export function getHelpText(command?: 'run' | 'serve'): string {
@@ -160,8 +183,10 @@ function createDefaultOptions(): CliOptions {
     return {
         useNumberForInt64: false,
         noJspi: false,
+        yieldThrottle: undefined,
         validateTypes: true,
         network: {},
+        limits: {},
         env: {},
         envInheritNames: [],
         envInheritAll: false,
@@ -228,6 +253,19 @@ export function parseCliArgs(args: string[]): CliParseResult {
             options.useNumberForInt64 = true;
         } else if (arg === '--no-jspi') {
             options.noJspi = true;
+        } else if (arg.startsWith('--yield-throttle')) {
+            const cv = consumeValue(arg, '--yield-throttle', args, i);
+            if (!cv) {
+                error = 'Missing value for --yield-throttle';
+                return { command, componentUrl, options, error, help };
+            }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n <= 0) {
+                error = `Invalid value for --yield-throttle: ${cv.val} (expected positive integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.yieldThrottle = n;
         } else if (arg === '--validate-types') {
             options.validateTypes = true;
         } else if (arg.startsWith('--component=')) {
@@ -296,6 +334,76 @@ export function parseCliArgs(args: string[]): CliParseResult {
             }
             i = cv.nextI;
             options.addr = cv.val;
+        } else if (arg.startsWith('--max-allocation-size')) {
+            const cv = consumeValue(arg, '--max-allocation-size', args, i);
+            if (!cv) { error = 'Missing value for --max-allocation-size'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-allocation-size: ${cv.val} (expected non-negative integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxAllocationSize = n;
+        } else if (arg.startsWith('--max-handles')) {
+            const cv = consumeValue(arg, '--max-handles', args, i);
+            if (!cv) { error = 'Missing value for --max-handles'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-handles: ${cv.val} (expected non-negative integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxHandles = n;
+        } else if (arg.startsWith('--max-path-length')) {
+            const cv = consumeValue(arg, '--max-path-length', args, i);
+            if (!cv) { error = 'Missing value for --max-path-length'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-path-length: ${cv.val} (expected non-negative integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxPathLength = n;
+        } else if (arg.startsWith('--max-memory-bytes')) {
+            const cv = consumeValue(arg, '--max-memory-bytes', args, i);
+            if (!cv) { error = 'Missing value for --max-memory-bytes'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-memory-bytes: ${cv.val} (expected non-negative integer; 0 disables)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxMemoryBytes = n;
+        } else if (arg.startsWith('--max-canon-ops-without-yield')) {
+            const cv = consumeValue(arg, '--max-canon-ops-without-yield', args, i);
+            if (!cv) { error = 'Missing value for --max-canon-ops-without-yield'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-canon-ops-without-yield: ${cv.val} (expected non-negative integer; 0 disables)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxCanonOpsWithoutYield = n;
+        } else if (arg.startsWith('--max-blocking-time-ms')) {
+            const cv = consumeValue(arg, '--max-blocking-time-ms', args, i);
+            if (!cv) { error = 'Missing value for --max-blocking-time-ms'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-blocking-time-ms: ${cv.val} (expected non-negative integer; 0 disables)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxBlockingTimeMs = n;
+        } else if (arg.startsWith('--max-heap-growth-per-yield')) {
+            const cv = consumeValue(arg, '--max-heap-growth-per-yield', args, i);
+            if (!cv) { error = 'Missing value for --max-heap-growth-per-yield'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n < 0) {
+                error = `Invalid value for --max-heap-growth-per-yield: ${cv.val} (expected non-negative integer; 0 disables)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxHeapGrowthPerYield = n;
         } else if (arg.startsWith('--max-http-body-bytes')) {
             const cv = consumeValue(arg, '--max-http-body-bytes', args, i);
             if (!cv) { error = 'Missing value for --max-http-body-bytes'; return { command, componentUrl, options, error, help }; }

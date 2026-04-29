@@ -504,8 +504,17 @@ class NodeTcpSocket {
             onReadableDrop: undefined,
             [Symbol.asyncIterator]() {
                 const queue: Uint8Array[] = [];
+                let queuedBytes = 0;
                 let waiting: ((result: IteratorResult<Uint8Array>) => void) | null = null;
                 let done = false;
+                let paused = false;
+                // Apply Node socket-level backpressure: when the per-iterator
+                // queue grows beyond this threshold (e.g. guest is not reading),
+                // pause the socket so the kernel stops delivering 'data' events
+                // until the consumer drains. Without this, a fast remote writer
+                // can grow `queue` without bound and OOM the JS heap (F1/B5).
+                const HIGH_WATER = 256 * 1024; // 256 KB
+                const LOW_WATER = 64 * 1024; // 64 KB
 
                 pushFn = (value: Uint8Array): void => {
                     if (waiting) {
@@ -514,6 +523,11 @@ class NodeTcpSocket {
                         w({ value, done: false });
                     } else {
                         queue.push(value);
+                        queuedBytes += value.length;
+                        if (!paused && queuedBytes >= HIGH_WATER) {
+                            paused = true;
+                            socket.pause();
+                        }
                     }
                 };
                 closeFn = (): void => {
@@ -528,7 +542,13 @@ class NodeTcpSocket {
                 return {
                     next(): Promise<IteratorResult<Uint8Array>> {
                         if (queue.length > 0) {
-                            return Promise.resolve({ value: queue.shift()!, done: false });
+                            const value = queue.shift()!;
+                            queuedBytes -= value.length;
+                            if (paused && queuedBytes <= LOW_WATER) {
+                                paused = false;
+                                socket.resume();
+                            }
+                            return Promise.resolve({ value, done: false });
                         }
                         if (done) return Promise.resolve({ value: undefined as unknown as Uint8Array, done: true });
                         return new Promise(resolve => { waiting = resolve; });
@@ -1032,6 +1052,7 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
 // ──────────────────── Factory functions ────────────────────
 
 import { flattenResource, TCP_NON_RESULT, UDP_NON_RESULT } from '../sockets';
+import { ok, err } from '../result';
 
 export function createNodeSocketsTypes(): typeof WasiSocketsTypes {
     return {
@@ -1047,19 +1068,19 @@ export function createNodeIpNameLookup(): typeof WasiSocketsIpNameLookup {
         'resolve-addresses': async (name: string) => {
             try {
                 const result = await resolveAddresses(name);
-                return { tag: 'ok', val: result };
-            } catch (err: any) {
-                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-                throw err;
+                return ok(result);
+            } catch (e: any) {
+                if (e && typeof e === 'object' && typeof e.tag === 'string') return err(e);
+                throw e;
             }
         },
         resolveAddresses: async (name: string) => {
             try {
                 const result = await resolveAddresses(name);
-                return { tag: 'ok', val: result };
-            } catch (err: any) {
-                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-                throw err;
+                return ok(result);
+            } catch (e: any) {
+                if (e && typeof e === 'object' && typeof e.tag === 'string') return err(e);
+                throw e;
             }
         },
     } as unknown as typeof WasiSocketsIpNameLookup;

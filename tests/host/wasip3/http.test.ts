@@ -696,6 +696,27 @@ describe('HttpClient.send()', () => {
         globalThis.fetch = handler as typeof globalThis.fetch;
     }
 
+    // The host's `wasi:http/client.send` matches the WIT signature
+    // `async func(request) -> result<response, error-code>` and therefore returns
+    // `{ tag: 'ok', val: response }` on success and `{ tag: 'err', val: errorCode }`
+    // on known failure modes. This helper unwraps the success case and rethrows
+    // an Error (preserving the error-code tag) on the failure case so tests can
+    // continue to use `await` / `rejects.toThrow(...)` ergonomics.
+    async function sendUnwrap(
+        client: ReturnType<typeof createHttpClient>,
+        req: RequestLike,
+    ): Promise<ResponseLike> {
+        const r = await (client as unknown as {
+            send(r: RequestLike): Promise<{ tag: 'ok'; val: ResponseLike } | { tag: 'err'; val: { tag: string; val?: unknown } }>;
+        }).send(req);
+        if (r.tag === 'err') {
+            const code = r.val as { tag: string; val?: unknown };
+            const msg = typeof code.val === 'string' ? code.val : code.tag;
+            throw Object.assign(new Error(msg), code);
+        }
+        return r.val;
+    }
+
     function buildRequest(opts: {
         method?: { tag: string; val?: string };
         scheme?: { tag: string; val?: string };
@@ -724,7 +745,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/test' });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         expect(resp.getStatusCode()).toBe(200);
         const h = resp.getHeaders();
@@ -766,7 +787,7 @@ describe('HttpClient.send()', () => {
             path: '/upload',
             body,
         });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         expect(resp.getStatusCode()).toBe(201);
         expect(receivedBody).toBe('request body');
@@ -786,7 +807,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/' });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         // Consume body via consumeBody
         const resFuture = Promise.resolve({ tag: 'ok' as const, val: undefined });
@@ -810,8 +831,8 @@ describe('HttpClient.send()', () => {
         });
 
         await expect(
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req)
-        ).rejects.toThrow(/unsupported scheme/);
+            sendUnwrap(client, req)
+        ).rejects.toMatchObject({ tag: 'HTTP-request-URI-invalid' });
     });
 
     it('rejects missing scheme', async () => {
@@ -819,8 +840,8 @@ describe('HttpClient.send()', () => {
         const req = buildRequest({ authority: 'example.com', path: '/' });
 
         await expect(
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req)
-        ).rejects.toThrow(/missing scheme or authority/);
+            sendUnwrap(client, req)
+        ).rejects.toMatchObject({ tag: 'HTTP-request-URI-invalid' });
     });
 
     it('rejects missing authority', async () => {
@@ -828,8 +849,8 @@ describe('HttpClient.send()', () => {
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, path: '/' });
 
         await expect(
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req)
-        ).rejects.toThrow(/missing scheme or authority/);
+            sendUnwrap(client, req)
+        ).rejects.toMatchObject({ tag: 'HTTP-request-URI-invalid' });
     });
 
     it('maps fetch TypeError to error code', async () => {
@@ -841,7 +862,7 @@ describe('HttpClient.send()', () => {
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'no-such-host.invalid', path: '/' });
 
         await expect(
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req)
+            sendUnwrap(client, req)
         ).rejects.toThrow();
     });
 
@@ -854,7 +875,7 @@ describe('HttpClient.send()', () => {
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'slow-host.invalid', path: '/' });
 
         try {
-            await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+            await sendUnwrap(client, req);
             fail('should have thrown');
         } catch (e) {
             expect((e as { tag: string }).tag).toBe('connection-timeout');
@@ -871,8 +892,8 @@ describe('HttpClient.send()', () => {
         });
 
         await expect(
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req)
-        ).rejects.toThrow(/too long/);
+            sendUnwrap(client, req)
+        ).rejects.toMatchObject({ tag: 'HTTP-request-URI-too-long' });
     });
 
     it('uses request timeout from options', async () => {
@@ -891,7 +912,7 @@ describe('HttpClient.send()', () => {
             path: '/',
             options: opts,
         });
-        await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        await sendUnwrap(client, req);
         expect(receivedSignal).toBeDefined();
     });
 
@@ -906,7 +927,7 @@ describe('HttpClient.send()', () => {
         req.setPathWithQuery('/');
 
         const client = createHttpClient();
-        await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req as unknown as RequestLike);
+        await sendUnwrap(client, req as unknown as RequestLike);
 
         const result = await completionFuture;
         expect(result.tag).toBe('ok');
@@ -926,7 +947,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         try {
-            await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req as unknown as RequestLike);
+            await sendUnwrap(client, req as unknown as RequestLike);
         } catch {
             // expected
         }
@@ -940,7 +961,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/' });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         expect(resp.getStatusCode()).toBe(204);
     });
@@ -958,7 +979,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/' });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         const h = resp.getHeaders();
         expect(h.has('content-type')).toBe(true);
@@ -979,7 +1000,7 @@ describe('HttpClient.send()', () => {
             authority: 'example.com',
             path: '/resource',
         });
-        await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        await sendUnwrap(client, req);
         expect(receivedMethod).toBe('PUT');
     });
 
@@ -995,8 +1016,8 @@ describe('HttpClient.send()', () => {
         const req2 = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'b.com', path: '/2' });
 
         const [resp1, resp2] = await Promise.all([
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req1),
-            (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req2),
+            sendUnwrap(client, req1),
+            sendUnwrap(client, req2),
         ]);
 
         expect(resp1.getStatusCode()).toBe(200);
@@ -1018,7 +1039,7 @@ describe('HttpClient.send()', () => {
             path: '/',
             headers: [['x-custom', encode('myvalue')]],
         });
-        await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        await sendUnwrap(client, req);
         expect(receivedHeaders!.get('x-custom')).toBe('myvalue');
     });
 
@@ -1027,7 +1048,7 @@ describe('HttpClient.send()', () => {
 
         const client = createHttpClient();
         const req = buildRequest({ scheme: { tag: 'HTTPS' }, authority: 'example.com', path: '/' });
-        const resp = await (client as unknown as { send(r: RequestLike): Promise<ResponseLike> }).send(req);
+        const resp = await sendUnwrap(client, req);
 
         const resFuture = Promise.resolve({ tag: 'ok' as const, val: undefined });
         const [stream] = (types.Response as unknown as {

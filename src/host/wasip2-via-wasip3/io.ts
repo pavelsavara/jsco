@@ -12,6 +12,7 @@
 import type { WasiStreamReadable } from '../wasip3/streams';
 
 import type { StreamPair } from '../wasip3/streams';
+import { ok, err } from '../wasip3/result';
 
 // ─── wasi:io/error ───
 
@@ -114,15 +115,15 @@ export type StreamResult<T> =
     | { tag: 'err'; val: StreamError };
 
 function streamOk<T>(val: T): StreamResult<T> {
-    return { tag: 'ok', val };
+    return ok(val);
 }
 
 function streamClosed<T>(): StreamResult<T> {
-    return { tag: 'err', val: { tag: 'closed' } };
+    return err({ tag: 'closed' });
 }
 
 function streamFailed<T>(message: string): StreamResult<T> {
-    return { tag: 'err', val: { tag: 'last-operation-failed', val: createWasiError(message) } };
+    return err({ tag: 'last-operation-failed', val: createWasiError(message) });
 }
 
 export interface WasiInputStream {

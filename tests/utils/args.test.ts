@@ -302,6 +302,65 @@ describe('parseCliArgs', () => {
         });
     });
 
+    // ─── Resource limit CLI args ───
+
+    describe('resource limit CLI args', () => {
+        test('default limits is empty object', () => {
+            const result = parseCliArgs(['test.wasm']);
+            expect(result.options.limits).toEqual({});
+        });
+
+        test('--max-allocation-size with = syntax', () => {
+            const result = parseCliArgs(['--max-allocation-size=8388608', 'test.wasm']);
+            expect(result.options.limits.maxAllocationSize).toBe(8388608);
+        });
+
+        test('--max-allocation-size with space syntax', () => {
+            const result = parseCliArgs(['--max-allocation-size', '8388608', 'test.wasm']);
+            expect(result.options.limits.maxAllocationSize).toBe(8388608);
+        });
+
+        test('--max-handles', () => {
+            const result = parseCliArgs(['--max-handles=5000', 'test.wasm']);
+            expect(result.options.limits.maxHandles).toBe(5000);
+        });
+
+        test('--max-path-length', () => {
+            const result = parseCliArgs(['--max-path-length=2048', 'test.wasm']);
+            expect(result.options.limits.maxPathLength).toBe(2048);
+        });
+
+        test('--max-memory-bytes', () => {
+            const result = parseCliArgs(['--max-memory-bytes=134217728', 'test.wasm']);
+            expect(result.options.limits.maxMemoryBytes).toBe(134217728);
+        });
+
+        test('--max-memory-bytes=0 disables', () => {
+            const result = parseCliArgs(['--max-memory-bytes=0', 'test.wasm']);
+            expect(result.options.limits.maxMemoryBytes).toBe(0);
+        });
+
+        test('--max-canon-ops-without-yield', () => {
+            const result = parseCliArgs(['--max-canon-ops-without-yield=50000', 'test.wasm']);
+            expect(result.options.limits.maxCanonOpsWithoutYield).toBe(50000);
+        });
+
+        test('--max-canon-ops-without-yield=0 disables', () => {
+            const result = parseCliArgs(['--max-canon-ops-without-yield=0', 'test.wasm']);
+            expect(result.options.limits.maxCanonOpsWithoutYield).toBe(0);
+        });
+
+        test('--max-canon-ops-without-yield negative is rejected', () => {
+            const result = parseCliArgs(['--max-canon-ops-without-yield=-1', 'test.wasm']);
+            expect(result.error).toMatch(/Invalid value for --max-canon-ops-without-yield/);
+        });
+
+        test('--max-memory-bytes missing value', () => {
+            const result = parseCliArgs(['--max-memory-bytes']);
+            expect(result.error).toBe('Missing value for --max-memory-bytes');
+        });
+    });
+
     // ─── Networking CLI args ───
 
     describe('networking CLI args', () => {

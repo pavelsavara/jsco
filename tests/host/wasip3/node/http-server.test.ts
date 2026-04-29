@@ -86,7 +86,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -141,7 +141,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -182,7 +182,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(404);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -207,7 +207,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -239,7 +239,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -281,7 +281,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -304,7 +304,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(204);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -329,7 +329,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -367,7 +367,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -393,7 +393,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -420,7 +420,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 
@@ -462,7 +462,7 @@ describe('HTTP server (node)', () => {
                         trailersPromise as never,
                     );
                     response.setStatusCode(200);
-                    return response;
+                    return { tag: 'ok' as const, val: response };
                 },
             };
 

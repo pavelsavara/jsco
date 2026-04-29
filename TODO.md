@@ -19,7 +19,6 @@
 - tests for memory and resource leaks. unsubscribed listeners.
 - tests for streams/buffer back-pressure. files, sockets, http
 - consider fuzzing
-- fix p3_sockets_udp_connect and p3_sockets_tcp_streams
 - do unit tests match the spec ?
 
 # Build
@@ -49,6 +48,10 @@
 - donate this project to @bytecodealliance
 - write article on how it works
 - review which jsco_assert could be trimmed in release and which need to stay permanent
+- HTTP handler instance per call
+- document async in component model
+- review symmetries in the code
+- unify exception to error conversions
 
 # Resolver todo
 - export and import ABI interfaces for direct binding without JS ("fused adapters")

@@ -11,14 +11,18 @@ export type WasiResult<T, E> =
     | { tag: 'ok'; val: T }
     | { tag: 'err'; val: E };
 
-/** Construct an `ok` result. */
-export function ok<T>(value: T): WasiResult<T, never> {
-    return { tag: 'ok', val: value };
+/** Construct an `ok` result. Pass no argument for the void payload case. */
+export function ok(): WasiResult<void, never>;
+export function ok<T>(value: T): WasiResult<T, never>;
+export function ok<T>(value?: T): WasiResult<T | void, never> {
+    return { tag: 'ok', val: value as T };
 }
 
-/** Construct an `err` result. */
-export function err<E>(code: E): WasiResult<never, E> {
-    return { tag: 'err', val: code };
+/** Construct an `err` result. Pass no argument for the void payload case. */
+export function err(): WasiResult<never, void>;
+export function err<E>(code: E): WasiResult<never, E>;
+export function err<E>(code?: E): WasiResult<never, E | void> {
+    return { tag: 'err', val: code as E };
 }
 
 /**

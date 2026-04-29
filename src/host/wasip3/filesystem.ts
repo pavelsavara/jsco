@@ -26,7 +26,8 @@ import {
     resolvePathComponents,
 } from './vfs';
 import { createStreamPair } from './streams';
-import { ALLOCATION_DEFAULTS } from './types';
+import { LIMIT_DEFAULTS } from './types';
+import { ok, err, type WasiResult } from './result';
 
 // ──────────────────── Local type aliases ────────────────────
 // (avoids inline import() — per project conventions)
@@ -67,7 +68,7 @@ type DirectoryEntry = { type: DescriptorType; name: string };
 type ErrorCode = { tag: string; val?: string | undefined };
 type Advice = 'normal' | 'sequential' | 'random' | 'will-need' | 'dont-need' | 'no-reuse';
 type MetadataHashValue = { lower: bigint; upper: bigint };
-type Result<T, E> = { tag: 'ok'; val: T } | { tag: 'err'; val: E };
+type Result<T, E> = WasiResult<T, E>;
 type WasiFuture<T> = Promise<T>;
 
 // ──────────────────── Descriptor flags helpers ────────────────────
@@ -183,10 +184,10 @@ class FsDescriptor {
                     } catch (e) {
                         if (e instanceof VfsError) {
                             pair.error(e);
-                            return { tag: 'err' as const, val: vfsErrorToErrorCode(e) };
+                            return err(vfsErrorToErrorCode(e));
                         }
                         pair.error(e);
-                        return { tag: 'err' as const, val: { tag: 'io' } as ErrorCode };
+                        return err({ tag: 'io' } as ErrorCode);
                     }
                     if (chunk.length === 0) break;
                     await pair.write(chunk);
@@ -194,10 +195,10 @@ class FsDescriptor {
                     if (chunk.length < READ_CHUNK_SIZE) break;
                 }
                 pair.close();
-                return { tag: 'ok' as const, val: undefined as void };
+                return ok();
             } catch (e) {
                 pair.error(e);
-                return { tag: 'err' as const, val: { tag: 'io' } as ErrorCode };
+                return err({ tag: 'io' } as ErrorCode);
             }
         })();
 
@@ -363,14 +364,14 @@ class FsDescriptor {
                     });
                 }
                 pair.close();
-                return { tag: 'ok' as const, val: undefined as void };
+                return ok();
             } catch (e) {
                 if (e instanceof VfsError) {
                     pair.error(e);
-                    return { tag: 'err' as const, val: vfsErrorToErrorCode(e) };
+                    return err(vfsErrorToErrorCode(e));
                 }
                 pair.error(e);
-                return { tag: 'err' as const, val: { tag: 'io' } as ErrorCode };
+                return err({ tag: 'io' } as ErrorCode);
             }
         })();
 
@@ -558,7 +559,7 @@ export interface FilesystemState {
  */
 export function initFilesystem(config?: HostConfig): FilesystemState {
     const backend = new MemoryVfsBackend({ limits: config?.limits });
-    const maxPathLength = config?.limits?.maxPathLength ?? ALLOCATION_DEFAULTS.maxPathLength;
+    const maxPathLength = config?.limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
 
     // Populate from config.fs
     if (config?.fs) {

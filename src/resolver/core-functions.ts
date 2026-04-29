@@ -12,6 +12,7 @@ import {
     CanonicalFunctionFutureDropReadable, CanonicalFunctionFutureDropWritable,
     CanonicalFunctionErrorContextNew, CanonicalFunctionErrorContextDebugMessage, CanonicalFunctionErrorContextDrop,
     CanonicalFunctionContextGet, CanonicalFunctionContextSet,
+    CanonicalFunctionTaskReturn,
 } from '../parser/model/canonicals';
 import { ComponentExternalKind } from '../parser/model/exports';
 import { ComponentImport } from '../parser/model/imports';
@@ -19,8 +20,13 @@ import { ComponentTypeIndex, CoreFuncIndex } from '../parser/model/indices';
 import { ModelTag } from '../parser/model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../parser/model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
-import { createFunctionLowering } from '../binder';
+import { createFunctionLowering, createLowering, createMemoryLoader } from '../binder';
+import { flatCount, deepResolveType, resolveValType } from './calling-convention';
+import { MAX_FLAT_PARAMS } from './model/calling-convention';
 import { JsFunction } from '../marshal/model/types';
+import type { MarshalingContext } from '../marshal/model/types';
+import { withBlockingTimeout } from '../runtime/block-watchdog';
+import { checkHeapGrowth } from '../runtime/heap-watchdog';
 import { resolveComponentFunction } from './component-functions';
 import { resolveComponentAliasCoreInstanceExport } from './core-exports';
 import type { ResolvedType } from './type-resolution';
@@ -75,8 +81,9 @@ export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
             result = resolveCanonicalFunctionContextSet(rctx, rargs as any); break;
         case ModelTag.CanonicalFunctionTaskCancel:
         case ModelTag.CanonicalFunctionThreadYield:
-        case ModelTag.CanonicalFunctionSubtaskCancel:
             result = resolveCanonicalFunctionNotImplemented(rctx, rargs); break;
+        case ModelTag.CanonicalFunctionSubtaskCancel:
+            result = resolveCanonicalFunctionSubtaskCancel(rctx, rargs); break;
         case ModelTag.CanonicalFunctionSubtaskDrop:
             result = resolveCanonicalFunctionSubtaskDrop(rctx, rargs); break;
         case ModelTag.CanonicalFunctionWaitableSetNew:
@@ -140,6 +147,8 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
 
     const wrapLower = rctx.resolved.wrapLower;
     const isAsyncLower = canonOpts.async;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = wrapLower !== undefined;
 
     return {
         callerElement: rargs.callerElement,
@@ -182,12 +191,23 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                     return SubtaskState.RETURNED;
                 };
 
-                return { result: asyncLowerTrampoline };
+                return { result: wrapWithThrottle(asyncLowerTrampoline, effectivemctx, yieldThrottle, jspiEnabled) };
             }
 
             const wasmFunction = loweringBinder(effectivemctx, functionResult.result as JsFunction);
 
-            const finalFunction = wrapLower ? wrapLower(wasmFunction) : wasmFunction;
+            // Reset the canon-op budget when the host import suspended via JSPI
+            // (i.e. returned a Promise that was awaited). Sync returns do NOT
+            // reset — no event-loop tick happened.
+            const resetOnResume = (...wasmArgs: unknown[]): unknown => {
+                const r = (wasmFunction as (...a: unknown[]) => unknown)(...wasmArgs);
+                if (r instanceof Promise) {
+                    return r.then((v) => { effectivemctx.canonOpsSinceYield = 0; return v; });
+                }
+                return r;
+            };
+
+            const finalFunction = wrapLower ? wrapLower(resetOnResume) : resetOnResume;
 
             const binderResult = {
                 result: finalFunction
@@ -378,6 +398,30 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
     const ownBorrowFixups: { type: ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow; localValueIdx: number }[] = [];
     let localTypeIdx = 0;
 
+    // Phase 0: Pre-scan SubResource exports and populate localCanonicalIds
+    // BEFORE the main loop. This is required so the main loop's Eq(N) alias
+    // case (e.g. `type headers = fields;`) can inherit the canonical id of a
+    // SubResource declared earlier in the same instance type. Without this
+    // pre-scan, Phase 2a runs after the main loop and Eq aliases never get
+    // their canonical id propagated, causing own<headers> / borrow<headers>
+    // fixups to fail and the resource table to use raw local indices.
+    {
+        let preIdx = 0;
+        for (const decl of instance.declarations) {
+            if (!isTypeCreatingDeclaration(decl)) continue;
+            if (decl.tag === ModelTag.InstanceTypeDeclarationExport &&
+                decl.ty.tag === ModelTag.ComponentTypeRefType &&
+                decl.ty.value.tag === ModelTag.TypeBoundsSubResource) {
+                const key = `${instanceIndex}:${decl.name.name}`;
+                const canonicalId = rctx.resourceAliasGroups?.get(key);
+                if (canonicalId !== undefined) {
+                    localCanonicalIds.set(preIdx, canonicalId);
+                }
+            }
+            preIdx++;
+        }
+    }
+
     for (const decl of instance.declarations) {
         if (!isTypeCreatingDeclaration(decl)) {
             continue;
@@ -564,8 +608,100 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
 
 // --- Stream canonical built-ins ---
 
-export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStreamNew> = (_rctx, rargs) => {
+/**
+ * When `yieldThrottle` is set AND JSPI is enabled,
+ * wrap a sync canon built-in `fn` with `WebAssembly.Suspending` and force a
+ * macrotask round-trip every Nth call. The non-throttled path is the
+ * original sync function — zero overhead when the option is unset or
+ * JSPI unavailable.
+ *
+ * In addition, when `mctx.maxMemoryBytes` is set, every wrapped call
+ * verifies the WASM linear-memory size before invoking the built-in.
+ * When the guest has grown its memory past the cap (via memory.grow),
+ * the next canon op aborts the instance — preventing a malicious or
+ * runaway component from OOM'ing the JS process. The check is `mctx`-
+ * scoped and bypassed entirely when the cap is unset or zero.
+ *
+ * Finally, when `mctx.maxCanonOpsWithoutYield` is set (default-on),
+ * every wrapped call also ticks a per-mctx canon-op counter. The counter
+ * is reset on legitimate JSPI yield points (host-import resume,
+ * `waitable-set.wait` resume, and the throttle setImmediate path here);
+ * if it exceeds the cap before any yield, the next canon op aborts the
+ * instance. This is the documented mitigation against canon-built-in
+ * spin patterns (A1: `stream.read → stream.cancel-read` etc.) that
+ * cannot be fixed by Suspending-wrapping the cancel ops directly
+ * (would violate the canonical sync ABI).
+ */
+function wrapWithThrottle<TArgs extends unknown[], TRet>(
+    fn: (...args: TArgs) => TRet,
+    mctx: MarshalingContext,
+    yieldThrottle: number | undefined,
+    jspiEnabled: boolean,
+): (...args: TArgs) => TRet | Promise<TRet> {
+    const memCap = mctx.maxMemoryBytes;
+    const checkEnabled = memCap !== undefined && memCap > 0;
+    const throttleEnabled = yieldThrottle !== undefined && jspiEnabled;
+    const opsCap = mctx.maxCanonOpsWithoutYield;
+    const opsCapEnabled = opsCap !== undefined && opsCap > 0;
+    if (!checkEnabled && !throttleEnabled && !opsCapEnabled) return fn;
+
+    const enforceMemCap = checkEnabled
+        ? (): void => {
+            const buf = mctx.memory.getMemory().buffer;
+            if (buf.byteLength > (memCap as number)) {
+                mctx.abort(`memory cap exceeded: ${buf.byteLength} > ${memCap}`);
+                throw new WebAssembly.RuntimeError(`memory cap exceeded: ${buf.byteLength} > ${memCap}`);
+            }
+        }
+        : (): void => { /* no-op */ };
+
+    const enforceOpsCap = opsCapEnabled
+        ? (): void => {
+            const n = (mctx.canonOpsSinceYield ?? 0) + 1;
+            if (n > (opsCap as number)) {
+                mctx.abort(`canon-op budget exceeded without yielding: ${n} > ${opsCap} (likely DOS spin)`);
+                throw new WebAssembly.RuntimeError(`canon-op budget exceeded without yielding: ${n} > ${opsCap} (likely DOS spin)`);
+            }
+            mctx.canonOpsSinceYield = n;
+        }
+        : (): void => { /* no-op */ };
+
+    if (!throttleEnabled) {
+        // Pure cap-enforcement wrapper — no JSPI, no Promise return, no Suspending wrap.
+        return (...args: TArgs): TRet => {
+            enforceMemCap();
+            enforceOpsCap();
+            return fn(...args);
+        };
+    }
+
+    const throttled = (...args: TArgs): TRet | Promise<TRet> => {
+        enforceMemCap();
+        enforceOpsCap();
+        const result = fn(...args);
+        const n = (mctx.opsSinceYield ?? 0) + 1;
+        if (n >= (yieldThrottle as number)) {
+            mctx.opsSinceYield = 0;
+            // setImmediate yields to the event loop — legitimate yield, reset
+            // the canon-op budget too.
+            mctx.canonOpsSinceYield = 0;
+            return new Promise<TRet>((resolve) => {
+                setImmediate(() => {
+                    checkHeapGrowth(mctx);
+                    resolve(result);
+                });
+            });
+        }
+        mctx.opsSinceYield = n;
+        return result;
+    };
+    return new (WebAssembly as unknown as { Suspending: new (fn: Function) => Function }).Suspending(throttled) as (...args: TArgs) => TRet | Promise<TRet>;
+}
+
+export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStreamNew> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -573,13 +709,15 @@ export const resolveCanonicalFunctionStreamNew: Resolver<CanonicalFunctionStream
             const streamNewFn = (): bigint => {
                 return mctx.streams.newStream(elem.type);
             };
-            return { result: streamNewFn };
+            return { result: wrapWithThrottle(streamNewFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.new:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStreamRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStreamRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -587,13 +725,15 @@ export const resolveCanonicalFunctionStreamRead: Resolver<CanonicalFunctionStrea
             const streamReadFn = (handle: number, ptr: number, len: number): number => {
                 return mctx.streams.read(elem.type, handle, ptr, len);
             };
-            return { result: streamReadFn };
+            return { result: wrapWithThrottle(streamReadFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStreamWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStreamWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -601,13 +741,15 @@ export const resolveCanonicalFunctionStreamWrite: Resolver<CanonicalFunctionStre
             const streamWriteFn = (handle: number, ptr: number, len: number): number => {
                 return mctx.streams.write(elem.type, handle, ptr, len);
             };
-            return { result: streamWriteFn };
+            return { result: wrapWithThrottle(streamWriteFn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctionStreamCancelRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctionStreamCancelRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -615,13 +757,15 @@ export const resolveCanonicalFunctionStreamCancelRead: Resolver<CanonicalFunctio
             const fn = (handle: number): number => {
                 return mctx.streams.cancelRead(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.cancel-read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFunctionStreamCancelWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFunctionStreamCancelWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -629,13 +773,15 @@ export const resolveCanonicalFunctionStreamCancelWrite: Resolver<CanonicalFuncti
             const fn = (handle: number): number => {
                 return mctx.streams.cancelWrite(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.cancel-write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunctionStreamDropReadable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunctionStreamDropReadable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -643,13 +789,15 @@ export const resolveCanonicalFunctionStreamDropReadable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.streams.dropReadable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.drop-readable:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunctionStreamDropWritable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunctionStreamDropWritable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -657,15 +805,17 @@ export const resolveCanonicalFunctionStreamDropWritable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.streams.dropWritable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `stream.drop-writable:${elem.selfSortIndex}`)
     };
 };
 
 // --- Future canonical built-ins ---
 
-export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFutureNew> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFutureNew> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -673,13 +823,15 @@ export const resolveCanonicalFunctionFutureNew: Resolver<CanonicalFunctionFuture
             const fn = (): bigint => {
                 return mctx.futures.newFuture(elem.type);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.new:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutureRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutureRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -687,13 +839,15 @@ export const resolveCanonicalFunctionFutureRead: Resolver<CanonicalFunctionFutur
             const fn = (handle: number, ptr: number): number => {
                 return mctx.futures.read(elem.type, handle, ptr, mctx);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutureWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutureWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -701,13 +855,15 @@ export const resolveCanonicalFunctionFutureWrite: Resolver<CanonicalFunctionFutu
             const fn = (handle: number, ptr: number): number => {
                 return mctx.futures.write(elem.type, handle, ptr);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctionFutureCancelRead> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctionFutureCancelRead> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -715,13 +871,15 @@ export const resolveCanonicalFunctionFutureCancelRead: Resolver<CanonicalFunctio
             const fn = (handle: number): number => {
                 return mctx.futures.cancelRead(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.cancel-read:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFunctionFutureCancelWrite> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFunctionFutureCancelWrite> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -729,13 +887,15 @@ export const resolveCanonicalFunctionFutureCancelWrite: Resolver<CanonicalFuncti
             const fn = (handle: number): number => {
                 return mctx.futures.cancelWrite(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.cancel-write:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunctionFutureDropReadable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunctionFutureDropReadable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -743,13 +903,15 @@ export const resolveCanonicalFunctionFutureDropReadable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.futures.dropReadable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.drop-readable:${elem.selfSortIndex}`)
     };
 };
 
-export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunctionFutureDropWritable> = (_rctx, rargs) => {
+export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunctionFutureDropWritable> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -757,7 +919,7 @@ export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunct
             const fn = (handle: number): void => {
                 mctx.futures.dropWritable(elem.type, handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `future.drop-writable:${elem.selfSortIndex}`)
     };
 };
@@ -809,45 +971,51 @@ export const resolveCanonicalFunctionErrorContextDrop: Resolver<CanonicalFunctio
 // --- Async task canonical built-ins ---
 
 /** context.get — returns the value in the Nth context slot (per-task TLS). */
-const resolveCanonicalFunctionContextGet: Resolver<CanonicalFunctionContextGet> = (_rctx, rargs) => {
+const resolveCanonicalFunctionContextGet: Resolver<CanonicalFunctionContextGet> = (rctx, rargs) => {
     const elem = rargs.element;
     const slotIndex = elem.index;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (): number => {
-                return mctx.taskContextSlots[slotIndex] ?? 0;
+                return mctx.currentTaskSlots[slotIndex] ?? 0;
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `context.get:${elem.selfSortIndex}`)
     };
 };
 
 /** context.set — stores a value in the Nth context slot (per-task TLS). */
-const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> = (_rctx, rargs) => {
+const resolveCanonicalFunctionContextSet: Resolver<CanonicalFunctionContextSet> = (rctx, rargs) => {
     const elem = rargs.element;
     const slotIndex = elem.index;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (value: number): void => {
-                mctx.taskContextSlots[slotIndex] = value;
+                mctx.currentTaskSlots[slotIndex] = value;
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `context.set:${elem.selfSortIndex}`)
     };
 };
 
 /** backpressure — inc/dec/set the backpressure counter (no-op for now). */
-const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
-            let fn: Function;
+            let fn: (...args: number[]) => void;
             if (elem.tag === ModelTag.CanonicalFunctionBackpressureInc) {
                 fn = (): void => { mctx.backpressure++; };
             } else if (elem.tag === ModelTag.CanonicalFunctionBackpressureDec) {
@@ -856,21 +1024,67 @@ const resolveCanonicalFunctionBackpressure: Resolver<CoreFunction> = (_rctx, rar
                 // backpressure.set (legacy) — treat 0 as dec, non-0 as inc
                 fn = (value: number): void => { mctx.backpressure += value ? 1 : -1; };
             }
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `backpressure:${elem.selfSortIndex}`)
     };
 };
 
-/** task.return — delivers the result of an async export to the caller. For now, a no-op stub. */
-const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (_rctx, rargs) => {
-    const elem = rargs.element;
+/** task.return — delivers the result of an async-lifted export to the awaiting JS caller.
+ *
+ * The guest calls this with the WASM-flat representation of the function's
+ * declared result type:
+ *   - flatCount = 0 (void result): no args.
+ *   - flatCount = 1 (Scalar):       one core arg, lowered via the flat lowerer.
+ *   - flatCount > 1 (Spilled):      one i32 ptr arg, loaded via the memory loader.
+ *
+ * The lowered JS value is delivered through `mctx.currentTaskReturn` which is
+ * set by `createAsyncLiftWrapper` for the duration of the in-flight task.
+ * If the slot is missing (no in-flight async-lift task) the call is silently
+ * ignored. If the slot is present but the task already resolved, the slot
+ * itself throws a `WebAssembly.RuntimeError` and aborts the instance — this
+ * is the spec contract (see Wasmtime `Trap::TaskCancelOrReturnTwice`). */
+const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs) => {
+    const elem = rargs.element as CanonicalFunctionTaskReturn;
+    jsco_assert(elem.tag === ModelTag.CanonicalFunctionTaskReturn,
+        () => `expected CanonicalFunctionTaskReturn, got ${elem.tag}`);
+    const resultValType = elem.results.type;
+
+    let liftToJs: ((mctx: MarshalingContext, ...args: number[]) => unknown) | undefined;
+    if (resultValType !== undefined) {
+        // Deep-resolve type aliases first so flatCountForValType / lift plans
+        // operate on a fully-concrete type. Calling flatCountForValType on a
+        // raw ComponentValTypeType (alias to a section type) throws.
+        const resolvedResult = deepResolveType(rctx.resolved, resolveValType(rctx.resolved, resultValType));
+        const flat = flatCount(resolvedResult);
+        if (flat === 0) {
+            // void payload
+        } else if (flat <= MAX_FLAT_PARAMS) {
+            // task.return receives the result as PARAMS to a core function
+            // (the guest lowers the result and passes flat values as args).
+            // The flat-vs-spilled threshold is therefore MAX_FLAT_PARAMS, not
+            // MAX_FLAT_RESULTS.
+            const lowerer = createLowering(rctx.resolved, resolvedResult);
+            liftToJs = (mctx: MarshalingContext, ...args: number[]): unknown => lowerer(mctx, ...args as any);
+        } else {
+            const loader = createMemoryLoader(
+                resolvedResult,
+                rctx.resolved.stringEncoding,
+                rctx.resolved.canonicalResourceIds,
+                rctx.resolved.ownInstanceResources,
+                rctx.resolved.usesNumberForInt64,
+            );
+            liftToJs = (mctx: MarshalingContext, ptr: number): unknown => loader(mctx, ptr);
+        }
+    }
+
     return {
         callerElement: rargs.callerElement,
         element: elem,
-        binder: withDebugTrace(async (): Promise<BinderRes> => {
-            const fn = (..._args: number[]): void => {
-                // task.return delivers the result. In our synchronous-ish execution model,
-                // the result is returned via the normal lifting path. This is a no-op.
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (...args: number[]): void => {
+                if (!mctx.currentTaskReturn) return;
+                const value = liftToJs ? liftToJs(mctx, ...args) : undefined;
+                mctx.currentTaskReturn(value);
             };
             return { result: fn };
         }, `task.return:${elem.selfSortIndex}`)
@@ -879,14 +1093,16 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (_rctx, rargs
 
 // --- Waitable-set canonical built-ins ---
 
-const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (): number => mctx.waitableSets.newSet();
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.new:${elem.selfSortIndex}`)
     };
 };
@@ -897,50 +1113,73 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
-            const fn = (setId: number, ptr: number): number | Promise<number> => mctx.waitableSets.wait(setId, ptr);
+            const fn = (setId: number, ptr: number): number | Promise<number> => {
+                const r = mctx.waitableSets.wait(setId, ptr);
+                if (r instanceof Promise) {
+                    // Promise return ⇒ wait actually blocked ⇒ JSPI will suspend
+                    // wasm and the event loop will tick before we resume. Reset
+                    // the canon-op budget on resume; sync return (events ready
+                    // immediately) does NOT reset.
+                    const guarded = withBlockingTimeout(mctx, r, 'waitable-set.wait');
+                    return (guarded as Promise<number>).then((v) => {
+                        mctx.canonOpsSinceYield = 0;
+                        checkHeapGrowth(mctx);
+                        return v;
+                    });
+                }
+                return r;
+            };
             return { result: fn };
         }, `waitable-set.wait:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetPoll: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (setId: number, ptr: number): number => mctx.waitableSets.poll(setId, ptr);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.poll:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetDrop: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (setId: number): void => mctx.waitableSets.drop(setId);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable-set.drop:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableJoin: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (waitableHandle: number, setId: number): void => mctx.waitableSets.join(waitableHandle, setId);
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `waitable.join:${elem.selfSortIndex}`)
     };
 };
 
-const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -949,8 +1188,25 @@ const resolveCanonicalFunctionSubtaskDrop: Resolver<CoreFunction> = (_rctx, rarg
                 mctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
                 mctx.subtasks.drop(handle);
             };
-            return { result: fn };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
         }, `subtask.drop:${elem.selfSortIndex}`)
+    };
+};
+
+const resolveCanonicalFunctionSubtaskCancel: Resolver<CoreFunction> = (rctx, rargs) => {
+    const elem = rargs.element;
+    const yieldThrottle = rctx.resolved.yieldThrottle;
+    const jspiEnabled = rctx.resolved.wrapLower !== undefined;
+    return {
+        callerElement: rargs.callerElement,
+        element: elem,
+        binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
+            const fn = (handle: number): number => {
+                mctx.waitableSets.join(handle, 0); // disjoin from any waitable-set
+                return mctx.subtasks.cancel(handle);
+            };
+            return { result: wrapWithThrottle(fn, mctx, yieldThrottle, jspiEnabled) };
+        }, `subtask.cancel:${elem.selfSortIndex}`)
     };
 };
 

@@ -20,7 +20,16 @@ import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Sto
 import camelCase from 'just-camel-case';
 
 
-export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+/** Pre-built lifting artifacts for a component function: the lift plan, calling
+ * convention, and a binder factory closure that returns the JS-callable lifted
+ * function for a given marshaling context. Memoized per `ComponentTypeFunc`. */
+export type FunctionLiftingArtifacts = {
+    plan: FunctionLiftPlan;
+    callingConvention: import('../resolver/calling-convention').FunctionCallingConvention;
+    lifter: FnLiftingCallFromJs;
+};
+
+export function createFunctionLiftingArtifacts(rctx: ResolvedContext, importModel: ComponentTypeFunc): FunctionLiftingArtifacts {
     return memoize(rctx.liftingCache, importModel, () => {
         const callingConvention = determineFunctionCallingConvention(deepResolveType(rctx, importModel) as ComponentTypeFunc);
         const paramLifters: LiftingFromJs[] = [];
@@ -107,9 +116,14 @@ export function createFunctionLifting(rctx: ResolvedContext, importModel: Compon
         const trampoline = callingConvention.params === CallingConvention.Spilled
             ? (callingConvention.results === CallingConvention.Spilled ? liftSpilledSpilled : liftSpilledFlat)
             : (callingConvention.results === CallingConvention.Spilled ? liftFlatSpilled : liftFlatFlat);
-        return (ctx: MarshalingContext, wasmFunction: WasmFunction): JsFunction =>
+        const lifter: FnLiftingCallFromJs = (ctx: MarshalingContext, wasmFunction: WasmFunction): JsFunction =>
             trampoline.bind(null, plan, ctx, wasmFunction) as JsFunction;
+        return { plan, callingConvention, lifter };
     });
+}
+
+export function createFunctionLifting(rctx: ResolvedContext, importModel: ComponentTypeFunc): FnLiftingCallFromJs {
+    return createFunctionLiftingArtifacts(rctx, importModel).lifter;
 }
 
 

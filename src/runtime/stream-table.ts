@@ -2,10 +2,11 @@
 
 import type { MarshalingContext } from '../marshal/model/types';
 import type { MemoryView, StreamTable, StreamEntry, RuntimeConfig } from './model/types';
-import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_BLOCKED, STREAM_BACKPRESSURE } from './constants';
+import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_STATUS_CANCELLED, STREAM_BLOCKED, STREAM_BACKPRESSURE, STREAM_BACKPRESSURE_CHUNKS } from './constants';
 
 export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig, signal: AbortSignal = new AbortController().signal): StreamTable {
     const backpressureThreshold = config?.streamBackpressureBytes ?? STREAM_BACKPRESSURE;
+    const backpressureChunks = config?.streamBackpressureChunks ?? STREAM_BACKPRESSURE_CHUNKS;
 
     // Handle numbering: even = readable, odd = writable. Base = handle & ~1.
     const entries = new Map<number, StreamEntry>();
@@ -14,24 +15,36 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
 
     function baseHandle(handle: number): number { return handle & ~1; }
 
-    /** Signal that data arrived or stream closed — notify waitable-set watchers. */
+    /** Signal that data arrived or stream closed — notify waitable-set watchers.
+     * Mirrors checkWriteReady's "fire-and-clear" pattern: clear the callback
+     * list before invoking so a slow guest that produces N chunks doesn't
+     * leak N copies of every old waitable-set resolver across signal cycles.
+     * Listeners that want to keep watching must re-register via onReady(). */
     function signalReady(entry: StreamEntry): void {
-        if (entry.onReady) {
-            for (const cb of entry.onReady) cb();
-        }
+        if (!entry.onReady || entry.onReady.length === 0) return;
+        const cbs = entry.onReady;
+        entry.onReady = undefined;
+        for (const cb of cbs) cb();
     }
 
     /** Signal that buffer drained below threshold — notify write-side waiters. */
     function checkWriteReady(entry: StreamEntry): void {
-        if (entry.onWriteReady && ((entry.bufferedBytes ?? 0) < backpressureThreshold || entry.closed)) {
-            for (const cb of entry.onWriteReady) cb();
+        if (!entry.onWriteReady || entry.onWriteReady.length === 0) return;
+        const overBytes = (entry.bufferedBytes ?? 0) >= backpressureThreshold;
+        const overChunks = entry.chunks.length >= backpressureChunks;
+        if (entry.closed || (!overBytes && !overChunks)) {
+            const cbs = entry.onWriteReady;
+            entry.onWriteReady = undefined;
+            for (const cb of cbs) cb();
         }
     }
 
     /** Pump an async iterable into a stream entry's buffer in the background. */
     function pumpIterable(iterable: AsyncIterable<unknown>, entry: StreamEntry): void {
         const iter = iterable[Symbol.asyncIterator]();
+        let pumping = false;
         function pump(): void {
+            if (pumping) return;
             if (signal.aborted) {
                 iter.return?.();
                 entry.closed = true;
@@ -41,7 +54,19 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 signalReady(entry);
                 return;
             }
+            // F1/B5 mitigation: pause pumping when buffer is full; resume when
+            // reader drains via checkWriteReady. Without this, a fast JS-side
+            // iterable (e.g. a network socket) accumulates chunks indefinitely
+            // when the guest doesn't read, OOMing the JS heap.
+            if (entry.chunks.length >= backpressureChunks ||
+                (entry.bufferedBytes ?? 0) >= backpressureThreshold) {
+                if (!entry.onWriteReady) entry.onWriteReady = [];
+                entry.onWriteReady.push(pump);
+                return;
+            }
+            pumping = true;
             iter.next().then((result) => {
+                pumping = false;
                 if (signal.aborted) {
                     iter.return?.();
                     entry.closed = true;
@@ -62,12 +87,16 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                         entry.waitingReader(result.value);
                     } else {
                         entry.chunks.push(result.value);
+                        if (result.value instanceof Uint8Array) {
+                            entry.bufferedBytes = (entry.bufferedBytes ?? 0) + result.value.length;
+                        }
                     }
                     signalReady(entry);
                     pump(); // continue pumping
                 }
             }, () => {
                 // Error in iterable — close the stream
+                pumping = false;
                 entry.closed = true;
                 if (entry.waitingReader) {
                     entry.waitingReader(null);
@@ -141,6 +170,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             count++;
         }
         if (count > 0) {
+            checkWriteReady(entry);
             return (count << 4) | STREAM_STATUS_COMPLETED;
         }
         if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
@@ -215,36 +245,62 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
         cancelRead(_typeIdx: number, handle: number): number {
             const base = baseHandle(handle);
             const entry = entries.get(base);
-            if (entry) entry.pendingRead = undefined;
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            // Per canonical ABI (`pack_copy_result`): cancel-read returns
+            // CANCELLED when the read was successfully cancelled with no data
+            // transferred. If data already arrived (entry.chunks has data
+            // matching the pending read) the host should return COMPLETED with
+            // the byte count; today we cancel before delivering, so always
+            // return CANCELLED(0). If the stream has been closed, return
+            // DROPPED(0). If no read was pending, return COMPLETED(0)
+            // (no-op cancellation).
+            const hadPending = entry.pendingRead !== undefined;
+            entry.pendingRead = undefined;
+            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (hadPending) return (0 << 4) | STREAM_STATUS_CANCELLED;
             return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
 
-        cancelWrite(_typeIdx: number, _handle: number): number {
-            return (0 << 4) | STREAM_STATUS_COMPLETED;
+        cancelWrite(_typeIdx: number, handle: number): number {
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
+            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            // Symmetric to cancelRead: writes that haven't been buffered yet
+            // are reported CANCELLED. Today our `write()` is synchronous (it
+            // either buffers or returns BLOCKED), so there's no in-flight
+            // pending write to cancel — return CANCELLED(0) as a no-op.
+            return (0 << 4) | STREAM_STATUS_CANCELLED;
         },
 
         dropReadable(_typeIdx: number, handle: number): void {
             const base = baseHandle(handle);
-            jsReadables.delete(handle);
             const entry = entries.get(base);
-            if (entry) {
-                entry.closed = true;
-                if (entry.onReadableDrop) entry.onReadableDrop();
-                checkWriteReady(entry);
+            if (!entry || entry.readableDropped) {
+                throw new WebAssembly.RuntimeError(`stream.drop-readable: handle ${handle} already dropped`);
             }
+            entry.readableDropped = true;
+            jsReadables.delete(handle);
+            entry.closed = true;
+            if (entry.onReadableDrop) entry.onReadableDrop();
+            checkWriteReady(entry);
+            if (entry.writableDropped) entries.delete(base);
         },
 
         dropWritable(_typeIdx: number, handle: number): void {
             const base = baseHandle(handle);
-            jsWritables.delete(handle);
             const entry = entries.get(base);
-            if (entry) {
-                entry.closed = true;
-                if (entry.waitingReader) {
-                    entry.waitingReader(null);
-                }
-                signalReady(entry);
+            if (!entry || entry.writableDropped) {
+                throw new WebAssembly.RuntimeError(`stream.drop-writable: handle ${handle} already dropped`);
             }
+            entry.writableDropped = true;
+            jsWritables.delete(handle);
+            entry.closed = true;
+            if (entry.waitingReader) {
+                entry.waitingReader(null);
+            }
+            signalReady(entry);
+            if (entry.readableDropped) entries.delete(base);
         },
 
         addReadable(_typeIdx: number, value: unknown, elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number, mctx?: MarshalingContext): number {
@@ -266,14 +322,23 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             return jsReadables.get(handle);
         },
         removeReadable(_typeIdx: number, handle: number): unknown {
+            // If the value was an AsyncIterable that we pumped into the entry
+            // buffer in addReadable, the original iterable is now (partially or
+            // fully) drained. In that case, return an iterable backed by the
+            // buffer so the host can read whatever was buffered (and whatever
+            // is still being pumped). Otherwise, return the original value
+            // (e.g. a non-iterable host-side handle).
+            const base = baseHandle(handle);
+            const entry = entries.get(base);
             const val = jsReadables.get(handle);
-            if (val) {
+            if (val !== undefined) {
                 jsReadables.delete(handle);
+                if (entry && typeof (val as any)[Symbol.asyncIterator] === 'function') {
+                    return makeAsyncIterable(entry);
+                }
                 return val;
             }
             // For stream.new()-created handles, create an async iterable from the buffer
-            const base = baseHandle(handle);
-            const entry = entries.get(base);
             if (entry) return makeAsyncIterable(entry);
             return undefined;
         },

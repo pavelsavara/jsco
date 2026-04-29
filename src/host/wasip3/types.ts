@@ -5,4 +5,4 @@
  */
 
 export type { MountConfig, NetworkConfig, AllocationLimits, HostConfig } from '../../runtime/model/types';
-export { NETWORK_DEFAULTS, ALLOCATION_DEFAULTS } from '../../runtime/model/types';
+export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from '../../runtime/model/types';

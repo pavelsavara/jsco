@@ -31,7 +31,7 @@ import type {
 } from '../vfs';
 import { VfsNodeType, VfsError, resolvePathComponents, createFileNode, createDirectoryNode } from '../vfs';
 import type { AllocationLimits, MountConfig } from '../types';
-import { ALLOCATION_DEFAULTS } from '../types';
+import { LIMIT_DEFAULTS } from '../types';
 import { _FsDescriptor as FsDescriptor } from '../filesystem';
 import type { FilesystemState } from '../filesystem';
 
@@ -159,8 +159,8 @@ export class NodeFsBackend implements IVfsBackend {
     constructor(hostRoot: string, readOnly: boolean, limits?: AllocationLimits) {
         this.hostRoot = nodePath.resolve(hostRoot);
         this.readOnly = readOnly;
-        this.maxPathLength = limits?.maxPathLength ?? ALLOCATION_DEFAULTS.maxPathLength;
-        this.maxAllocationSize = limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
+        this.maxPathLength = limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
+        this.maxAllocationSize = limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
     }
 
     private resolve(parts: string[]): string {
@@ -420,7 +420,7 @@ export function addNodeMounts(
     mounts: MountConfig[],
     limits?: AllocationLimits,
 ): void {
-    const maxPathLength = limits?.maxPathLength ?? ALLOCATION_DEFAULTS.maxPathLength;
+    const maxPathLength = limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
 
     for (const mount of mounts) {
         const hostAbsolute = nodePath.resolve(mount.hostPath);
