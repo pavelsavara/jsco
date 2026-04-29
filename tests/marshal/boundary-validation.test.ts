@@ -195,3 +195,129 @@ describe('memory-store boundary validation (JS → WASM, structured)', () => {
 
 // Reference imports to avoid unused-import lint
 void u8Lifting;
+
+// Deterministic xorshift32 PRNG so failures reproduce exactly from the seed.
+function makeRng(seed: number): () => number {
+    let s = seed | 0;
+    return () => {
+        s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+        return (s >>> 0) / 0x1_0000_0000;
+    };
+}
+
+describe('boundary validation fuzz (log-scale length sweep)', () => {
+    const CAP = 1024;
+    const MAX_LEN = 1 << 30; // 1 GiB — well above cap
+    const ITERATIONS = 200;
+
+    // Sample lengths on a log scale: each sample is r * 2^k for k in [0..30].
+    function sampleLogScaleLen(rng: () => number): number {
+        const k = Math.floor(rng() * 31);
+        const span = Math.max(1, 1 << k);
+        return Math.min(MAX_LEN, Math.floor(rng() * span) + (rng() < 0.05 ? span : 0));
+    }
+
+    test('stringLiftingUtf8: every length either succeeds or throws RangeError', () => {
+        const rng = makeRng(0xC0FFEE);
+        const ctx = makeCtx(64 * 1024, CAP);
+        const out: WasmValue[] = [0, 0];
+        let succeeded = 0, rejected = 0;
+        for (let i = 0; i < ITERATIONS; i++) {
+            const len = sampleLogScaleLen(rng);
+            const str = 'a'.repeat(Math.min(len, 100_000)); // bounded to keep allocation finite
+            try {
+                stringLiftingUtf8(ctx, str, out, 0);
+                succeeded++;
+                expect(str.length).toBeLessThanOrEqual(CAP);
+            } catch (e) {
+                rejected++;
+                expect(e).toBeInstanceOf(RangeError);
+                expect(String(e)).toMatch(/exceeds maxAllocationSize|is invalid/);
+            }
+        }
+        expect(succeeded + rejected).toBe(ITERATIONS);
+    });
+
+    test('listLifting: every length either succeeds or throws RangeError', () => {
+        const rng = makeRng(0xDEADBEEF);
+        const ctx = makeCtx(64 * 1024, CAP);
+        const out: WasmValue[] = [0, 0];
+        const plan = { elemSize: 4, elemAlign: 4, elemStorer: (_c: any, _p: number, _v: any) => { /* noop */ } } as any;
+        let succeeded = 0, rejected = 0;
+        for (let i = 0; i < ITERATIONS; i++) {
+            const len = Math.min(sampleLogScaleLen(rng), 10_000);
+            const arr = new Array(len).fill(0);
+            try {
+                listLifting(plan, ctx, arr, out, 0);
+                succeeded++;
+                expect(len * 4).toBeLessThanOrEqual(CAP);
+            } catch (e) {
+                rejected++;
+                expect(e).toBeInstanceOf(RangeError);
+            }
+        }
+        expect(succeeded + rejected).toBe(ITERATIONS);
+    });
+
+    test('stringLoweringUtf8: every guest-supplied len either succeeds or throws RangeError', () => {
+        const rng = makeRng(0x12345678);
+        const ctx = makeCtx(2 * CAP, CAP);
+        let succeeded = 0, rejected = 0;
+        // Pre-fill the first CAP bytes with valid ASCII so success path decodes cleanly.
+        new Uint8Array(ctx.memory.getMemory().buffer).fill(0x61, 0, CAP);
+        for (let i = 0; i < ITERATIONS; i++) {
+            const len = sampleLogScaleLen(rng);
+            try {
+                stringLoweringUtf8(ctx, 0, len);
+                succeeded++;
+                expect(len).toBeLessThanOrEqual(CAP);
+            } catch (e) {
+                rejected++;
+                expect(e).toBeInstanceOf(RangeError);
+            }
+        }
+        expect(succeeded + rejected).toBe(ITERATIONS);
+    });
+
+    test('listLowering: every guest-supplied len either succeeds or throws RangeError', () => {
+        const rng = makeRng(0xFEEDFACE);
+        const ctx = makeCtx(2 * CAP, CAP);
+        const plan = { elemSize: 4, elemAlign: 4, elemLoader: () => 0 } as any;
+        let succeeded = 0, rejected = 0;
+        for (let i = 0; i < ITERATIONS; i++) {
+            const len = sampleLogScaleLen(rng);
+            try {
+                listLowering(plan, ctx, 0, len);
+                succeeded++;
+                expect(len * 4).toBeLessThanOrEqual(CAP);
+            } catch (e) {
+                rejected++;
+                expect(e).toBeInstanceOf(RangeError);
+            }
+        }
+        expect(succeeded + rejected).toBe(ITERATIONS);
+    });
+
+    test('no unhandled-rejection escapes the fuzz sweep', async () => {
+        // Verifies that throwing from a synchronous lift/lower call does not
+        // leak any unawaited Promise rejection into the next tick.
+        const unhandled: unknown[] = [];
+        const onUnhandled = (e: any): void => { unhandled.push(e); };
+        process.on('unhandledRejection', onUnhandled);
+        try {
+            const rng = makeRng(0xBADF00D);
+            const ctx = makeCtx(64 * 1024, CAP);
+            const out: WasmValue[] = [0, 0];
+            for (let i = 0; i < ITERATIONS; i++) {
+                const len = sampleLogScaleLen(rng);
+                const str = 'a'.repeat(Math.min(len, 100_000));
+                try { stringLiftingUtf8(ctx, str, out, 0); } catch { /* expected */ }
+            }
+            // Yield once so any pending microtasks complete.
+            await new Promise(r => setImmediate(r));
+            expect(unhandled).toEqual([]);
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
+    });
+});
