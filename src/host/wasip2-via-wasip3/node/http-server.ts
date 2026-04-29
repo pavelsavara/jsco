@@ -22,7 +22,7 @@ import {
     _HttpRequest,
     _HttpResponse,
 } from '../../wasip3/http';
-import { ok } from '../../wasip3/result';
+import { ok, err } from '../../wasip3/result';
 import type { WasiStreamReadable } from '../../wasip3/streams';
 import { collectBytes } from '../../wasip3/streams';
 import type {
@@ -48,9 +48,9 @@ function wrapP3FieldsAsP2(p3Fields: _HttpFields): WasiFields {
     return {
         get: (name: string) => p3Fields.get(name),
         has: (name: string) => p3Fields.has(name),
-        set: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
-        append: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
-        delete: () => ({ tag: 'err' as const, val: { tag: 'immutable' as const } }),
+        set: () => err({ tag: 'immutable' as const }),
+        append: () => err({ tag: 'immutable' as const }),
+        delete: () => err({ tag: 'immutable' as const }),
         entries: () => p3Fields.copyAll(),
         clone: () => wrapP3FieldsAsP2(p3Fields.clone()),
     };
@@ -78,19 +78,16 @@ function createP2RequestFromP3(
         authority: () => authority,
         headers: () => p2Headers,
         consume(): HttpResult<WasiIncomingBody> {
-            if (consumed) return { tag: 'err', val: { tag: 'internal-error', val: 'body already consumed' } };
+            if (consumed) return err({ tag: 'internal-error', val: 'body already consumed' });
             consumed = true;
             let streamTaken = false;
-            return {
-                tag: 'ok',
-                val: {
-                    stream(): HttpResult<ReturnType<typeof createInputStream>> {
-                        if (streamTaken) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already taken' } };
-                        streamTaken = true;
-                        return { tag: 'ok', val: bodyStream };
-                    },
+            return ok({
+                stream(): HttpResult<ReturnType<typeof createInputStream>> {
+                    if (streamTaken) return err({ tag: 'internal-error', val: 'stream already taken' });
+                    streamTaken = true;
+                    return ok(bodyStream);
                 },
-            };
+            });
         },
     };
 }
@@ -177,7 +174,7 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
             // Enforce URL length limit (P2-specific check, not done by P3 serve)
             const url = req.getPathWithQuery();
             if (url && url.length > maxUrlBytes) {
-                return createP3ErrorResponse(414);
+                return ok(createP3ErrorResponse(414));
             }
 
             // Consume P3 request body
@@ -197,7 +194,7 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
             try {
                 handler(p2Request, outparam);
             } catch {
-                return createP3ErrorResponse(500);
+                return ok(createP3ErrorResponse(500));
             }
 
             // Await P2 response
@@ -205,11 +202,11 @@ export function createHttpServer(handler: IncomingHandlerFn, config?: HttpServer
 
             // Check for error code (has 'tag' property; WasiOutgoingResponse does not)
             if (typeof result === 'object' && 'tag' in result) {
-                return createP3ErrorResponse(502);
+                return ok(createP3ErrorResponse(502));
             }
 
             // Convert P2 response to P3 response
-            return convertP2ResponseToP3(result as WasiOutgoingResponse);
+            return { tag: 'ok' as const, val: convertP2ResponseToP3(result as WasiOutgoingResponse) };
         },
     };
 

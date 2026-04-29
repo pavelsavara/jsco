@@ -2,7 +2,7 @@
 
 import type { WasiRandomRandom, WasiRandomInsecure, WasiRandomInsecureSeed } from '../../../wit/wasip3/types/index';
 import type { AllocationLimits } from './types';
-import { ALLOCATION_DEFAULTS } from './types';
+import { LIMIT_DEFAULTS } from './types';
 
 const MAX_CRYPTO_CHUNK = 65536;
 
@@ -13,7 +13,7 @@ const MAX_CRYPTO_CHUNK = 65536;
  * secure random bytes. Chunks large requests into 64 KB calls per the API limit.
  */
 export function createRandom(limits?: AllocationLimits): typeof WasiRandomRandom {
-    const maxAllocation = limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
+    const maxAllocation = limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
 
     return {
         getRandomBytes(maxLen: bigint): Uint8Array {
@@ -48,7 +48,7 @@ export function createRandom(limits?: AllocationLimits): typeof WasiRandomRandom
  * the Web Crypto API since there is no cheaper alternative.
  */
 export function createInsecure(limits?: AllocationLimits): typeof WasiRandomInsecure {
-    const maxAllocation = limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
+    const maxAllocation = limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
 
     return {
         getInsecureRandomBytes(maxLen: bigint): Uint8Array {

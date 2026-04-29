@@ -47,10 +47,34 @@ export type MarshalingContext = {
     verbose?: Verbosity;
     logger?: LogFn;
     waitableSets: WaitableSetTable;
-    /** Per-task async context slots (used by context.get/set canonical builtins). */
-    taskContextSlots: number[];
+    /** Per-task `context.{get,set}` TLS (canonical ABI). Swapped at every wasm
+     *  boundary so reentrant concurrent async exports stay isolated.
+     *  Default `[0, 0]` when no task is active. */
+    currentTaskSlots: number[];
     /** Backpressure counter for async component model flow control. */
     backpressure: number;
     /** Background tasks from sync canon.lower with stream/future params (fire-and-forget). */
     pendingBackgroundTasks: Promise<unknown>[];
+    /** Counter incremented on each call to a throttled canon built-in; reset when a yield is forced. */
+    opsSinceYield?: number;
+    /** Per-instance linear-memory cap (bytes). 0/undefined disables. */
+    maxMemoryBytes?: number;
+    /** Canon-op counter; reset on JSPI yield (host-import resume, `waitable-set.wait`
+     *  resume, throttle setImmediate). Trips `maxCanonOpsWithoutYield`. */
+    canonOpsSinceYield?: number;
+    /** Cap for `canonOpsSinceYield`. 0/undefined disables. */
+    maxCanonOpsWithoutYield?: number;
+    /** Cap (ms) per JSPI suspension. 0/undefined disables. */
+    maxBlockingTimeMs?: number;
+    /** Cap (bytes) host-heap growth between yields; 3 consecutive over-cap
+     *  samples abort. 0/undefined disables. */
+    maxHeapGrowthPerYield?: number;
+    /** Heap-used at last yield (0 = uninitialized). */
+    heapAtLastYield?: number;
+    /** Consecutive over-cap heap samples. */
+    heapGrowthOverCount?: number;
+    /** Set by `createAsyncLiftWrapper` while an async export is in flight; the
+     *  bound `task.return` invokes this to deliver the lowered result to the
+     *  awaiting JS Promise. Re-installed at every wasm boundary. */
+    currentTaskReturn?: (jsResult: unknown) => void;
 }

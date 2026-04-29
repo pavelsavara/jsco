@@ -10,7 +10,7 @@
  */
 
 import type { AllocationLimits } from './types';
-import { ALLOCATION_DEFAULTS } from './types';
+import { LIMIT_DEFAULTS } from './types';
 
 // ──────────────────── Error types ────────────────────
 
@@ -251,8 +251,8 @@ export class MemoryVfsBackend implements IVfsBackend {
 
     constructor(config?: MemoryVfsConfig) {
         this.root = createDirectoryNode();
-        this.maxPathLength = config?.limits?.maxPathLength ?? ALLOCATION_DEFAULTS.maxPathLength;
-        this.maxAllocationSize = config?.limits?.maxAllocationSize ?? ALLOCATION_DEFAULTS.maxAllocationSize;
+        this.maxPathLength = config?.limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
+        this.maxAllocationSize = config?.limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
         this.maxTotalSize = config?.maxTotalSize ?? DEFAULT_MAX_TOTAL_SIZE;
         this.totalSize = 0;
     }

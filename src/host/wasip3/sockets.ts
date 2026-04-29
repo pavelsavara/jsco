@@ -108,72 +108,8 @@ class BrowserUdpSocket {
 
 // ──────────────────── Resource flattening ────────────────────
 
-function camelToKebab(str: string): string {
-    return str.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
-}
-
-/**
- * Wrap a function call so that success → `{tag:'ok', val}` and thrown
- * ErrorCode objects → `{tag:'err', val}`. Handles async (Promise) returns.
- */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-function wrapResultCall(target: any, method: string, ...args: any[]): any {
-    try {
-        const res = target[method](...args);
-        if (res instanceof Promise) {
-            return res.then(
-                (val: any) => ({ tag: 'ok', val }),
-                (err: any) => {
-                    if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-                    throw err;
-                },
-            );
-        }
-        return { tag: 'ok', val: res };
-    } catch (err: any) {
-        if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-        throw err;
-    }
-}
-
-/**
- * Flatten a resource class into a `[method]`/`[static]`/`[resource-drop]` table.
- *
- * The component model expects imports like `[method]tcp-socket.send` as flat
- * function entries. This helper introspects a class prototype and generates
- * those entries so the resolver can find them.
- *
- * Methods whose WIT return type is `result<T, E>` are auto-wrapped: success
- * returns `{tag:'ok', val}`, thrown ErrorCode objects return `{tag:'err', val}`.
- * Methods listed in `nonResultMethods` (kebab-case) are passed through as-is.
- */
-export function flattenResource(
-    name: string,
-    cls: { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown },
-    nonResultMethods?: ReadonlySet<string>,
-): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    // Register the class itself under the kebab-case resource name for type alias resolution
-    result[name] = cls;
-    if (typeof cls.create === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        result[`[static]${name}.create`] = (...args: any[]): unknown => wrapResultCall(cls, 'create', ...args);
-    }
-    for (const key of Object.getOwnPropertyNames(cls.prototype)) {
-        if (key === 'constructor') continue;
-        if (typeof cls.prototype[key] !== 'function') continue;
-        const kebab = camelToKebab(key);
-        if (nonResultMethods?.has(kebab)) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]): unknown => self[key](...args);
-        } else {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-            result[`[method]${name}.${kebab}`] = (self: any, ...args: any[]): unknown => wrapResultCall(self, key, ...args);
-        }
-    }
-    result[`[resource-drop]${name}`] = (self: any): void => { if (self && typeof self.drop === 'function') self.drop(); };
-    return result;
-}
+import { flattenResource } from './resource-flatten';
+export { flattenResource } from './resource-flatten';
 
 // ──────────────────── Factory functions ────────────────────
 

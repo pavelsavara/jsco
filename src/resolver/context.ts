@@ -52,6 +52,7 @@ export function createResolverContext(sections: WITModel, options: ComponentFact
             stats: isDebug ? { resolveComponentSection: 0, resolveComponentInstanceInstantiate: 0, createScopedResolverContext: 0, componentSectionCacheHits: 0, componentInstanceCacheHits: 0, coreInstanceCacheHits: 0, coreFunctionCacheHits: 0, componentFunctionCacheHits: 0 } : undefined,
             verbose,
             logger,
+            yieldThrottle: typeof options.yieldThrottle === 'number' && options.yieldThrottle > 0 ? options.yieldThrottle : undefined,
         },
         validateTypes: (options.validateTypes === false) ? false : true,
         wasmInstantiate: options.wasmInstantiate ?? ((module, importObject): Promise<WebAssembly.Instance> => WebAssembly.instantiate(module, importObject)),

@@ -136,6 +136,7 @@ export function createConfig(options: CliOptions): HostConfig {
 
     return {
         network: options.network,
+        limits: Object.keys(options.limits).length > 0 ? options.limits : undefined,
         enabledInterfaces: options.enabledInterfaces,
         env: envPairs,
         mounts: options.mounts.length > 0 ? options.mounts : undefined,

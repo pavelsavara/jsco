@@ -5,6 +5,7 @@ import type { MarshalingContext } from '../marshal/model/types';
 import type { ResolvedContext } from '../resolver/model/types';
 import type { JsImports } from '../resolver/api-types';
 import type { RuntimeConfig } from './model/types';
+import { LIMIT_DEFAULTS } from './model/types';
 import { createMemoryView } from './memory';
 import { createAllocator } from './memory';
 import { createInstanceTable } from './instances';
@@ -19,7 +20,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
     const memory = createMemoryView();
     const allocator = createAllocator();
     const instances = createInstanceTable();
-    const resources = createResourceTable(resolved.verbose, resolved.logger);
+    const resources = createResourceTable(resolved.verbose, resolved.logger, config?.limits?.maxHandles);
 
     const abortController = new AbortController();
 
@@ -54,9 +55,17 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         utf8Encoder: new TextEncoder(),
         verbose: resolved.verbose,
         logger: resolved.logger,
-        taskContextSlots: [0, 0],
+        currentTaskSlots: [0, 0],
         backpressure: 0,
         pendingBackgroundTasks: [],
+        opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,
+        maxMemoryBytes: config?.limits?.maxMemoryBytes,
+        canonOpsSinceYield: 0,
+        maxCanonOpsWithoutYield: config?.limits?.maxCanonOpsWithoutYield ?? LIMIT_DEFAULTS.maxCanonOpsWithoutYield,
+        maxBlockingTimeMs: config?.limits?.maxBlockingTimeMs ?? LIMIT_DEFAULTS.maxBlockingTimeMs,
+        maxHeapGrowthPerYield: config?.limits?.maxHeapGrowthPerYield ?? LIMIT_DEFAULTS.maxHeapGrowthPerYield,
+        heapAtLastYield: 0,
+        heapGrowthOverCount: 0,
         abortSignal: abortController.signal,
         abort: (reason?: string) => {
             ctx.poisoned = true;

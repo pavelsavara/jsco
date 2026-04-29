@@ -1,0 +1,12 @@
+[package]
+name = "join-http-p3"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen = { workspace = true }
+futures = { workspace = true }
+anyhow = "1"
+
+[lib]
+crate-type = ["cdylib"]

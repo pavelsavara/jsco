@@ -13,6 +13,7 @@ import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
 import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream } from './io';
 import type { HttpMethod, HttpScheme, AdaptedHttpTypes } from './http-types';
+import { ok, err } from '../wasip3/result';
 
 type HttpErrorCode = { tag: string; val?: unknown };
 type HeaderError = { tag: string };
@@ -46,7 +47,7 @@ export class AdapterFields {
     }
     set(name: string, values: Uint8Array[]): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
         this.map.set(name.toLowerCase(), [...values]);
-        return { tag: 'ok' };
+        return ok();
     }
     append(name: string, value: Uint8Array): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
         const key = name.toLowerCase();
@@ -56,7 +57,7 @@ export class AdapterFields {
         } else {
             this.map.set(key, [value]);
         }
-        return { tag: 'ok' };
+        return ok();
     }
     delete(name: string): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
         this.map.delete(name.toLowerCase());
@@ -101,10 +102,10 @@ export class AdapterOutgoingRequest {
     setAuthority(a: string | undefined): boolean { this._authority = a; return true; }
     headers(): AdapterFields { return this._headers; }
     body(): HttpResult<AdapterOutgoingBody> {
-        if (this._bodyConsumed) return { tag: 'err', val: { tag: 'internal-error', val: 'body already consumed' } };
+        if (this._bodyConsumed) return err({ tag: 'internal-error', val: 'body already consumed' });
         this._bodyConsumed = true;
         this._body = new AdapterOutgoingBody();
-        return { tag: 'ok', val: this._body };
+        return ok(this._body);
     }
 
     /** Called internally to get the body bytes for sending */
@@ -119,7 +120,7 @@ export class AdapterOutgoingBody {
     private _streamConsumed = false;
 
     write(): HttpResult<WasiOutputStream> {
-        if (this._streamConsumed) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already consumed' } };
+        if (this._streamConsumed) return err({ tag: 'internal-error', val: 'stream already consumed' });
         this._streamConsumed = true;
         const chunks: Uint8Array[] = [];
         this._stream = createOutputStream((bytes) => {
@@ -127,7 +128,7 @@ export class AdapterOutgoingBody {
         });
         // Store reference to collect bytes later
         (this as { _chunks?: Uint8Array[] })._chunks = chunks;
-        return { tag: 'ok', val: this._stream };
+        return ok(this._stream);
     }
 
     getBytes(): Uint8Array {
@@ -176,9 +177,9 @@ export class AdapterIncomingResponse {
     status(): number { return this._status; }
     headers(): AdapterFields { return this._headers; }
     consume(): HttpResult<AdapterIncomingBody> {
-        if (this._bodyConsumed) return { tag: 'err', val: { tag: 'internal-error', val: 'body already consumed' } };
+        if (this._bodyConsumed) return err({ tag: 'internal-error', val: 'body already consumed' });
         this._bodyConsumed = true;
-        return { tag: 'ok', val: new AdapterIncomingBody(this._bodyData) };
+        return ok(new AdapterIncomingBody(this._bodyData));
     }
 }
 
@@ -191,9 +192,9 @@ export class AdapterIncomingBody {
     }
 
     stream(): HttpResult<WasiInputStream> {
-        if (this._streamConsumed) return { tag: 'err', val: { tag: 'internal-error', val: 'stream already consumed' } };
+        if (this._streamConsumed) return err({ tag: 'internal-error', val: 'stream already consumed' });
         this._streamConsumed = true;
-        return { tag: 'ok', val: createInputStream(this._data) };
+        return ok(createInputStream(this._data));
     }
 }
 
@@ -218,8 +219,8 @@ export class AdapterFutureIncomingResponse {
 
     get(): HttpResult<AdapterIncomingResponse> | undefined {
         if (!this._resolved) return undefined;
-        if (this._error) return { tag: 'err', val: this._error };
-        return { tag: 'ok', val: this._result! };
+        if (this._error) return err(this._error);
+        return ok(this._result!);
     }
 }
 
@@ -245,7 +246,7 @@ export function adaptOutgoingHandler(_p3: WasiP3Imports): { handle(_request: Ada
         handle(_request: AdapterOutgoingRequest, _options?: AdapterRequestOptions): HttpResult<AdapterFutureIncomingResponse> {
             // Stub: return a not-supported error for now
             // Real implementation would build a P3 request and call p3['wasi:http/client'].send()
-            return { tag: 'err', val: { tag: 'internal-error', val: 'HTTP adapter not fully implemented' } };
+            return err({ tag: 'internal-error', val: 'HTTP adapter not fully implemented' });
         },
     };
 }

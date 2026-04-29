@@ -8,13 +8,14 @@
  */
 
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import { ok, err } from '../wasip3/result';
 
 type SocketErrorCode = string;
 type SocketResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: SocketErrorCode };
 type IpAddressFamily = 'ipv4' | 'ipv6';
 
 function socketErr<T>(code: SocketErrorCode): SocketResult<T> {
-    return { tag: 'err', val: code };
+    return err(code);
 }
 
 export function adaptInstanceNetwork(): { instanceNetwork(): object } {
@@ -44,7 +45,7 @@ export function adaptTcpCreateSocket(p3: WasiP3Imports): { createTcpSocket(famil
                     return socketErr('not-supported');
                 }
                 const socket = TcpSocket.create(family);
-                return { tag: 'ok', val: socket };
+                return ok(socket);
             } catch {
                 return socketErr('not-supported');
             }
@@ -62,7 +63,7 @@ export function adaptUdpCreateSocket(p3: WasiP3Imports): { createUdpSocket(famil
                     return socketErr('not-supported');
                 }
                 const socket = UdpSocket.create(family);
-                return { tag: 'ok', val: socket };
+                return ok(socket);
             } catch {
                 return socketErr('not-supported');
             }
@@ -80,7 +81,7 @@ export function adaptIpNameLookup(p3: WasiP3Imports): { resolveAddresses(_networ
                 // For browser stubs, this throws not-supported anyway
                 const promise = p3lookup.resolveAddresses(name);
                 // Wrap as a P2 resolve-address-stream
-                return { tag: 'ok', val: createResolveStream(promise as Promise<unknown[]>) };
+                return ok(createResolveStream(promise as Promise<unknown[]>));
             } catch {
                 return socketErr('not-supported');
             }
@@ -107,9 +108,9 @@ function createResolveStream(promise: Promise<unknown[]>): { resolveNextAddress(
                 return socketErr('would-block');
             }
             if (index >= addresses.length) {
-                return { tag: 'ok' as const, val: undefined };
+                return ok(undefined);
             }
-            return { tag: 'ok' as const, val: addresses[index++] };
+            return ok(addresses[index++]);
         },
         subscribe(): { ready(): boolean; block(): void } {
             return {

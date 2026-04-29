@@ -87,6 +87,10 @@ export type StreamEntry = {
     onWriteReady?: (() => void)[];
     /** Callback invoked when the readable end is dropped (dropReadable). */
     onReadableDrop?: () => void;
+    /** True after dropReadable has fired; second drop traps. */
+    readableDropped?: boolean;
+    /** True after dropWritable has fired; second drop traps. */
+    writableDropped?: boolean;
 };
 
 export interface FutureTable {
@@ -124,6 +128,9 @@ export interface SubtaskTable {
     create(promise: Promise<unknown>): number;
     /** Get the subtask entry for waitable-set integration. */
     getEntry(handle: number): SubtaskEntry | undefined;
+    /** Mark subtask RETURNED, fire onResolve, return the new state.
+     *  Traps if the handle is unknown. */
+    cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
     /** Dispose all subtasks: clear onResolve, clear entries. */
@@ -220,12 +227,46 @@ export interface AllocationLimits {
     maxHandles?: number;
     /** Maximum filesystem path length in bytes. Default: 4_096 */
     maxPathLength?: number;
+    /**
+     * Max WASM linear-memory size (bytes) per instance. Enforced lazily on
+     * canon-op transitions: if the guest grew past the cap, the next canon
+     * built-in traps. Default: 268_435_456 (256 MB). 0 disables.
+     */
+    maxMemoryBytes?: number;
+    /**
+     * Max canonical built-in calls (`stream.*`, `future.*`, `waitable-set.poll`,
+     * etc.) between two legitimate JSPI yield points. Mitigates the
+     * `stream.read → stream.cancel-read` spin pattern and similar event-loop
+     * starvation. Default: 1_000_000. 0 disables.
+     */
+    maxCanonOpsWithoutYield?: number;
+    /**
+     * Max ms any single JSPI suspension may block before the instance is
+     * aborted with a `WebAssembly.RuntimeError`. Watched at `waitable-set.wait`
+     * resume (plan.md E1) and host-import Promise resume.
+     * Default 0 (disabled). Recommended for CI: 10_000.
+     */
+    maxBlockingTimeMs?: number;
+    /**
+     * Max host-process heap growth (bytes) between two JSPI yield points.
+     * Three consecutive over-cap samples abort the instance (filters GC lag).
+     * Complements `maxMemoryBytes` by catching host-side state DOS (e.g.
+     * socket recv buffers grown inside a yield window).
+     *
+     * Browser fallback uses `performance.memory.usedJSHeapSize` where exposed;
+     * otherwise the watchdog is a no-op. Default 0 (disabled).
+     */
+    maxHeapGrowthPerYield?: number;
 }
 
-export const ALLOCATION_DEFAULTS = {
+export const LIMIT_DEFAULTS = {
     maxAllocationSize: 16_777_216,
     maxHandles: 10_000,
     maxPathLength: 4_096,
+    maxMemoryBytes: 268_435_456,
+    maxCanonOpsWithoutYield: 1_000_000,
+    maxBlockingTimeMs: 0,
+    maxHeapGrowthPerYield: 0,
 } as const;
 
 /** WASI-specific host configuration. */
@@ -259,6 +300,8 @@ export interface HostConfig {
 
 /** Runtime configuration extending host config with runtime-generic fields. */
 export interface RuntimeConfig extends HostConfig {
-    /** Stream backpressure threshold in bytes. Default: 65536 (64 KB). */
+    /** Stream backpressure threshold in bytes (byte streams). Default: 65536 (64 KB). */
     streamBackpressureBytes?: number;
+    /** Stream backpressure threshold in chunks (typed/non-byte streams). Default: 1024. */
+    streamBackpressureChunks?: number;
 }

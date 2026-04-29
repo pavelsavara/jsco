@@ -19,6 +19,7 @@ import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 import type { WasiInputStream, WasiOutputStream } from './io';
 import { createInputStreamFromP3, createOutputStreamFromP3 } from './io';
 import { createStreamPair } from '../wasip3/streams';
+import { ok, err } from '../wasip3/result';
 
 // ─── P2 local type aliases ───
 
@@ -53,11 +54,11 @@ type Advice = string;
 type MetadataHashValue = { upper: bigint; lower: bigint };
 
 function fsOk<T>(val: T): FsResult<T> {
-    return { tag: 'ok', val };
+    return ok(val);
 }
 
 function fsErr<T>(code: ErrorCode): FsResult<T> {
-    return { tag: 'err', val: code };
+    return err(code);
 }
 
 // ─── P3 descriptor type → P2 descriptor type mapping ───

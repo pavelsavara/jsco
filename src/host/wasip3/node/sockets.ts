@@ -263,6 +263,10 @@ class NodeTcpSocket {
 
         // Create a server to perform the actual OS bind and claim the port
         const server = net.createServer({ allowHalfOpen: true });
+        // unref so a forgotten / leaked socket alone never keeps Node alive past
+        // the natural end of the process (matters for jest --detectOpenHandles
+        // and for guest code that doesn't `drop` the resource).
+        server.unref();
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
@@ -298,6 +302,7 @@ class NodeTcpSocket {
 
         return new Promise<void>((resolve, reject) => {
             const socket = new net.Socket({ allowHalfOpen: true });
+            socket.unref();
             const options: net.SocketConnectOpts = {
                 host,
                 port,
@@ -345,6 +350,7 @@ class NodeTcpSocket {
         let closed = false;
 
         server.on('connection', (socket: net.Socket) => {
+            socket.unref();
             this._acceptedRawSockets.push(socket);
             const accepted = new NodeTcpSocket(family);
             accepted._socket = socket;
@@ -504,8 +510,15 @@ class NodeTcpSocket {
             onReadableDrop: undefined,
             [Symbol.asyncIterator]() {
                 const queue: Uint8Array[] = [];
+                let queuedBytes = 0;
                 let waiting: ((result: IteratorResult<Uint8Array>) => void) | null = null;
                 let done = false;
+                let paused = false;
+                // Socket-level backpressure: pause when the per-iterator queue
+                // grows past HIGH_WATER so a fast remote writer can't OOM the
+                // JS heap when the guest stops reading (F1/B5).
+                const HIGH_WATER = 256 * 1024; // 256 KB
+                const LOW_WATER = 64 * 1024; // 64 KB
 
                 pushFn = (value: Uint8Array): void => {
                     if (waiting) {
@@ -514,6 +527,11 @@ class NodeTcpSocket {
                         w({ value, done: false });
                     } else {
                         queue.push(value);
+                        queuedBytes += value.length;
+                        if (!paused && queuedBytes >= HIGH_WATER) {
+                            paused = true;
+                            socket.pause();
+                        }
                     }
                 };
                 closeFn = (): void => {
@@ -528,7 +546,13 @@ class NodeTcpSocket {
                 return {
                     next(): Promise<IteratorResult<Uint8Array>> {
                         if (queue.length > 0) {
-                            return Promise.resolve({ value: queue.shift()!, done: false });
+                            const value = queue.shift()!;
+                            queuedBytes -= value.length;
+                            if (paused && queuedBytes <= LOW_WATER) {
+                                paused = false;
+                                socket.resume();
+                            }
+                            return Promise.resolve({ value, done: false });
                         }
                         if (done) return Promise.resolve({ value: undefined as unknown as Uint8Array, done: true });
                         return new Promise(resolve => { waiting = resolve; });
@@ -710,6 +734,7 @@ class NodeUdpSocket {
     private constructor(family: IpAddressFamily) {
         this._family = family;
         this._socket = dgram.createSocket(family === 'ipv4' ? 'udp4' : 'udp6');
+        this._socket.unref();
     }
 
     static create(addressFamily: IpAddressFamily): NodeUdpSocket {
@@ -1032,6 +1057,7 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
 // ──────────────────── Factory functions ────────────────────
 
 import { flattenResource, TCP_NON_RESULT, UDP_NON_RESULT } from '../sockets';
+import { ok, err } from '../result';
 
 export function createNodeSocketsTypes(): typeof WasiSocketsTypes {
     return {
@@ -1047,19 +1073,19 @@ export function createNodeIpNameLookup(): typeof WasiSocketsIpNameLookup {
         'resolve-addresses': async (name: string) => {
             try {
                 const result = await resolveAddresses(name);
-                return { tag: 'ok', val: result };
-            } catch (err: any) {
-                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-                throw err;
+                return ok(result);
+            } catch (e: any) {
+                if (e && typeof e === 'object' && typeof e.tag === 'string') return err(e);
+                throw e;
             }
         },
         resolveAddresses: async (name: string) => {
             try {
                 const result = await resolveAddresses(name);
-                return { tag: 'ok', val: result };
-            } catch (err: any) {
-                if (err && typeof err === 'object' && typeof err.tag === 'string') return { tag: 'err', val: err };
-                throw err;
+                return ok(result);
+            } catch (e: any) {
+                if (e && typeof e === 'object' && typeof e.tag === 'string') return err(e);
+                throw e;
             }
         },
     } as unknown as typeof WasiSocketsIpNameLookup;

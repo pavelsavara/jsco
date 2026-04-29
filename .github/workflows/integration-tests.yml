@@ -23,7 +23,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: --experimental-vm-modules
+      NODE_OPTIONS: --experimental-vm-modules --expose-gc
 
     steps:
     - uses: actions/checkout@v6
@@ -75,12 +75,12 @@ jobs:
       run: npm run build:echo-wat
 
     - name: Run integration tests
-      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
+      run: node --experimental-vm-modules --expose-gc --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
 
     - name: Run integration tests (Release)
       env:
         Configuration: Release
-      run: node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
+      run: node --experimental-vm-modules --expose-gc --experimental-wasm-jspi node_modules/.bin/jest --no-coverage --testPathPattern='integration\.test|echo-reactor\.test|hello-p2-world\.test|hello-world\.test|use-number-for-int64\.test'
 
     - name: Upload wasm artifacts
       uses: actions/upload-artifact@v6

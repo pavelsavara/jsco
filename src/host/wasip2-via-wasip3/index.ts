@@ -28,6 +28,7 @@ import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreat
 import { adaptHttpTypes, adaptOutgoingHandler } from './http';
 import type { HttpMethod, HttpScheme } from './http-types';
 import { JsImports } from '../../resolver/api-types';
+import { ok, err } from '../wasip3/result';
 
 // Re-export types for consumers
 export type {
@@ -250,7 +251,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         '[method]outgoing-request.body': (self: { body: () => unknown }) => self.body(),
         '[resource-drop]outgoing-body': () => { /* GC */ },
         '[method]outgoing-body.write': (self: { write: () => unknown }) => self.write(),
-        '[static]outgoing-body.finish': () => ({ tag: 'ok' }),
+        '[static]outgoing-body.finish': () => ok(),
         '[constructor]request-options': httpTypes.createRequestOptions,
         '[resource-drop]request-options': () => { /* GC */ },
         '[method]request-options.connect-timeout': (self: { connectTimeout: () => bigint | undefined }) => self.connectTimeout(),
@@ -267,7 +268,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         '[method]incoming-body.stream': (self: { stream: () => unknown }) => self.stream(),
         '[static]incoming-body.finish': () => ({
             subscribe: (): WasiPollable => createSyncPollable(() => true),
-            get: (): unknown => ({ tag: 'ok', val: { tag: 'ok', val: undefined } }),
+            get: (): unknown => ok(ok()),
         }),
         '[resource-drop]future-incoming-response': () => { /* GC */ },
         '[method]future-incoming-response.subscribe': (self: { subscribe: () => WasiPollable }) => self.subscribe(),
@@ -280,14 +281,14 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
             statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
             setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
             headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-            body: function (): unknown { return { tag: 'ok', val: { write: (): unknown => ({ tag: 'ok', val: createOutputStream() }) } }; },
+            body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream()) }); },
         }),
         '[resource-drop]outgoing-response': () => { /* GC */ },
         '[resource-drop]response-outparam': () => { /* GC */ },
         '[static]response-outparam.set': () => { /* stub */ },
         '[resource-drop]future-trailers': () => { /* GC */ },
         '[method]future-trailers.subscribe': () => createSyncPollable(() => true),
-        '[method]future-trailers.get': () => ({ tag: 'ok', val: { tag: 'ok', val: undefined } }),
+        '[method]future-trailers.get': () => ok(ok()),
     });
     register('http/outgoing-handler', {
         'handle': outgoingHandler.handle,
@@ -316,61 +317,61 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         // TCP socket methods are dispatched on the P3 tcp-socket objects
         // which are passed through from P3 types. Browser stubs throw not-supported.
         '[method]tcp-socket.start-bind': (self: { startBind?: Function }, _network: unknown, addr: unknown) =>
-            self.startBind ? self.startBind(_network, addr) : { tag: 'err', val: 'not-supported' },
+            self.startBind ? self.startBind(_network, addr) : err('not-supported'),
         '[method]tcp-socket.finish-bind': (self: { finishBind?: Function }) =>
-            self.finishBind ? self.finishBind() : { tag: 'err', val: 'not-supported' },
+            self.finishBind ? self.finishBind() : err('not-supported'),
         '[method]tcp-socket.start-connect': (self: { startConnect?: Function }, _network: unknown, addr: unknown) =>
-            self.startConnect ? self.startConnect(_network, addr) : { tag: 'err', val: 'not-supported' },
+            self.startConnect ? self.startConnect(_network, addr) : err('not-supported'),
         '[method]tcp-socket.finish-connect': (self: { finishConnect?: Function }) =>
-            self.finishConnect ? self.finishConnect() : { tag: 'err', val: 'not-supported' },
+            self.finishConnect ? self.finishConnect() : err('not-supported'),
         '[method]tcp-socket.start-listen': (self: { startListen?: Function }) =>
-            self.startListen ? self.startListen() : { tag: 'err', val: 'not-supported' },
+            self.startListen ? self.startListen() : err('not-supported'),
         '[method]tcp-socket.finish-listen': (self: { finishListen?: Function }) =>
-            self.finishListen ? self.finishListen() : { tag: 'err', val: 'not-supported' },
+            self.finishListen ? self.finishListen() : err('not-supported'),
         '[method]tcp-socket.accept': (self: { accept?: Function }) =>
-            self.accept ? self.accept() : { tag: 'err', val: 'not-supported' },
+            self.accept ? self.accept() : err('not-supported'),
         '[method]tcp-socket.local-address': (self: { localAddress?: Function }) =>
-            self.localAddress ? self.localAddress() : { tag: 'err', val: 'not-supported' },
+            self.localAddress ? self.localAddress() : err('not-supported'),
         '[method]tcp-socket.remote-address': (self: { remoteAddress?: Function }) =>
-            self.remoteAddress ? self.remoteAddress() : { tag: 'err', val: 'not-supported' },
+            self.remoteAddress ? self.remoteAddress() : err('not-supported'),
         '[method]tcp-socket.is-listening': (self: { isListening?: Function }) =>
             self.isListening ? self.isListening() : false,
         '[method]tcp-socket.address-family': (self: { addressFamily?: Function }) =>
             self.addressFamily ? self.addressFamily() : 'ipv4',
         '[method]tcp-socket.set-listen-backlog-size': (self: { setListenBacklogSize?: Function }, value: bigint) =>
-            self.setListenBacklogSize ? self.setListenBacklogSize(value) : { tag: 'err', val: 'not-supported' },
+            self.setListenBacklogSize ? self.setListenBacklogSize(value) : err('not-supported'),
         '[method]tcp-socket.keep-alive-enabled': (self: { keepAliveEnabled?: Function }) =>
-            self.keepAliveEnabled ? self.keepAliveEnabled() : { tag: 'err', val: 'not-supported' },
+            self.keepAliveEnabled ? self.keepAliveEnabled() : err('not-supported'),
         '[method]tcp-socket.set-keep-alive-enabled': (self: { setKeepAliveEnabled?: Function }, value: boolean) =>
-            self.setKeepAliveEnabled ? self.setKeepAliveEnabled(value) : { tag: 'err', val: 'not-supported' },
+            self.setKeepAliveEnabled ? self.setKeepAliveEnabled(value) : err('not-supported'),
         '[method]tcp-socket.keep-alive-idle-time': (self: { keepAliveIdleTime?: Function }) =>
-            self.keepAliveIdleTime ? self.keepAliveIdleTime() : { tag: 'err', val: 'not-supported' },
+            self.keepAliveIdleTime ? self.keepAliveIdleTime() : err('not-supported'),
         '[method]tcp-socket.set-keep-alive-idle-time': (self: { setKeepAliveIdleTime?: Function }, value: bigint) =>
-            self.setKeepAliveIdleTime ? self.setKeepAliveIdleTime(value) : { tag: 'err', val: 'not-supported' },
+            self.setKeepAliveIdleTime ? self.setKeepAliveIdleTime(value) : err('not-supported'),
         '[method]tcp-socket.keep-alive-interval': (self: { keepAliveInterval?: Function }) =>
-            self.keepAliveInterval ? self.keepAliveInterval() : { tag: 'err', val: 'not-supported' },
+            self.keepAliveInterval ? self.keepAliveInterval() : err('not-supported'),
         '[method]tcp-socket.set-keep-alive-interval': (self: { setKeepAliveInterval?: Function }, value: bigint) =>
-            self.setKeepAliveInterval ? self.setKeepAliveInterval(value) : { tag: 'err', val: 'not-supported' },
+            self.setKeepAliveInterval ? self.setKeepAliveInterval(value) : err('not-supported'),
         '[method]tcp-socket.keep-alive-count': (self: { keepAliveCount?: Function }) =>
-            self.keepAliveCount ? self.keepAliveCount() : { tag: 'err', val: 'not-supported' },
+            self.keepAliveCount ? self.keepAliveCount() : err('not-supported'),
         '[method]tcp-socket.set-keep-alive-count': (self: { setKeepAliveCount?: Function }, value: number) =>
-            self.setKeepAliveCount ? self.setKeepAliveCount(value) : { tag: 'err', val: 'not-supported' },
+            self.setKeepAliveCount ? self.setKeepAliveCount(value) : err('not-supported'),
         '[method]tcp-socket.hop-limit': (self: { hopLimit?: Function }) =>
-            self.hopLimit ? self.hopLimit() : { tag: 'err', val: 'not-supported' },
+            self.hopLimit ? self.hopLimit() : err('not-supported'),
         '[method]tcp-socket.set-hop-limit': (self: { setHopLimit?: Function }, value: number) =>
-            self.setHopLimit ? self.setHopLimit(value) : { tag: 'err', val: 'not-supported' },
+            self.setHopLimit ? self.setHopLimit(value) : err('not-supported'),
         '[method]tcp-socket.receive-buffer-size': (self: { receiveBufferSize?: Function }) =>
-            self.receiveBufferSize ? self.receiveBufferSize() : { tag: 'err', val: 'not-supported' },
+            self.receiveBufferSize ? self.receiveBufferSize() : err('not-supported'),
         '[method]tcp-socket.set-receive-buffer-size': (self: { setReceiveBufferSize?: Function }, value: bigint) =>
-            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : { tag: 'err', val: 'not-supported' },
+            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : err('not-supported'),
         '[method]tcp-socket.send-buffer-size': (self: { sendBufferSize?: Function }) =>
-            self.sendBufferSize ? self.sendBufferSize() : { tag: 'err', val: 'not-supported' },
+            self.sendBufferSize ? self.sendBufferSize() : err('not-supported'),
         '[method]tcp-socket.set-send-buffer-size': (self: { setSendBufferSize?: Function }, value: bigint) =>
-            self.setSendBufferSize ? self.setSendBufferSize(value) : { tag: 'err', val: 'not-supported' },
+            self.setSendBufferSize ? self.setSendBufferSize(value) : err('not-supported'),
         '[method]tcp-socket.subscribe': (self: { subscribe?: Function }) =>
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
         '[method]tcp-socket.shutdown': (self: { shutdown?: Function }, shutdownType: string) =>
-            self.shutdown ? self.shutdown(shutdownType) : { tag: 'err', val: 'not-supported' },
+            self.shutdown ? self.shutdown(shutdownType) : err('not-supported'),
     });
     register('sockets/udp-create-socket', {
         'create-udp-socket': udpCreate.createUdpSocket,
@@ -378,41 +379,41 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     register('sockets/udp', {
         '[resource-drop]udp-socket': () => { /* GC */ },
         '[method]udp-socket.start-bind': (self: { startBind?: Function }, _network: unknown, addr: unknown) =>
-            self.startBind ? self.startBind(_network, addr) : { tag: 'err', val: 'not-supported' },
+            self.startBind ? self.startBind(_network, addr) : err('not-supported'),
         '[method]udp-socket.finish-bind': (self: { finishBind?: Function }) =>
-            self.finishBind ? self.finishBind() : { tag: 'err', val: 'not-supported' },
+            self.finishBind ? self.finishBind() : err('not-supported'),
         '[method]udp-socket.stream': (self: { stream?: Function }, addr: unknown) =>
-            self.stream ? self.stream(addr) : { tag: 'err', val: 'not-supported' },
+            self.stream ? self.stream(addr) : err('not-supported'),
         '[method]udp-socket.local-address': (self: { localAddress?: Function }) =>
-            self.localAddress ? self.localAddress() : { tag: 'err', val: 'not-supported' },
+            self.localAddress ? self.localAddress() : err('not-supported'),
         '[method]udp-socket.remote-address': (self: { remoteAddress?: Function }) =>
-            self.remoteAddress ? self.remoteAddress() : { tag: 'err', val: 'not-supported' },
+            self.remoteAddress ? self.remoteAddress() : err('not-supported'),
         '[method]udp-socket.address-family': (self: { addressFamily?: Function }) =>
             self.addressFamily ? self.addressFamily() : 'ipv4',
         '[method]udp-socket.unicast-hop-limit': (self: { unicastHopLimit?: Function }) =>
-            self.unicastHopLimit ? self.unicastHopLimit() : { tag: 'err', val: 'not-supported' },
+            self.unicastHopLimit ? self.unicastHopLimit() : err('not-supported'),
         '[method]udp-socket.set-unicast-hop-limit': (self: { setUnicastHopLimit?: Function }, value: number) =>
-            self.setUnicastHopLimit ? self.setUnicastHopLimit(value) : { tag: 'err', val: 'not-supported' },
+            self.setUnicastHopLimit ? self.setUnicastHopLimit(value) : err('not-supported'),
         '[method]udp-socket.receive-buffer-size': (self: { receiveBufferSize?: Function }) =>
-            self.receiveBufferSize ? self.receiveBufferSize() : { tag: 'err', val: 'not-supported' },
+            self.receiveBufferSize ? self.receiveBufferSize() : err('not-supported'),
         '[method]udp-socket.set-receive-buffer-size': (self: { setReceiveBufferSize?: Function }, value: bigint) =>
-            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : { tag: 'err', val: 'not-supported' },
+            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : err('not-supported'),
         '[method]udp-socket.send-buffer-size': (self: { sendBufferSize?: Function }) =>
-            self.sendBufferSize ? self.sendBufferSize() : { tag: 'err', val: 'not-supported' },
+            self.sendBufferSize ? self.sendBufferSize() : err('not-supported'),
         '[method]udp-socket.set-send-buffer-size': (self: { setSendBufferSize?: Function }, value: bigint) =>
-            self.setSendBufferSize ? self.setSendBufferSize(value) : { tag: 'err', val: 'not-supported' },
+            self.setSendBufferSize ? self.setSendBufferSize(value) : err('not-supported'),
         '[method]udp-socket.subscribe': (self: { subscribe?: Function }) =>
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
         '[resource-drop]incoming-datagram-stream': () => { /* GC */ },
         '[method]incoming-datagram-stream.receive': (self: { receive?: Function }, maxResults: bigint) =>
-            self.receive ? self.receive(maxResults) : { tag: 'err', val: 'not-supported' },
+            self.receive ? self.receive(maxResults) : err('not-supported'),
         '[method]incoming-datagram-stream.subscribe': (self: { subscribe?: Function }) =>
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
         '[resource-drop]outgoing-datagram-stream': () => { /* GC */ },
         '[method]outgoing-datagram-stream.check-send': (self: { checkSend?: Function }) =>
-            self.checkSend ? self.checkSend() : { tag: 'err', val: 'not-supported' },
+            self.checkSend ? self.checkSend() : err('not-supported'),
         '[method]outgoing-datagram-stream.send': (self: { send?: Function }, datagrams: unknown) =>
-            self.send ? self.send(datagrams) : { tag: 'err', val: 'not-supported' },
+            self.send ? self.send(datagrams) : err('not-supported'),
         '[method]outgoing-datagram-stream.subscribe': (self: { subscribe?: Function }) =>
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
     });
@@ -420,7 +421,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         'resolve-addresses': ipLookup.resolveAddresses,
         '[resource-drop]resolve-address-stream': () => { /* GC */ },
         '[method]resolve-address-stream.resolve-next-address': (self: { resolveNextAddress?: Function }) =>
-            self.resolveNextAddress ? self.resolveNextAddress() : { tag: 'err', val: 'not-supported' },
+            self.resolveNextAddress ? self.resolveNextAddress() : err('not-supported'),
         '[method]resolve-address-stream.subscribe': (self: { subscribe?: Function }) =>
             self.subscribe ? self.subscribe() : createSyncPollable(() => true),
     });

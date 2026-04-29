@@ -41,7 +41,7 @@ export type { HostConfig, MountConfig, NetworkConfig, AllocationLimits } from '.
 export { createHandleTable } from './resources';
 export { readableFromStream, readableFromAsyncIterable, createStreamPair, collectStream, collectBytes } from './streams';
 export { ok, err, WasiError } from './result';
-export { NETWORK_DEFAULTS, ALLOCATION_DEFAULTS } from './types';
+export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from './types';
 
 // Implementation modules
 import { createRandom, createInsecure, createInsecureSeed } from './random';

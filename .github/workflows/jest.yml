@@ -16,7 +16,7 @@ jobs:
       matrix:
         configuration: [Debug, Release]
     env:
-      NODE_OPTIONS: --experimental-vm-modules
+      NODE_OPTIONS: --experimental-vm-modules --expose-gc
       Configuration: ${{ matrix.configuration }}
 
     steps:
@@ -31,7 +31,7 @@ jobs:
     - name: Run Jest unit tests (${{ matrix.configuration }})
       run: |
         COVERAGE_FLAG=${{ matrix.configuration == 'Debug' && '--coverage' || '--no-coverage' }}
-        node --experimental-vm-modules --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test use-number-for-int64.test
+        node --experimental-vm-modules --expose-gc --experimental-wasm-jspi node_modules/.bin/jest $COVERAGE_FLAG --testPathIgnorePatterns integration.test echo-reactor.test hello-world.test use-number-for-int64.test
 
     - name: Upload coverage (Debug only)
       if: matrix.configuration == 'Debug'
@@ -79,11 +79,12 @@ jobs:
           fi
         }
         fail=0
-        check_size dist/release/index.js                143360  "index.js (140 KB)"                || fail=1
+        check_size dist/release/index.js                153600  "index.js (150 KB)"                || fail=1
+        check_size dist/release/wasip1-via-wasip3.js     25600  "wasip1-via-wasip3.js (25 KB)"     || fail=1
         check_size dist/release/wasip2-via-wasip3.js     30720  "wasip2-via-wasip3.js (30 KB)"     || fail=1
         check_size dist/release/wasip2-via-wasip3-node.js 40960 "wasip2-via-wasip3-node.js (40 KB)" || fail=1
         check_size dist/release/wasip3.js                 35840  "wasip3.js (35 KB)"                || fail=1
-        check_size dist/release/wasip3-node.js            61440  "wasip3-node.js (60 KB)"           || fail=1
+        check_size dist/release/wasip3-node.js            65536  "wasip3-node.js (64 KB)"           || fail=1
         if [ "$fail" -eq 1 ]; then exit 1; fi
         echo "✓ All bundle sizes OK"
 

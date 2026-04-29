@@ -20,26 +20,50 @@
 import type { Verbosity, LogFn } from '../../src/utils/assert';
 import { LogLevel } from '../../src/utils/assert';
 
+/**
+ * Maximum number of messages retained in a VerboseCapture buffer.
+ * When exceeded, the oldest messages are dropped (ring-buffer behavior)
+ * and `droppedCount` is incremented. The cap protects long-running
+ * tests in debug mode (e.g. `executor: LogLevel.Detailed` over a 50k+
+ * iteration spin) from accumulating hundreds of MB of diagnostic data
+ * in process memory. The most recent N messages are preserved \u2014 these
+ * are the most relevant for diagnosing the failure.
+ *
+ * If a real failure produces a trace longer than this, raise the cap
+ * locally; the dump prefix reports the dropped count.
+ */
+export const MAX_BUFFERED_MESSAGES = 5000;
+
 export type VerboseCapture = {
     messages: string[];
+    /** Number of messages dropped due to MAX_BUFFERED_MESSAGES cap. */
+    droppedCount: number;
     logger: LogFn;
     clear: () => void;
 };
 
 /**
- * Create a VerboseCapture that stores log messages in an array.
+ * Create a VerboseCapture that stores log messages in a bounded ring buffer.
  */
 export function createVerboseCapture(): VerboseCapture {
-    const messages: string[] = [];
-    const logger: LogFn = (phase, _level, ...args) => {
+    const capture: VerboseCapture = {
+        messages: [],
+        droppedCount: 0,
+        logger: undefined as unknown as LogFn, // assigned below
+        clear: () => {
+            capture.messages.length = 0;
+            capture.droppedCount = 0;
+        },
+    };
+    capture.logger = (phase, _level, ...args) => {
         const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-        messages.push(`[${phase}] ${text}`);
+        if (capture.messages.length >= MAX_BUFFERED_MESSAGES) {
+            capture.messages.shift();
+            capture.droppedCount++;
+        }
+        capture.messages.push(`[${phase}] ${text}`);
     };
-    return {
-        messages,
-        logger,
-        clear: () => { messages.length = 0; },
-    };
+    return capture;
 }
 
 /**
@@ -95,9 +119,12 @@ export function useVerboseOnFailure(levels?: Partial<Verbosity>): VerboseCapture
  * Call this explicitly when you catch an error in a test to see the trace.
  */
 export function dumpMessages(label: string | undefined, capture: VerboseCapture): void {
-    if (capture.messages.length === 0) return;
+    if (capture.messages.length === 0 && capture.droppedCount === 0) return;
+    const dropSuffix = capture.droppedCount > 0
+        ? ` (+${capture.droppedCount} earlier dropped, cap=${MAX_BUFFERED_MESSAGES})`
+        : '';
     // eslint-disable-next-line no-console
-    console.log(`\n--- Verbose log for "${label ?? 'unknown'}" (${capture.messages.length} messages) ---`);
+    console.log(`\n--- Verbose log for "${label ?? 'unknown'}" (${capture.messages.length} messages${dropSuffix}) ---`);
     for (const msg of capture.messages) {
         // eslint-disable-next-line no-console
         console.log(msg);

@@ -12,6 +12,7 @@ import { resolveComponentImport } from './component-imports';
 import { createResolverContext } from './context';
 import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
+import type { RuntimeConfig } from '../runtime/model/types';
 
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
@@ -129,8 +130,8 @@ export async function createComponent<TJSExports>(componentBytesOrUrl: Component
     const component = {
         exports: (): string[] => exportNames,
         imports: (): string[] => importNames,
-        instantiate: async (imports?: JsImports): Promise<WasmComponentInstance<TJSExports>> => {
-            const result = await executePlan<TJSExports>(sortedPlan, resolved, imports);
+        instantiate: async (imports?: JsImports, config?: RuntimeConfig): Promise<WasmComponentInstance<TJSExports>> => {
+            const result = await executePlan<TJSExports>(sortedPlan, resolved, imports, config);
             if (firstInstantiation) {
                 firstInstantiation = false;
                 // After first instantiation all memoize factories have run.

@@ -41,6 +41,23 @@ export function createSubtaskTable(allocHandle: () => number): SubtaskTable {
             return entries.get(handle);
         },
 
+        cancel(handle: number): number {
+            const entry = entries.get(handle);
+            if (!entry) {
+                throw new WebAssembly.RuntimeError(`subtask.cancel: unknown handle ${handle}`);
+            }
+            // Idempotent on already-resolved subtasks: state stays RETURNED.
+            if (!entry.resolved) {
+                entry.state = SubtaskState.RETURNED;
+                entry.resolved = true;
+                if (entry.onResolve) {
+                    for (const cb of entry.onResolve) cb();
+                    entry.onResolve = undefined;
+                }
+            }
+            return entry.state;
+        },
+
         drop(handle: number): void {
             entries.delete(handle);
         },

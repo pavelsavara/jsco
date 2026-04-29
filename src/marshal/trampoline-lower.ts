@@ -7,6 +7,8 @@ import type { FunctionLowerPlan } from './model/lower-plans';
 export type { FunctionLowerPlan } from './model/lower-plans';
 import { bigIntReplacer } from '../utils/shared';
 import { LogLevel } from '../utils/assert';
+import { withBlockingTimeout } from '../runtime/block-watchdog';
+import { checkHeapGrowth } from '../runtime/heap-watchdog';
 
 function processFlatResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any): any {
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
@@ -33,12 +35,26 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: MarshalingContext, r
 function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any,
     processResult: (plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any) => any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
-        return resJs.then(
+        // Save caller's task slots; restore on resume so context.get/set sees
+        // the right TLS even after the await window.
+        const callerSlots = ctx.currentTaskSlots;
+        const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
+        return guarded.then(
             (val: any) => {
+                ctx.currentTaskSlots = callerSlots;
+                checkHeapGrowth(ctx);
                 try { return processResult(plan, ctx, val); }
-                catch (e) { ctx.abort(); throw e; }
+                catch (e) {
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← lowering threw: ${(e as Error)?.message ?? e}`);
+                    }
+                    ctx.abort(); throw e;
+                }
             },
-            (e: unknown) => { ctx.abort(); throw e; },
+            // Rejection: don't poison the instance. async-lower transitions
+            // the subtask cleanly to RETURNED; sync-lower JSPI traps the
+            // caller. Both are recoverable per-task.
+            (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
         );
     }
     return processResult(plan, ctx, resJs);
@@ -46,12 +62,22 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
 
 function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, retptr: number, resJs: any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
-        return resJs.then(
+        const callerSlots = ctx.currentTaskSlots;
+        const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
+        return guarded.then(
             (val: any) => {
+                ctx.currentTaskSlots = callerSlots;
+                checkHeapGrowth(ctx);
                 try { return processSpilledResult(plan, ctx, retptr, val); }
-                catch (e) { ctx.abort(); throw e; }
+                catch (e) {
+                    if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
+                        ctx.logger!('executor', LogLevel.Summary, `← spilled lowering threw: ${(e as Error)?.message ?? e}`);
+                    }
+                    ctx.abort(); throw e;
+                }
             },
-            (e: unknown) => { ctx.abort(); throw e; },
+            // See handleLowerResult: don't poison on rejection.
+            (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
         );
     }
     return processSpilledResult(plan, ctx, retptr, resJs);

@@ -133,9 +133,39 @@ npx @pavelsavara/jsco run ./integration-tests/hello-p2-world-wat/hello.wasm
 |--------|---------|-------------|
 | `--addr <HOST:PORT>` | `0.0.0.0:8080` | Socket address for the HTTP server to bind to. |
 
+### Resource Limits
+
+DOS-mitigation budgets enforced by the runtime. Each can be tuned via CLI flag or programmatically via `instantiate(..., { limits: { ... } })`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--max-allocation-size <N>` | `16777216` | Max single allocation (bytes). |
+| `--max-handles <N>` | `10000` | Max live resource handles per table. |
+| `--max-path-length <N>` | `4096` | Max filesystem path length (bytes). |
+| `--max-memory-bytes <N>` | `268435456` | Max WASM linear-memory size (bytes); `0` disables. |
+| `--max-canon-ops-without-yield <N>` | `1000000` | Max canon built-in calls between JSPI yields; `0` disables. Mitigates `stream.read → stream.cancel-read` spin DOS. |
+| `--max-blocking-time-ms <N>` | `0` (off) | Max ms any single JSPI suspension may block. `0` disables. Recommended for CI: `10000`. Off by default so legitimately slow host I/O isn't killed. |
+| `--max-heap-growth-per-yield <N>` | `0` (off) | Max host heap growth (bytes) between JSPI yields; `0` disables. Catches host-side state DOS that stays inside `--max-canon-ops-without-yield`. |
+
 ### Networking Options
 
-All networking limits are configurable via CLI flags. Run `jsco run --help` for the full list.
+HTTP/socket budgets enforced by the host. Run `jsco run --help` for the full list.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--max-http-body-bytes <N>` | host default | Max HTTP body size in bytes. |
+| `--max-http-headers-bytes <N>` | host default | Max HTTP headers size in bytes. |
+| `--socket-buffer-bytes <N>` | host default | Per-connection socket buffer in bytes. |
+| `--max-tcp-pending <N>` | host default | Max pending TCP connections. |
+| `--tcp-idle-timeout-ms <N>` | host default | TCP idle timeout (ms). |
+| `--http-request-timeout-ms <N>` | host default | HTTP request timeout (ms). |
+| `--max-udp-datagrams <N>` | host default | Max queued UDP datagrams. |
+| `--dns-timeout-ms <N>` | host default | DNS lookup timeout (ms). |
+| `--max-concurrent-dns <N>` | host default | Max concurrent DNS lookups. |
+| `--max-http-connections <N>` | host default | Max concurrent HTTP server connections. |
+| `--max-request-url-bytes <N>` | host default | Max request URL length (bytes). |
+| `--http-headers-timeout-ms <N>` | host default | Slowloris protection: headers timeout (ms). |
+| `--http-keep-alive-timeout-ms <N>` | host default | HTTP keep-alive timeout (ms). |
 
 # Contribute
 
