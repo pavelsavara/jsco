@@ -4,7 +4,7 @@ import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, JsValue } from './model/types';
 import type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
 export type { RecordLoaderPlan, ListLoaderPlan, OptionLoaderPlan, ResultLoaderPlan, VariantLoaderPlan, EnumLoaderPlan, FlagsLoaderPlan, TupleLoaderPlan, OwnResourceLoaderPlan } from './model/load-plans';
-import { validatePointerAlignment, validateUtf16 } from './validation';
+import { validatePointerAlignment, validateUtf16, validateBoundarySize } from './validation';
 import { OK, ERR } from './constants';
 
 // --- Primitive memory loaders ---
@@ -74,6 +74,7 @@ export function stringLoaderUtf16(ctx: MarshalingContext, ptr: number): string {
     const strLen = dv.getUint32(4, true);
     if (strLen > 0) {
         const byteLen = strLen * 2;
+        validateBoundarySize(ctx, byteLen, 'string<utf16>');
         if (strPtr & 1) {
             throw new Error(`UTF-16 string pointer not aligned: ptr=${strPtr}`);
         }
@@ -94,6 +95,7 @@ export function stringLoaderUtf8(ctx: MarshalingContext, ptr: number): string {
     const strPtr = dv.getUint32(0, true);
     const strLen = dv.getUint32(4, true);
     if (strLen > 0) {
+        validateBoundarySize(ctx, strLen, 'string<utf8>');
         const memorySize = ctx.memory.getMemory().buffer.byteLength;
         if (strPtr + strLen > memorySize) {
             throw new Error(`string pointer out of bounds: ptr=${strPtr} len=${strLen} memory_size=${memorySize}`);
@@ -121,8 +123,10 @@ export function listLoader(plan: ListLoaderPlan, ctx: MarshalingContext, ptr: nu
     const len = dv.getUint32(4, true);
     if (len > 0) {
         validatePointerAlignment(listPtr, plan.elemAlign, 'list');
+        const totalBytes = len * plan.elemSize;
+        validateBoundarySize(ctx, totalBytes, 'list');
         const memorySize = ctx.memory.getMemory().buffer.byteLength;
-        if (listPtr + len * plan.elemSize > memorySize) {
+        if (listPtr + totalBytes > memorySize) {
             throw new Error(`list pointer out of bounds: ptr=${listPtr} len=${len} elem_size=${plan.elemSize} memory_size=${memorySize}`);
         }
     }

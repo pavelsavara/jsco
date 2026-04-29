@@ -6,7 +6,7 @@ import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan,
 export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan } from './model/lower-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
-import { validateUtf16, validatePointerAlignment } from './validation';
+import { validateUtf16, validatePointerAlignment, validateBoundarySize } from './validation';
 import { OK, ERR } from './constants';
 
 // --- Primitive lowering functions (WASM flat args → JS values) ---
@@ -89,6 +89,7 @@ export function stringLoweringUtf8(ctx: MarshalingContext, ...args: WasmValue[])
     const pointer = (args[0] as number) >>> 0 as WasmPointer;
     const len = (args[1] as number) >>> 0 as WasmSize;
     if (len as number > 0) {
+        validateBoundarySize(ctx, len as number, 'string<utf8>');
         // Validate bounds
         const memorySize = ctx.memory.getMemory().buffer.byteLength;
         if ((pointer as number) + (len as number) > memorySize) {
@@ -106,6 +107,7 @@ export function stringLoweringUtf16(ctx: MarshalingContext, ...args: WasmValue[]
     const codeUnits = (args[1] as number) >>> 0 as WasmSize;
     if (codeUnits as number > 0) {
         const byteLen = (codeUnits as number) * 2;
+        validateBoundarySize(ctx, byteLen, 'string<utf16>');
         // Validate pointer alignment (UTF-16 = 2-byte alignment)
         if ((pointer as number) & 1) {
             throw new Error(`UTF-16 string pointer not aligned: ptr=${pointer}`);
@@ -192,9 +194,11 @@ export function listLowering(plan: ListLowerPlan, ctx: MarshalingContext, ...arg
     if (len > 0) {
         // Validate list pointer alignment
         validatePointerAlignment(ptr, plan.elemAlign, 'list');
+        const totalBytes = len * plan.elemSize;
+        validateBoundarySize(ctx, totalBytes, 'list');
         // Validate bounds
         const memorySize = ctx.memory.getMemory().buffer.byteLength;
-        if (ptr + len * plan.elemSize > memorySize) {
+        if (ptr + totalBytes > memorySize) {
             throw new Error(`list pointer out of bounds: ptr=${ptr} len=${len} elem_size=${plan.elemSize} memory_size=${memorySize}`);
         }
     }

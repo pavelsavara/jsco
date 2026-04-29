@@ -60,6 +60,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         pendingBackgroundTasks: [],
         opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,
         maxMemoryBytes: config?.limits?.maxMemoryBytes,
+        maxAllocationSize: config?.limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize,
         canonOpsSinceYield: 0,
         maxCanonOpsWithoutYield: config?.limits?.maxCanonOpsWithoutYield ?? LIMIT_DEFAULTS.maxCanonOpsWithoutYield,
         maxBlockingTimeMs: config?.limits?.maxBlockingTimeMs ?? LIMIT_DEFAULTS.maxBlockingTimeMs,

@@ -6,7 +6,7 @@ import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, Tup
 export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan, FutureLiftPlan, StreamLiftPlan } from './model/lift-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
-import { validateAllocResult } from './validation';
+import { validateAllocResult, validateBoundarySize } from './validation';
 import { OK } from './constants';
 
 // --- Primitive lifting functions (JS → WASM flat args) ---
@@ -113,6 +113,7 @@ export function stringLiftingUtf8(ctx: MarshalingContext, srcJsValue: JsValue, o
     // env vars), so we must allocate the exact size in a single call.
     const encoded = ctx.utf8Encoder.encode(str);
     const byteLen = encoded.byteLength;
+    validateBoundarySize(ctx, byteLen, 'string<utf8>');
     const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 1, byteLen);
     validateAllocResult(ctx, ptr, 1, byteLen);
     ctx.memory.getViewU8(ptr, byteLen as WasmSize).set(encoded);
@@ -132,6 +133,7 @@ export function stringLiftingUtf16(ctx: MarshalingContext, srcJsValue: JsValue, 
     // UTF-16: each code unit is 2 bytes, alignment = 2
     const codeUnits = str.length;
     const byteLen = codeUnits * 2;
+    validateBoundarySize(ctx, byteLen, 'string<utf16>');
     const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, 2, byteLen);
     validateAllocResult(ctx, ptr, 2, byteLen);
     const view = ctx.memory.getViewU8(ptr, byteLen as WasmSize);
@@ -226,6 +228,7 @@ export function listLifting(plan: ListLiftPlan, ctx: MarshalingContext, srcJsVal
     }
 
     const totalSize = len * plan.elemSize;
+    validateBoundarySize(ctx, totalSize, 'list');
     const ptr = ctx.allocator.realloc(0 as WasmPointer, 0 as WasmSize, plan.elemAlign as WasmSize, totalSize as WasmSize);
     validateAllocResult(ctx, ptr, plan.elemAlign, totalSize);
 
