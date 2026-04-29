@@ -263,6 +263,10 @@ class NodeTcpSocket {
 
         // Create a server to perform the actual OS bind and claim the port
         const server = net.createServer({ allowHalfOpen: true });
+        // unref so a forgotten / leaked socket alone never keeps Node alive past
+        // the natural end of the process (matters for jest --detectOpenHandles
+        // and for guest code that doesn't `drop` the resource).
+        server.unref();
         this._server = server;
 
         return new Promise<void>((resolve, reject) => {
@@ -298,6 +302,7 @@ class NodeTcpSocket {
 
         return new Promise<void>((resolve, reject) => {
             const socket = new net.Socket({ allowHalfOpen: true });
+            socket.unref();
             const options: net.SocketConnectOpts = {
                 host,
                 port,
@@ -345,6 +350,7 @@ class NodeTcpSocket {
         let closed = false;
 
         server.on('connection', (socket: net.Socket) => {
+            socket.unref();
             this._acceptedRawSockets.push(socket);
             const accepted = new NodeTcpSocket(family);
             accepted._socket = socket;
@@ -728,6 +734,7 @@ class NodeUdpSocket {
     private constructor(family: IpAddressFamily) {
         this._family = family;
         this._socket = dgram.createSocket(family === 'ipv4' ? 'udp4' : 'udp6');
+        this._socket.unref();
     }
 
     static create(addressFamily: IpAddressFamily): NodeUdpSocket {

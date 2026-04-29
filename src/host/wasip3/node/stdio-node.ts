@@ -44,6 +44,10 @@ function nodeReadableToWeb(nodeStream: Readable): ReadableStream<Uint8Array> {
             nodeStream.on('data', onData);
             nodeStream.on('end', onEnd);
             nodeStream.on('error', onError);
+            // unref the underlying handle (e.g. TTY for process.stdin) so a
+            // never-closed stdin alone never keeps Node alive past the natural
+            // process exit. Matters for jest --detectOpenHandles.
+            (nodeStream as unknown as { unref?: () => void }).unref?.();
         },
         cancel(): void {
             removeListeners();

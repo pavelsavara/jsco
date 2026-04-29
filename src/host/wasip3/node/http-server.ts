@@ -209,13 +209,15 @@ export async function serve(
         activeConnections.add(res);
         res.on('close', () => activeConnections.delete(res));
 
-        // Per-request timeout
+        // Per-request timeout. unref() so a stuck timer alone never keeps Node
+        // alive past the natural end of the test/process.
         const timer = setTimeout(() => {
             if (!res.headersSent) {
                 res.writeHead(504, { 'Content-Type': 'text/plain' });
             }
             res.end('Gateway Timeout');
         }, requestTimeoutMs);
+        (timer as unknown as { unref?: () => void }).unref?.();
 
         (async (): Promise<void> => {
             try {
@@ -269,6 +271,17 @@ export async function serve(
                 res.end();
             }
             activeConnections.clear();
+
+            // Drop any keep-alive sockets that fetch() / undici left idle —
+            // Node `server.close()` otherwise waits for them to time out, which
+            // shows up in jest as "a worker process has failed to exit
+            // gracefully". `closeAllConnections` requires Node 18.2+.
+            const srv = server as http.Server & {
+                closeIdleConnections?: () => void;
+                closeAllConnections?: () => void;
+            };
+            srv.closeIdleConnections?.();
+            srv.closeAllConnections?.();
 
             await new Promise<void>((resolve, reject) => {
                 server.close((err) => {
