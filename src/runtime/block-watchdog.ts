@@ -5,15 +5,11 @@ import type { MarshalingContext } from '../marshal/model/types';
 /**
  * Race a JSPI-blocking Promise against `mctx.maxBlockingTimeMs`. If the cap
  * elapses first the instance is aborted and a `WebAssembly.RuntimeError` is
- * thrown — replaces a silent hang on patterns like `futures::join!` arm
- * starvation (see plan.md E1) with an actionable error.
+ * thrown (replaces silent hangs like `futures::join!` arm starvation — see
+ * plan.md E1 — with an actionable error).
  *
- * No-op when the limit is unset or zero. Non-Promise inputs are returned
- * unchanged so callers can keep their fast-path sync return.
- *
- * The timer is `unref()`-ed where supported so it does not keep Node.js
- * alive past the application's natural exit. Whenever `p` resolves first
- * the timer is cleared so we do not accumulate one stale handle per wait.
+ * No-op when the limit is unset/zero or `p` is not a Promise. The timer is
+ * `unref()`-ed so it doesn't keep Node alive past natural exit.
  */
 export function withBlockingTimeout<T>(
     mctx: MarshalingContext,
@@ -28,9 +24,7 @@ export function withBlockingTimeout<T>(
             mctx.abort(msg);
             reject(new WebAssembly.RuntimeError(msg));
         }, cap);
-        // Avoid keeping the Node event loop alive solely on this timer
-        // (the underlying suspended wasm continuation already pins the
-        // loop while it is in-flight).
+        // unref so this timer alone doesn't keep the Node loop alive.
         (timer as unknown as { unref?: () => void }).unref?.();
         p.then(
             (v) => { clearTimeout(timer); resolve(v); },

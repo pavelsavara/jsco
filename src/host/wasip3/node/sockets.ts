@@ -508,11 +508,9 @@ class NodeTcpSocket {
                 let waiting: ((result: IteratorResult<Uint8Array>) => void) | null = null;
                 let done = false;
                 let paused = false;
-                // Apply Node socket-level backpressure: when the per-iterator
-                // queue grows beyond this threshold (e.g. guest is not reading),
-                // pause the socket so the kernel stops delivering 'data' events
-                // until the consumer drains. Without this, a fast remote writer
-                // can grow `queue` without bound and OOM the JS heap (F1/B5).
+                // Socket-level backpressure: pause when the per-iterator queue
+                // grows past HIGH_WATER so a fast remote writer can't OOM the
+                // JS heap when the guest stops reading (F1/B5).
                 const HIGH_WATER = 256 * 1024; // 256 KB
                 const LOW_WATER = 64 * 1024; // 64 KB
 

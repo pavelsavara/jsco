@@ -222,8 +222,7 @@ export async function serve(
                 const [request, completionFuture] = nodeRequestToWasi(req, limits);
                 const handlerResult = await handler.handle(request);
 
-                // Per WIT spec `handle: async func(request) -> result<response, error-code>`.
-                // The handler must return a Result-shaped `{ tag: 'ok' | 'err', val }`.
+                // WIT spec: `handle` returns result<response, error-code>.
                 if (handlerResult === null || typeof handlerResult !== 'object' || !('tag' in (handlerResult as object))) {
                     throw new Error('handler returned non-Result value (expected { tag: "ok" | "err", val })');
                 }

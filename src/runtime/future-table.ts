@@ -156,13 +156,8 @@ export function createFutureTable(memory: MemoryView, allocHandle: () => number,
                 jsReadables.delete(handle);
                 return val;
             }
-            // Guest-created future (`future.new`): no JS-side Promise was ever
-            // installed via `addReadable`. Synthesize one that settles when the
-            // entry resolves (writer wrote, or writer dropped and the default
-            // value applies). The resolved JS value is whatever was captured
-            // by the entry — undefined for write-then-drop without a typed
-            // loader, or the stored resolvedValue if a host-side Promise had
-            // resolved before this lower call.
+            // Guest-created future (`future.new`): synthesize a Promise that
+            // settles when the entry resolves (write or write-then-drop).
             const base = handle & ~1;
             const entry = entries.get(base);
             if (!entry) return undefined;

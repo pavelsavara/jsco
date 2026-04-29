@@ -128,12 +128,8 @@ export interface SubtaskTable {
     create(promise: Promise<unknown>): number;
     /** Get the subtask entry for waitable-set integration. */
     getEntry(handle: number): SubtaskEntry | undefined;
-    /**
-     * Cancel a still-running subtask. Marks it RETURNED, fires onResolve callbacks.
-     * Returns the new subtask state (always RETURNED in our model). If the handle
-     * is unknown, traps via WebAssembly.RuntimeError so a malicious guest cannot
-     * silently spam invalid handles.
-     */
+    /** Mark subtask RETURNED, fire onResolve, return the new state.
+     *  Traps if the handle is unknown. */
     cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
@@ -232,54 +228,33 @@ export interface AllocationLimits {
     /** Maximum filesystem path length in bytes. Default: 4_096 */
     maxPathLength?: number;
     /**
-     * Maximum total WASM linear-memory size in bytes per component instance.
-     * Enforced lazily on canon-op transitions: when the guest grows its memory
-     * past this cap, the next canonical built-in call traps the instance.
-     * Default: 268_435_456 (256 MB). Set to 0 to disable the check.
+     * Max WASM linear-memory size (bytes) per instance. Enforced lazily on
+     * canon-op transitions: if the guest grew past the cap, the next canon
+     * built-in traps. Default: 268_435_456 (256 MB). 0 disables.
      */
     maxMemoryBytes?: number;
     /**
-     * Maximum number of canonical built-in invocations (`stream.read`, `stream.cancel-*`,
-     * `future.*`, `waitable-set.poll`, etc.) the guest can issue between two legitimate
-     * yield points. A yield point is any host operation that suspends wasm via JSPI:
-     * a host import returning a Promise, a `waitable-set.wait` that actually blocked,
-     * or the per-N throttle in `wrapWithThrottle`. When the counter exceeds this cap
-     * the next canon op traps the instance — the documented mitigation against the
-     * `stream.read → stream.cancel-read` and similar OOM/event-loop-starvation
-     * spin patterns. Default: 1_000_000. Set to 0 to disable the check.
+     * Max canonical built-in calls (`stream.*`, `future.*`, `waitable-set.poll`,
+     * etc.) between two legitimate JSPI yield points. Mitigates the
+     * `stream.read → stream.cancel-read` spin pattern and similar event-loop
+     * starvation. Default: 1_000_000. 0 disables.
      */
     maxCanonOpsWithoutYield?: number;
     /**
-     * Maximum time (ms) any single JSPI suspension point may block before the
-     * runtime aborts the instance with a `WebAssembly.RuntimeError`. Watched at
-     * the two suspension sites the guest can hang on indefinitely:
-     *  - `waitable-set.wait` resume (the canonical `futures::join!` arm-
-     *    starvation case; see plan.md E1).
-     *  - host-import Promise resume in `handleLowerResult` / `handleLowerResultSpilled`.
-     * Default 0 (disabled). Recommended for CI: 10_000. Production: leave off so
-     * legitimately slow I/O is not killed.
+     * Max ms any single JSPI suspension may block before the instance is
+     * aborted with a `WebAssembly.RuntimeError`. Watched at `waitable-set.wait`
+     * resume (plan.md E1) and host-import Promise resume.
+     * Default 0 (disabled). Recommended for CI: 10_000.
      */
     maxBlockingTimeMs?: number;
     /**
-     * Maximum process heap growth (in bytes) between two consecutive JSPI
-     * yield points. Sampled at the throttle `setImmediate` resume
-     * (`wrapWithThrottle`), the host-import Promise resume
-     * (`handleLowerResult` / `handleLowerResultSpilled`), and the
-     * `waitable-set.wait` resume. To absorb GC lag the watchdog requires
-     * three consecutive over-cap samples before aborting with a
-     * `WebAssembly.RuntimeError`.
+     * Max host-process heap growth (bytes) between two JSPI yield points.
+     * Three consecutive over-cap samples abort the instance (filters GC lag).
+     * Complements `maxMemoryBytes` by catching host-side state DOS (e.g.
+     * socket recv buffers grown inside a yield window).
      *
-     * Complements `maxMemoryBytes` (which only sees wasm linear memory):
-     * targets the host-side state a malicious guest can grow inside a yield
-     * window via legitimate canon ops (e.g. socket recv buffers from a
-     * cancel-spin variant that yields every N ops).
-     *
-     * Browser fallback uses `performance.memory.usedJSHeapSize` where the
-     * embedder exposes it (Chromium with cross-origin isolation); on
-     * embedders without a heap-introspection API the watchdog is a no-op.
-     *
-     * Default 0 (disabled). Recommended: a few × the steady-state working
-     * set of the workload (e.g. 50_000_000 for small components).
+     * Browser fallback uses `performance.memory.usedJSHeapSize` where exposed;
+     * otherwise the watchdog is a no-op. Default 0 (disabled).
      */
     maxHeapGrowthPerYield?: number;
 }

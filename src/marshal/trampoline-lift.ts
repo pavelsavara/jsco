@@ -55,19 +55,11 @@ function handleLiftResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawRes
     }
 }
 
-// --- Flat params, Flat result ---
-
 /**
- * Lift JS args into WASM-flat args for an async-lifted export.
- *
- * The async-lift trampoline (see `createAsyncLiftWrapper`) needs to lift its
- * params before invoking the core function (which returns a status code, not
- * the function result — the result is delivered via `task.return`). This is a
- * subset of the flat-param trampolines: param lifting + i64 BigInt conversion,
- * without any result handling.
- *
- * Async-lifted exports cap params at MAX_FLAT_ASYNC_PARAMS=4 flat values, so
- * the spilled-param path is rare; callers must handle that separately.
+ * Lift JS args → WASM-flat for an async-lifted export. Subset of the
+ * flat-param trampolines (params + i64 BigInt only; no result handling —
+ * the result is delivered via `task.return`). Async exports cap at
+ * MAX_FLAT_ASYNC_PARAMS=4; spilled params are rejected by the caller.
  */
 export function liftAsyncFlatParams(plan: FunctionLiftPlan, ctx: MarshalingContext, args: unknown[]): unknown[] {
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {

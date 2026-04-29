@@ -777,15 +777,13 @@ async function sendImpl(
 import { tryResult } from './resource-flatten';
 
 /**
- * Build the flat `[constructor]/[static]/[method]/[resource-drop]` import table
- * for the `wasi:http/types` interface. The component model expects flat keys
- * — this is what the resolver looks up when an alias targets a resource method.
+ * Build the flat `[constructor]/[static]/[method]/[resource-drop]` import
+ * table for the `wasi:http/types` interface (resolver looks up flat keys).
  */
 function buildHttpTypesFlat(
     FieldsClass: typeof HttpFields,
 ): Record<string, unknown> {
     return {
-        // ──── fields ────
         '[constructor]fields': (): HttpFields => new FieldsClass(),
         '[static]fields.from-list': (entries: Array<[FieldName, FieldValue]>) =>
             tryResult(() => FieldsClass.fromList(entries)),
@@ -803,7 +801,6 @@ function buildHttpTypesFlat(
         '[method]fields.entries': (self: HttpFields) => self.copyAll(),
         '[method]fields.clone': (self: HttpFields) => self.clone(),
 
-        // ──── request ────
         '[static]request.new': (
             headers: Headers,
             contents: WasiStreamReadable<Uint8Array> | undefined,
@@ -830,7 +827,6 @@ function buildHttpTypesFlat(
             res: Promise<Result<void, ErrorCode>>,
         ) => HttpRequest.consumeBody(this_, res),
 
-        // ──── request-options ────
         '[constructor]request-options': (): HttpRequestOptions => new HttpRequestOptions(),
         '[resource-drop]request-options': (): void => { /* GC */ },
         '[method]request-options.get-connect-timeout': (self: HttpRequestOptions) => self.getConnectTimeout(),
@@ -844,7 +840,6 @@ function buildHttpTypesFlat(
             tryResult(() => { self.setBetweenBytesTimeout(d); }),
         '[method]request-options.clone': (self: HttpRequestOptions) => self.clone(),
 
-        // ──── response ────
         '[static]response.new': (
             headers: Headers,
             contents: WasiStreamReadable<Uint8Array> | undefined,
@@ -863,12 +858,8 @@ function buildHttpTypesFlat(
 }
 
 /**
- * Create the `wasi:http/types` interface.
- *
- * Returns the `Fields`, `Request`, `RequestOptions`, and `Response` resource
- * classes configured with the current network limits, plus the flat
- * `[constructor]/[static]/[method]/[resource-drop]` table the component
- * resolver looks up when WASM guests import these resources.
+ * Create the `wasi:http/types` interface: resource classes configured with
+ * the current network limits, plus the flat resource-method import table.
  */
 export function createHttpTypes(config?: HostConfig): typeof WasiHttpTypes {
     const limits = getHttpLimits(config?.network);
@@ -904,10 +895,8 @@ export function createHttpClient(config?: HostConfig): typeof WasiHttpClient {
 
     return {
         async send(request: unknown): Promise<unknown> {
-            // WIT signature: send: async func(request) -> result<response, error-code>
-            // Wrap success in ok(); convert known throws (URL-too-long, fetch failures
-            // tagged with ErrorCode) into err() so the lifter sees a tagged variant
-            // rather than rejecting the whole component instance.
+            // Wrap success in ok(); ErrorCode-tagged throws become err() so the
+            // lifter sees a result<> variant rather than rejecting the instance.
             try {
                 const response = await sendImpl(request as HttpRequest, limits, defaultTimeoutMs);
                 return ok(response);

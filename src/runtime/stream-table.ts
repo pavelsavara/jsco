@@ -15,11 +15,8 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
 
     function baseHandle(handle: number): number { return handle & ~1; }
 
-    /** Signal that data arrived or stream closed — notify waitable-set watchers.
-     * Mirrors checkWriteReady's "fire-and-clear" pattern: clear the callback
-     * list before invoking so a slow guest that produces N chunks doesn't
-     * leak N copies of every old waitable-set resolver across signal cycles.
-     * Listeners that want to keep watching must re-register via onReady(). */
+    /** Signal data-arrived/closed to waitable-set watchers. Fire-and-clear:
+     *  listeners must re-register via onReady() to keep watching. */
     function signalReady(entry: StreamEntry): void {
         if (!entry.onReady || entry.onReady.length === 0) return;
         const cbs = entry.onReady;
@@ -54,10 +51,8 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 signalReady(entry);
                 return;
             }
-            // F1/B5 mitigation: pause pumping when buffer is full; resume when
-            // reader drains via checkWriteReady. Without this, a fast JS-side
-            // iterable (e.g. a network socket) accumulates chunks indefinitely
-            // when the guest doesn't read, OOMing the JS heap.
+            // tests F1/B5: pause when buffer full; resume on reader drain. Prevents
+            // a fast JS iterable from OOMing the heap when the guest stalls.
             if (entry.chunks.length >= backpressureChunks ||
                 (entry.bufferedBytes ?? 0) >= backpressureThreshold) {
                 if (!entry.onWriteReady) entry.onWriteReady = [];
@@ -246,14 +241,8 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             const base = baseHandle(handle);
             const entry = entries.get(base);
             if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
-            // Per canonical ABI (`pack_copy_result`): cancel-read returns
-            // CANCELLED when the read was successfully cancelled with no data
-            // transferred. If data already arrived (entry.chunks has data
-            // matching the pending read) the host should return COMPLETED with
-            // the byte count; today we cancel before delivering, so always
-            // return CANCELLED(0). If the stream has been closed, return
-            // DROPPED(0). If no read was pending, return COMPLETED(0)
-            // (no-op cancellation).
+            // Canonical ABI `pack_copy_result`: pending-read → CANCELLED(0);
+            // closed → DROPPED(0); no pending read → COMPLETED(0) (no-op).
             const hadPending = entry.pendingRead !== undefined;
             entry.pendingRead = undefined;
             if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
@@ -266,10 +255,8 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             const entry = entries.get(base);
             if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
             if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
-            // Symmetric to cancelRead: writes that haven't been buffered yet
-            // are reported CANCELLED. Today our `write()` is synchronous (it
-            // either buffers or returns BLOCKED), so there's no in-flight
-            // pending write to cancel — return CANCELLED(0) as a no-op.
+            // Symmetric to cancelRead. write() is synchronous (buffers or
+            // returns BLOCKED), so there's nothing in-flight — CANCELLED(0).
             return (0 << 4) | STREAM_STATUS_CANCELLED;
         },
 
@@ -322,12 +309,8 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             return jsReadables.get(handle);
         },
         removeReadable(_typeIdx: number, handle: number): unknown {
-            // If the value was an AsyncIterable that we pumped into the entry
-            // buffer in addReadable, the original iterable is now (partially or
-            // fully) drained. In that case, return an iterable backed by the
-            // buffer so the host can read whatever was buffered (and whatever
-            // is still being pumped). Otherwise, return the original value
-            // (e.g. a non-iterable host-side handle).
+            // For pumped AsyncIterables, return a buffer-backed iterable
+            // (original is partially/fully drained); otherwise pass through.
             const base = baseHandle(handle);
             const entry = entries.get(base);
             const val = jsReadables.get(handle);

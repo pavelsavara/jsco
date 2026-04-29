@@ -92,10 +92,9 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         }
     }
 
-    // Compute the lifting artifacts for sync exports + the param plan for async
-    // exports. Async-lifted exports skip the trampoline and instead lift their
-    // params manually before calling the core function (which returns a status
-    // code, not the function result — the result is delivered via task.return).
+    // Sync exports use the lifting trampoline; async exports skip it and lift
+    // params manually before invoking the core function (which returns a
+    // status code; the result is delivered out-of-band via task.return).
     const liftingArtifacts = createFunctionLiftingArtifacts(localResolved, sectionFunType);
     const liftingBinder = liftingArtifacts.lifter;
 
@@ -168,30 +167,17 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 /**
  * Create a JS wrapper for an async canon.lift export with callback.
  *
- * The WASM guest:
- *   1. Calls start_task() which invokes callback(EVENT_NONE=0, 0, 0)
- *   2. The callback return code encodes status:
- *      - 0 = exit (task done)
- *      - 1 = yield (call callback again immediately)
- *      - 2 | (waitable_set_id << 4) = wait on the waitable set
- *   3. The host waits for events, then calls callback(event_code, handle, return_code)
- *   4. Repeat until callback returns 0
+ * Guest protocol: `start_task()` invokes `callback(EVENT_NONE, 0, 0)`; the i32
+ * return encodes status (0=EXIT, 1=YIELD, `2 | (ws_id << 4)`=WAIT). The host
+ * loops until EXIT, delivering events from the waitable set.
  *
- * The core function signature: (...flat_params) → i32 status
- * The status is the initial callback return (from start_task).
+ * The function result is delivered out-of-band via `task.return` (installed
+ * into `mctx.currentTaskReturn`); this trampoline resolves as soon as that
+ * fires, so post-return spawned subtasks (e.g. body-stream forwarders) can
+ * continue draining while the host already consumes the value.
  *
- * Param lifting: this wrapper invokes the lift plan's `paramLifters` to convert
- * JS args to WASM-flat values *before* calling the core function (resources
- * become i32 handles via `ctx.resources.add`, etc.).
- *
- * Result delivery: the function result is passed back via the `task.return`
- * canon built-in. We install `mctx.currentTaskReturn` for the duration of the
- * task so that `resolveCanonicalFunctionTaskReturn`'s bound function can route
- * the lifted JS value into our pending Deferred.
- *
- * NOTE: only the Flat-params path is supported (async exports cap at
- * MAX_FLAT_ASYNC_PARAMS=4 flat values; spilled async params are extremely rare).
- * If a Spilled-params plan is encountered an explicit error is thrown.
+ * Only the Flat-params path is supported (async exports cap at
+ * MAX_FLAT_ASYNC_PARAMS=4); spilled params throw.
  */
 function createAsyncLiftWrapper(
     mctx: MarshalingContext,
@@ -208,56 +194,33 @@ function createAsyncLiftWrapper(
     const EVENT_BUF_SIZE = 12 * EVENT_BUF_EVENTS;
 
     return async function asyncLiftTrampoline(...args: unknown[]) {
-        // Refuse to enter wasm on a poisoned instance — a previous trap
-        // (e.g. duplicate `task.return`, runaway loop watchdog, OOM) has
-        // left core memory / canonical-ABI state in an unrecoverable
-        // condition. Mirrors the guard in the sync lift trampoline.
+        // Refuse re-entry on a poisoned instance (mirrors sync lift trampoline).
         checkNotPoisoned(mctx);
 
-        // Allocate per-task context slots. context.get/set canon built-ins read/write
-        // mctx.currentTaskSlots; swapping the pointer at every wasm boundary keeps
-        // concurrent reentrant async-lifted exports isolated. Restored on settle.
+        // Per-task context.get/set TLS; swapped at every wasm boundary so
+        // concurrent reentrant async exports stay isolated. Restored on settle.
         const taskSlots: number[] = [0, 0];
         const previousTaskSlots = mctx.currentTaskSlots;
         mctx.currentTaskSlots = taskSlots;
 
-        // Lift JS args → WASM flat args. Resources become integer handles via
-        // ctx.resources.add (typeIdx, jsValue). This is the fix for the
-        // handle=0 bug where async exports previously bypassed lifting.
+        // Lift JS args → WASM flat args (resources → i32 handles).
         const wasmArgs = liftAsyncFlatParams(liftPlan, mctx, args);
 
-        // Install the task.return target. The trampoline returns a Promise
-        // that resolves as soon as the guest invokes `task.return`, NOT when
-        // the entire event loop reaches EXIT. This lets the host start
-        // consuming the returned value (e.g. drain a response body stream)
-        // concurrently with post-return spawned subtasks. Without this,
-        // patterns like p3_http_echo's wit_bindgen::spawn forwarder deadlock
-        // when the response body is larger than the stream backpressure
-        // threshold: the forwarder blocks writing to the pipe, the host is
-        // stuck in `await handler.handle()`, and no one drains the pipe.
+        // The trampoline resolves on `task.return`, not on EXIT — lets the host
+        // consume the result while post-return subtasks continue running.
         let taskReturnSettle: ((v: { ok: true; value: unknown } | { ok: false; error: unknown }) => void) | undefined;
         const taskReturnPromise = new Promise<unknown>((resolve, reject) => {
             taskReturnSettle = (r): void => {
                 if (r.ok) resolve(r.value); else reject(r.error);
             };
         });
-        // Spec invariant (Component Model canonical ABI): a task may resolve
-        // at most once via `task.return`. Wasmtime enforces this with
-        // `Trap::TaskCancelOrReturnTwice` (see d:\wasmtime/crates/wasmtime/
-        // src/runtime/component/concurrent.rs::task_return). We mirror it
-        // here: the first call delivers the value to the host; any second
-        // call from the same task aborts the instance (poisons mctx) and
-        // throws a wasm RuntimeError so the trap propagates through the
-        // canon-built-in import binding back into wasm.
+        // Spec: a task may resolve at most once via `task.return`. A second call
+        // poisons the instance and throws (matches Wasmtime
+        // `Trap::TaskCancelOrReturnTwice`).
         let taskReturned = false;
         const previousTaskReturn = mctx.currentTaskReturn;
-        // Per-task handler. `mctx.currentTaskReturn` is a single field, so
-        // when multiple async-lifted exports are in-flight concurrently the
-        // last installer wins — we therefore re-install THIS task's handler
-        // immediately before every wasm boundary (just like
-        // `mctx.currentTaskSlots`). That guarantees the wasm-side
-        // `task.return` canon built-in invokes the handler belonging to the
-        // currently-running task.
+        // `mctx.currentTaskReturn` is a single field, so we re-install before
+        // every wasm boundary (same pattern as `currentTaskSlots`).
         const taskReturnHandler = (value: unknown): void => {
             if (taskReturned) {
                 const msg = 'task.return called more than once on the same task';
@@ -272,20 +235,14 @@ function createAsyncLiftWrapper(
         };
         mctx.currentTaskReturn = taskReturnHandler;
 
-        // Background event-loop driver. Runs until the guest callback returns
-        // EXIT. Drives post-return spawned subtasks (e.g. wit_stream forwarders).
-        // Errors thrown before task.return surface to the caller; errors after
-        // task.return are swallowed (the host already received its result and
-        // there's no caller awaiting them).
+        // Background driver: runs until callback returns EXIT. Errors before
+        // task.return surface to the caller; errors after are swallowed.
         const eventLoop = (async (): Promise<void> => {
-            // For now, call coreFn directly (async exports may not have params in
-            // the standard lifting sense — the core function takes flat params + returns status).
-            // coreFn may be JSPI Promising-wrapped, so await to extract the i32 status.
+            // coreFn may be JSPI Promising-wrapped; await to extract i32 status.
             mctx.currentTaskSlots = taskSlots;
             mctx.currentTaskReturn = taskReturnHandler;
             let status = await coreFn(...wasmArgs) as number;
 
-            // Async event loop
             let eventPtr = 0;
             let eventBufAllocated = false;
 
@@ -327,9 +284,7 @@ function createAsyncLiftWrapper(
                 }
             }
 
-            // Await any background tasks from sync canon.lower with stream/future params.
-            // These are host functions (e.g. writeViaStream) that consume streams
-            // in the background while the WASM continues writing to them.
+            // Drain background tasks from sync canon.lower stream/future params.
             if (mctx.pendingBackgroundTasks.length > 0) {
                 await Promise.all(mctx.pendingBackgroundTasks);
                 mctx.pendingBackgroundTasks.length = 0;
@@ -338,8 +293,7 @@ function createAsyncLiftWrapper(
 
         eventLoop.then(
             () => {
-                // Event loop finished. If task.return was never called, surface
-                // `undefined` (matches pre-F2 behaviour for void-result tests).
+                // EXIT without task.return → resolve to undefined (void result).
                 if (taskReturnSettle) {
                     taskReturnSettle({ ok: true, value: undefined });
                     taskReturnSettle = undefined;
@@ -348,10 +302,8 @@ function createAsyncLiftWrapper(
                 mctx.currentTaskSlots = previousTaskSlots;
             },
             (e: unknown) => {
-                // Event loop threw. If task.return was never called, propagate
-                // the error to the caller. If task.return was already called,
-                // the caller has already received its value; swallow to avoid
-                // an unhandled rejection (the failure is in post-return work).
+                // Throw before task.return → propagate; after → swallow
+                // (caller already has its value; swallow to avoid unhandled rejection).
                 if (taskReturnSettle) {
                     taskReturnSettle({ ok: false, error: e });
                     taskReturnSettle = undefined;

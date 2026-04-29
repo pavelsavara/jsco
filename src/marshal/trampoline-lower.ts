@@ -35,9 +35,8 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: MarshalingContext, r
 function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any,
     processResult: (plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any) => any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
-        // Capture the calling task's slots before yielding to JS event loop. When
-        // the host import resolves and wasm resumes, restore so context.get/set
-        // sees the calling task's TLS, not whatever ran during the await window.
+        // Save caller's task slots; restore on resume so context.get/set sees
+        // the right TLS even after the await window.
         const callerSlots = ctx.currentTaskSlots;
         const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
         return guarded.then(
@@ -52,10 +51,9 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
                     ctx.abort(); throw e;
                 }
             },
-            // Rejection: do NOT abort the whole instance. For async-lower the
-            // subtask table cleanly transitions to RETURNED; for sync-lower
-            // JSPI the wasm caller receives a regular trap. Both paths are
-            // recoverable at the task level.
+            // Rejection: don't poison the instance. async-lower transitions
+            // the subtask cleanly to RETURNED; sync-lower JSPI traps the
+            // caller. Both are recoverable per-task.
             (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
         );
     }
@@ -78,7 +76,7 @@ function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContex
                     ctx.abort(); throw e;
                 }
             },
-            // Rejection: see handleLowerResult — do NOT abort the instance.
+            // See handleLowerResult: don't poison on rejection.
             (e: unknown) => { ctx.currentTaskSlots = callerSlots; throw e; },
         );
     }

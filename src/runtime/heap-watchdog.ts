@@ -19,14 +19,11 @@ if (typeof process !== 'undefined' && typeof process.memoryUsage === 'function')
 }
 
 /**
- * Sample the host-process heap at a JSPI yield resume point and abort the
- * component instance if growth since the previous yield exceeds the configured
- * cap for `HEAP_GROWTH_TRIPS_TO_ABORT` consecutive samples (filters GC lag).
- *
- * Sites: throttle `setImmediate` resume, host-import Promise resume,
- * `waitable-set.wait` resume — every place wasm execution rejoins the JS
- * event loop. No-op when the cap is unset/zero or the embedder does not
- * expose heap introspection.
+ * Sample host-process heap at a JSPI yield resume; abort the instance if
+ * growth since the last yield exceeds the cap for `HEAP_GROWTH_TRIPS_TO_ABORT`
+ * consecutive samples (filters GC lag). Sampled at every JSPI yield site:
+ * throttle `setImmediate`, host-import resume, `waitable-set.wait` resume.
+ * No-op when the cap is unset/zero or no heap-introspection API is available.
  */
 export function checkHeapGrowth(mctx: MarshalingContext): void {
     const cap = mctx.maxHeapGrowthPerYield;

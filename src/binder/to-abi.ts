@@ -20,9 +20,7 @@ import { boolStorer, s8Storer, u8Storer, s16Storer, u16Storer, s32Storer, u32Sto
 import camelCase from 'just-camel-case';
 
 
-/** Pre-built lifting artifacts for a component function: the lift plan, calling
- * convention, and a binder factory closure that returns the JS-callable lifted
- * function for a given marshaling context. Memoized per `ComponentTypeFunc`. */
+/** Memoized per-function lift plan + calling convention + binder factory. */
 export type FunctionLiftingArtifacts = {
     plan: FunctionLiftPlan;
     callingConvention: import('../resolver/calling-convention').FunctionCallingConvention;

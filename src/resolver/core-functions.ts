@@ -196,9 +196,7 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
 
             const wasmFunction = loweringBinder(effectivemctx, functionResult.result as JsFunction);
 
-            // Reset the canon-op budget when the host import suspended via JSPI
-            // (i.e. returned a Promise that was awaited). Sync returns do NOT
-            // reset — no event-loop tick happened.
+            // Reset canon-op budget on JSPI Promise resume (sync return doesn't tick).
             const resetOnResume = (...wasmArgs: unknown[]): unknown => {
                 const r = (wasmFunction as (...a: unknown[]) => unknown)(...wasmArgs);
                 if (r instanceof Promise) {
@@ -398,13 +396,9 @@ function registerInstanceLocalTypes(rctx: ResolverContext, instance: ComponentTy
     const ownBorrowFixups: { type: ComponentTypeDefinedOwn | ComponentTypeDefinedBorrow; localValueIdx: number }[] = [];
     let localTypeIdx = 0;
 
-    // Phase 0: Pre-scan SubResource exports and populate localCanonicalIds
-    // BEFORE the main loop. This is required so the main loop's Eq(N) alias
-    // case (e.g. `type headers = fields;`) can inherit the canonical id of a
-    // SubResource declared earlier in the same instance type. Without this
-    // pre-scan, Phase 2a runs after the main loop and Eq aliases never get
-    // their canonical id propagated, causing own<headers> / borrow<headers>
-    // fixups to fail and the resource table to use raw local indices.
+    // Phase 0: Pre-scan SubResource exports and seed localCanonicalIds before
+    // the main loop, so Eq(N) aliases (`type headers = fields;`) appearing
+    // later inherit the canonical id of an earlier SubResource declaration.
     {
         let preIdx = 0;
         for (const decl of instance.declarations) {
@@ -609,28 +603,16 @@ export const resolveCanonicalFunctionResourceRep: Resolver<CanonicalFunctionReso
 // --- Stream canonical built-ins ---
 
 /**
- * When `yieldThrottle` is set AND JSPI is enabled,
- * wrap a sync canon built-in `fn` with `WebAssembly.Suspending` and force a
- * macrotask round-trip every Nth call. The non-throttled path is the
- * original sync function — zero overhead when the option is unset or
- * JSPI unavailable.
+ * Wrap a sync canon built-in with three optional DOS budgets, all keyed off
+ * `mctx`. When all are off the original `fn` is returned (zero overhead):
+ *  - `yieldThrottle` (+ JSPI): force a `setImmediate` macrotask every Nth call.
+ *  - `maxMemoryBytes`: trap if WASM linear memory has grown past the cap.
+ *  - `maxCanonOpsWithoutYield`: trap if too many canon ops fire between yields
+ *    (mitigates `stream.read \u2192 stream.cancel-read` spin patterns; the cancel
+ *    ops cannot themselves be Suspending-wrapped without breaking the sync ABI).
  *
- * In addition, when `mctx.maxMemoryBytes` is set, every wrapped call
- * verifies the WASM linear-memory size before invoking the built-in.
- * When the guest has grown its memory past the cap (via memory.grow),
- * the next canon op aborts the instance — preventing a malicious or
- * runaway component from OOM'ing the JS process. The check is `mctx`-
- * scoped and bypassed entirely when the cap is unset or zero.
- *
- * Finally, when `mctx.maxCanonOpsWithoutYield` is set (default-on),
- * every wrapped call also ticks a per-mctx canon-op counter. The counter
- * is reset on legitimate JSPI yield points (host-import resume,
- * `waitable-set.wait` resume, and the throttle setImmediate path here);
- * if it exceeds the cap before any yield, the next canon op aborts the
- * instance. This is the documented mitigation against canon-built-in
- * spin patterns (A1: `stream.read → stream.cancel-read` etc.) that
- * cannot be fixed by Suspending-wrapping the cancel ops directly
- * (would violate the canonical sync ABI).
+ * The op counter resets at every legitimate yield point: throttle
+ * `setImmediate`, host-import Promise resume, `waitable-set.wait` resume.
  */
 function wrapWithThrottle<TArgs extends unknown[], TRet>(
     fn: (...args: TArgs) => TRet,
@@ -667,7 +649,7 @@ function wrapWithThrottle<TArgs extends unknown[], TRet>(
         : (): void => { /* no-op */ };
 
     if (!throttleEnabled) {
-        // Pure cap-enforcement wrapper — no JSPI, no Promise return, no Suspending wrap.
+        // Pure cap-enforcement wrapper (no JSPI Suspending wrap).
         return (...args: TArgs): TRet => {
             enforceMemCap();
             enforceOpsCap();
@@ -682,8 +664,7 @@ function wrapWithThrottle<TArgs extends unknown[], TRet>(
         const n = (mctx.opsSinceYield ?? 0) + 1;
         if (n >= (yieldThrottle as number)) {
             mctx.opsSinceYield = 0;
-            // setImmediate yields to the event loop — legitimate yield, reset
-            // the canon-op budget too.
+            // setImmediate yields → reset both budgets.
             mctx.canonOpsSinceYield = 0;
             return new Promise<TRet>((resolve) => {
                 setImmediate(() => {
@@ -1051,18 +1032,15 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs)
 
     let liftToJs: ((mctx: MarshalingContext, ...args: number[]) => unknown) | undefined;
     if (resultValType !== undefined) {
-        // Deep-resolve type aliases first so flatCountForValType / lift plans
-        // operate on a fully-concrete type. Calling flatCountForValType on a
-        // raw ComponentValTypeType (alias to a section type) throws.
+        // Deep-resolve aliases so flatCountForValType / lift plans see a
+        // concrete type (raw ComponentValTypeType aliases throw).
         const resolvedResult = deepResolveType(rctx.resolved, resolveValType(rctx.resolved, resultValType));
         const flat = flatCount(resolvedResult);
         if (flat === 0) {
             // void payload
         } else if (flat <= MAX_FLAT_PARAMS) {
-            // task.return receives the result as PARAMS to a core function
-            // (the guest lowers the result and passes flat values as args).
-            // The flat-vs-spilled threshold is therefore MAX_FLAT_PARAMS, not
-            // MAX_FLAT_RESULTS.
+            // task.return delivers result as core-function PARAMS, so the
+            // flat-vs-spilled threshold is MAX_FLAT_PARAMS (not MAX_FLAT_RESULTS).
             const lowerer = createLowering(rctx.resolved, resolvedResult);
             liftToJs = (mctx: MarshalingContext, ...args: number[]): unknown => lowerer(mctx, ...args as any);
         } else {
@@ -1116,10 +1094,8 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
             const fn = (setId: number, ptr: number): number | Promise<number> => {
                 const r = mctx.waitableSets.wait(setId, ptr);
                 if (r instanceof Promise) {
-                    // Promise return ⇒ wait actually blocked ⇒ JSPI will suspend
-                    // wasm and the event loop will tick before we resume. Reset
-                    // the canon-op budget on resume; sync return (events ready
-                    // immediately) does NOT reset.
+                    // Promise → wait blocked → JSPI will tick the event loop on resume.
+                    // Reset the canon-op budget then; sync return does NOT.
                     const guarded = withBlockingTimeout(mctx, r, 'waitable-set.wait');
                     return (guarded as Promise<number>).then((v) => {
                         mctx.canonOpsSinceYield = 0;
