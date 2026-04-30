@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { defineConfig } from 'rollup';
 import typescript from '@rollup/plugin-typescript';
@@ -153,7 +153,7 @@ const plugins = isDebug ? [] : (() => {
         },
     })];
 })();
-const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
+const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the Apache-2.0 license with LLVM exception.\n';
 const externalDependencies = ['module', 'fs', 'gitHash', /^node:/];
 const outDir = isDebug ? 'dist/debug' : 'dist/release';
 /** Rollup plugin: externalize sibling module imports (wasip2, wasip2-node, index) */

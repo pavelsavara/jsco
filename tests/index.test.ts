@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from '../src/index';
 import { createWasiP3Host, WasiExit } from '../src/host/wasip3/wasip3';

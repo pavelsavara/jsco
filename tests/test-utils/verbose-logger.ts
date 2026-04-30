@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 /**
  * Test utility: captures verbose log messages per test case.

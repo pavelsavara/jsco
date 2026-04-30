@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 // Per-source attribution of dist/release/*.js bytes via source maps.
 // For every output byte, look up the originating source file via the source

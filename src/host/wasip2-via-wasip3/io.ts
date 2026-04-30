@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 /**
  * wasi:io adapter — synthesizes P2 error, poll, and streams from P3 async primitives.

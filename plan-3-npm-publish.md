@@ -16,12 +16,12 @@ Publish `@pavelsavara/jsco@0.2.0-preview.0` (or similar) to npm under `--access 
 ## Approach
 
 ### Step 1: Pre-flight checklist
-- [ ] [package.json](package.json) `name`, `version`, `description`, `license`, `repository`, `homepage`, `bugs`, `keywords` are all set sensibly for discovery.
-- [ ] `files` whitelist published is minimal — `dist/`, `README.md`, `LICENSE`, `THIRD-PARTY-NOTICES.TXT`. No tests, no integration-tests, no `.map` files (or include them — decide).
-- [ ] `exports` map covers: main entry, type entry, on-demand `host/wasip3`, `host/wasip2-via-wasip3`, `host/wasip1-via-wasip3`, `host/wasip3-node`, etc. Each with `import`/`require`/`types` conditions where appropriate.
-- [ ] `engines.node` set to a supported floor (Node ≥ 22 for `--experimental-wasm-jspi` if required, else lower).
-- [ ] `bin` entry for the `jsco` CLI is correct and the shebang line is preserved through Rollup.
-- [ ] `peerDependencies` (none expected) and `dependencies` audited; only `@thi.ng/leb128` and `just-camel-case` should be runtime.
+- [x] [deploy/package.json](deploy/package.json) `name`, `description`, `license`, `repository`, `homepage`, `bugs`, `keywords` set for discovery (description updated; keywords expanded with `wasi-preview-2`, `wasi-preview-3`, `jspi`, `runtime`, `component-model`). `version` left at `0.1.0`; the publish workflow rewrites it from the git tag (`npm version $VERSION --no-git-tag-version`).
+- [x] Published artifact root is `dist/release/` — only `dist/release/*` plus copied-in `README.md`, `LICENSE`, `THIRD-PARTY-NOTICES.TXT` ship. No tests, no integration-tests. `.map` files **included** for user debuggability (~60% of unpacked size; tarball still ~341 KB packed). No explicit `files` whitelist needed since the whole folder is the package root.
+- [x] `exports` map covers all entries: `.`, `./wasip1-via-wasip3` (newly added), `./wasip2-via-wasip3`, `./wasip2-via-wasip3-node`, `./wasip3`, `./wasip3-node`. Each has `types` + `import` (no CJS produced; pure ESM package — `"type": "module"`).
+- [x] `engines.node` set to `>=22.0.0` (matches Jest test runner's `--experimental-wasm-jspi` requirement; CI uses Node 24).
+- [x] `bin` is `{"jsco": "index.js"}`. Rollup banner injects `#!/usr/bin/env node` only on `index.js`, and `index.js` auto-invokes `cli.js` via dynamic import on Node — verified in `dist/release/index.js`.
+- [x] No `peerDependencies`. No runtime `dependencies` in deploy/package.json — `@thi.ng/leb128` and `just-camel-case` are bundled by Rollup (not in `externalDependencies`), so they are baked into `dist/release/index.js`.
 
 ### Step 2: Dry-run the package
 - `npm pack --dry-run` and inspect the file list — confirm no leakage of source maps you don't want, no `.test.ts`, no `coverage/`, no `integration-tests/`.

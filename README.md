@@ -79,15 +79,23 @@ console.log(`Listening on port ${handle.port}`);
 
 ### WASI interfaces provided
 
-| Interface | Browser | Node.js |
-|-----------|---------|---------|
-| `wasi:cli/*` (environment, exit, stdio) | ✅ | ✅ |
-| `wasi:clocks/*` (monotonic, system, timezone) | ✅ | ✅ |
-| `wasi:random/*` (secure, insecure, seed) | ✅ | ✅ |
-| `wasi:filesystem/*` (VFS, preopens) | ✅ in-memory | ✅ + real mounts |
-| `wasi:http/client` (Fetch API) | ✅ | ✅ |
-| `wasi:http/handler` (server) | ❌ not-supported | ✅ via `serve()` |
-| `wasi:sockets/*` (TCP, UDP, DNS) | ❌ not-supported | ✅ |
+Each WASI interface is implemented for one or more preview generations
+(P1 = `wasi_snapshot_preview1`, P2 = `wasi:*@0.2.x`, P3 = `wasi:*@0.3.x`),
+and may behave differently in the browser vs. Node.js.
+
+| Interface | Browser | Node.js | P3 | P2 | P1 |
+|-----------|---------|---------|----|----|----|
+| `cli/*` (environment, exit, stdio) | ✅ | ✅ | ✅ | ✅ | ✅ via adapter |
+| `clocks/*` (monotonic, system, timezone) | ✅ | ✅ | ✅ | ✅ | ✅ via adapter |
+| `random/*` (secure, insecure, seed) | ✅ | ✅ | ✅ | ✅ | ✅ via adapter |
+| `filesystem/*` (VFS, preopens) | ✅ in-memory | ✅ + real mounts | ✅ | ✅ | ✅ via adapter |
+| `http/client` (Fetch API) | ✅ | ✅ | ✅ | ✅ | — |
+| `http/handler` (server) | ❌ not-supported | ✅ via `serve()` | ✅ | ✅ | — |
+| `sockets/*` (TCP, UDP, DNS) | ❌ not-supported | ✅ | ✅ | ✅ | — |
+
+P1 modules are served by the `wasip1-via-wasip3` adapter (`wasi_snapshot_preview1`
+shim layered on top of the P3 host); same configuration, same VFS/mount/network
+options apply.
 
 # CLI
 
@@ -203,3 +211,9 @@ See [./TODO.md](./TODO.md), contributors are welcome!
 ## JSPI
 
 See [./jspi.md](./jspi.md) for more details about JSPI - synchronous calls to JS APIs which are blocking, like I/O.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0, with the LLVM exception. See [LICENSE](LICENSE) for details, and [THIRD-PARTY-NOTICES.TXT](THIRD-PARTY-NOTICES.TXT) for attribution of code adapted from upstream projects.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.

@@ -1,5 +1,65 @@
-Many files and ideas are adapted from 
-- https://github.com/bytecodealliance/wasm-tools/ under Apache-2.0 license
-- https://github.com/bytecodealliance/wasmtime under Apache-2.0 license
-- https://github.com/bytecodealliance/jco under Apache-2.0 license
-- https://github.com/yskszk63/stream-wasm-parser under MIT license
+jsco contains code adapted from the following third-party projects. Each
+project's original license remains in effect for the portions copied or
+derived from it. Where this repository's source files contain adapted
+code, the adaptation is noted in a comment near the relevant code.
+
+--------------------------------------------------------------------------
+
+Name:    wasm-tools
+Project: https://github.com/bytecodealliance/wasm-tools
+License: Apache-2.0 WITH LLVM-exception
+Source:  https://github.com/bytecodealliance/wasm-tools/blob/main/LICENSE-Apache-2.0_WITH_LLVM-exception
+
+Adapted: portions of the binary component-model parser and validator logic
+in src/parser/.
+
+--------------------------------------------------------------------------
+
+Name:    Wasmtime
+Project: https://github.com/bytecodealliance/wasmtime
+License: Apache-2.0 WITH LLVM-exception
+Source:  https://github.com/bytecodealliance/wasmtime/blob/main/LICENSE
+
+Adapted: WASIp1/p2/p3 host implementation patterns and the canonical-ABI
+marshaling and resource-table semantics in src/marshal/, src/runtime/,
+and src/host/.
+
+Bundled: pre-built WebAssembly conformance-test component binaries under
+integration-tests/wasmtime/*.component.wasm and the fixtures/ directory,
+compiled from wasmtime/crates/test-programs/src/bin and used by the jsco
+test suite to validate WASI behavior against the same test programs
+Wasmtime uses. See integration-tests/wasmtime/README.md for the exact
+upstream commit.
+
+--------------------------------------------------------------------------
+
+Name:    jco
+Project: https://github.com/bytecodealliance/jco
+License: Apache-2.0 WITH LLVM-exception
+Source:  https://github.com/bytecodealliance/jco/blob/main/LICENSE
+
+Adapted: JS-side component-model lowering/lifting code-generation patterns
+influencing src/binder/.
+
+--------------------------------------------------------------------------
+
+Name:    stream-wasm-parser
+Project: https://github.com/yskszk63/stream-wasm-parser
+License: MIT
+Source:  https://github.com/yskszk63/stream-wasm-parser/blob/main/LICENSE
+
+Adapted: streaming WASM-binary parser scaffolding influencing
+src/parser/
+
+--------------------------------------------------------------------------
+
+The following bundled npm dependencies ship inside dist/release/index.js as
+part of the published package:
+
+Name:    @thi.ng/leb128
+License: Apache-2.0
+Source:  https://github.com/thi-ng/umbrella/blob/develop/LICENSE
+
+Name:    just-camel-case
+License: MIT
+Source:  https://github.com/angus-c/just/blob/master/LICENSE

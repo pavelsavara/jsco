@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { createWasiP2ViaP3NodeHost, createNodeFilesystem } from '../../../../src/host/wasip2-via-wasip3/node/index';
 

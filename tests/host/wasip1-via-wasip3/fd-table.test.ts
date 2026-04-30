@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { FdTable, FdKind, createDefaultFdTable, ALL_RIGHTS } from '../../../src/host/wasip1-via-wasip3/fd-table';
 import { Filetype, Fdflags, Rights } from '../../../src/host/wasip1-via-wasip3/types/wasi-snapshot-preview1';

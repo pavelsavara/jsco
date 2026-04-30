@@ -1,7 +1,10 @@
 {
     "name": "@pavelsavara/jsco",
     "version": "0.1.0",
-    "description": "browser polyfill for running WASM components",
+    "description": "WebAssembly Component Model runtime for browsers and Node.js, with WASIp1/p2/p3 hosts",
+    "engines": {
+        "node": ">=22.0.0"
+    },
     "main": "index.js",
     "type": "module",
     "types": "index.d.ts",
@@ -55,10 +58,15 @@
         "WASI",
         "Component",
         "WebAssembly",
-        "polyfill"
+        "polyfill",
+        "wasi-preview-2",
+        "wasi-preview-3",
+        "jspi",
+        "runtime",
+        "component-model"
     ],
     "author": "Pavel Savara <pavel.savara@gmail.com>",
-    "license": "MIT",
+    "license": "Apache-2.0 WITH LLVM-exception",
     "bugs": {
         "url": "https://github.com/pavelsavara/jsco/issues"
     },

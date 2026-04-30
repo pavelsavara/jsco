@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 /**
  * One-off script to generate TypeScript type definitions for WASI Preview 1
@@ -231,7 +231,7 @@ function expandToWasmParams(params, typedefs) {
 function generateTypeScript(typedefs, defines, structs, functions) {
     const lines = [];
 
-    lines.push('// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.');
+    lines.push('// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.');
     lines.push('');
     lines.push('/**');
     lines.push(' * WASI Preview 1 (wasi_snapshot_preview1) raw WASM ABI type definitions.');

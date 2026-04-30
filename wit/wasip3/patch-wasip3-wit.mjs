@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 // Patches WASIp3 WIT files in wit/wasip3-copy to be parseable by jco 1.17.6:
 // 1. Remove duplicate `package` lines (keep first only)

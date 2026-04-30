@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { createHttpTypes, createHttpClient, createHttpHandler } from '../../../src/host/wasip3/http';
 import type { HostConfig } from '../../../src/host/wasip3/types';

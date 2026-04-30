@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { withBlockingTimeout } from '../../src/runtime/block-watchdog';
 import type { MarshalingContext } from '../../src/marshal/model/types';
