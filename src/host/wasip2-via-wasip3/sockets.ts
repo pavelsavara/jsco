@@ -7,8 +7,8 @@
  * The P2 adapter re-expands them. Browser stubs throw not-supported.
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
-import { ok, err } from '../wasip3/result';
+import type { WasiP3Imports } from '../wasip3';
+import { ok, err } from '../wasip3';
 
 type SocketErrorCode = string;
 type SocketResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: SocketErrorCode };

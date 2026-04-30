@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { NetworkConfig, AllocationLimits } from '../host/wasip3/types';
-import { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from '../host/wasip3/types';
+import type { NetworkConfig, AllocationLimits } from '../host/wasip3';
+import { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from '../host/wasip3';
 
 export interface FsMount {
     hostPath: string;

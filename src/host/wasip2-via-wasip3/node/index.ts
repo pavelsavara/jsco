@@ -13,9 +13,9 @@
  * - `runServe(instance, addr, network)` — CLI serve command
  */
 
-import type { WasiP2Imports } from '../../../../wit/wasip2/types/index';
+import type { WasiP2Imports } from '../index';
 import type { JsImports } from '../../../resolver/api-types';
-import type { MountConfig, AllocationLimits } from '../../wasip3/types';
+import type { MountConfig, AllocationLimits } from '../../wasip3';
 import type { IncomingHandlerFn, NetworkConfig, WasiHttpServer, HttpServerConfig, ServeInstance } from '../http-types';
 import { createWasiP3Host } from '../../wasip3/node/wasip3';
 import { createWasiP2ViaP3Adapter } from '../index';
@@ -110,5 +110,5 @@ export async function runServe(instance: ServeInstance, addr?: string, network?:
 }
 
 // Re-export types
-export type { MountConfig, AllocationLimits } from '../../wasip3/types';
+export type { MountConfig, AllocationLimits } from '../../wasip3';
 export type { IncomingHandlerFn, NetworkConfig, WasiHttpServer, HttpServerConfig, ServeInstance } from '../http-types';

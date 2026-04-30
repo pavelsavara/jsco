@@ -15,11 +15,11 @@
  * - P3 timestamps use `instant` → P2 uses `datetime`
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiInputStream, WasiOutputStream } from './io';
 import { createInputStreamFromP3, createOutputStreamFromP3 } from './io';
-import { createStreamPair } from '../wasip3/streams';
-import { ok, err } from '../wasip3/result';
+import { createStreamPair } from '../wasip3';
+import { ok, err } from '../wasip3';
 
 // ─── P2 local type aliases ───
 

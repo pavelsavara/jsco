@@ -1,9 +1,9 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
-import type { WasiP3Imports } from '../wit/wasip3/types/index';
+import type { WasiP3Imports } from './host/wasip3';
 import type { JsImports } from './resolver/api-types';
 import type { HostConfig } from './host/wasip3';
-import type { WasiP2Imports } from '../wit/wasip2/types/index';
+import type { WasiP2Imports } from './host/wasip2-via-wasip3';
 import type { WasiHttpHandlerExport, ServeHandle } from './host/wasip3/node/wasip3';
 import type { WasiP1Adapter } from './host/wasip1-via-wasip3';
 

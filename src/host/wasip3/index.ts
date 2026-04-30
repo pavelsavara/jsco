@@ -36,12 +36,14 @@ export type { HandleTable, HandleId, HandleTableConfig } from './resources';
 export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './streams';
 export type { WasiResult } from './result';
 export type { HostConfig, MountConfig, NetworkConfig, AllocationLimits } from './types';
+export type { _HttpMethod, _HttpScheme, _HttpResult, _HttpErrorCode, _HttpLimits } from './http';
 
 // Re-export infrastructure
 export { createHandleTable } from './resources';
 export { readableFromStream, readableFromAsyncIterable, createStreamPair, collectStream, collectBytes } from './streams';
 export { ok, err, WasiError } from './result';
 export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from './types';
+export { _HttpFields, _HttpRequest, _HttpResponse, _getHttpLimits } from './http';
 
 // Implementation modules
 import { createRandom, createInsecure, createInsecureSeed } from './random';

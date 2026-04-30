@@ -9,10 +9,10 @@
  * P3 stream pairs and promises.
  */
 
-import type { WasiStreamReadable } from '../wasip3/streams';
+import type { WasiStreamReadable } from '../wasip3';
 
-import type { StreamPair } from '../wasip3/streams';
-import { ok, err } from '../wasip3/result';
+import type { StreamPair } from '../wasip3';
+import { ok, err } from '../wasip3';
 
 // ─── wasi:io/error ───
 

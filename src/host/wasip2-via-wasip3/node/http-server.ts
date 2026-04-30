@@ -15,16 +15,16 @@
  *   server.stop();  // graceful shutdown
  */
 
-import type { ServeHandle } from '../../wasip3/node/http-server';
-import { serve as p3Serve } from '../../wasip3/node/http-server';
+import type { ServeHandle } from '../../wasip3/node/wasip3';
+import { serve as p3Serve } from '../../wasip3/node/wasip3';
 import {
     _HttpFields,
     _HttpRequest,
     _HttpResponse,
-} from '../../wasip3/http';
-import { ok, err } from '../../wasip3/result';
-import type { WasiStreamReadable } from '../../wasip3/streams';
-import { collectBytes } from '../../wasip3/streams';
+} from '../../wasip3';
+import { ok, err } from '../../wasip3';
+import type { WasiStreamReadable } from '../../wasip3';
+import { collectBytes } from '../../wasip3';
 import type {
     WasiFields,
     WasiIncomingBody,

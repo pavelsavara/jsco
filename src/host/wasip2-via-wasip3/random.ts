@@ -6,7 +6,7 @@
  * The random interfaces are identical between P2 and P3.
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 
 export function adaptRandom(p3: WasiP3Imports): { getRandomBytes(len: bigint): Uint8Array; getRandomU64(): bigint } {
     const p3random = p3['wasi:random/random'];

@@ -238,7 +238,10 @@ const jscoTypes = {
         }
     ],
     external: externalDependencies,
-    plugins: [dts()],
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
 };
 
 // WASI Preview 2 via Preview 3 adapter

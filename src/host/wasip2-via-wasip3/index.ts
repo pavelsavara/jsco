@@ -10,7 +10,7 @@
  * or `wasi:http/proxy@0.2.x` to run against a P3 host implementation.
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiP2Imports } from '../../../wit/wasip2/types/index';
 import type {
     WasiError,
@@ -28,7 +28,7 @@ import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreat
 import { adaptHttpTypes, adaptOutgoingHandler } from './http';
 import type { HttpMethod, HttpScheme } from './http-types';
 import { JsImports } from '../../resolver/api-types';
-import { ok, err } from '../wasip3/result';
+import { ok, err } from '../wasip3';
 
 // Re-export types for consumers
 export type {
@@ -37,6 +37,7 @@ export type {
     WasiInputStream,
     WasiOutputStream,
 } from './io';
+export type { WasiP2Imports } from '../../../wit/wasip2/types/index';
 
 /**
  * Create a P2-compatible host import object from a P3 import implementation.
