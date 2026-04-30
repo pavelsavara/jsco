@@ -5,6 +5,7 @@ import { PrimitiveValType, PrimitiveValType_Count } from '../parser/model/types'
 import { CallingConvention, CallingConvention_Count } from '../resolver/calling-convention';
 import { PlanOpKind, PlanOpKind_Count } from '../resolver/binding-plan';
 import { jsco_assert, registerInitDebugNames } from './assert';
+import isDebug from 'env:isDebug';
 
 // nameOf: compile-time checks that the string is a valid member name of the enum
 const nameOf = <T extends object>(key: keyof T & string): string => key;
@@ -228,4 +229,4 @@ function initDebugNames(): void {
     );
 }
 
-registerInitDebugNames(initDebugNames);
+registerInitDebugNames(isDebug ? initDebugNames : (): void => { /* no-op in Release */ });

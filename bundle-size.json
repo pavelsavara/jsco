@@ -1,0 +1,33 @@
+{
+    "tolerance": 0.05,
+    "sizes": {
+        "index.js": {
+            "raw": 146296,
+            "gzip": 33386
+        },
+        "wasip1-via-wasip3.js": {
+            "raw": 23106,
+            "gzip": 5976
+        },
+        "wasip2-via-wasip3-node.js": {
+            "raw": 38726,
+            "gzip": 9959
+        },
+        "wasip2-via-wasip3.js": {
+            "raw": 27740,
+            "gzip": 6718
+        },
+        "wasip3-node.js": {
+            "raw": 62468,
+            "gzip": 16573
+        },
+        "wasip3.js": {
+            "raw": 35491,
+            "gzip": 9314
+        },
+        "__TOTAL__": {
+            "raw": 333827,
+            "gzip": 81926
+        }
+    }
+}
