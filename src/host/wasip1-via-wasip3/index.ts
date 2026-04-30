@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
 
 import type { WasiSnapshotPreview1 } from './types/wasi-snapshot-preview1';
-import type { HostConfig } from '../wasip3/types';
+import type { HostConfig } from '../wasip3';
 import type { AdapterContext } from './adapter-context';
 import { createDefaultFdTable } from './fd-table';
 import { MemoryVfsBackend } from '../wasip3/vfs';

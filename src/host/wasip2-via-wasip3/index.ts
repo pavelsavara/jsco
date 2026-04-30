@@ -10,13 +10,10 @@
  * or `wasi:http/proxy@0.2.x` to run against a P3 host implementation.
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiP2Imports } from '../../../wit/wasip2/types/index';
 import type {
-    WasiError,
     WasiPollable,
-    WasiInputStream,
-    WasiOutputStream,
 } from './io';
 import { poll, createSyncPollable, createOutputStream } from './io';
 import { adaptEnvironment, adaptExit, adaptStdin, adaptStdout, adaptStderr, adaptTerminalInput, adaptTerminalStdout, adaptTerminalStderr } from './cli';
@@ -26,9 +23,14 @@ import { adaptPreopens } from './filesystem';
 import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
 import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
 import { adaptHttpTypes, adaptOutgoingHandler } from './http';
-import type { HttpMethod, HttpScheme } from './http-types';
 import { JsImports } from '../../resolver/api-types';
-import { ok, err } from '../wasip3/result';
+import { ok, err } from '../wasip3';
+import { resource, passthrough, constant, makeRegister } from '../_shared/resource-table';
+
+const P2_VERSIONS = [
+    '0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5',
+    '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11',
+] as const;
 
 // Re-export types for consumers
 export type {
@@ -37,6 +39,7 @@ export type {
     WasiInputStream,
     WasiOutputStream,
 } from './io';
+export type { WasiP2Imports } from '../../../wit/wasip2/types/index';
 
 /**
  * Create a P2-compatible host import object from a P3 import implementation.
@@ -48,20 +51,11 @@ export type {
  */
 export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports {
     const result: Record<string, unknown> = {};
-    const versions = ['0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5', '0.2.6', '0.2.7', '0.2.8', '0.2.9', '0.2.10', '0.2.11'];
-    const wasiPrefix = 'wasi:';
-    const methodPrefix = '[method]';
-    const resourceDropPrefix = '[resource-drop]';
-    const method = (cls: string, name: string): string => methodPrefix + cls + '.' + name;
-    const drop = (cls: string): string => resourceDropPrefix + cls;
+    const register = makeRegister(result, 'wasi:', P2_VERSIONS);
+    const notSupported = (): unknown => err('not-supported');
+    const syncPollable = (): WasiPollable => createSyncPollable(() => true);
 
-    function register(ns: string, methods: Record<string, Function>): void {
-        const key = wasiPrefix + ns;
-        result[key] = methods;
-        for (const v of versions) result[key + '@' + v] = methods;
-    }
-
-    // ─── wasi:random/* — passthrough ───
+    // ─── wasi:random/* ───
 
     const random = adaptRandom(p3);
     const insecure = adaptInsecure(p3);
@@ -101,40 +95,33 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
 
     // ─── wasi:io/* — synthesized from P3 async primitives ───
 
-    const pollablePrefix = 'pollable';
     register('io/poll', {
         'poll': poll,
-        [method(pollablePrefix, 'ready')]: (self: WasiPollable) => self.ready(),
-        [method(pollablePrefix, 'block')]: (self: WasiPollable) => self.block(),
-        [drop(pollablePrefix)]: () => { /* GC */ },
+        ...resource('pollable', {
+            methods: passthrough('ready', 'block'),
+        }),
     });
 
-    const _error = 'error';
     register('io/error', {
-        [method(_error, 'to-debug-string')]: (self: WasiError) => self.toDebugString(),
-        [drop(_error)]: () => { /* GC */ },
+        ...resource('error', {
+            methods: passthrough('to-debug-string'),
+        }),
     });
 
-    const inputStreamPrefix = 'input-stream';
-    const outputStreamPrefix = 'output-stream';
     register('io/streams', {
-        [method(inputStreamPrefix, 'read')]: (self: WasiInputStream, len: bigint) => self.read(len),
-        [method(inputStreamPrefix, 'blocking-read')]: (self: WasiInputStream, len: bigint) => self.blockingRead(len),
-        [method(inputStreamPrefix, 'skip')]: (self: WasiInputStream, len: bigint) => self.skip(len),
-        [method(inputStreamPrefix, 'blocking-skip')]: (self: WasiInputStream, len: bigint) => self.blockingSkip(len),
-        [method(inputStreamPrefix, 'subscribe')]: (self: WasiInputStream) => self.subscribe(),
-        [drop(inputStreamPrefix)]: () => { /* GC */ },
-        [method(outputStreamPrefix, 'check-write')]: (self: WasiOutputStream) => self.checkWrite(),
-        [method(outputStreamPrefix, 'write')]: (self: WasiOutputStream, contents: Uint8Array) => self.write(contents),
-        [method(outputStreamPrefix, 'blocking-write-and-flush')]: (self: WasiOutputStream, contents: Uint8Array) => self.blockingWriteAndFlush(contents),
-        [method(outputStreamPrefix, 'flush')]: (self: WasiOutputStream) => self.flush(),
-        [method(outputStreamPrefix, 'blocking-flush')]: (self: WasiOutputStream) => self.blockingFlush(),
-        [method(outputStreamPrefix, 'write-zeroes')]: (self: WasiOutputStream, len: bigint) => self.writeZeroes(len),
-        [method(outputStreamPrefix, 'blocking-write-zeroes-and-flush')]: (self: WasiOutputStream, len: bigint) => self.blockingWriteZeroesAndFlush(len),
-        [method(outputStreamPrefix, 'splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.splice(src, len),
-        [method(outputStreamPrefix, 'blocking-splice')]: (self: WasiOutputStream, src: WasiInputStream, len: bigint) => self.blockingSplice(src, len),
-        [method(outputStreamPrefix, 'subscribe')]: (self: WasiOutputStream) => self.subscribe(),
-        [drop(outputStreamPrefix)]: () => { /* GC */ },
+        ...resource('input-stream', {
+            methods: passthrough(
+                'read', 'blocking-read', 'skip', 'blocking-skip', 'subscribe',
+            ),
+        }),
+        ...resource('output-stream', {
+            methods: passthrough(
+                'check-write', 'write',
+                'blocking-write-and-flush', 'flush', 'blocking-flush',
+                'write-zeroes', 'blocking-write-zeroes-and-flush',
+                'splice', 'blocking-splice', 'subscribe',
+            ),
+        }),
     });
 
     // ─── wasi:cli/* ───
@@ -181,41 +168,30 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     // ─── wasi:filesystem/* ───
 
     const preopens = adaptPreopens(p3);
-    const descriptorPrefix = 'descriptor';
-    const directoryPrefix = 'directory-entry-stream';
 
     register('filesystem/types', {
         'filesystem-error-code': () => undefined,
-        [drop(descriptorPrefix)]: () => { /* GC */ },
-        [method(descriptorPrefix, 'read-via-stream')]: (self: P2DescriptorAdapter, offset: bigint) => self.readViaStream(offset),
-        [method(descriptorPrefix, 'write-via-stream')]: (self: P2DescriptorAdapter, offset: bigint) => self.writeViaStream(offset),
-        [method(descriptorPrefix, 'append-via-stream')]: (self: P2DescriptorAdapter) => self.appendViaStream(),
-        [method(descriptorPrefix, 'get-type')]: (self: P2DescriptorAdapter) => self.getType(),
-        [method(descriptorPrefix, 'stat')]: (self: P2DescriptorAdapter) => self.stat(),
-        [method(descriptorPrefix, 'stat-at')]: (self: P2DescriptorAdapter, pathFlags: unknown, path: string) => self.statAt(pathFlags as { symlinkFollow?: boolean }, path),
-        [method(descriptorPrefix, 'open-at')]: (self: P2DescriptorAdapter, pathFlags: unknown, path: string, openFlags: unknown, descFlags: unknown) => self.openAt(pathFlags as { symlinkFollow?: boolean }, path, openFlags as { create?: boolean; directory?: boolean; exclusive?: boolean; truncate?: boolean }, descFlags as { read?: boolean; write?: boolean; mutateDirectory?: boolean }),
-        [method(descriptorPrefix, 'read-directory')]: (self: P2DescriptorAdapter) => self.readDirectory(),
-        [method(descriptorPrefix, 'create-directory-at')]: (self: P2DescriptorAdapter, path: string) => self.createDirectoryAt(path),
-        [method(descriptorPrefix, 'remove-directory-at')]: (self: P2DescriptorAdapter, path: string) => self.removeDirectoryAt(path),
-        [method(descriptorPrefix, 'unlink-file-at')]: (self: P2DescriptorAdapter, path: string) => self.unlinkFileAt(path),
-        [method(descriptorPrefix, 'read')]: (self: P2DescriptorAdapter, length: bigint, offset: bigint) => self.read(length, offset),
-        [method(descriptorPrefix, 'write')]: (self: P2DescriptorAdapter, buffer: Uint8Array, offset: bigint) => self.write(buffer, offset),
-        [method(descriptorPrefix, 'get-flags')]: (self: P2DescriptorAdapter) => self.getFlags(),
-        [method(descriptorPrefix, 'set-size')]: (self: P2DescriptorAdapter, size: bigint) => self.setSize(size),
-        [method(descriptorPrefix, 'sync')]: (self: P2DescriptorAdapter) => self.sync(),
-        [method(descriptorPrefix, 'sync-data')]: (self: P2DescriptorAdapter) => self.syncData(),
-        [method(descriptorPrefix, 'metadata-hash')]: (self: P2DescriptorAdapter) => self.metadataHash(),
-        [method(descriptorPrefix, 'metadata-hash-at')]: (self: P2DescriptorAdapter, pathFlags: unknown, path: string) => self.metadataHashAt(pathFlags as { symlinkFollow?: boolean }, path),
-        [method(descriptorPrefix, 'rename-at')]: (self: P2DescriptorAdapter, oldPath: string, newDesc: P2DescriptorAdapter, newPath: string) => self.renameAt(oldPath, newDesc, newPath),
-        [method(descriptorPrefix, 'link-at')]: (self: P2DescriptorAdapter, oldPathFlags: unknown, oldPath: string, newDesc: P2DescriptorAdapter, newPath: string) => self.linkAt(oldPathFlags as { symlinkFollow?: boolean }, oldPath, newDesc, newPath),
-        [method(descriptorPrefix, 'readlink-at')]: (self: P2DescriptorAdapter, path: string) => self.readlinkAt(path),
-        [method(descriptorPrefix, 'symlink-at')]: (self: P2DescriptorAdapter, oldPath: string, newPath: string) => self.symlinkAt(oldPath, newPath),
-        [method(descriptorPrefix, 'set-times')]: (self: P2DescriptorAdapter, atime: NewTimestamp, mtime: NewTimestamp) => self.setTimes(atime, mtime),
-        [method(descriptorPrefix, 'set-times-at')]: (self: P2DescriptorAdapter, pathFlags: unknown, path: string, atime: NewTimestamp, mtime: NewTimestamp) => self.setTimesAt(pathFlags as { symlinkFollow?: boolean }, path, atime, mtime),
-        [method(descriptorPrefix, 'is-same-object')]: (self: P2DescriptorAdapter, other: P2DescriptorAdapter) => self.isSameObject(other),
-        [method(descriptorPrefix, 'advise')]: (self: P2DescriptorAdapter, offset: bigint, length: bigint, advice: string) => self.advise(offset, length, advice),
-        [drop(directoryPrefix)]: () => { /* GC */ },
-        [method(directoryPrefix, 'read-directory-entry')]: (self: { readDirectoryEntry: () => unknown }) => self.readDirectoryEntry(),
+        ...resource('descriptor', {
+            methods: {
+                ...passthrough(
+                    'read-via-stream', 'write-via-stream', 'append-via-stream',
+                    'get-type', 'stat', 'read-directory',
+                    'create-directory-at', 'remove-directory-at', 'unlink-file-at',
+                    'read', 'write', 'get-flags', 'set-size',
+                    'sync', 'sync-data', 'metadata-hash',
+                    'rename-at', 'readlink-at', 'symlink-at',
+                    'set-times', 'is-same-object', 'advise',
+                ),
+                'stat-at': (self: P2DescriptorAdapter, pathFlags: unknown, path: string) => self.statAt(pathFlags as { symlinkFollow?: boolean }, path),
+                'open-at': (self: P2DescriptorAdapter, pathFlags: unknown, path: string, openFlags: unknown, descFlags: unknown) => self.openAt(pathFlags as { symlinkFollow?: boolean }, path, openFlags as { create?: boolean; directory?: boolean; exclusive?: boolean; truncate?: boolean }, descFlags as { read?: boolean; write?: boolean; mutateDirectory?: boolean }),
+                'metadata-hash-at': (self: P2DescriptorAdapter, pathFlags: unknown, path: string) => self.metadataHashAt(pathFlags as { symlinkFollow?: boolean }, path),
+                'link-at': (self: P2DescriptorAdapter, oldPathFlags: unknown, oldPath: string, newDesc: P2DescriptorAdapter, newPath: string) => self.linkAt(oldPathFlags as { symlinkFollow?: boolean }, oldPath, newDesc, newPath),
+                'set-times-at': (self: P2DescriptorAdapter, pathFlags: unknown, path: string, atime: NewTimestamp, mtime: NewTimestamp) => self.setTimesAt(pathFlags as { symlinkFollow?: boolean }, path, atime, mtime),
+            },
+        }),
+        ...resource('directory-entry-stream', {
+            methods: passthrough('read-directory-entry'),
+        }),
     });
     register('filesystem/preopens', {
         'get-directories': preopens.getDirectories,
@@ -227,74 +203,78 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     const outgoingHandler = adaptOutgoingHandler(p3);
 
     register('http/types', {
-        '[constructor]fields': httpTypes.createFields,
-        '[static]fields.from-list': httpTypes.createFieldsFromList,
-        '[resource-drop]fields': () => { /* GC */ },
-        '[method]fields.get': (self: { get: (name: string) => Uint8Array[] }, name: string) => self.get(name),
-        '[method]fields.has': (self: { has: (name: string) => boolean }, name: string) => self.has(name),
-        '[method]fields.set': (self: { set: (name: string, values: Uint8Array[]) => unknown }, name: string, values: Uint8Array[]) => self.set(name, values),
-        '[method]fields.append': (self: { append: (name: string, value: Uint8Array) => unknown }, name: string, value: Uint8Array) => self.append(name, value),
-        '[method]fields.delete': (self: { delete: (name: string) => unknown }, name: string) => self.delete(name),
-        '[method]fields.entries': (self: { entries: () => [string, Uint8Array][] }) => self.entries(),
-        '[method]fields.clone': (self: { clone: () => unknown }) => self.clone(),
-        '[constructor]outgoing-request': httpTypes.createOutgoingRequest,
-        '[resource-drop]outgoing-request': () => { /* GC */ },
-        '[method]outgoing-request.method': (self: { method: () => HttpMethod }) => self.method(),
-        '[method]outgoing-request.set-method': (self: { setMethod: (m: HttpMethod) => boolean }, m: HttpMethod) => self.setMethod(m),
-        '[method]outgoing-request.path-with-query': (self: { pathWithQuery: () => string | undefined }) => self.pathWithQuery(),
-        '[method]outgoing-request.set-path-with-query': (self: { setPathWithQuery: (p: string | undefined) => boolean }, p: string | undefined) => self.setPathWithQuery(p),
-        '[method]outgoing-request.scheme': (self: { scheme: () => HttpScheme | undefined }) => self.scheme(),
-        '[method]outgoing-request.set-scheme': (self: { setScheme: (s: HttpScheme | undefined) => boolean }, s: HttpScheme | undefined) => self.setScheme(s),
-        '[method]outgoing-request.authority': (self: { authority: () => string | undefined }) => self.authority(),
-        '[method]outgoing-request.set-authority': (self: { setAuthority: (a: string | undefined) => boolean }, a: string | undefined) => self.setAuthority(a),
-        '[method]outgoing-request.headers': (self: { headers: () => unknown }) => self.headers(),
-        '[method]outgoing-request.body': (self: { body: () => unknown }) => self.body(),
-        '[resource-drop]outgoing-body': () => { /* GC */ },
-        '[method]outgoing-body.write': (self: { write: () => unknown }) => self.write(),
-        '[static]outgoing-body.finish': () => ok(),
-        '[constructor]request-options': httpTypes.createRequestOptions,
-        '[resource-drop]request-options': () => { /* GC */ },
-        '[method]request-options.connect-timeout': (self: { connectTimeout: () => bigint | undefined }) => self.connectTimeout(),
-        '[method]request-options.set-connect-timeout': (self: { setConnectTimeout: (t: bigint | undefined) => boolean }, t: bigint | undefined) => self.setConnectTimeout(t),
-        '[method]request-options.first-byte-timeout': (self: { firstByteTimeout: () => bigint | undefined }) => self.firstByteTimeout(),
-        '[method]request-options.set-first-byte-timeout': (self: { setFirstByteTimeout: (t: bigint | undefined) => boolean }, t: bigint | undefined) => self.setFirstByteTimeout(t),
-        '[method]request-options.between-bytes-timeout': (self: { betweenBytesTimeout: () => bigint | undefined }) => self.betweenBytesTimeout(),
-        '[method]request-options.set-between-bytes-timeout': (self: { setBetweenBytesTimeout: (t: bigint | undefined) => boolean }, t: bigint | undefined) => self.setBetweenBytesTimeout(t),
-        '[resource-drop]incoming-response': () => { /* GC */ },
-        '[method]incoming-response.status': (self: { status: () => number }) => self.status(),
-        '[method]incoming-response.headers': (self: { headers: () => unknown }) => self.headers(),
-        '[method]incoming-response.consume': (self: { consume: () => unknown }) => self.consume(),
-        '[resource-drop]incoming-body': () => { /* GC */ },
-        '[method]incoming-body.stream': (self: { stream: () => unknown }) => self.stream(),
-        '[static]incoming-body.finish': () => ({
-            subscribe: (): WasiPollable => createSyncPollable(() => true),
-            get: (): unknown => ok(ok()),
-        }),
-        '[resource-drop]future-incoming-response': () => { /* GC */ },
-        '[method]future-incoming-response.subscribe': (self: { subscribe: () => WasiPollable }) => self.subscribe(),
-        '[method]future-incoming-response.get': (self: { get: () => unknown }) => self.get(),
         'http-error-code': () => undefined,
-        '[resource-drop]incoming-request': () => { /* GC */ },
-        '[constructor]outgoing-response': (headers: unknown) => ({
-            _statusCode: 200,
-            _headers: headers,
-            statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
-            setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
-            headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-            body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream()) }); },
+        ...resource('fields', {
+            ctor: httpTypes.createFields,
+            statics: { 'from-list': httpTypes.createFieldsFromList },
+            methods: passthrough('get', 'has', 'set', 'append', 'delete', 'entries', 'clone'),
         }),
-        '[resource-drop]outgoing-response': () => { /* GC */ },
-        '[resource-drop]response-outparam': () => { /* GC */ },
-        '[static]response-outparam.set': () => { /* stub */ },
-        '[resource-drop]future-trailers': () => { /* GC */ },
-        '[method]future-trailers.subscribe': () => createSyncPollable(() => true),
-        '[method]future-trailers.get': () => ok(ok()),
+        ...resource('outgoing-request', {
+            ctor: httpTypes.createOutgoingRequest,
+            methods: passthrough(
+                'method', 'set-method', 'path-with-query', 'set-path-with-query',
+                'scheme', 'set-scheme', 'authority', 'set-authority',
+                'headers', 'body',
+            ),
+        }),
+        ...resource('outgoing-body', {
+            methods: passthrough('write'),
+            statics: { 'finish': () => ok() },
+        }),
+        ...resource('request-options', {
+            ctor: httpTypes.createRequestOptions,
+            methods: passthrough(
+                'connect-timeout', 'set-connect-timeout',
+                'first-byte-timeout', 'set-first-byte-timeout',
+                'between-bytes-timeout', 'set-between-bytes-timeout',
+            ),
+        }),
+        ...resource('incoming-response', {
+            methods: passthrough('status', 'headers', 'consume'),
+        }),
+        ...resource('incoming-body', {
+            methods: passthrough('stream'),
+            statics: {
+                'finish': () => ({
+                    subscribe: syncPollable,
+                    get: (): unknown => ok(ok()),
+                }),
+            },
+        }),
+        ...resource('future-incoming-response', {
+            methods: passthrough('subscribe', 'get'),
+        }),
+        ...resource('incoming-request', {}),
+        ...resource('outgoing-response', {
+            ctor: (headers: unknown) => ({
+                _statusCode: 200,
+                _headers: headers,
+                statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
+                setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
+                headers: function (): unknown { return (this as { _headers: unknown })._headers; },
+                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream()) }); },
+            }),
+        }),
+        ...resource('response-outparam', {
+            statics: { 'set': () => { /* stub */ } },
+        }),
+        ...resource('future-trailers', {
+            methods: {
+                'subscribe': syncPollable,
+                'get': () => ok(ok()),
+            },
+        }),
     });
     register('http/outgoing-handler', {
         'handle': outgoingHandler.handle,
     });
 
     // ─── wasi:sockets/* ───
+    //
+    // P3's sockets shape (P3 instance methods are `bind`/`connect`/...) does not match
+    // P2's split start/finish state machine, so the methods below are effectively
+    // "not-supported" stubs in both browser and Node hosts. Future virtual-socket
+    // bridging would replace these blocks.
 
     const instanceNet = adaptInstanceNetwork();
     const network = adaptNetwork();
@@ -306,124 +286,70 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
         'instance-network': instanceNet.instanceNetwork,
     });
     register('sockets/network', {
-        '[resource-drop]network': () => { /* GC */ },
         'network-error-code': network.networkErrorCode,
+        ...resource('network', {}),
     });
     register('sockets/tcp-create-socket', {
         'create-tcp-socket': tcpCreate.createTcpSocket,
     });
-    register('sockets/tcp', {
-        '[resource-drop]tcp-socket': () => { /* GC */ },
-        // TCP socket methods are dispatched on the P3 tcp-socket objects
-        // which are passed through from P3 types. Browser stubs throw not-supported.
-        '[method]tcp-socket.start-bind': (self: { startBind?: Function }, _network: unknown, addr: unknown) =>
-            self.startBind ? self.startBind(_network, addr) : err('not-supported'),
-        '[method]tcp-socket.finish-bind': (self: { finishBind?: Function }) =>
-            self.finishBind ? self.finishBind() : err('not-supported'),
-        '[method]tcp-socket.start-connect': (self: { startConnect?: Function }, _network: unknown, addr: unknown) =>
-            self.startConnect ? self.startConnect(_network, addr) : err('not-supported'),
-        '[method]tcp-socket.finish-connect': (self: { finishConnect?: Function }) =>
-            self.finishConnect ? self.finishConnect() : err('not-supported'),
-        '[method]tcp-socket.start-listen': (self: { startListen?: Function }) =>
-            self.startListen ? self.startListen() : err('not-supported'),
-        '[method]tcp-socket.finish-listen': (self: { finishListen?: Function }) =>
-            self.finishListen ? self.finishListen() : err('not-supported'),
-        '[method]tcp-socket.accept': (self: { accept?: Function }) =>
-            self.accept ? self.accept() : err('not-supported'),
-        '[method]tcp-socket.local-address': (self: { localAddress?: Function }) =>
-            self.localAddress ? self.localAddress() : err('not-supported'),
-        '[method]tcp-socket.remote-address': (self: { remoteAddress?: Function }) =>
-            self.remoteAddress ? self.remoteAddress() : err('not-supported'),
-        '[method]tcp-socket.is-listening': (self: { isListening?: Function }) =>
-            self.isListening ? self.isListening() : false,
-        '[method]tcp-socket.address-family': (self: { addressFamily?: Function }) =>
-            self.addressFamily ? self.addressFamily() : 'ipv4',
-        '[method]tcp-socket.set-listen-backlog-size': (self: { setListenBacklogSize?: Function }, value: bigint) =>
-            self.setListenBacklogSize ? self.setListenBacklogSize(value) : err('not-supported'),
-        '[method]tcp-socket.keep-alive-enabled': (self: { keepAliveEnabled?: Function }) =>
-            self.keepAliveEnabled ? self.keepAliveEnabled() : err('not-supported'),
-        '[method]tcp-socket.set-keep-alive-enabled': (self: { setKeepAliveEnabled?: Function }, value: boolean) =>
-            self.setKeepAliveEnabled ? self.setKeepAliveEnabled(value) : err('not-supported'),
-        '[method]tcp-socket.keep-alive-idle-time': (self: { keepAliveIdleTime?: Function }) =>
-            self.keepAliveIdleTime ? self.keepAliveIdleTime() : err('not-supported'),
-        '[method]tcp-socket.set-keep-alive-idle-time': (self: { setKeepAliveIdleTime?: Function }, value: bigint) =>
-            self.setKeepAliveIdleTime ? self.setKeepAliveIdleTime(value) : err('not-supported'),
-        '[method]tcp-socket.keep-alive-interval': (self: { keepAliveInterval?: Function }) =>
-            self.keepAliveInterval ? self.keepAliveInterval() : err('not-supported'),
-        '[method]tcp-socket.set-keep-alive-interval': (self: { setKeepAliveInterval?: Function }, value: bigint) =>
-            self.setKeepAliveInterval ? self.setKeepAliveInterval(value) : err('not-supported'),
-        '[method]tcp-socket.keep-alive-count': (self: { keepAliveCount?: Function }) =>
-            self.keepAliveCount ? self.keepAliveCount() : err('not-supported'),
-        '[method]tcp-socket.set-keep-alive-count': (self: { setKeepAliveCount?: Function }, value: number) =>
-            self.setKeepAliveCount ? self.setKeepAliveCount(value) : err('not-supported'),
-        '[method]tcp-socket.hop-limit': (self: { hopLimit?: Function }) =>
-            self.hopLimit ? self.hopLimit() : err('not-supported'),
-        '[method]tcp-socket.set-hop-limit': (self: { setHopLimit?: Function }, value: number) =>
-            self.setHopLimit ? self.setHopLimit(value) : err('not-supported'),
-        '[method]tcp-socket.receive-buffer-size': (self: { receiveBufferSize?: Function }) =>
-            self.receiveBufferSize ? self.receiveBufferSize() : err('not-supported'),
-        '[method]tcp-socket.set-receive-buffer-size': (self: { setReceiveBufferSize?: Function }, value: bigint) =>
-            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : err('not-supported'),
-        '[method]tcp-socket.send-buffer-size': (self: { sendBufferSize?: Function }) =>
-            self.sendBufferSize ? self.sendBufferSize() : err('not-supported'),
-        '[method]tcp-socket.set-send-buffer-size': (self: { setSendBufferSize?: Function }, value: bigint) =>
-            self.setSendBufferSize ? self.setSendBufferSize(value) : err('not-supported'),
-        '[method]tcp-socket.subscribe': (self: { subscribe?: Function }) =>
-            self.subscribe ? self.subscribe() : createSyncPollable(() => true),
-        '[method]tcp-socket.shutdown': (self: { shutdown?: Function }, shutdownType: string) =>
-            self.shutdown ? self.shutdown(shutdownType) : err('not-supported'),
-    });
+    register('sockets/tcp', resource('tcp-socket', {
+        methods: {
+            ...constant(notSupported,
+                'start-bind', 'finish-bind', 'start-connect', 'finish-connect',
+                'start-listen', 'finish-listen', 'accept',
+                'local-address', 'remote-address', 'set-listen-backlog-size',
+                'keep-alive-enabled', 'set-keep-alive-enabled',
+                'keep-alive-idle-time', 'set-keep-alive-idle-time',
+                'keep-alive-interval', 'set-keep-alive-interval',
+                'keep-alive-count', 'set-keep-alive-count',
+                'hop-limit', 'set-hop-limit',
+                'receive-buffer-size', 'set-receive-buffer-size',
+                'send-buffer-size', 'set-send-buffer-size',
+                'shutdown',
+            ),
+            ...constant(false, 'is-listening'),
+            ...constant('ipv4', 'address-family'),
+            'subscribe': syncPollable,
+        },
+    }));
     register('sockets/udp-create-socket', {
         'create-udp-socket': udpCreate.createUdpSocket,
     });
     register('sockets/udp', {
-        '[resource-drop]udp-socket': () => { /* GC */ },
-        '[method]udp-socket.start-bind': (self: { startBind?: Function }, _network: unknown, addr: unknown) =>
-            self.startBind ? self.startBind(_network, addr) : err('not-supported'),
-        '[method]udp-socket.finish-bind': (self: { finishBind?: Function }) =>
-            self.finishBind ? self.finishBind() : err('not-supported'),
-        '[method]udp-socket.stream': (self: { stream?: Function }, addr: unknown) =>
-            self.stream ? self.stream(addr) : err('not-supported'),
-        '[method]udp-socket.local-address': (self: { localAddress?: Function }) =>
-            self.localAddress ? self.localAddress() : err('not-supported'),
-        '[method]udp-socket.remote-address': (self: { remoteAddress?: Function }) =>
-            self.remoteAddress ? self.remoteAddress() : err('not-supported'),
-        '[method]udp-socket.address-family': (self: { addressFamily?: Function }) =>
-            self.addressFamily ? self.addressFamily() : 'ipv4',
-        '[method]udp-socket.unicast-hop-limit': (self: { unicastHopLimit?: Function }) =>
-            self.unicastHopLimit ? self.unicastHopLimit() : err('not-supported'),
-        '[method]udp-socket.set-unicast-hop-limit': (self: { setUnicastHopLimit?: Function }, value: number) =>
-            self.setUnicastHopLimit ? self.setUnicastHopLimit(value) : err('not-supported'),
-        '[method]udp-socket.receive-buffer-size': (self: { receiveBufferSize?: Function }) =>
-            self.receiveBufferSize ? self.receiveBufferSize() : err('not-supported'),
-        '[method]udp-socket.set-receive-buffer-size': (self: { setReceiveBufferSize?: Function }, value: bigint) =>
-            self.setReceiveBufferSize ? self.setReceiveBufferSize(value) : err('not-supported'),
-        '[method]udp-socket.send-buffer-size': (self: { sendBufferSize?: Function }) =>
-            self.sendBufferSize ? self.sendBufferSize() : err('not-supported'),
-        '[method]udp-socket.set-send-buffer-size': (self: { setSendBufferSize?: Function }, value: bigint) =>
-            self.setSendBufferSize ? self.setSendBufferSize(value) : err('not-supported'),
-        '[method]udp-socket.subscribe': (self: { subscribe?: Function }) =>
-            self.subscribe ? self.subscribe() : createSyncPollable(() => true),
-        '[resource-drop]incoming-datagram-stream': () => { /* GC */ },
-        '[method]incoming-datagram-stream.receive': (self: { receive?: Function }, maxResults: bigint) =>
-            self.receive ? self.receive(maxResults) : err('not-supported'),
-        '[method]incoming-datagram-stream.subscribe': (self: { subscribe?: Function }) =>
-            self.subscribe ? self.subscribe() : createSyncPollable(() => true),
-        '[resource-drop]outgoing-datagram-stream': () => { /* GC */ },
-        '[method]outgoing-datagram-stream.check-send': (self: { checkSend?: Function }) =>
-            self.checkSend ? self.checkSend() : err('not-supported'),
-        '[method]outgoing-datagram-stream.send': (self: { send?: Function }, datagrams: unknown) =>
-            self.send ? self.send(datagrams) : err('not-supported'),
-        '[method]outgoing-datagram-stream.subscribe': (self: { subscribe?: Function }) =>
-            self.subscribe ? self.subscribe() : createSyncPollable(() => true),
+        ...resource('udp-socket', {
+            methods: {
+                ...constant(notSupported,
+                    'start-bind', 'finish-bind', 'stream',
+                    'local-address', 'remote-address',
+                    'unicast-hop-limit', 'set-unicast-hop-limit',
+                    'receive-buffer-size', 'set-receive-buffer-size',
+                    'send-buffer-size', 'set-send-buffer-size',
+                ),
+                ...constant('ipv4', 'address-family'),
+                'subscribe': syncPollable,
+            },
+        }),
+        ...resource('incoming-datagram-stream', {
+            methods: {
+                ...constant(notSupported, 'receive'),
+                'subscribe': syncPollable,
+            },
+        }),
+        ...resource('outgoing-datagram-stream', {
+            methods: {
+                ...constant(notSupported, 'check-send', 'send'),
+                'subscribe': syncPollable,
+            },
+        }),
     });
     register('sockets/ip-name-lookup', {
         'resolve-addresses': ipLookup.resolveAddresses,
-        '[resource-drop]resolve-address-stream': () => { /* GC */ },
-        '[method]resolve-address-stream.resolve-next-address': (self: { resolveNextAddress?: Function }) =>
-            self.resolveNextAddress ? self.resolveNextAddress() : err('not-supported'),
-        '[method]resolve-address-stream.subscribe': (self: { subscribe?: Function }) =>
-            self.subscribe ? self.subscribe() : createSyncPollable(() => true),
+        ...resource('resolve-address-stream', {
+            methods: {
+                ...constant(notSupported, 'resolve-next-address'),
+                'subscribe': syncPollable,
+            },
+        }),
     });
 
     return result as unknown as WasiP2Imports & JsImports;

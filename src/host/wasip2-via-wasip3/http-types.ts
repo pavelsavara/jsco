@@ -19,11 +19,11 @@ import type {
 export type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
 
 // Re-export types shared with P3
-export type { NetworkConfig } from '../wasip3/types';
-import type { NetworkConfig } from '../wasip3/types';
-export { NETWORK_DEFAULTS } from '../wasip3/types';
-import type { _HttpMethod, _HttpScheme } from '../wasip3/http';
-export type { _HttpMethod as HttpMethod, _HttpScheme as HttpScheme } from '../wasip3/http';
+export type { NetworkConfig } from '../wasip3';
+import type { NetworkConfig } from '../wasip3';
+export { NETWORK_DEFAULTS } from '../wasip3';
+import type { _HttpMethod, _HttpScheme } from '../wasip3';
+export type { _HttpMethod as HttpMethod, _HttpScheme as HttpScheme } from '../wasip3';
 
 import type {
     AdapterFields, AdapterOutgoingRequest, AdapterRequestOptions,

@@ -3,6 +3,7 @@
 import type { AdapterContext } from './adapter-context';
 import { Errno, Preopentype, PrestatLayout } from './types/wasi-snapshot-preview1';
 import { getView } from './memory';
+import { WasiExit } from '../wasip3/cli';
 
 export function args_get(ctx: AdapterContext, argv: number, argv_buf: number): number {
     const mem = ctx.getMemory();
@@ -71,15 +72,6 @@ export function fd_prestat_dir_name(ctx: AdapterContext, fd: number, path: numbe
     const writeLen = Math.min(pathBytes.length, path_len);
     new Uint8Array(mem.buffer, path, writeLen).set(pathBytes.subarray(0, writeLen));
     return Errno.Success;
-}
-
-class WasiExit extends Error {
-    exitCode: number;
-    constructor(code: number) {
-        super(`WASI exit with code ${code}`);
-        this.name = 'WasiExit';
-        this.exitCode = code;
-    }
 }
 
 export function proc_exit(rval: number): void {

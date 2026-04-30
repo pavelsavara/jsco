@@ -9,11 +9,11 @@
  * - P3 request/response use streams directly → P2 uses outgoing-body/incoming-body resources
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
 import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream } from './io';
 import type { HttpMethod, HttpScheme, AdaptedHttpTypes } from './http-types';
-import { ok, err } from '../wasip3/result';
+import { ok, err } from '../wasip3';
 
 type HttpErrorCode = { tag: string; val?: unknown };
 type HeaderError = { tag: string };

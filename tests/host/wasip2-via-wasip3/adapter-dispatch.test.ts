@@ -547,27 +547,6 @@ describe('wasi:sockets adapter dispatch', () => {
         });
     });
 
-    describe('tcp-socket methods with implementation', () => {
-        function getTcp() {
-            return getAdapter()['wasi:sockets/tcp']!;
-        }
-
-        it('start-bind delegates to self', () => {
-            const sock = { startBind: () => ({ tag: 'ok' }) };
-            expect(getTcp()['[method]tcp-socket.start-bind']!(sock, {}, {}).tag).toBe('ok');
-        });
-
-        it('is-listening delegates to self', () => {
-            const sock = { isListening: () => true };
-            expect(getTcp()['[method]tcp-socket.is-listening']!(sock)).toBe(true);
-        });
-
-        it('address-family delegates to self', () => {
-            const sock = { addressFamily: () => 'ipv6' as const };
-            expect(getTcp()['[method]tcp-socket.address-family']!(sock)).toBe('ipv6');
-        });
-    });
-
     describe('udp-socket methods with no implementation', () => {
         function getUdp() {
             return getAdapter()['wasi:sockets/udp']!;

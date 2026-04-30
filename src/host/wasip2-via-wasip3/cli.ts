@@ -9,10 +9,10 @@
  * - P3 stdout/stderr `writeViaStream(readable)` → P2 `getStdout()/getStderr()` returning OutputStream
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiInputStream, WasiOutputStream } from './io';
 import { createInputStreamFromP3, createOutputStreamFromP3 } from './io';
-import { createStreamPair } from '../wasip3/streams';
+import { createStreamPair } from '../wasip3';
 
 export function adaptEnvironment(p3: WasiP3Imports): { getEnvironment(): [string, string][]; getArguments(): string[]; initialCwd(): string | undefined } {
     const p3env = p3['wasi:cli/environment'];

@@ -11,7 +11,7 @@
  * - P3 `timezone.ianaId()/utcOffset()/toDebugString()` → P2 `timezone.display()` → record
  */
 
-import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
+import type { WasiP3Imports } from '../wasip3';
 import type { WasiPollable } from './io';
 import { createSyncPollable, createAsyncPollable } from './io';
 

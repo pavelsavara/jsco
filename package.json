@@ -38,7 +38,10 @@
         "test:cover": "node --no-warnings=ExperimentalWarning --experimental-vm-modules --experimental-wasm-jspi node_modules/jest-cli/bin/jest.js --coverage",
         "test:browser": "npx playwright test",
         "demo": "node --experimental-wasm-jspi demo.mjs",
-        "demo:verbose": "node --experimental-wasm-jspi demo-verbose.mjs"
+        "demo:verbose": "node --experimental-wasm-jspi demo-verbose.mjs",
+        "size": "node scripts/measure-size.mjs",
+        "size:write": "node scripts/measure-size.mjs --write",
+        "size:check": "node scripts/measure-size.mjs --check"
     },
     "repository": {
         "type": "git",

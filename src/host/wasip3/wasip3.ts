@@ -6,7 +6,19 @@
 
 // Public API
 export { createWasiP3Host, WasiExit } from '.';
+export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from './types';
 export type { HostConfig, MountConfig, NetworkConfig, AllocationLimits } from './types';
+
+// Runtime values consumed by sibling bundles (wasip2-via-wasip3, wasip1-via-wasip3,
+// wasip3-node) via the externalized `./wasip3.js` chunk. Anything imported at
+// runtime from `'../wasip3'`/`'../../wasip3'` MUST be re-exported here, otherwise
+// the Release bundle fails with "module './wasip3.js' does not provide an export
+// named X" at import time.
+export { createStreamPair, readableFromStream, readableFromAsyncIterable, collectStream, collectBytes } from './streams';
+export type { WasiStreamReadable, WasiStreamWritable, StreamPair } from './streams';
+export { ok, err, WasiError } from './result';
+export type { WasiResult } from './result';
+export { _HttpFields, _HttpRequest, _HttpResponse, _getHttpLimits } from './http';
 
 // Re-export WIT types for consumers
 export type {

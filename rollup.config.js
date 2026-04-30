@@ -8,6 +8,8 @@ import virtual from '@rollup/plugin-virtual';
 import * as path from 'path';
 import dts from 'rollup-plugin-dts';
 import gitCommitInfo from 'git-commit-info';
+import reservedProps from './scripts/reserved-props.cjs';
+import reservedWitNames from './scripts/reserved-wit-names.cjs';
 
 const configuration = process.env.Configuration ?? 'Debug';
 const isDebug = configuration !== 'Release';
@@ -26,21 +28,131 @@ const constants = {
     'env:isDebug': `export default ${isDebug}`,
     'env:gitHash': `export default "${gitHash}"`,
 };
-const plugins = isDebug ? [] : [terser({
-    ecma: 2022,
-    compress: {
-        defaults: true,
-        module: true,
+
+/**
+ * Rollup plugin: in Release builds, replace `jsco_assert(...)` and `debugStack(...)`
+ * call expressions with `void 0`. Eliminates the call AND the message-factory
+ * closure (which terser cannot DCE on its own because it is a function expression
+ * passed as an argument). The replacement is a simple statement that terser then
+ * collapses entirely. We also rewrite the function bodies in `src/utils/assert.ts`
+ * so the symbol definitions tree-shake away.
+ *
+ * The transform runs on TS source (before tsc) and is purely textual. It walks
+ * balanced parens to delimit each call so multi-line calls are handled.
+ */
+function stripDebugCalls() {
+    const stripNames = ['jsco_assert', 'debugStack'];
+    const callRe = new RegExp(`\\b(?:${stripNames.join('|')})\\s*\\(`, 'g');
+    return {
+        name: 'strip-debug-calls',
+        transform(code, id) {
+            if (!id.endsWith('.ts')) return null;
+            // Skip assert.ts itself — it defines the symbols. The internal calls
+            // inside debug-only code paths there are guarded by `if (isDebug)` and
+            // tree-shake on their own.
+            if (id.replace(/\\/g, '/').endsWith('/src/utils/assert.ts')) return null;
+            let out = '';
+            let last = 0;
+            let m;
+            callRe.lastIndex = 0;
+            let mutated = false;
+            while ((m = callRe.exec(code)) !== null) {
+                // Skip definitions: `function jsco_assert(`, `export function jsco_assert(`,
+                // `function debugStack(` — preserve the declaration sites in assert.ts.
+                const before = code.slice(Math.max(0, m.index - 40), m.index);
+                if (/\bfunction\s*$/.test(before) || /\bregisterInitDebugNames\s*\(\s*$/.test(before)) {
+                    continue;
+                }
+                // Find matching close paren.
+                let depth = 1;
+                let i = m.index + m[0].length;
+                let inStr = null;
+                let inLine = false;
+                let inBlock = false;
+                while (i < code.length && depth > 0) {
+                    const c = code[i];
+                    const c2 = code[i + 1];
+                    if (inLine) {
+                        if (c === '\n') inLine = false;
+                    } else if (inBlock) {
+                        if (c === '*' && c2 === '/') { inBlock = false; i++; }
+                    } else if (inStr) {
+                        if (c === '\\') { i++; }
+                        else if (c === inStr) { inStr = null; }
+                        else if (inStr === '`' && c === '$' && c2 === '{') {
+                            // template ${...} — track as separate paren depth via nested string state.
+                            // Conservatively bail out: treat as part of string until matching `}`.
+                            i++; // skip $
+                            // walk until balanced `}`
+                            let braceDepth = 1;
+                            i++; // skip {
+                            while (i < code.length && braceDepth > 0) {
+                                const cc = code[i];
+                                if (cc === '{') braceDepth++;
+                                else if (cc === '}') braceDepth--;
+                                i++;
+                            }
+                            continue;
+                        }
+                    } else {
+                        if (c === '/' && c2 === '/') { inLine = true; i++; }
+                        else if (c === '/' && c2 === '*') { inBlock = true; i++; }
+                        else if (c === '"' || c === '\'' || c === '`') { inStr = c; }
+                        else if (c === '(') depth++;
+                        else if (c === ')') depth--;
+                    }
+                    i++;
+                }
+                if (depth !== 0) continue; // malformed; skip
+
+                // Optional trailing semicolon
+                let end = i;
+                while (end < code.length && /[ \t]/.test(code[end])) end++;
+                if (code[end] === ';') end++;
+
+                out += code.slice(last, m.index) + 'void 0;';
+                last = end;
+                mutated = true;
+            }
+            if (!mutated) return null;
+            out += code.slice(last);
+            return { code: out, map: null };
+        },
+    };
+}
+
+const plugins = isDebug ? [] : (() => {
+    // Shared mutable name cache for terser. Mutated in place as each bundle is
+    // minified so that mangled identifier names stay consistent across chunks
+    // that import each other (./wasip3.js, ./wasip2-via-wasip3.js, etc.).
+    const sharedNameCache = {};
+    return [terser({
         ecma: 2022,
-        toplevel: true,
-        passes: 4,
-        computed_props: false,
-    },
-    mangle: {
-        module: true,
-        toplevel: true,
-    },
-})];
+        nameCache: sharedNameCache,
+        compress: {
+            defaults: true,
+            module: true,
+            ecma: 2022,
+            toplevel: true,
+            passes: 4,
+            computed_props: false,
+        },
+        mangle: {
+            module: true,
+            toplevel: true,
+            properties: {
+                // keep_quoted: true means any property accessed via `obj['name']`
+                // syntax anywhere in source is auto-reserved. With `builtins:false`
+                // (default), terser also reserves the DOM/built-in property list.
+                keep_quoted: true,
+                reserved: [
+                    ...reservedProps,
+                    ...reservedWitNames,
+                ],
+            },
+        },
+    })];
+})();
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash', /^node:/];
 const outDir = isDebug ? 'dist/debug' : 'dist/release';
@@ -95,6 +207,7 @@ function externalizeSiblingModules(options) {
 
 const sourcePlugins = [
     virtual(constants),
+    ...(isDebug ? [] : [stripDebugCalls()]),
     nodeResolve({
         extensions: ['.ts'],
     }),
@@ -134,7 +247,10 @@ const jscoTypes = {
         }
     ],
     external: externalDependencies,
-    plugins: [dts()],
+    plugins: [
+        externalizeSiblingModules(),
+        dts(),
+    ],
 };
 
 // WASI Preview 2 via Preview 3 adapter
