@@ -134,10 +134,12 @@ describe('wasi:http/types fields (via P3 adapter)', () => {
     test('[static]fields.from-list creates fields from entries', () => {
         const { types } = getHttp();
         const fromList = types['[static]fields.from-list']!;
-        const f = fromList([
+        const r = fromList([
             ['content-type', enc.encode('text/plain')],
             ['x-custom', enc.encode('foo')],
-        ]) as Fields;
+        ]) as { tag: 'ok'; val: Fields };
+        expect(r.tag).toBe('ok');
+        const f = r.val;
         expect(f.has('content-type')).toBe(true);
         expect(dec.decode(f.get('content-type')[0])).toBe('text/plain');
     });
@@ -538,18 +540,24 @@ describe('AdapterFutureIncomingResponse', () => {
         const resp = new httpTypes.AdapterIncomingResponse(200, httpTypes.createFields(), new Uint8Array(0));
         const future = new httpTypes.AdapterFutureIncomingResponse(Promise.resolve(resp));
         await new Promise(r => setTimeout(r, 10));
-        const result = future.get() as any;
-        expect(result).toBeDefined();
-        expect(result.tag).toBe('ok');
-        expect(result.val.status()).toBe(200);
+        // get() returns option<result<result<incoming-response, error-code>, ()>>:
+        // outer ok wraps the inner result of fetch.
+        const outer = future.get() as any;
+        expect(outer).toBeDefined();
+        expect(outer.tag).toBe('ok');
+        const inner = outer.val;
+        expect(inner.tag).toBe('ok');
+        expect(inner.val.status()).toBe(200);
     });
 
     test('get() returns error after rejection', async () => {
         const future = new httpTypes.AdapterFutureIncomingResponse(Promise.reject({ tag: 'DNS-error' }));
         await new Promise(r => setTimeout(r, 10));
-        const result = future.get() as any;
-        expect(result).toBeDefined();
-        expect(result.tag).toBe('err');
+        const outer = future.get() as any;
+        expect(outer).toBeDefined();
+        expect(outer.tag).toBe('ok');
+        // inner is the actual fetch outcome (err on rejection).
+        expect(outer.val.tag).toBe('err');
     });
 
     test('subscribe() returns async pollable when pending', () => {

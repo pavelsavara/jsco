@@ -113,12 +113,15 @@ type P3Descriptor = any;
 /**
  * Wrap a P3 filesystem descriptor as a P2 WasiDescriptor.
  */
-function wrapP3Descriptor(p3desc: P3Descriptor): P2DescriptorAdapter {
-    return new P2DescriptorAdapter(p3desc);
+function wrapP3Descriptor(p3desc: P3Descriptor, maxBufferSize?: number): P2DescriptorAdapter {
+    return new P2DescriptorAdapter(p3desc, maxBufferSize);
 }
 
 export class P2DescriptorAdapter {
-    constructor(private readonly p3: P3Descriptor) { }
+    constructor(
+        private readonly p3: P3Descriptor,
+        private readonly maxBufferSize?: number,
+    ) { }
 
     readViaStream(offset: bigint): FsResult<WasiInputStream> {
         try {
@@ -133,7 +136,7 @@ export class P2DescriptorAdapter {
         try {
             const pair = createStreamPair<Uint8Array>();
             this.p3.writeViaStream(pair.readable, offset);
-            return fsOk(createOutputStreamFromP3(pair));
+            return fsOk(createOutputStreamFromP3(pair, this.maxBufferSize));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
@@ -143,7 +146,7 @@ export class P2DescriptorAdapter {
         try {
             const pair = createStreamPair<Uint8Array>();
             this.p3.appendViaStream(pair.readable);
-            return fsOk(createOutputStreamFromP3(pair));
+            return fsOk(createOutputStreamFromP3(pair, this.maxBufferSize));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
@@ -179,7 +182,7 @@ export class P2DescriptorAdapter {
     async openAt(pathFlags: PathFlags, path: string, openFlags: OpenFlags, descFlags: DescriptorFlags): Promise<FsResult<P2DescriptorAdapter>> {
         try {
             const result = await this.p3.openAt(pathFlags, path, openFlags, descFlags);
-            return fsOk(wrapP3Descriptor(result));
+            return fsOk(wrapP3Descriptor(result, this.maxBufferSize));
         } catch (e) {
             return fsErr(extractErrorCode(e));
         }
@@ -412,12 +415,12 @@ class P2DirectoryEntryStreamAdapter {
     }
 }
 
-export function adaptPreopens(p3: WasiP3Imports): { getDirectories(): [P2DescriptorAdapter, string][] } {
+export function adaptPreopens(p3: WasiP3Imports, maxBufferSize?: number): { getDirectories(): [P2DescriptorAdapter, string][] } {
     const p3preopens = p3['wasi:filesystem/preopens'];
     return {
         getDirectories(): [P2DescriptorAdapter, string][] {
             const p3dirs = p3preopens.getDirectories();
-            return p3dirs.map(([desc, path]: [unknown, string]) => [wrapP3Descriptor(desc), path]);
+            return p3dirs.map(([desc, path]: [unknown, string]) => [wrapP3Descriptor(desc, maxBufferSize), path]);
         },
     };
 }

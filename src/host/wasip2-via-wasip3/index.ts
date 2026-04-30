@@ -12,6 +12,8 @@
 
 import type { WasiP3Imports } from '../wasip3';
 import type { WasiP2Imports } from '../../../wit/wasip2/types/index';
+import type { AllocationLimits } from '../wasip3/types';
+import { LIMIT_DEFAULTS } from '../wasip3/types';
 import type {
     WasiPollable,
 } from './io';
@@ -49,7 +51,8 @@ export type { WasiP2Imports } from '../../../wit/wasip2/types/index';
  *
  * Both unversioned and versioned (`@0.2.0` through `@0.2.11`) keys are registered.
  */
-export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports {
+export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?: AllocationLimits }): WasiP2Imports & JsImports {
+    const maxBufferSize = options?.limits?.maxNetworkBufferSize ?? LIMIT_DEFAULTS.maxNetworkBufferSize;
     const result: Record<string, unknown> = {};
     const register = makeRegister(result, 'wasi:', P2_VERSIONS);
     const notSupported = (): unknown => err('not-supported');
@@ -129,8 +132,8 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     const env = adaptEnvironment(p3);
     const exit = adaptExit(p3);
     const stdin = adaptStdin(p3);
-    const stdout = adaptStdout(p3);
-    const stderr = adaptStderr(p3);
+    const stdout = adaptStdout(p3, maxBufferSize);
+    const stderr = adaptStderr(p3, maxBufferSize);
     const terminalInput = adaptTerminalInput(p3);
     const terminalStdout = adaptTerminalStdout(p3);
     const terminalStderr = adaptTerminalStderr(p3);
@@ -167,7 +170,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
 
     // ─── wasi:filesystem/* ───
 
-    const preopens = adaptPreopens(p3);
+    const preopens = adaptPreopens(p3, maxBufferSize);
 
     register('filesystem/types', {
         'filesystem-error-code': () => undefined,
@@ -199,8 +202,8 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
 
     // ─── wasi:http/* ───
 
-    const httpTypes = adaptHttpTypes();
-    const outgoingHandler = adaptOutgoingHandler(p3);
+    const httpTypes = adaptHttpTypes(maxBufferSize);
+    const outgoingHandler = adaptOutgoingHandler(p3, maxBufferSize);
 
     register('http/types', {
         'http-error-code': () => undefined,
@@ -252,7 +255,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
                 statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
                 setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
                 headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream()) }); },
+                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) }); },
             }),
         }),
         ...resource('response-outparam', {

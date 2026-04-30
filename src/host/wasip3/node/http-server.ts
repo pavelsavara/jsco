@@ -140,13 +140,17 @@ async function writeWasiResponse(
     // Write headers
     const headers = response._internalHeaders;
     for (const [name, value] of headers.copyAll()) {
+        // Field values may be plain Array<number> when lifted from a wasm
+        // list<u8>; coerce to Uint8Array for TextDecoder.
+        const bytes = value instanceof Uint8Array ? value : Uint8Array.from(value as ArrayLike<number>);
+        const decoded = new TextDecoder().decode(bytes);
         const existing = res.getHeader(name);
         if (existing !== undefined) {
             const arr = Array.isArray(existing) ? existing : [String(existing)];
-            arr.push(new TextDecoder().decode(value));
+            arr.push(decoded);
             res.setHeader(name, arr);
         } else {
-            res.setHeader(name, new TextDecoder().decode(value));
+            res.setHeader(name, decoded);
         }
     }
 
@@ -242,7 +246,9 @@ export async function serve(
                 completionFuture.then(() => { /* consumed by request internals */ });
 
                 await writeWasiResponse(res, response);
-            } catch {
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.error('jsco serve: request handler threw:', e instanceof Error ? (e.stack ?? e.message) : e);
                 if (!res.headersSent) {
                     res.writeHead(500, { 'Content-Type': 'text/plain' });
                 }

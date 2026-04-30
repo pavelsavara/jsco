@@ -18,6 +18,7 @@
 - tests for streams/buffer back-pressure. files, sockets, http
 - consider fuzzing
 - do unit tests match the spec ?
+- test all HTTP verbs
 
 # Build
 - produce NPM package and release it to www.npmjs.com

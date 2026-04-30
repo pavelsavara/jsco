@@ -1,10 +1,20 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
+import isDebug from 'env:isDebug';
+import { LogLevel } from '../utils/assert';
+import type { LogFn, Verbosity } from '../utils/assert';
 import type { MarshalingContext } from '../marshal/model/types';
 import type { MemoryView, StreamTable, StreamEntry, RuntimeConfig } from './model/types';
 import { STREAM_STATUS_COMPLETED, STREAM_STATUS_DROPPED, STREAM_STATUS_CANCELLED, STREAM_BLOCKED, STREAM_BACKPRESSURE, STREAM_BACKPRESSURE_CHUNKS } from './constants';
 
-export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig, signal: AbortSignal = new AbortController().signal): StreamTable {
+/** Tag a handle with its stream-end (readable/writable) for log prefixes. */
+function streamTag(handle: number): string {
+    const base = handle & ~1;
+    const end = (handle & 1) === 0 ? 'r' : 'w';
+    return `stream#${base}${end}`;
+}
+
+export function createStreamTable(memory: MemoryView, allocHandle: () => number, config?: RuntimeConfig, signal: AbortSignal = new AbortController().signal, verbose?: Verbosity, logger?: LogFn): StreamTable {
     const backpressureThreshold = config?.streamBackpressureBytes ?? STREAM_BACKPRESSURE;
     const backpressureChunks = config?.streamBackpressureChunks ?? STREAM_BACKPRESSURE_CHUNKS;
 
@@ -14,6 +24,12 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
     const jsWritables = new Map<number, unknown>();
 
     function baseHandle(handle: number): number { return handle & ~1; }
+
+    function logEv(handle: number, msg: string): void {
+        if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            logger!('executor', LogLevel.Detailed, `[${streamTag(handle)}] ${msg}`);
+        }
+    }
 
     /** Signal data-arrived/closed to waitable-set watchers. Fire-and-clear:
      *  listeners must re-register via onReady() to keep watching. */
@@ -178,13 +194,19 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             const readHandle = allocHandle();
             const writHandle = readHandle + 1;
             entries.set(readHandle, { chunks: [], closed: false });
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                logger!('executor', LogLevel.Detailed, `[stream#${readHandle}] new (readable=${readHandle}, writable=${writHandle})`);
+            }
             return BigInt(writHandle) << 32n | BigInt(readHandle);
         },
 
         read(_typeIdx: number, handle: number, ptr: number, len: number): number {
             const base = baseHandle(handle);
             const entry = entries.get(base);
-            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (!entry) {
+                logEv(handle, `read len=${len} → DROPPED (no entry)`);
+                return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
             // Typed stream: each chunk is a single element, encode via storer
             if (entry.elementStorer && entry.elementSize) {
                 return readTypedElements(entry, ptr, len);
@@ -207,21 +229,33 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             if (offset > 0) {
                 entry.bufferedBytes = Math.max(0, (entry.bufferedBytes ?? 0) - offset);
                 checkWriteReady(entry);
+                logEv(handle, `read len=${len} → COMPLETED bytes=${offset}`);
                 return (offset << 4) | STREAM_STATUS_COMPLETED;
             }
-            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (entry.closed) {
+                logEv(handle, `read len=${len} → DROPPED (closed)`);
+                return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
             entry.pendingRead = { ptr, len };
+            logEv(handle, `read len=${len} → BLOCKED (buffer empty, waiting for writer)`);
             return STREAM_BLOCKED;
         },
 
         write(_typeIdx: number, handle: number, ptr: number, len: number): number {
             const base = baseHandle(handle);
             const entry = entries.get(base);
-            if (!entry) return (0 << 4) | STREAM_STATUS_DROPPED;
-            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (!entry) {
+                logEv(handle, `write len=${len} → DROPPED (no entry)`);
+                return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
+            if (entry.closed) {
+                logEv(handle, `write len=${len} → DROPPED (closed)`);
+                return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
             if (len > 0) {
                 // Backpressure: block if buffer is full and no reader is waiting
                 if (!entry.waitingReader && (entry.bufferedBytes ?? 0) >= backpressureThreshold) {
+                    logEv(handle, `write len=${len} → BLOCKED (backpressure, no reader waiting)`);
                     return STREAM_BLOCKED;
                 }
                 // Copy data from WASM linear memory
@@ -229,10 +263,14 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 const copy = new Uint8Array(src);
                 if (entry.waitingReader) {
                     entry.waitingReader(copy);
+                    logEv(handle, `write len=${len} → COMPLETED (delivered to waiting reader)`);
                 } else {
                     entry.chunks.push(copy);
                     entry.bufferedBytes = (entry.bufferedBytes ?? 0) + len;
+                    logEv(handle, `write len=${len} → COMPLETED (buffered, no reader)`);
                 }
+            } else {
+                logEv(handle, 'write len=0 → COMPLETED (no-op)');
             }
             return (len << 4) | STREAM_STATUS_COMPLETED;
         },
@@ -271,6 +309,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             entry.closed = true;
             if (entry.onReadableDrop) entry.onReadableDrop();
             checkWriteReady(entry);
+            logEv(handle, 'drop-readable (closes stream)');
             if (entry.writableDropped) entries.delete(base);
         },
 
@@ -287,6 +326,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 entry.waitingReader(null);
             }
             signalReady(entry);
+            logEv(handle, 'drop-writable (closes stream, signals EOF to reader)');
             if (entry.readableDropped) entries.delete(base);
         },
 
@@ -364,7 +404,9 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
         fulfillPendingRead(handle: number): number {
             const base = baseHandle(handle);
             const entry = entries.get(base);
-            if (!entry || !entry.pendingRead) return (0 << 4) | STREAM_STATUS_COMPLETED;
+            if (!entry || !entry.pendingRead) {
+                return (0 << 4) | STREAM_STATUS_COMPLETED;
+            }
             const { ptr, len } = entry.pendingRead;
             entry.pendingRead = undefined;
             // Typed stream: encode elements via storer
@@ -391,7 +433,9 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                 checkWriteReady(entry);
                 return (offset << 4) | STREAM_STATUS_COMPLETED;
             }
-            if (entry.closed) return (0 << 4) | STREAM_STATUS_DROPPED;
+            if (entry.closed) {
+                return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
             return (0 << 4) | STREAM_STATUS_COMPLETED;
         },
 

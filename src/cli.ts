@@ -96,14 +96,40 @@ export async function main({ command, componentUrl, options }: CliParseResult): 
             if (!run) throw new Error('Component does not export wasi:cli/run');
             await run();
         } else if (command === 'serve') {
-            const handlerExportName = exportNames.find(s => s.startsWith('wasi:http/incoming-handler') || s.startsWith('wasi:incoming-handler/handle'));
+            const handlerExportName = exportNames.find(s => s.startsWith('wasi:http/incoming-handler') || s.startsWith('wasi:incoming-handler/handle') || s.startsWith('wasi:http/handler'));
             if (!handlerExportName) {
-                throw new Error('Component does not export wasi:http/incoming-handler');
+                throw new Error('Component does not export wasi:http/incoming-handler or wasi:http/handler');
             }
             const handlerExport = instance.exports[handlerExportName] as WasiHttpHandlerExport | undefined;
-            if (!handlerExport) throw new Error('Component does not export wasi:http/incoming-handler');
+            if (!handlerExport) throw new Error('Component does not export wasi:http/incoming-handler or wasi:http/handler');
 
-            await (await loadWasiP3Serve()).serve(handlerExport, config);
+            // Parse --addr (host:port) into ServeConfig.
+            let host: string | undefined;
+            let port: number | undefined;
+            if (options.addr) {
+                const lastColon = options.addr.lastIndexOf(':');
+                if (lastColon < 0) {
+                    throw new Error(`Invalid --addr value (expected host:port): ${options.addr}`);
+                }
+                host = options.addr.slice(0, lastColon);
+                const portStr = options.addr.slice(lastColon + 1);
+                const portNum = Number.parseInt(portStr, 10);
+                if (!Number.isFinite(portNum) || portNum < 0 || portNum > 65535) {
+                    throw new Error(`Invalid --addr port: ${portStr}`);
+                }
+                port = portNum;
+            }
+
+            const handle = await (await loadWasiP3Serve()).serve(handlerExport, {
+                host,
+                port,
+                network: config.network,
+            });
+            // Emit the resolved listening address so external supervisors
+            // (e.g. jest globalSetup spawning `jsco serve`) can discover the
+            // chosen port when --addr requested port 0.
+            // eslint-disable-next-line no-console
+            console.log(`jsco serve: listening on ${host ?? '127.0.0.1'}:${handle.port}`);
         } else {
             throw new Error(`Unknown command: ${command}`);
         }

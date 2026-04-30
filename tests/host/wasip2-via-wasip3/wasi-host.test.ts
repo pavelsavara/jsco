@@ -271,7 +271,8 @@ describe('createWasiP2ViaP3Adapter', () => {
                 ['content-type', new TextEncoder().encode('text/plain')],
                 ['x-custom', new TextEncoder().encode('value')],
             ];
-            const fields = http['[static]fields.from-list']!(entries);
+            const result = http['[static]fields.from-list']!(entries);
+            const fields = result.val ?? result;
             expect(fields.has('content-type')).toBe(true);
             expect(fields.has('x-custom')).toBe(true);
             expect(fields.has('nonexistent')).toBe(false);
@@ -352,8 +353,9 @@ describe('createWasiP2ViaP3Adapter', () => {
                 const writeResult = http['[method]outgoing-body.write']!(body);
                 expect(writeResult).toBeDefined();
             }
-            // static finish
-            const finishResult = http['[static]outgoing-body.finish']!();
+            // static finish — needs body resource as `self`
+            const bodyForFinish = bodyResult && bodyResult.tag === 'ok' ? bodyResult.val : { finish: () => { /* */ } };
+            const finishResult = http['[static]outgoing-body.finish']!(bodyForFinish);
             expect(finishResult.tag).toBe('ok');
             http['[resource-drop]outgoing-body']!();
         });

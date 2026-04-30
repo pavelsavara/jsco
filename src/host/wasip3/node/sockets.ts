@@ -14,6 +14,11 @@ import type {
     WasiSocketsTypes,
     WasiSocketsIpNameLookup,
 } from '../../../../wit/wasip3/types/index';
+import type { AllocationLimits } from '../types';
+import { LIMIT_DEFAULTS } from '../types';
+
+/** Network buffer cap (bytes) shared with TCP/UDP set-receive/send-buffer-size. */
+let _socketBufferCap: number = LIMIT_DEFAULTS.maxNetworkBufferSize;
 
 // ──────────────────── Local type aliases ────────────────────
 
@@ -674,13 +679,16 @@ class NodeTcpSocket {
     getReceiveBufferSize(): bigint { return this._receiveBufferSize; }
     setReceiveBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
-        this._receiveBufferSize = value;
+        // Silently clamp to host cap (WASI spec allows host to clamp to its supported range).
+        const cap = BigInt(_socketBufferCap);
+        this._receiveBufferSize = value > cap ? cap : value;
     }
 
     getSendBufferSize(): bigint { return this._sendBufferSize; }
     setSendBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
-        this._sendBufferSize = value;
+        const cap = BigInt(_socketBufferCap);
+        this._sendBufferSize = value > cap ? cap : value;
     }
 
     drop(): void {
@@ -912,22 +920,26 @@ class NodeUdpSocket {
     getReceiveBufferSize(): bigint { return this._receiveBufferSize; }
     setReceiveBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
-        this._receiveBufferSize = value;
+        const cap = BigInt(_socketBufferCap);
+        const clamped = value > cap ? cap : value;
+        this._receiveBufferSize = clamped;
         if (this._state !== UdpState.Created) {
-            this._socket.setRecvBufferSize(Number(value));
+            this._socket.setRecvBufferSize(Number(clamped));
         } else {
-            this._pendingOptions.push(() => this._socket.setRecvBufferSize(Number(value)));
+            this._pendingOptions.push(() => this._socket.setRecvBufferSize(Number(clamped)));
         }
     }
 
     getSendBufferSize(): bigint { return this._sendBufferSize; }
     setSendBufferSize(value: bigint): void {
         if (value === 0n) throwError('invalid-argument', 'Buffer size must be greater than 0');
-        this._sendBufferSize = value;
+        const cap = BigInt(_socketBufferCap);
+        const clamped = value > cap ? cap : value;
+        this._sendBufferSize = clamped;
         if (this._state !== UdpState.Created) {
-            this._socket.setSendBufferSize(Number(value));
+            this._socket.setSendBufferSize(Number(clamped));
         } else {
-            this._pendingOptions.push(() => this._socket.setSendBufferSize(Number(value)));
+            this._pendingOptions.push(() => this._socket.setSendBufferSize(Number(clamped)));
         }
     }
 
@@ -1059,7 +1071,8 @@ function mapNodeErrorTag(err: NodeJS.ErrnoException): ErrorCode {
 import { flattenResource, TCP_NON_RESULT, UDP_NON_RESULT } from '../sockets';
 import { ok, err } from '../result';
 
-export function createNodeSocketsTypes(): typeof WasiSocketsTypes {
+export function createNodeSocketsTypes(limits?: AllocationLimits): typeof WasiSocketsTypes {
+    _socketBufferCap = limits?.maxNetworkBufferSize ?? LIMIT_DEFAULTS.maxNetworkBufferSize;
     return {
         TcpSocket: NodeTcpSocket,
         UdpSocket: NodeUdpSocket,

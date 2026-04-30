@@ -35,10 +35,10 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         return h;
     }
 
-    const streamTable = createStreamTable(memory, allocHandle, config, abortController.signal);
+    const streamTable = createStreamTable(memory, allocHandle, config, abortController.signal, resolved.verbose, resolved.logger);
     const futureTable = createFutureTable(memory, allocHandle, abortController.signal);
     const subtaskTable = createSubtaskTable(allocHandle);
-    const waitableSetTable = createWaitableSetTable(memory, streamTable, futureTable, subtaskTable, abortController.signal);
+    const waitableSetTable = createWaitableSetTable(memory, streamTable, futureTable, subtaskTable, abortController.signal, resolved.verbose, resolved.logger);
 
     const ctx: MarshalingContext = {
         componentImports,

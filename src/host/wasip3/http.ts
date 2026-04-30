@@ -700,7 +700,15 @@ async function sendImpl(
     const headers = request._internalHeaders;
     const fetchHeaders = headers.toFetchHeaders();
 
-    // Prepare body
+    // Prepare body. NOTE: Streaming the wasm-side `contents` directly into fetch via
+    // wrapBodyAsReadableStream deadlocks for the typical guest pattern
+    //   `let (tx, rx) = wit_stream::new(); join!(client::send(req), async { tx.write_all(buf); drop(tx); })`.
+    // Root cause is JSPI: `client::send` suspends the calling wasm task while the host
+    // awaits, but the join arm that writes to `tx` lives on the same wasm task and
+    // therefore cannot make progress. Eager-draining the stream up-front does not help
+    // either — `await contents.next()` pends forever for the same reason. Both modes
+    // are kept here to document the intent: the streaming wrapper is preserved for
+    // future async-import schedulers that allow intra-task concurrency.
     const contents = request._internalContents;
     let body: ReadableStream<Uint8Array> | undefined;
     if (contents) {
@@ -802,7 +810,7 @@ function buildHttpTypesFlat(
                     tryResult(() => self.getAndDelete(name)),
                 'append': (self: HttpFields, name: FieldName, value: FieldValue) =>
                     tryResult(() => { self.append(name, value); }),
-                'entries': (self: HttpFields) => self.copyAll(),
+                'copy-all': (self: HttpFields) => self.copyAll(),
                 'clone': (self: HttpFields) => self.clone(),
             },
         }),

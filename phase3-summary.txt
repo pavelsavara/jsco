@@ -1,0 +1,6 @@
+PASS tests/host/wasip3/phase3-diag.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        0.952 s, estimated 9 s
+Ran all test suites matching /phase3-diag/i.

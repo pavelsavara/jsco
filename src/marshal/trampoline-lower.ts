@@ -35,6 +35,9 @@ function processSpilledResult(plan: FunctionLowerPlan, ctx: MarshalingContext, r
 function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any,
     processResult: (plan: FunctionLowerPlan, ctx: MarshalingContext, resJs: any) => any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
+        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            ctx.logger!('executor', LogLevel.Detailed, '[lower] host import returned a Promise → wrapping in WebAssembly.Suspending; wasm task suspends until it resolves');
+        }
         // Save caller's task; restore on resume so canon built-ins
         // (context.get/set, task.return) see the right per-task state
         // even after the await window.
@@ -63,6 +66,9 @@ function handleLowerResult(plan: FunctionLowerPlan, ctx: MarshalingContext, resJ
 
 function handleLowerResultSpilled(plan: FunctionLowerPlan, ctx: MarshalingContext, retptr: number, resJs: any): any {
     if (!plan.hasFutureOrStreamReturn && resJs instanceof Promise) {
+        if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Detailed) {
+            ctx.logger!('executor', LogLevel.Detailed, '[lower] host import returned a Promise → wrapping in WebAssembly.Suspending; wasm task suspends until it resolves');
+        }
         const callerTask = ctx.currentTask;
         const guarded = withBlockingTimeout(ctx, resJs, 'host-import.resume') as Promise<unknown>;
         return guarded.then(

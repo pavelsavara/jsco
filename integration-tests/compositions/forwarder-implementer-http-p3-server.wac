@@ -1,0 +1,16 @@
+// P3 HTTP forwarder composed with P3 HTTP implementer (Phase 1.3 / Scenario I).
+//
+// Topology:  test → server-fwd-p3 → server-impl-p3
+//
+// The implementer provides `wasi:http/handler@0.3.0-rc-2026-03-15`, the
+// forwarder consumes it as upstream and re-exports its own `wasi:http/handler`
+// downstream. Both components import `wasi:http/types@0.3.0-rc-2026-03-15`,
+// which the host satisfies at instantiation time (left as a top-level import).
+package jsco:forwarder-implementer-http-p3-server;
+
+let impl = new jsco:server-impl-http-p3 { ... };
+let fwd  = new jsco:server-fwd-http-p3 {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": impl["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+export fwd...;

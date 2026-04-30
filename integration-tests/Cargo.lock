@@ -37,6 +37,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "echo-server-p3"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "wit-bindgen",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,6 +232,14 @@ name = "join-http-p3"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "futures",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "jspi-deadlock-repro"
+version = "0.1.0"
+dependencies = [
  "futures",
  "wit-bindgen",
 ]

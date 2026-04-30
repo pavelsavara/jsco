@@ -266,9 +266,10 @@ export function createInputStreamFromP3(
  */
 export function createOutputStreamFromP3(
     pair: StreamPair<Uint8Array>,
+    bufferCapacity: number = 1024 * 1024,
 ): WasiOutputStream {
     let closed = false;
-    const CAPACITY = 1024 * 1024;
+    const CAPACITY = bufferCapacity;
 
     return {
         checkWrite(): StreamResult<bigint> {
