@@ -6,6 +6,7 @@
 
 // Public API
 export { createWasiP3Host, WasiExit } from '.';
+export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from './types';
 export type { HostConfig, MountConfig, NetworkConfig, AllocationLimits } from './types';
 
 // Re-export WIT types for consumers

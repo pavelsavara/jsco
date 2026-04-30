@@ -133,15 +133,12 @@ const plugins = isDebug ? [] : [terser({
     mangle: {
         module: true,
         toplevel: true,
-        properties: {
-            // keep_quoted: true means any property accessed via `obj['name']` syntax
-            // anywhere in the source is added to the reserved set. With `builtins: false`
-            // (default), terser also reserves the DOM/built-in property list.
-            keep_quoted: true,
-            reserved: [
-                ...reservedProps,
-            ],
-        },
+        // Property mangling is intentionally disabled: it is unsafe across
+        // separate Rollup chunks (no shared name cache between builds) and
+        // cannot rename WASM-exported property names (e.g. inline @thi.ng/leb128
+        // exports like leb128DecodeU64), which causes runtime "X is not a
+        // function" errors. The reservedProps list is kept around in case we
+        // ever revisit this with a shared nameCache strategy.
     },
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
