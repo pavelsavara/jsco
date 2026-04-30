@@ -35,11 +35,25 @@ The branch is shippable as-is.
 - [x] Add `npm run reserved:wit` script (alias for `node scripts/extract-wit-names.mjs`) so contributors don't need to remember the path. Companion `npm run reserved:wit:check` mode validates the committed file is up to date.
 - [x] CI step that re-runs `extract-wit-names.mjs --check` and fails if `reserved-wit-names.cjs` would change. Wired into [.github/workflows/lint.yml](.github/workflows/lint.yml). Prevents a stale list from silently mangling new WIT methods after a WIT bump.
 
-### B. Investigate top hotspots (Step 7 from original plan, still pending)
-We didn't run a source-map analyzer yet. Quick wins likely remain:
-- [ ] Run `rollup-plugin-visualizer` (or `source-map-explorer`) against `dist/release/index.js` and rank modules by post-minify size.
-- [ ] Likely culprits: marshalling lambdas in `src/marshal/` (per-type code paths), resolver dispatcher (large switch-on-tag), encoder/decoder caching layer.
-- [ ] For each top-N module, decide: inline & dedupe, lazy-load, or accept.
+### B. Investigate top hotspots (Step 7 from original plan)
+- [x] Source-map attribution implemented in [scripts/analyze-bundle.mjs](scripts/analyze-bundle.mjs) using `@jridgewell/trace-mapping`. Walks every byte of each `dist/release/*.js`, looks up the originating source via the bundle's `.map`, and rolls up by file or top-level directory. Re-run with `node scripts/analyze-bundle.mjs --rollup` after any large refactor to spot regressions.
+- [x] **Code-split the CLI.** `src/main.ts` (Node-only argv/stdio runner) was reachable from `src/index.ts` and pulled the entire CLI surface into the browser bundle. Split into its own bundle `dist/release/main.js` (20.6 KB raw / 4.6 KB gzip), dynamically imported from `index.js` only when running under Node. Browser-facing `index.js` dropped 128,946 → 109,966 raw (−14.7%), 31,848 → 28,201 gzip (−11.5%). Wired in [rollup.config.js](rollup.config.js) `mainCli` config + `externalizeSiblingModules` rule for `src/main.ts`. Reserved `cliMain` in [scripts/reserved-props.cjs](scripts/reserved-props.cjs) — terser would otherwise mangle the `m.cliMain` property access on the dynamic-import namespace, but rollup keeps the `export { cliMain }` literal, breaking the lookup.
+- [x] **Top-N hotspots in `index.js` (109,966 raw).** Dispositions:
+
+| File | Raw bytes | % | Disposition |
+|---|---:|---:|---|
+| `src/parser/values.ts` | 10,507 | 9.6 % | **Accept.** LEB128 + UTF-8 + valtype decoders. Already tight; every byte parses on every load. |
+| `src/resolver/core-functions.ts` | 10,182 | 9.3 % | **Accept.** Big switch-on-canon-builtin (40+ cases) wired to closures. Unavoidable for a P3 host. Could lazy-load uncommon builtins (`error-context.*`, `task.*`) but each saves <300 B; not worth bundle-graph complexity. |
+| `src/marshal/memory-store.ts` | 5,928 | 5.4 % | **Accept (already deduped).** Per-type storer factories share a single `createMemoryStorer` cache. Further dedup would force runtime interpretation, costing speed. |
+| `src/binder/to-abi.ts` | 5,784 | 5.3 % | **Accept.** Symmetric counterpart to memory-store; same trade-off. |
+| `src/resolver/calling-convention.ts` | 5,555 | 5.1 % | **Accept.** Generates the lift/lower trampolines per cc; small per-line factories. |
+| `src/binder/to-js.ts` | 5,337 | 4.9 % | **Accept.** Mirror of `to-abi.ts`. |
+| `src/marshal/{lift,lower}.ts` | 9,076 | 8.3 % | **Accept.** Sync trampolines, hot path. |
+| `src/marshal/memory-load.ts` | 4,919 | 4.5 % | **Accept.** Mirror of `memory-store.ts`. |
+| `src/runtime/stream-table.ts` | 4,090 | 3.7 % | **Lazy-load candidate** (already partially) — only used by P3 host. Most of its mass already lives in `wasip3.js`; what stays in `index.js` is the small surface re-exported across bundles. Acceptable. |
+| `src/utils/streaming.ts` | 3,884 | 3.5 % | **Accept.** Component-binary streaming reader; needed before any other host loads. |
+
+**Net Section-B disposition:** Code-split (`main.js`) was the only quick win remaining; everything else is already at the dedupe/lazy-load Pareto frontier. Further reduction beyond this point requires either an interpretive marshaller (Section D candidate) or a `noP3=true` flag exposing only WASIp1/WASIp2 — outside the scope of this plan.
 
 ### C. Diminishing-return frontier — **not recommended**
 Constants-extraction (move long property names like `directory`, `maxPathLength`, `resolveNode` to a shared module accessed as `obj[K]` so terser can mangle the alias) was investigated. Analysis tools committed: [scripts/count-reserved-usage.mjs](scripts/count-reserved-usage.mjs) and [scripts/estimate-mangle-savings.mjs](scripts/estimate-mangle-savings.mjs). Findings:
@@ -57,8 +71,8 @@ Constants-extraction (move long property names like `directory`, `maxPathLength`
 
 - [x] Baseline established and tracked in CI.
 - [x] `jsco_assert` / `debugStack` calls fully eliminated (calls + message factories).
-- [ ] Source-map analysis recorded with top-20 modules pre/post. _Pending — Step B above._
-- [x] Material size reduction achieved: −31.7 KB raw / −2.7 KB gzip vs the mangling-disabled baseline.
+- [x] Source-map analysis recorded with top-15 modules. _Done — see Step B above + [scripts/analyze-bundle.mjs](scripts/analyze-bundle.mjs)._
+- [x] Material size reduction achieved: −31.7 KB raw / −2.7 KB gzip vs the mangling-disabled baseline. **Section B added another −19.0 KB raw / −3.6 KB gzip** to browser-facing `index.js` via the CLI code-split.
 - [x] No test regressions.
 
 ## Non-goals

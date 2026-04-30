@@ -11,7 +11,6 @@ import gitHash from 'env:gitHash';
 import configuration from 'env:configuration';
 import { initializeAsserts } from './utils/assert';
 import './utils/debug-names';
-import { cliMain } from './main';
 import { createComponent as resolverCreateComponent } from './resolver';
 import { parse } from './parser';
 import { detectWasiType, createWasiImports, WasiType, isCoreModule, isWasiP1Module } from './wasi-auto';
@@ -184,4 +183,13 @@ export function getBuildInfo(): { gitHash: string; configuration: string } {
 
 initializeAsserts();
 
-await cliMain();
+// CLI entry — only fetched when running under Node as the main module.
+// Gating the dynamic import behind the `process` check keeps the CLI
+// bundle (./main.js, ~25 KB) out of browser loads of `./index.js`.
+// Fire-and-forget: do NOT `await` the import here. main.js statically
+// imports back from './index.js' (for createComponent etc.), and awaiting
+// at top-level would deadlock the circular module graph (Node would
+// report "Detected unsettled top-level await").
+if (typeof process !== 'undefined' && process.versions != null && process.versions.node != null) {
+    void import('./main').then(m => m.cliMain());
+}

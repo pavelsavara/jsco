@@ -166,6 +166,7 @@ function externalizeSiblingModules(options) {
     const wasip3Entry = path.resolve('./src/host/wasip3/wasip3.ts');
     const wasip3NodeEntry = path.resolve('./src/host/wasip3/node/wasip3.ts');
     const wasip3Index = path.resolve('./src/host/wasip3/index.ts');
+    const mainEntry = path.resolve('./src/main.ts');
     return {
         name: 'externalize-sibling-modules',
         resolveId(source, importer) {
@@ -195,6 +196,9 @@ function externalizeSiblingModules(options) {
             }
             if (!skipExternals.has('wasip3-node') && resolvedTs === wasip3NodeEntry) {
                 return { id: './wasip3-node.js', external: true };
+            }
+            if (!skipExternals.has('main') && resolvedTs === mainEntry) {
+                return { id: './main.js', external: true };
             }
             // Only externalize ./index from top-level src/ files
             if ((source === './index' || source === './index.js') && importerDir === srcDir) {
@@ -443,6 +447,30 @@ const wasip1ViaP3Types = {
     ],
 };
 
+// CLI entry — split out so browser users of `index.js` don't pay for
+// `src/utils/args.ts` (~16 KB raw) and the CLI plumbing. `src/index.ts`
+// dynamically imports `./main.js` only when `process` is defined.
+const mainCli = {
+    treeshake: !isDebug,
+    input: './src/main.ts',
+    output: [
+        {
+            format: 'es',
+            file: `${outDir}/main.js`,
+            banner: banner.replace('#!/usr/bin/env node\n', ''),
+            plugins,
+            sourcemap: true,
+            sourcemapPathTransform,
+        }
+    ],
+    onwarn,
+    external: externalDependencies,
+    plugins: [
+        externalizeSiblingModules(),
+        ...sourcePlugins,
+    ],
+};
+
 export default defineConfig([
     wasip1ViaP3,
     wasip1ViaP3Types,
@@ -454,6 +482,7 @@ export default defineConfig([
     wasip3Types,
     wasip3Node,
     wasip3NodeTypes,
+    mainCli,
     jsco,
     jscoTypes,
 ]);
