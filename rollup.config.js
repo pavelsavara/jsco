@@ -8,7 +8,6 @@ import virtual from '@rollup/plugin-virtual';
 import * as path from 'path';
 import dts from 'rollup-plugin-dts';
 import gitCommitInfo from 'git-commit-info';
-import reservedProps from './scripts/reserved-props.cjs';
 
 const configuration = process.env.Configuration ?? 'Debug';
 const isDebug = configuration !== 'Release';
@@ -120,27 +119,37 @@ function stripDebugCalls() {
     };
 }
 
-const plugins = isDebug ? [] : [terser({
-    ecma: 2022,
-    compress: {
-        defaults: true,
-        module: true,
+const plugins = isDebug ? [] : (() => {
+    // Shared mutable name cache for terser. Mutated in place as each bundle is
+    // minified so that mangled identifier names stay consistent across chunks
+    // that import each other (./wasip3.js, ./wasip2-via-wasip3.js, etc.).
+    const sharedNameCache = {};
+    return [terser({
         ecma: 2022,
-        toplevel: true,
-        passes: 4,
-        computed_props: false,
-    },
-    mangle: {
-        module: true,
-        toplevel: true,
-        // Property mangling is intentionally disabled: it is unsafe across
-        // separate Rollup chunks (no shared name cache between builds) and
-        // cannot rename WASM-exported property names (e.g. inline @thi.ng/leb128
-        // exports like leb128DecodeU64), which causes runtime "X is not a
-        // function" errors. The reservedProps list is kept around in case we
-        // ever revisit this with a shared nameCache strategy.
-    },
-})];
+        nameCache: sharedNameCache,
+        compress: {
+            defaults: true,
+            module: true,
+            ecma: 2022,
+            toplevel: true,
+            passes: 4,
+            computed_props: false,
+        },
+        mangle: {
+            module: true,
+            toplevel: true,
+            // NOTE: mangle.properties is intentionally disabled. Several runtime
+            // paths (WASI host method dispatch, MarshalingContext per-task fields,
+            // embedded leb128 WASM exports, cross-bundle ESM namespace property
+            // access) look up properties via dynamically-built strings that
+            // terser cannot see. Enabling property mangling would require an
+            // exhaustive reserved list covering every WIT-exported method name
+            // and every runtime field accessed by the binder/marshaler.
+            // See scripts/reserved-props.cjs for the partial list of names that
+            // would need to be preserved if property mangling is ever re-enabled.
+        },
+    })];
+})();
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
 const externalDependencies = ['module', 'fs', 'gitHash', /^node:/];
 const outDir = isDebug ? 'dist/debug' : 'dist/release';
