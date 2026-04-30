@@ -2,32 +2,32 @@
     "tolerance": 0.05,
     "sizes": {
         "index.js": {
-            "raw": 146296,
-            "gzip": 33386
+            "raw": 126429,
+            "gzip": 31405
         },
         "wasip1-via-wasip3.js": {
-            "raw": 23106,
-            "gzip": 5976
+            "raw": 19699,
+            "gzip": 5514
         },
         "wasip2-via-wasip3-node.js": {
-            "raw": 38726,
-            "gzip": 9959
+            "raw": 32494,
+            "gzip": 9169
         },
         "wasip2-via-wasip3.js": {
-            "raw": 27740,
-            "gzip": 6718
+            "raw": 23272,
+            "gzip": 6131
         },
         "wasip3-node.js": {
-            "raw": 62468,
-            "gzip": 16573
+            "raw": 52024,
+            "gzip": 15073
         },
         "wasip3.js": {
-            "raw": 35491,
-            "gzip": 9314
+            "raw": 29367,
+            "gzip": 8557
         },
         "__TOTAL__": {
-            "raw": 333827,
-            "gzip": 81926
+            "raw": 283285,
+            "gzip": 75849
         }
     }
 }

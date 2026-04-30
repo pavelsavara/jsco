@@ -8,6 +8,7 @@ import virtual from '@rollup/plugin-virtual';
 import * as path from 'path';
 import dts from 'rollup-plugin-dts';
 import gitCommitInfo from 'git-commit-info';
+import reservedProps from './scripts/reserved-props.cjs';
 
 const configuration = process.env.Configuration ?? 'Debug';
 const isDebug = configuration !== 'Release';
@@ -132,6 +133,15 @@ const plugins = isDebug ? [] : [terser({
     mangle: {
         module: true,
         toplevel: true,
+        properties: {
+            // keep_quoted: true means any property accessed via `obj['name']` syntax
+            // anywhere in the source is added to the reserved set. With `builtins: false`
+            // (default), terser also reserves the DOM/built-in property list.
+            keep_quoted: true,
+            reserved: [
+                ...reservedProps,
+            ],
+        },
     },
 })];
 const banner = '#!/usr/bin/env node\n//! Pavel Savara licenses this file to you under the MIT license.\n';
