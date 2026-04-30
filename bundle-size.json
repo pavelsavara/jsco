@@ -3,7 +3,7 @@
     "sizes": {
         "index.js": {
             "raw": 147003,
-            "gzip": 33451
+            "gzip": 33452
         },
         "wasip1-via-wasip3.js": {
             "raw": 23106,
@@ -22,12 +22,12 @@
             "gzip": 16572
         },
         "wasip3.js": {
-            "raw": 35715,
-            "gzip": 9627
+            "raw": 36404,
+            "gzip": 9856
         },
         "__TOTAL__": {
-            "raw": 320581,
-            "gzip": 80360
+            "raw": 321270,
+            "gzip": 80590
         }
     }
 }
