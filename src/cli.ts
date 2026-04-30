@@ -2,8 +2,10 @@
 
 import type { HostConfig } from './host/wasip3';
 import type { WasiHttpHandlerExport } from './host/wasip3/node/wasip3';
-import { loadWasiP3Serve, loadWasiP1ViaP3Adapter } from './dynamic';
-import { createComponent } from './resolver';
+// All non-CLI runtime is reached through './index', which is externalized in
+// the Release bundle (resolves to './index.js' at runtime). This keeps the
+// CLI bundle (cli.js) small — it doesn't re-bundle the resolver/parser/marshal.
+import { createComponent, loadWasiP3Serve, loadWasiP1ViaP3Adapter } from './index';
 import { CliOptions, CliParseResult, getHelpText, parseCliArgs } from './utils/args';
 import { hasJspi } from './utils/jspi';
 import { detectWasiType, createWasiImports, WasiType, isCoreModule } from './wasi-auto';

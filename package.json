@@ -41,7 +41,9 @@
         "demo:verbose": "node --experimental-wasm-jspi demo-verbose.mjs",
         "size": "node scripts/measure-size.mjs",
         "size:write": "node scripts/measure-size.mjs --write",
-        "size:check": "node scripts/measure-size.mjs --check"
+        "size:check": "node scripts/measure-size.mjs --check",
+        "reserved:wit": "node scripts/extract-wit-names.mjs",
+        "reserved:wit:check": "node scripts/extract-wit-names.mjs --check"
     },
     "repository": {
         "type": "git",

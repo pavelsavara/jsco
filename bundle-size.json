@@ -1,9 +1,13 @@
 {
     "tolerance": 0.05,
     "sizes": {
+        "cli.js": {
+            "raw": 20640,
+            "gzip": 4593
+        },
         "index.js": {
-            "raw": 128946,
-            "gzip": 31848
+            "raw": 109965,
+            "gzip": 28200
         },
         "wasip1-via-wasip3.js": {
             "raw": 21251,
@@ -26,8 +30,8 @@
             "gzip": 9597
         },
         "__TOTAL__": {
-            "raw": 288846,
-            "gzip": 77635
+            "raw": 290505,
+            "gzip": 78580
         }
     }
 }

@@ -31,6 +31,12 @@ module.exports = [
     'dispose',
     'bindMemory',
 
+    // === CLI entry point on the dynamically-imported cli.js namespace ===
+    // index.js does `import('./cli').then(m => m.cliMain())` — terser would
+    // mangle `m.cliMain` (a property access) but rollup keeps the matching
+    // ES module `export { cliMain }` literal, so the names must agree.
+    'cliMain',
+
     // === HostConfig fields users construct ===
     'stdin',
     'stdout',
