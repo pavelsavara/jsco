@@ -775,6 +775,7 @@ async function sendImpl(
 // ──────────────────── Factory functions ────────────────────
 
 import { tryResult } from './resource-flatten';
+import { resource } from '../_shared/resource-table';
 
 /**
  * Build the flat `[constructor]/[static]/[method]/[resource-drop]` import
@@ -784,76 +785,91 @@ function buildHttpTypesFlat(
     FieldsClass: typeof HttpFields,
 ): Record<string, unknown> {
     return {
-        '[constructor]fields': (): HttpFields => new FieldsClass(),
-        '[static]fields.from-list': (entries: Array<[FieldName, FieldValue]>) =>
-            tryResult(() => FieldsClass.fromList(entries)),
-        '[resource-drop]fields': (): void => { /* GC */ },
-        '[method]fields.get': (self: HttpFields, name: FieldName) => self.get(name),
-        '[method]fields.has': (self: HttpFields, name: FieldName) => self.has(name),
-        '[method]fields.set': (self: HttpFields, name: FieldName, values: FieldValue[]) =>
-            tryResult(() => { self.set(name, values); }),
-        '[method]fields.delete': (self: HttpFields, name: FieldName) =>
-            tryResult(() => { self.delete(name); }),
-        '[method]fields.get-and-delete': (self: HttpFields, name: FieldName) =>
-            tryResult(() => self.getAndDelete(name)),
-        '[method]fields.append': (self: HttpFields, name: FieldName, value: FieldValue) =>
-            tryResult(() => { self.append(name, value); }),
-        '[method]fields.entries': (self: HttpFields) => self.copyAll(),
-        '[method]fields.clone': (self: HttpFields) => self.clone(),
-
-        '[static]request.new': (
-            headers: Headers,
-            contents: WasiStreamReadable<Uint8Array> | undefined,
-            trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
-            options: HttpRequestOptions | undefined,
-        ): [HttpRequest, Promise<Result<void, ErrorCode>>] => HttpRequest.new(headers, contents, trailers, options),
-        '[resource-drop]request': (): void => { /* GC */ },
-        '[method]request.get-method': (self: HttpRequest) => self.getMethod(),
-        '[method]request.set-method': (self: HttpRequest, method: Method) =>
-            tryResult(() => { self.setMethod(method); }),
-        '[method]request.get-path-with-query': (self: HttpRequest) => self.getPathWithQuery(),
-        '[method]request.set-path-with-query': (self: HttpRequest, p: string | undefined) =>
-            tryResult(() => { self.setPathWithQuery(p); }),
-        '[method]request.get-scheme': (self: HttpRequest) => self.getScheme(),
-        '[method]request.set-scheme': (self: HttpRequest, s: Scheme | undefined) =>
-            tryResult(() => { self.setScheme(s); }),
-        '[method]request.get-authority': (self: HttpRequest) => self.getAuthority(),
-        '[method]request.set-authority': (self: HttpRequest, a: string | undefined) =>
-            tryResult(() => { self.setAuthority(a); }),
-        '[method]request.get-options': (self: HttpRequest) => self.getOptions(),
-        '[method]request.get-headers': (self: HttpRequest) => self.getHeaders(),
-        '[static]request.consume-body': (
-            this_: HttpRequest,
-            res: Promise<Result<void, ErrorCode>>,
-        ) => HttpRequest.consumeBody(this_, res),
-
-        '[constructor]request-options': (): HttpRequestOptions => new HttpRequestOptions(),
-        '[resource-drop]request-options': (): void => { /* GC */ },
-        '[method]request-options.get-connect-timeout': (self: HttpRequestOptions) => self.getConnectTimeout(),
-        '[method]request-options.set-connect-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
-            tryResult(() => { self.setConnectTimeout(d); }),
-        '[method]request-options.get-first-byte-timeout': (self: HttpRequestOptions) => self.getFirstByteTimeout(),
-        '[method]request-options.set-first-byte-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
-            tryResult(() => { self.setFirstByteTimeout(d); }),
-        '[method]request-options.get-between-bytes-timeout': (self: HttpRequestOptions) => self.getBetweenBytesTimeout(),
-        '[method]request-options.set-between-bytes-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
-            tryResult(() => { self.setBetweenBytesTimeout(d); }),
-        '[method]request-options.clone': (self: HttpRequestOptions) => self.clone(),
-
-        '[static]response.new': (
-            headers: Headers,
-            contents: WasiStreamReadable<Uint8Array> | undefined,
-            trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
-        ): [HttpResponse, Promise<Result<void, ErrorCode>>] => HttpResponse.new(headers, contents, trailers),
-        '[resource-drop]response': (): void => { /* GC */ },
-        '[method]response.get-status-code': (self: HttpResponse) => self.getStatusCode(),
-        '[method]response.set-status-code': (self: HttpResponse, code: StatusCode) =>
-            tryResult(() => { self.setStatusCode(code); }),
-        '[method]response.get-headers': (self: HttpResponse) => self.getHeaders(),
-        '[static]response.consume-body': (
-            this_: HttpResponse,
-            res: Promise<Result<void, ErrorCode>>,
-        ) => HttpResponse.consumeBody(this_, res),
+        ...resource('fields', {
+            ctor: (): HttpFields => new FieldsClass(),
+            statics: {
+                'from-list': (entries: Array<[FieldName, FieldValue]>) =>
+                    tryResult(() => FieldsClass.fromList(entries)),
+            },
+            methods: {
+                'get': (self: HttpFields, name: FieldName) => self.get(name),
+                'has': (self: HttpFields, name: FieldName) => self.has(name),
+                'set': (self: HttpFields, name: FieldName, values: FieldValue[]) =>
+                    tryResult(() => { self.set(name, values); }),
+                'delete': (self: HttpFields, name: FieldName) =>
+                    tryResult(() => { self.delete(name); }),
+                'get-and-delete': (self: HttpFields, name: FieldName) =>
+                    tryResult(() => self.getAndDelete(name)),
+                'append': (self: HttpFields, name: FieldName, value: FieldValue) =>
+                    tryResult(() => { self.append(name, value); }),
+                'entries': (self: HttpFields) => self.copyAll(),
+                'clone': (self: HttpFields) => self.clone(),
+            },
+        }),
+        ...resource('request', {
+            statics: {
+                'new': (
+                    headers: Headers,
+                    contents: WasiStreamReadable<Uint8Array> | undefined,
+                    trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
+                    options: HttpRequestOptions | undefined,
+                ): [HttpRequest, Promise<Result<void, ErrorCode>>] => HttpRequest.new(headers, contents, trailers, options),
+                'consume-body': (
+                    this_: HttpRequest,
+                    res: Promise<Result<void, ErrorCode>>,
+                ) => HttpRequest.consumeBody(this_, res),
+            },
+            methods: {
+                'get-method': (self: HttpRequest) => self.getMethod(),
+                'set-method': (self: HttpRequest, method: Method) =>
+                    tryResult(() => { self.setMethod(method); }),
+                'get-path-with-query': (self: HttpRequest) => self.getPathWithQuery(),
+                'set-path-with-query': (self: HttpRequest, p: string | undefined) =>
+                    tryResult(() => { self.setPathWithQuery(p); }),
+                'get-scheme': (self: HttpRequest) => self.getScheme(),
+                'set-scheme': (self: HttpRequest, s: Scheme | undefined) =>
+                    tryResult(() => { self.setScheme(s); }),
+                'get-authority': (self: HttpRequest) => self.getAuthority(),
+                'set-authority': (self: HttpRequest, a: string | undefined) =>
+                    tryResult(() => { self.setAuthority(a); }),
+                'get-options': (self: HttpRequest) => self.getOptions(),
+                'get-headers': (self: HttpRequest) => self.getHeaders(),
+            },
+        }),
+        ...resource('request-options', {
+            ctor: (): HttpRequestOptions => new HttpRequestOptions(),
+            methods: {
+                'get-connect-timeout': (self: HttpRequestOptions) => self.getConnectTimeout(),
+                'set-connect-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+                    tryResult(() => { self.setConnectTimeout(d); }),
+                'get-first-byte-timeout': (self: HttpRequestOptions) => self.getFirstByteTimeout(),
+                'set-first-byte-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+                    tryResult(() => { self.setFirstByteTimeout(d); }),
+                'get-between-bytes-timeout': (self: HttpRequestOptions) => self.getBetweenBytesTimeout(),
+                'set-between-bytes-timeout': (self: HttpRequestOptions, d: Duration | undefined) =>
+                    tryResult(() => { self.setBetweenBytesTimeout(d); }),
+                'clone': (self: HttpRequestOptions) => self.clone(),
+            },
+        }),
+        ...resource('response', {
+            statics: {
+                'new': (
+                    headers: Headers,
+                    contents: WasiStreamReadable<Uint8Array> | undefined,
+                    trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
+                ): [HttpResponse, Promise<Result<void, ErrorCode>>] => HttpResponse.new(headers, contents, trailers),
+                'consume-body': (
+                    this_: HttpResponse,
+                    res: Promise<Result<void, ErrorCode>>,
+                ) => HttpResponse.consumeBody(this_, res),
+            },
+            methods: {
+                'get-status-code': (self: HttpResponse) => self.getStatusCode(),
+                'set-status-code': (self: HttpResponse, code: StatusCode) =>
+                    tryResult(() => { self.setStatusCode(code); }),
+                'get-headers': (self: HttpResponse) => self.getHeaders(),
+            },
+        }),
     };
 }
 

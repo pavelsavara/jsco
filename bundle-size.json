@@ -10,24 +10,24 @@
             "gzip": 5514
         },
         "wasip2-via-wasip3-node.js": {
-            "raw": 30156,
-            "gzip": 8269
+            "raw": 26102,
+            "gzip": 7967
         },
         "wasip2-via-wasip3.js": {
-            "raw": 22782,
-            "gzip": 5976
+            "raw": 18755,
+            "gzip": 5696
         },
         "wasip3-node.js": {
-            "raw": 52182,
-            "gzip": 15175
+            "raw": 51706,
+            "gzip": 15222
         },
         "wasip3.js": {
-            "raw": 29450,
-            "gzip": 8556
+            "raw": 28942,
+            "gzip": 8615
         },
         "__TOTAL__": {
-            "raw": 280868,
-            "gzip": 74957
+            "raw": 271803,
+            "gzip": 74481
         }
     }
 }

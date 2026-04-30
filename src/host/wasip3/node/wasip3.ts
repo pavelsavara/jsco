@@ -15,6 +15,9 @@ import { nodeStdioDefaults } from './stdio-node';
 import { serve as serveImpl } from './http-server';
 import type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
 import { JsImports } from '../../../resolver/api-types';
+import { makeRegister } from '../../_shared/resource-table';
+
+const P3_VERSIONS = ['0.3.0-rc-2026-03-15'] as const;
 
 // Re-export everything from the browser module so consumers need only one import
 export * from '../index';
@@ -45,23 +48,18 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
 
     const host = createBrowserHost(nodeConfig) as unknown as Record<string, unknown>;
 
-    // Helper: override both unversioned and versioned alias
-    const p3version = '0.3.0-rc-2026-03-15';
-    function override(key: string, value: unknown): void {
-        host[key] = value;
-        host[key + '@' + p3version] = value;
-    }
+    const override = makeRegister(host, 'wasi:', P3_VERSIONS);
 
     // Replace browser socket stubs with real Node.js implementations
-    override('wasi:sockets/types', createNodeSocketsTypes());
-    override('wasi:sockets/ip-name-lookup', createNodeIpNameLookup());
+    override('sockets/types', createNodeSocketsTypes());
+    override('sockets/ip-name-lookup', createNodeIpNameLookup());
 
     // Wire real filesystem mounts
     if (config?.mounts && config.mounts.length > 0) {
         const fsState = initFilesystem(config);
         addNodeMounts(fsState, config.mounts, config.limits);
-        override('wasi:filesystem/preopens', createPreopens(fsState));
-        override('wasi:filesystem/types', createFilesystemTypes(fsState));
+        override('filesystem/preopens', createPreopens(fsState));
+        override('filesystem/types', createFilesystemTypes(fsState));
     }
 
     return host as unknown as WasiP3Imports & JsImports;
