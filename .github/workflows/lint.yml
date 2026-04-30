@@ -17,3 +17,6 @@ jobs:
 
     - name: run linter
       run: npm run lint
+
+    - name: check reserved-wit-names.cjs is up to date
+      run: npm run reserved:wit:check

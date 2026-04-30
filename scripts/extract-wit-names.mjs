@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..', 'wit', 'wasip3', 'types');
+const CHECK_MODE = process.argv.includes('--check');
 
 function walk(dir) {
     const out = [];
@@ -139,5 +140,24 @@ module.exports = ${JSON.stringify(sorted, null, 4)};
 `;
 
 const outFile = join(__dirname, 'reserved-wit-names.cjs');
-writeFileSync(outFile, out, 'utf8');
-console.log(`Wrote ${sorted.length} names to ${outFile}`);
+if (CHECK_MODE) {
+    let existing = '';
+    try {
+        existing = readFileSync(outFile, 'utf8');
+    } catch {
+        console.error(`error: ${outFile} does not exist. Run \`node scripts/extract-wit-names.mjs\` to generate it.`);
+        process.exit(1);
+    }
+    // Normalize CRLF→LF on both sides so the check passes on Windows checkouts
+    // where git's autocrlf has rewritten line endings on disk.
+    const normalize = (s) => s.replace(/\r\n/g, '\n');
+    if (normalize(existing) !== normalize(out)) {
+        console.error(`error: ${outFile} is out of date relative to wit/wasip3/types/**/*.d.ts and src/host/**/*.ts.`);
+        console.error('Run `node scripts/extract-wit-names.mjs` (or `npm run reserved:wit`) and commit the result.');
+        process.exit(1);
+    }
+    console.log(`OK: ${outFile} matches the generated output (${sorted.length} names).`);
+} else {
+    writeFileSync(outFile, out, 'utf8');
+    console.log(`Wrote ${sorted.length} names to ${outFile}`);
+}
