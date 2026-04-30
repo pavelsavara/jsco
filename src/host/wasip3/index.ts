@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 /**\n * WASIp3 Host — browser-compatible entry point.\n *\n * Creates all WASI Preview 3 host interface implementations:\n * CLI (environment, exit, stdio), clocks, random, filesystem (in-memory VFS),\n * HTTP client (Fetch API), and socket stubs (not-supported in browser).\n *\n * Import from `@pavelsavara/jsco/wasip3`.\n */
 

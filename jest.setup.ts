@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 // Monkeypatch JSON.stringify to coerce BigInt → Number.
 // Jest IPC (process.send with JSON serialization) throws "Do not know how to serialize a BigInt".

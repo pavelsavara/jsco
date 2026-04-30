@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { createMonotonicClock, createSystemClock } from '../../../src/host/wasip3/clocks';
 import { initFilesystem, createPreopens } from '../../../src/host/wasip3/filesystem';

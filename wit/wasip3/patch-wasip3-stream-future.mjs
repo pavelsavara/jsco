@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 // Post-process generated WASIp3 .d.ts files:
 // Replace simplified stream/future types with WasiStreamReadable, WasiStreamWritable, WasiFuture wrappers.

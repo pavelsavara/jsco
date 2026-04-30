@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import type { MemoryView, StreamTable, FutureTable, SubtaskTable, WaitableSetTable } from './model/types';
 import { STREAM_STATUS_COMPLETED, EVENT_SUBTASK, EVENT_STREAM_READ, EVENT_STREAM_WRITE, EVENT_FUTURE_READ, EVENT_FUTURE_WRITE } from './constants';

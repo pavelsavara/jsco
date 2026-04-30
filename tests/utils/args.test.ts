@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Pavel Savara. Licensed under the MIT License.
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { parseCliArgs, HELP_TEXT, getHelpText, RUN_HELP_TEXT, SERVE_HELP_TEXT } from '../../src/utils/args';
 
