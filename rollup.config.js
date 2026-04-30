@@ -8,6 +8,8 @@ import virtual from '@rollup/plugin-virtual';
 import * as path from 'path';
 import dts from 'rollup-plugin-dts';
 import gitCommitInfo from 'git-commit-info';
+import reservedProps from './scripts/reserved-props.cjs';
+import reservedWitNames from './scripts/reserved-wit-names.cjs';
 
 const configuration = process.env.Configuration ?? 'Debug';
 const isDebug = configuration !== 'Release';
@@ -138,15 +140,16 @@ const plugins = isDebug ? [] : (() => {
         mangle: {
             module: true,
             toplevel: true,
-            // NOTE: mangle.properties is intentionally disabled. Several runtime
-            // paths (WASI host method dispatch, MarshalingContext per-task fields,
-            // embedded leb128 WASM exports, cross-bundle ESM namespace property
-            // access) look up properties via dynamically-built strings that
-            // terser cannot see. Enabling property mangling would require an
-            // exhaustive reserved list covering every WIT-exported method name
-            // and every runtime field accessed by the binder/marshaler.
-            // See scripts/reserved-props.cjs for the partial list of names that
-            // would need to be preserved if property mangling is ever re-enabled.
+            properties: {
+                // keep_quoted: true means any property accessed via `obj['name']`
+                // syntax anywhere in source is auto-reserved. With `builtins:false`
+                // (default), terser also reserves the DOM/built-in property list.
+                keep_quoted: true,
+                reserved: [
+                    ...reservedProps,
+                    ...reservedWitNames,
+                ],
+            },
         },
     })];
 })();
