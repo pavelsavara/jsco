@@ -337,7 +337,7 @@ describe('HTTP P3 WAT — server-suite (Phase 2 — Scenario B: fwd → JS impl)
             const chunks = requestBody.length === 0 ? [] : [enc.encode(requestBody)];
             const result = await handler.handle(makeSyntheticRequest(chunks));
             expect(result.tag).toBe('ok');
-            return drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
+            return await drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
         } finally {
             instance.dispose();
         }
@@ -371,7 +371,7 @@ describe('HTTP P3 WAT — server-suite (Phase 2 — Scenario D: fwd → fwd → 
             const chunks = requestBody.length === 0 ? [] : [enc.encode(requestBody)];
             const result = await outer.handler.handle(makeSyntheticRequest(chunks));
             expect(result.tag).toBe('ok');
-            return drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
+            return await drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
         } finally {
             outer.instance.dispose();
             inner.instance.dispose();
@@ -402,7 +402,7 @@ describe('HTTP P3 WAT — server-suite (Phase 2 — Scenario E: fwd → fwd → 
             const chunks = requestBody.length === 0 ? [] : [enc.encode(requestBody)];
             const result = await outer.handler.handle(makeSyntheticRequest(chunks));
             expect(result.tag).toBe('ok');
-            return drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
+            return await drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
         } finally {
             outer.instance.dispose();
             inner.instance.dispose();
@@ -438,7 +438,7 @@ async function runClosedComposition(
         const chunks = requestBody.length === 0 ? [] : [enc.encode(requestBody)];
         const result = await handler.handle(makeSyntheticRequest(chunks));
         expect(result.tag).toBe('ok');
-        return drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
+        return await drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
     } finally {
         instance.dispose();
     }
@@ -502,7 +502,7 @@ async function runOpenComposition(
         const chunks = requestBody.length === 0 ? [] : [enc.encode(requestBody)];
         const result = await handler.handle(makeSyntheticRequest(chunks));
         expect(result.tag).toBe('ok');
-        return drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
+        return await drainResponseBody((result as { tag: 'ok'; val: ResponseLike }).val);
     } finally {
         instance.dispose();
     }
@@ -807,13 +807,17 @@ describe('HTTP P3 WAT — client-suite (Phase 3 — Scenario B\': consumer → s
 // phases 5..8). For 2 MiB streaming bodies, the upstream impl backpressures
 // its resp_body_w (entry hits 64 KiB threshold) when fwd is still in req-side
 // phases — fwd doesn't read resp_in until phase 5 — so impl stops reading
-// req → req_out bridge fills → fwd's req_out write BLOCKs → deadlock.
-// Fixing this requires a concurrent driver in fwd mirroring the consumer's
-// event-dispatched pump pattern (substantial rewrite). Filed for Phase 4.
+// Phase 4a: concurrent fwd driver unblocks the deadlock that the serial
+// driver had on 2 MiB body streaming. However, a jsco runtime bug in
+// pumpIterable backpressure causes exactly 65536 bytes (the stream
+// backpressure threshold) to be lost during sustained cross-component
+// streaming. The fwd's WAT echo logic is correct; the loss occurs in the
+// JS-side pump that bridges AsyncIterable → stream entry under sustained
+// backpressure. Tracked for a separate fix.
 describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer → fwd → server-impl)', () => {
     const verbose = useVerboseOnFailure();
 
-    test('DEFERRED: serial fwd driver deadlocks on 2 MiB body — needs concurrent rewrite', () =>
+    test('collected body == request + "-fwd--handled--fwd-"', () =>
         runWithVerbose(verbose, async () => {
             const wasiImports = createWasiP3Host();
             const implComp = await createComponent(SERVER_IMPL_WASM, verboseOptions(verbose));
@@ -823,7 +827,7 @@ describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer 
             const fwd = await instantiateFwdWithUpstream(upstreamHandler, verbose);
             try {
                 const collected = await runConsumer(fwd.handler, verbose);
-                const expected = reqPlus('-handled-');
+                const expected = reqPlus('-fwd--handled--fwd-');
                 expect(collected.length).toBe(expected.length);
                 expect(bytesEqual(collected, expected)).toBe(true);
             } finally {
@@ -833,12 +837,13 @@ describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer 
         }), 60_000);
 });
 
-// Scenario I' deferred for the same reason as C' (serial fwd driver in the
-// composed forwarder-implementer artifact deadlocks on streaming bodies).
+// Scenario I': same pumpIterable backpressure issue as C' — the WAC-composed
+// fwd+impl also loses 65536 bytes during 2 MiB streaming. Skipped pending
+// the runtime-level backpressure fix.
 describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario I\': consumer → composed fwd+impl)', () => {
     const verbose = useVerboseOnFailure();
 
-    test('collected body == request + "-handled-"', () =>
+    test('collected body == request + "-fwd--handled--fwd-"', () =>
         runWithVerbose(verbose, async () => {
             const wasiImports = createWasiP3Host();
             const composedComp = await createComponent(FWD_IMPL_COMPOSED_WASM, verboseOptions(verbose));
@@ -846,7 +851,7 @@ describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario I\': consumer 
             const upstream = composedInstance.exports[HANDLER_INTERFACE] as HandlerExport;
             try {
                 const collected = await runConsumer(upstream, verbose);
-                const expected = reqPlus('-handled-');
+                const expected = reqPlus('-fwd--handled--fwd-');
                 expect(collected.length).toBe(expected.length);
                 expect(bytesEqual(collected, expected)).toBe(true);
             } finally {

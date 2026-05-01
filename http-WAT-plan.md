@@ -262,13 +262,19 @@ Mirrors the existing topology. All scenarios assert the body-mutation contract.
 | I | test → (fwd ← server-impl) wac           | 1.3 | ✅ |
 | J | test → (fwd ← fwd ← server-impl) wac     | 2 | ✅ |
 | K | test → (fwd ← fwd ← fwd ← server-impl) wac | 2 | ✅ |
-| L | client-consumer → echo over real fetch + `startEchoServer` | 4 | ⏳ |
+| L | client-consumer → echo over real fetch + `startEchoServer` | 4b | ⏳ |
 
 Error variants in Phase 2:
 - ✅ JS impl returns `Err(internal-error)` — direct caller observes Err.
 - ✅ JS impl trailers future resolves to `Err(...)` — caller observes trailers Err.
 - ✅ WAT fwd propagates upstream Err via `task.return(Err)` (phase-10 branch).
 - ⏳ Body stream cancels mid-pump — deferred; needs dedicated cancel-fwd WAT.
+
+Phase 3 client-consumer scenarios:
+- ✅ A' (consumer → JS impl) — 2 MiB streaming body, concurrent driver.
+- ✅ B' (consumer → server-impl WAT) — early `task.return` enables WAT-to-WAT streaming.
+- ⏳ C' (consumer → fwd → server-impl) — skipped, serial fwd deadlocks on 2 MiB body.
+- ⏳ I' (consumer → composed fwd+impl) — skipped, same serial fwd deadlock.
 
 ---
 
@@ -322,13 +328,26 @@ Scenarios B, D, E, F, G, H, J, K + 3 of 4 error variants. Built remaining
 `.wac` compositions; implemented multi-fwd flattening cases. Body-cancel
 variant deferred.
 
-### Phase 3 — client suite
+### Phase 3 — client suite ✅ (partial)
 
 `client-consumer-p3.wat` exercising the streaming-chunks pattern (4 chunks
-including 2 MiB tail). Drives `wasi:http/handler.handle` (or `client.send`).
-Mirrors A–K from the consumer side.
+including 2 MiB tail). Drives `wasi:http/handler.handle` via the upstream
+import. Scenarios A' (JS impl) and B' (WAT impl) passing. C' and I' skipped
+pending concurrent fwd rewrite (Phase 4a).
 
-### Phase 4 — real HTTP
+Key design pattern discovered: **early `task.return`** — the implementer
+must call `task.return(ok(resp))` before starting body writes so the caller
+can begin reading the response concurrently. Without this, WAT-to-WAT
+streaming deadlocks because neither side can make progress.
+
+### Phase 4a — concurrent fwd rewrite
+
+Rewrite `server-fwd-p3.wat` from a 10-phase serial driver to an
+event-dispatched concurrent driver that interleaves req-pump and resp-pump
+(same pattern as `client-consumer-p3.wat`). This unblocks Scenarios C' and I'
+(and potentially D'–K' consumer-side variants).
+
+### Phase 4b — real HTTP
 
 Scenario L: `client-consumer-p3.wat` against `startEchoServer` via real `fetch`.
 Validates the host `wasi:http` adapter end-to-end.
@@ -368,6 +387,22 @@ Saved as `/memories/repo/wasip3-wat-component-types.md`:
    `(export "wasi:http/handler@..." (instance $handler-inst) (instance (type $handler-iface)))`.
    The jsco runtime accepts both the bare and typed forms; only WAC needs the
    ascription. See `server-impl-p3.wat` and `server-fwd-p3.wat`.
+7. **Early `task.return` is critical for WAT-to-WAT streaming.** The
+   implementer must call `task.return(ok(resp))` *before* entering its
+   body/trailers write loop — this unblocks the caller's subtask-wait so
+   it can begin reading `resp_body_r` concurrently with the implementer
+   writing. Without early `task.return`, the caller blocks in subtask-wait
+   (consumer's `resp_phase 0`) while the implementer blocks on
+   backpressured body writes at the 64 KiB threshold → classic two-side
+   streaming deadlock. See `server-impl-p3.wat` line 286.
+8. **Serial fwd driver deadlocks on large streaming bodies.** The current
+   `server-fwd-p3.wat` uses a 10-phase serial driver: req-side (0–3) →
+   subtask-wait (4) → resp-side (5–8) → finalize (9–10). For 2 MiB
+   bodies, the upstream impl backpressures `resp_body_w` while fwd is
+   still in req-side phases; fwd can't read resp until phase 5; impl
+   stops reading req → req bridge fills → fwd's req write BLOCKs →
+   deadlock. Fix requires a concurrent event-dispatched driver mirroring
+   `client-consumer-p3.wat`'s `pump-req` / `pump-resp` pattern.
 
 ---
 
@@ -456,24 +491,34 @@ Saved as `/memories/repo/wasip3-wat-component-types.md`:
            be applied to future-write phases (phase 4 in our consumer); they
            advance unconditionally on post-event, since `future.write` in
            jsco never blocks.
-    - **Scenarios B', C', I' (consumer-WAT → upstream-WAT, with or without
-      a fwd-WAT in between) — DEFERRED.** All three timeout. The bug
-      manifests with a direct consumer-WAT → server-impl-WAT chain even
-      without a forwarder. Phase 1.2/2 server-suite scenarios are
-      unaffected because the test harness drives the request with a JS-side
-      `AsyncIterable` (no consumer-WAT in the loop). Hypothesis: the JS
-      `AsyncIterable` returned by `removeReadable(consumer's WAT-side
-      stream entry)` does not interact correctly with another WAT's
-      `pumpIterable` — likely a subtle waitable-set `onReady` /
-      `signalReady` wiring issue when the source stream is itself a WAT
-      stream entry rather than a foreign JS iterable. See
-      `tests/host/wasip3/http-integration.test.ts` describe.skip block for
-      details. To resume investigation: enable verbose logging on a small
-      body and trace the `pumpIterable` / `makeAsyncIterable` interaction
-      against the waitable-set's `onReady` registration.
-    - **Body-mutation contract validated for A'**:
+    - **Scenario B' (consumer → server-impl WAT)** — now **passing** (60 s
+      timeout). The key enabler was the **early `task.return` pattern** in
+      `server-impl-p3.wat`: the implementer calls `task.return(ok(resp))`
+      *before* driving the body/trailers write loop. This lets the caller
+      (consumer-WAT) receive the response handle and start reading
+      `resp_body_r` concurrently while the implementer is still writing
+      body chunks. Without early `task.return`, the consumer blocks in
+      subtask-wait (resp_phase 0) while the impl blocks on backpressured
+      body writes — classic two-side streaming deadlock. The original
+      hypothesis (jsco `AsyncIterable` bridge / `onReady` wiring bug) was
+      incorrect; the issue was purely a guest-side sequencing problem.
+    - **Scenarios C', I' — SKIPPED.** These involve `server-fwd-p3.wat`
+      in the chain, whose 10-phase **serial** driver (req-side phases 0–3 →
+      subtask-wait phase 4 → resp-side phases 5–8 → finalize 9–10)
+      deadlocks on 2 MiB streaming bodies. The forwarder doesn't start
+      reading the upstream response (`resp_in_body_r`) until phase 5, but
+      the upstream impl backpressures its `resp_body_w` at the 64 KiB
+      threshold while the fwd is still pumping req-side phases — so the
+      impl stops reading the request → the `req_out` bridge fills → fwd's
+      `req_out` write BLOCKs → deadlock. **This is not a jsco runtime
+      bug** — it's a WAT-side architectural limitation. Fixing it requires
+      rewriting `server-fwd-p3.wat` to use a concurrent event-dispatched
+      driver (mirroring `client-consumer-p3.wat`'s `pump-req` / `pump-resp`
+      pattern) instead of a serial phase sequence. Filed as Phase 4 task.
+    - **Body-mutation contract validated for A' and B'**:
       `collected_body == request_body + "-handled-"`.
-- [ ] Phase 3 — client-consumer-p3.wat: scenarios B', C', I' (WAT-to-WAT
-      bridging through JS AsyncIterable). Deferred pending jsco
-      stream-bridge investigation.
-- [ ] Phase 4 — Scenario L
+- [ ] Phase 4a — Concurrent fwd rewrite: rewrite `server-fwd-p3.wat` to
+      use an event-dispatched concurrent driver (interleaved req-pump /
+      resp-pump) so C' and I' can pass with 2 MiB streaming bodies.
+- [ ] Phase 4b — Scenario L: `client-consumer-p3.wat` against
+      `startEchoServer` via real `fetch`.

@@ -1,28 +1,41 @@
-;; Hand-written component-model WAT — WASIp3 HTTP forwarder middleware (Phase 1.2).
+;; Hand-written component-model WAT — WASIp3 HTTP forwarder middleware (Phase 4a).
 ;;
 ;; Imports `wasi:http/types@0.3.0-rc-2026-03-15` and an upstream
 ;; `wasi:http/handler@0.3.0-rc-2026-03-15`. Exports `wasi:http/handler` (downstream).
 ;;
-;; Behaviour (consume + reconstruct):
-;;   1. Allocate a `res` future for the inbound request, write Ok(()), drop writable.
-;;   2. consume-body(req_in, rcu_in_r) → (req_in_body_r, req_in_trailers_r).
-;;      Drop req_in_trailers_r (we do not propagate trailers in this phase).
-;;   3. Build a brand-new outbound request with our own body+trailers stream/future
-;;      pairs: request.new(headers, some(req_out_body_r), req_out_trailers_r, none-options).
-;;      Drop the request transmit-completion future readable.
-;;   4. Async-lower `handler.handle(out_req, retptr)` → returns state|(handle<<4).
-;;      The result will be spilled to `retptr` when the subtask resolves.
-;;   5. Pump req_in_body → req_out_body chunk-by-chunk; on EOF write "-fwd-" then drop
-;;      out body writable. Write Ok(none) to req_out_trailers_w; drop writable.
-;;   6. Wait for the upstream subtask to RETURN; read resp_in handle from retptr.
-;;   7. consume-body on the inbound response → (resp_in_body_r, resp_in_trailers_r).
-;;      Drop resp_in_trailers_r.
-;;   8. Build downstream response: fields.new + body+trailers pairs.
-;;      response.new(headers, some(resp_out_body_r), resp_out_trailers_r).
-;;      Drop response transmit-completion future readable.
-;;   9. Pump resp_in_body → resp_out_body; on EOF write "-fwd-" then drop writable.
-;;      Write Ok(none) to resp_out_trailers_w; drop writable.
-;;  10. task.return(Ok(resp_out_handle)); EXIT.
+;; CONCURRENT DRIVER — req-side pump and resp-side pump run independently:
+;;
+;;   Setup (handle-start):
+;;     1. Allocate rcu future, write Ok(()), drop writable.
+;;     2. consume-body(req_in, rcu_r) → (req_in_body_r, req_in_trailers_r).
+;;     3. Build outbound request with fresh body+trailers pairs → request.new.
+;;     4. Async-lower upstream handler.handle(req_out, retptr) → subtask.
+;;     5. Join subtask to waitable-set; start concurrent pumps.
+;;
+;;   Req-side pump (phases 0–4):
+;;     0. stream.read req_in_body → buffer
+;;     1. stream.write echo → req_out_body (repeat 0→1 until EOF)
+;;     2. stream.write "-fwd-" → req_out_body; drop writable
+;;     3. future.write Ok(none) → req_out_trailers; drop writable
+;;     4. req side done
+;;
+;;   Resp-side pump (phases 0–5):
+;;     0. awaiting subtask RETURNED (no-op)
+;;     1. stream.read resp_in_body → buffer
+;;     2. stream.write echo → resp_out_body (repeat 1→2 until EOF)
+;;     3. stream.write "-fwd-" → resp_out_body; drop writable
+;;     4. future.write Ok(none) → resp_out_trailers; drop writable
+;;     5. resp side done
+;;
+;;   On subtask RETURNED (Ok):
+;;     consume-body on response → resp_in_body_r; build downstream response;
+;;     **early task.return(Ok(resp))** — lets the caller start reading resp_body
+;;     concurrently; resp_phase → 1 (start reading).
+;;
+;;   On subtask RETURNED (Err):
+;;     cleanup all; task.return(Err); both sides → done; EXIT.
+;;
+;;   Finalize: when req_phase==4 AND resp_phase==5 → ws-drop; EXIT.
 ;;
 ;; Body-mutation contract (per http-WAT-plan §2):
 ;;   response_body == request_body + "-fwd-" + "-handled-" + "-fwd-"
@@ -156,7 +169,8 @@
   ;;   0x0048 .. 0x004F  request.new retbuf  (8 bytes)
   ;;   0x0050 .. 0x0057  consume-body retbuf — resp side (8 bytes)
   ;;   0x1000 ..         per-task state struct
-  ;;   0x4000 .. 0xBFFF  chunk buffer (32 KiB)
+  ;;   0x4000 .. 0xBFFF  req-side chunk buffer (32 KiB)
+  ;;   0xC000 .. 0x13FFF resp-side chunk buffer (32 KiB)
 
   (core module $mem-module
     (memory (export "memory") 4)
@@ -220,7 +234,7 @@
   (core func $task-return-core (canon task.return (result $handler-result) (memory $mem)))
 
   ;; ===================================================================
-  ;; Core implementation module
+  ;; Core implementation module — CONCURRENT DRIVER
   ;; ===================================================================
   (core module $impl
     (import "host" "memory"               (memory 0))
@@ -258,36 +272,20 @@
     (import "host" "task-return"          (func $task-return          (param i32 i32)))
 
     ;; -----------------------------------------------------------------
-    ;; State struct at 0x1000 (offsets):
-    ;;   +0   phase            i32
-    ;;   +4   req_in_body_r    i32
-    ;;   +8   req_out_body_w   i32
-    ;;   +12  req_out_trailers_w i32
-    ;;   +16  resp_in_body_r   i32 (filled at phase 6)
-    ;;   +20  resp_out_body_w  i32 (filled at phase 7)
-    ;;   +24  resp_out_trailers_w i32 (filled at phase 7)
-    ;;   +28  resp_out_handle  i32 (filled at phase 7)
-    ;;   +32  ws               i32
-    ;;   +36  read_count       i32
-    ;;   +40  subtask_h        i32
-    ;;
-    ;; Phases:
-    ;;   0 stream.read on req_in_body_r
-    ;;   1 stream.write echo on req_out_body_w
-    ;;   2 stream.write "-fwd-" on req_out_body_w (after EOF read)
-    ;;   3 future.write Ok(none) on req_out_trailers_w
-    ;;   4 wait for upstream subtask
-    ;;   5 stream.read on resp_in_body_r
-    ;;   6 stream.write echo on resp_out_body_w
-    ;;   7 stream.write "-fwd-" on resp_out_body_w
-    ;;   8 future.write Ok(none) on resp_out_trailers_w
-    ;;   9 done — finalize, task.return(Ok), EXIT
-    ;;  10 err finalize — ws-drop, task.return(Err(internal-error)), EXIT
-    ;;
-    ;; The transitions {phase 4 → 5} and {phase 6/7/8 setup} read additional
-    ;; values out of memory (handler.handle retptr, response.new retbuf,
-    ;; consume-body retbuf for the response). Those side-effecting transitions
-    ;; happen in `$drive` between phase advances.
+    ;; State struct at 0x1000 (i32 fields):
+    ;;   +0   req_phase          (0=read, 1=echo-write, 2=fwd-write, 3=trailers, 4=done)
+    ;;   +4   resp_phase         (0=await-subtask, 1=read, 2=echo-write, 3=fwd-write, 4=trailers, 5=done)
+    ;;   +8   req_in_body_r      (0 when dropped)
+    ;;   +12  req_out_body_w     (0 when dropped)
+    ;;   +16  req_out_trailers_w (0 when dropped)
+    ;;   +20  subtask_h          (0 once dropped)
+    ;;   +24  resp_in_body_r     (0 until obtained / when dropped)
+    ;;   +28  resp_out_body_w    (0 until obtained / when dropped)
+    ;;   +32  resp_out_trailers_w (0 until obtained / when dropped)
+    ;;   +36  (reserved)
+    ;;   +40  ws
+    ;;   +44  req_echo_count
+    ;;   +48  resp_echo_count
     ;; -----------------------------------------------------------------
 
     ;; Helper: re-arm a single waitable into ws (disjoin then rejoin).
@@ -296,264 +294,461 @@
       (call $waitable-join (local.get $h) (local.get $ws)))
 
     ;; -----------------------------------------------------------------
-    ;; $drive(state_ptr, rc, post_event) -> i32
+    ;; $abort-req-side — drop req-side handles, set req_phase=4.
     ;; -----------------------------------------------------------------
-    (func $drive (param $state i32) (param $rc i32) (param $post i32) (result i32)
-      (local $phase i32)
-      (local $ws i32)
-      (local $handle i32)
-      (local $count i32)
-      (local $status-low i32)
-      (local $tmp i32)
-      (local $hdrs i32)
-      (local $stream-pair i64)
-      (local $future-pair i64)
+    (func $abort-req-side (param $state i32)
+      (if (i32.ne (i32.load offset=8 (local.get $state)) (i32.const 0))
+        (then
+          (call $stream-drop-readable-u8 (i32.load offset=8 (local.get $state)))
+          (i32.store offset=8 (local.get $state) (i32.const 0))))
+      (if (i32.ne (i32.load offset=12 (local.get $state)) (i32.const 0))
+        (then
+          (call $stream-drop-writable-u8 (i32.load offset=12 (local.get $state)))
+          (i32.store offset=12 (local.get $state) (i32.const 0))))
+      (if (i32.ne (i32.load offset=16 (local.get $state)) (i32.const 0))
+        (then
+          (call $future-drop-writable-rt (i32.load offset=16 (local.get $state)))
+          (i32.store offset=16 (local.get $state) (i32.const 0))))
+      (i32.store offset=0 (local.get $state) (i32.const 4)))
 
-      (local.set $ws (i32.load offset=32 (local.get $state)))
+    ;; -----------------------------------------------------------------
+    ;; $abort-resp-side — drop resp-side handles, set resp_phase=5.
+    ;; -----------------------------------------------------------------
+    (func $abort-resp-side (param $state i32)
+      (if (i32.ne (i32.load offset=24 (local.get $state)) (i32.const 0))
+        (then
+          (call $stream-drop-readable-u8 (i32.load offset=24 (local.get $state)))
+          (i32.store offset=24 (local.get $state) (i32.const 0))))
+      (if (i32.ne (i32.load offset=28 (local.get $state)) (i32.const 0))
+        (then
+          (call $stream-drop-writable-u8 (i32.load offset=28 (local.get $state)))
+          (i32.store offset=28 (local.get $state) (i32.const 0))))
+      (if (i32.ne (i32.load offset=32 (local.get $state)) (i32.const 0))
+        (then
+          (call $future-drop-writable-rt (i32.load offset=32 (local.get $state)))
+          (i32.store offset=32 (local.get $state) (i32.const 0))))
+      (i32.store offset=4 (local.get $state) (i32.const 5)))
+
+    ;; -----------------------------------------------------------------
+    ;; $on-subtask-returned — handles subtask RETURNED event.
+    ;; On Ok: consume-body → resp_in_body_r; build downstream response;
+    ;;        EARLY task.return(Ok(resp)); resp_phase → 1.
+    ;; On Err: cleanup all; task.return(Err); EXIT path.
+    ;; -----------------------------------------------------------------
+    (func $on-subtask-returned (param $state i32)
+      (local $stream-pair i64) (local $future-pair i64)
+      (local $rcu-r i32) (local $rcu-w i32)
+      (local $hdrs i32)
+
+      ;; Drop subtask handle.
+      (call $subtask-drop (i32.load offset=20 (local.get $state)))
+      (i32.store offset=20 (local.get $state) (i32.const 0))
+
+      ;; Check result disc at retbuf 0x40. Non-zero = Err.
+      (if (i32.ne (i32.load (i32.const 0x40)) (i32.const 0))
+        (then
+          ;; Err path: cleanup everything, task.return(Err).
+          (call $abort-req-side (local.get $state))
+          (call $abort-resp-side (local.get $state))
+          (call $task-return (i32.const 1) (i32.const 0))
+          (return)))
+
+      ;; --- Ok path: consume-body on inbound response ---
+      (local.set $stream-pair (call $future-new-rcu))
+      (local.set $rcu-r (i32.wrap_i64 (local.get $stream-pair)))
+      (local.set $rcu-w
+        (i32.wrap_i64 (i64.shr_u (local.get $stream-pair) (i64.const 32))))
+      (drop (call $future-write-rcu (local.get $rcu-w) (i32.const 0x30)))
+      (call $future-drop-writable-rcu (local.get $rcu-w))
+
+      ;; consume-body(resp_handle, rcu_r) → retbuf 0x50
+      (call $resp-consume-body
+        (i32.load (i32.const 0x44))         ;; upstream resp handle
+        (local.get $rcu-r)
+        (i32.const 0x50))
+      (i32.store offset=24 (local.get $state) (i32.load (i32.const 0x50)))  ;; resp_in_body_r
+      (call $future-drop-readable-rt (i32.load (i32.const 0x54)))           ;; drop resp_in_trailers_r
+
+      ;; --- Build downstream response ---
+      (local.set $hdrs (call $fields-new))
+
+      (local.set $stream-pair (call $stream-new-u8))
+      ;; resp_out_body_w (high 32) → state+28
+      (i32.store offset=28 (local.get $state)
+        (i32.wrap_i64 (i64.shr_u (local.get $stream-pair) (i64.const 32))))
+
+      (local.set $future-pair (call $future-new-rt))
+      ;; resp_out_trailers_w (high 32) → state+32
+      (i32.store offset=32 (local.get $state)
+        (i32.wrap_i64 (i64.shr_u (local.get $future-pair) (i64.const 32))))
+
+      ;; response.new(headers, some(body_r), trailers_r) → retbuf 0x20
+      (call $response-new
+        (local.get $hdrs)
+        (i32.const 1)                                     ;; option some
+        (i32.wrap_i64 (local.get $stream-pair))            ;; resp_out_body_r
+        (i32.wrap_i64 (local.get $future-pair))            ;; resp_out_trailers_r
+        (i32.const 0x20))
+      (call $future-drop-readable-rcu (i32.load (i32.const 0x24)))  ;; completion_r
+
+      ;; **EARLY task.return(Ok(resp))** — the caller can start reading
+      ;; the response body concurrently while we pump it.
+      (call $task-return (i32.const 0) (i32.load (i32.const 0x20)))
+
+      ;; Start reading response body.
+      (i32.store offset=4 (local.get $state) (i32.const 1)))
+
+    ;; -----------------------------------------------------------------
+    ;; $pump-req — issue req-side ops until BLOCKED or req_phase==4.
+    ;; Req buffer at 0x4000, 32 KiB.
+    ;; -----------------------------------------------------------------
+    (func $pump-req (param $state i32) (param $ws i32)
+      (local $phase i32)
+      (local $rc i32)
+      (local $status i32)
+      (local $count i32)
 
       (block $exit
         (loop $L
           (local.set $phase (i32.load offset=0 (local.get $state)))
 
-          ;; ==================================================================
-          ;; Process the just-completed event (post=1) and advance phase.
-          ;; ==================================================================
-          (if (local.get $post)
+          ;; Done?
+          (if (i32.eq (local.get $phase) (i32.const 4))
+            (then (br $exit)))
+
+          ;; --- Phase 0: read req_in_body ---
+          (if (i32.eqz (local.get $phase))
             (then
-              (local.set $status-low (i32.and (local.get $rc) (i32.const 0xF)))
-              (local.set $count      (i32.shr_u (local.get $rc) (i32.const 4)))
-
-              ;; ----- phase 0 (req_in read) -----
-              (if (i32.eqz (local.get $phase))
+              (local.set $rc (call $stream-read-u8
+                (i32.load offset=8 (local.get $state))
+                (i32.const 0x4000) (i32.const 0x8000)))
+              (if (i32.eq (local.get $rc) (i32.const -1))
                 (then
-                  (if (i32.eq (local.get $status-low) (i32.const 1))
-                    (then (i32.store offset=0 (local.get $state) (i32.const 2)))   ;; EOF → write -fwd-
-                    (else
-                      (if (i32.gt_u (local.get $count) (i32.const 0))
-                        (then
-                          (i32.store offset=36 (local.get $state) (local.get $count))
-                          (i32.store offset=0  (local.get $state) (i32.const 1))))))))
-
-              ;; ----- phase 1 (req_out write echo) -----
-              (if (i32.eq (local.get $phase) (i32.const 1))
+                  (call $rearm (i32.load offset=8 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $status (i32.and (local.get $rc) (i32.const 0xF)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; DROPPED → EOF, write "-fwd-"
+              (if (i32.eq (local.get $status) (i32.const 1))
                 (then
-                  ;; Advance only when the write actually transferred bytes.
-                  ;; BLOCKED-resume delivers count=0 → must NOT advance.
-                  (if (i32.gt_u (local.get $count) (i32.const 0))
-                    (then (i32.store offset=0 (local.get $state) (i32.const 0))))))
-
-              ;; ----- phase 2 (req_out write "-fwd-") -----
-              (if (i32.eq (local.get $phase) (i32.const 2))
+                  (call $stream-drop-readable-u8 (i32.load offset=8 (local.get $state)))
+                  (i32.store offset=8 (local.get $state) (i32.const 0))
+                  (i32.store offset=0 (local.get $state) (i32.const 2))
+                  (br $L)))
+              ;; COMPLETED + count > 0 → echo
+              (if (i32.gt_u (local.get $count) (i32.const 0))
                 (then
-                  (if (i32.gt_u (local.get $count) (i32.const 0))
-                    (then
-                      (call $stream-drop-writable-u8 (i32.load offset=8 (local.get $state)))
-                      (i32.store offset=8 (local.get $state) (i32.const 0))
-                      (i32.store offset=0 (local.get $state) (i32.const 3))))))
-
-              ;; ----- phase 3 (req_out trailers write) -----
-              (if (i32.eq (local.get $phase) (i32.const 3))
-                (then
-                  (call $future-drop-writable-rt (i32.load offset=12 (local.get $state)))
-                  (i32.store offset=12 (local.get $state) (i32.const 0))
-                  (i32.store offset=0  (local.get $state) (i32.const 4))))
-
-              ;; ----- phase 4 (subtask wait) -----
-              (if (i32.eq (local.get $phase) (i32.const 4))
-                (then
-                  (block $ph4
-                  ;; rc holds subtask state (RETURNED=2). Drop subtask.
-                  ;; The retptr at 0x40 has been filled with the spilled result.
-                  (call $subtask-drop (i32.load offset=40 (local.get $state)))
-                  (i32.store offset=40 (local.get $state) (i32.const 0))
-
-                  ;; result disc at 0x40+0; if non-zero this is Err → propagate.
-                  (if (i32.ne (i32.load (i32.const 0x40)) (i32.const 0))
-                    (then
-                      (i32.store offset=0 (local.get $state) (i32.const 10))
-                      (br $ph4)))
-
-                  ;; --- consume-body inbound response ---
-                  ;; rcu future for resp consume-body
-                  (local.set $stream-pair (call $future-new-rcu))
-                  (drop (call $future-write-rcu
-                    (i32.wrap_i64 (i64.shr_u (local.get $stream-pair) (i64.const 32)))
-                    (i32.const 0x30)))
-                  (call $future-drop-writable-rcu
-                    (i32.wrap_i64 (i64.shr_u (local.get $stream-pair) (i64.const 32))))
-
-                  ;; resp.consume-body(resp_in_handle, rcu_r) → retbuf 0x50
-                  (call $resp-consume-body
-                    (i32.load (i32.const 0x44))                   ;; upstream resp handle
-                    (i32.wrap_i64 (local.get $stream-pair))       ;; rcu readable
-                    (i32.const 0x50))
-                  ;; resp_in_body_r → state+16; drop resp_in_trailers_r
-                  (i32.store offset=16 (local.get $state) (i32.load (i32.const 0x50)))
-                  (call $future-drop-readable-rt (i32.load (i32.const 0x54)))
-
-                  ;; --- Build outbound response ---
-                  (local.set $hdrs (call $fields-new))
-
-                  (local.set $stream-pair (call $stream-new-u8))
-                  ;; resp_out_body_r (low 32) consumed by response.new; resp_out_body_w (high 32) → state+20
-                  (i32.store offset=20 (local.get $state)
-                    (i32.wrap_i64 (i64.shr_u (local.get $stream-pair) (i64.const 32))))
-
-                  (local.set $future-pair (call $future-new-rt))
-                  ;; resp_out_trailers_r consumed by response.new; resp_out_trailers_w → state+24
-                  (i32.store offset=24 (local.get $state)
-                    (i32.wrap_i64 (i64.shr_u (local.get $future-pair) (i64.const 32))))
-
-                  ;; response.new(headers, some(body_r), trailers_r) → retbuf 0x20
-                  (call $response-new
-                    (local.get $hdrs)
-                    (i32.const 1)                                 ;; option<stream> some
-                    (i32.wrap_i64 (local.get $stream-pair))       ;; resp_out_body_r
-                    (i32.wrap_i64 (local.get $future-pair))       ;; resp_out_trailers_r
-                    (i32.const 0x20))
-                  (i32.store offset=28 (local.get $state) (i32.load (i32.const 0x20)))   ;; resp_out_handle
-                  (call $future-drop-readable-rcu (i32.load (i32.const 0x24)))           ;; completion_r
-
-                  (i32.store offset=0 (local.get $state) (i32.const 5)))))               ;; → phase 5
-
-              ;; ----- phase 5 (resp_in read) -----
-              (if (i32.eq (local.get $phase) (i32.const 5))
-                (then
-                  (if (i32.eq (local.get $status-low) (i32.const 1))
-                    (then (i32.store offset=0 (local.get $state) (i32.const 7)))   ;; EOF → -fwd-
-                    (else
-                      (if (i32.gt_u (local.get $count) (i32.const 0))
-                        (then
-                          (i32.store offset=36 (local.get $state) (local.get $count))
-                          (i32.store offset=0  (local.get $state) (i32.const 6))))))))
-
-              ;; ----- phase 6 (resp_out write echo) -----
-              (if (i32.eq (local.get $phase) (i32.const 6))
-                (then
-                  (if (i32.gt_u (local.get $count) (i32.const 0))
-                    (then (i32.store offset=0 (local.get $state) (i32.const 5))))))
-
-              ;; ----- phase 7 (resp_out write -fwd-) -----
-              (if (i32.eq (local.get $phase) (i32.const 7))
-                (then
-                  (if (i32.gt_u (local.get $count) (i32.const 0))
-                    (then
-                      (call $stream-drop-writable-u8 (i32.load offset=20 (local.get $state)))
-                      (i32.store offset=20 (local.get $state) (i32.const 0))
-                      (i32.store offset=0  (local.get $state) (i32.const 8))))))
-
-              ;; ----- phase 8 (resp_out trailers write) -----
-              (if (i32.eq (local.get $phase) (i32.const 8))
-                (then
-                  (call $future-drop-writable-rt (i32.load offset=24 (local.get $state)))
-                  (i32.store offset=24 (local.get $state) (i32.const 0))
-                  (i32.store offset=0  (local.get $state) (i32.const 9))))
-
-              (local.set $post (i32.const 0))
-              (local.set $phase (i32.load offset=0 (local.get $state)))))
-
-          ;; ---- finalize Ok ----
-          (if (i32.eq (local.get $phase) (i32.const 9))
-            (then
-              (call $ws-drop (local.get $ws))
-              (call $task-return (i32.const 0) (i32.load offset=28 (local.get $state)))
+                  (i32.store offset=44 (local.get $state) (local.get $count))
+                  (i32.store offset=0 (local.get $state) (i32.const 1))
+                  (br $L)))
+              ;; count == 0: rearm, yield
+              (call $rearm (i32.load offset=8 (local.get $state)) (local.get $ws))
               (br $exit)))
 
-          ;; ---- finalize Err ----
-          (if (i32.eq (local.get $phase) (i32.const 10))
+          ;; --- Phase 1: write echo to req_out_body ---
+          (if (i32.eq (local.get $phase) (i32.const 1))
             (then
-              (call $ws-drop (local.get $ws))
-              ;; Err(internal-error) — single case (disc=0).
-              (call $task-return (i32.const 1) (i32.const 0))
+              (local.set $rc (call $stream-write-u8
+                (i32.load offset=12 (local.get $state))
+                (i32.const 0x4000)
+                (i32.load offset=44 (local.get $state))))
+              (if (i32.eq (local.get $rc) (i32.const -1))
+                (then
+                  (call $rearm (i32.load offset=12 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $status (i32.and (local.get $rc) (i32.const 0xF)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; DROPPED → upstream reader dropped, abort
+              (if (i32.eq (local.get $status) (i32.const 1))
+                (then
+                  (call $abort-req-side (local.get $state))
+                  (br $exit)))
+              ;; COMPLETED + count > 0 → back to reading
+              (if (i32.gt_u (local.get $count) (i32.const 0))
+                (then
+                  (i32.store offset=0 (local.get $state) (i32.const 0))
+                  (br $L)))
+              ;; count == 0 (BLOCKED-resume): rearm, yield
+              (call $rearm (i32.load offset=12 (local.get $state)) (local.get $ws))
               (br $exit)))
 
-          ;; ==================================================================
-          ;; Issue op for current phase.
-          ;; ==================================================================
-          (block $issued (result i32)
-            (if (i32.eqz (local.get $phase))
-              (then
-                (br $issued (call $stream-read-u8
-                  (i32.load offset=4 (local.get $state))
-                  (i32.const 0x4000)
-                  (i32.const 0x8000)))))
-            (if (i32.eq (local.get $phase) (i32.const 1))
-              (then
-                (br $issued (call $stream-write-u8
-                  (i32.load offset=8 (local.get $state))
-                  (i32.const 0x4000)
-                  (i32.load offset=36 (local.get $state))))))
-            (if (i32.eq (local.get $phase) (i32.const 2))
-              (then
-                (br $issued (call $stream-write-u8
-                  (i32.load offset=8 (local.get $state))
-                  (i32.const 0)
-                  (i32.const 5)))))
-            (if (i32.eq (local.get $phase) (i32.const 3))
-              (then
-                (br $issued (call $future-write-rt
-                  (i32.load offset=12 (local.get $state))
-                  (i32.const 0x10)))))
-            (if (i32.eq (local.get $phase) (i32.const 4))
-              (then
-                ;; subtask wait: nothing to issue, the subtask is already running.
-                ;; We immediately fall through to BLOCKED with handle = subtask_h.
-                (br $issued (i32.const -1))))
-            (if (i32.eq (local.get $phase) (i32.const 5))
-              (then
-                (br $issued (call $stream-read-u8
-                  (i32.load offset=16 (local.get $state))
-                  (i32.const 0x4000)
-                  (i32.const 0x8000)))))
-            (if (i32.eq (local.get $phase) (i32.const 6))
-              (then
-                (br $issued (call $stream-write-u8
-                  (i32.load offset=20 (local.get $state))
-                  (i32.const 0x4000)
-                  (i32.load offset=36 (local.get $state))))))
-            (if (i32.eq (local.get $phase) (i32.const 7))
-              (then
-                (br $issued (call $stream-write-u8
-                  (i32.load offset=20 (local.get $state))
-                  (i32.const 0)
-                  (i32.const 5)))))
-            ;; phase 8: trailers
-            (br $issued (call $future-write-rt
-              (i32.load offset=24 (local.get $state))
-              (i32.const 0x10))))
-          (local.set $rc)
+          ;; --- Phase 2: write "-fwd-" to req_out_body ---
+          (if (i32.eq (local.get $phase) (i32.const 2))
+            (then
+              (local.set $rc (call $stream-write-u8
+                (i32.load offset=12 (local.get $state))
+                (i32.const 0) (i32.const 5)))
+              (if (i32.eq (local.get $rc) (i32.const -1))
+                (then
+                  (call $rearm (i32.load offset=12 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; Any completion (count > 0 or DROPPED): drop writable, → trailers
+              (call $stream-drop-writable-u8 (i32.load offset=12 (local.get $state)))
+              (i32.store offset=12 (local.get $state) (i32.const 0))
+              (i32.store offset=0 (local.get $state) (i32.const 3))
+              (br $L)))
 
-          ;; ---- BLOCKED? ----
+          ;; --- Phase 3: future.write trailers Ok(none) ---
+          (local.set $rc (call $future-write-rt
+            (i32.load offset=16 (local.get $state))
+            (i32.const 0x10)))
           (if (i32.eq (local.get $rc) (i32.const -1))
             (then
-              ;; Look up handle by phase. Default = phase 0 (req_in_body_r).
-              (local.set $handle (i32.load offset=4 (local.get $state)))
-              (if (i32.eq (local.get $phase) (i32.const 1))
-                (then (local.set $handle (i32.load offset=8  (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 2))
-                (then (local.set $handle (i32.load offset=8  (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 3))
-                (then (local.set $handle (i32.load offset=12 (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 4))
-                (then (local.set $handle (i32.load offset=40 (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 5))
-                (then (local.set $handle (i32.load offset=16 (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 6))
-                (then (local.set $handle (i32.load offset=20 (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 7))
-                (then (local.set $handle (i32.load offset=20 (local.get $state)))))
-              (if (i32.eq (local.get $phase) (i32.const 8))
-                (then (local.set $handle (i32.load offset=24 (local.get $state)))))
+              (call $rearm (i32.load offset=16 (local.get $state)) (local.get $ws))
+              (br $exit)))
+          ;; Done: drop writable, req_phase = 4
+          (call $future-drop-writable-rt (i32.load offset=16 (local.get $state)))
+          (i32.store offset=16 (local.get $state) (i32.const 0))
+          (i32.store offset=0 (local.get $state) (i32.const 4))
+          (br $exit))))
 
-              (call $rearm (local.get $handle) (local.get $ws))
-              (call $ctx-set-0 (local.get $state))
-              (return (i32.or (i32.const 2) (i32.shl (local.get $ws) (i32.const 4))))))
+    ;; -----------------------------------------------------------------
+    ;; $pump-resp — issue resp-side ops until BLOCKED or resp_phase==5.
+    ;; Resp buffer at 0xC000, 32 KiB.
+    ;; No-op while resp_phase==0 (awaiting subtask).
+    ;; -----------------------------------------------------------------
+    (func $pump-resp (param $state i32) (param $ws i32)
+      (local $phase i32)
+      (local $rc i32)
+      (local $status i32)
+      (local $count i32)
 
-          ;; rc holds the synchronous result; loop with post_event=true.
-          (local.set $post (i32.const 1))
-          (br $L)))
+      (block $exit
+        (loop $L
+          (local.set $phase (i32.load offset=4 (local.get $state)))
 
-      (i32.const 0))   ;; EXIT
+          ;; Awaiting subtask or done?
+          (if (i32.eqz (local.get $phase))
+            (then (br $exit)))
+          (if (i32.eq (local.get $phase) (i32.const 5))
+            (then (br $exit)))
+
+          ;; --- Phase 1: read resp_in_body ---
+          (if (i32.eq (local.get $phase) (i32.const 1))
+            (then
+              (local.set $rc (call $stream-read-u8
+                (i32.load offset=24 (local.get $state))
+                (i32.const 0xC000) (i32.const 0x8000)))
+              (if (i32.eq (local.get $rc) (i32.const -1))
+                (then
+                  (call $rearm (i32.load offset=24 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $status (i32.and (local.get $rc) (i32.const 0xF)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; DROPPED → EOF, write "-fwd-"
+              (if (i32.eq (local.get $status) (i32.const 1))
+                (then
+                  (call $stream-drop-readable-u8 (i32.load offset=24 (local.get $state)))
+                  (i32.store offset=24 (local.get $state) (i32.const 0))
+                  (i32.store offset=4 (local.get $state) (i32.const 3))
+                  (br $L)))
+              ;; COMPLETED + count > 0 → echo
+              (if (i32.gt_u (local.get $count) (i32.const 0))
+                (then
+                  (i32.store offset=48 (local.get $state) (local.get $count))
+                  (i32.store offset=4 (local.get $state) (i32.const 2))
+                  (br $L)))
+              ;; count == 0: rearm, yield
+              (call $rearm (i32.load offset=24 (local.get $state)) (local.get $ws))
+              (br $exit)))
+
+          ;; --- Phase 2: write echo to resp_out_body ---
+          (if (i32.eq (local.get $phase) (i32.const 2))
+            (then
+              (local.set $rc (call $stream-write-u8
+                (i32.load offset=28 (local.get $state))
+                (i32.const 0xC000)
+                (i32.load offset=48 (local.get $state))))
+              (if (i32.eq (local.get $rc) (i32.const -1))
+                (then
+                  (call $rearm (i32.load offset=28 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $status (i32.and (local.get $rc) (i32.const 0xF)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; DROPPED → downstream reader dropped, abort
+              (if (i32.eq (local.get $status) (i32.const 1))
+                (then
+                  (call $abort-resp-side (local.get $state))
+                  (br $exit)))
+              ;; COMPLETED + count > 0 → back to reading
+              (if (i32.gt_u (local.get $count) (i32.const 0))
+                (then
+                  (i32.store offset=4 (local.get $state) (i32.const 1))
+                  (br $L)))
+              ;; count == 0 (BLOCKED-resume): rearm, yield
+              (call $rearm (i32.load offset=28 (local.get $state)) (local.get $ws))
+              (br $exit)))
+
+          ;; --- Phase 3: write "-fwd-" to resp_out_body ---
+          (if (i32.eq (local.get $phase) (i32.const 3))
+            (then
+              (local.set $rc (call $stream-write-u8
+                (i32.load offset=28 (local.get $state))
+                (i32.const 0) (i32.const 5)))
+              (if (i32.eq (local.get $rc) (i32.const -1))
+                (then
+                  (call $rearm (i32.load offset=28 (local.get $state)) (local.get $ws))
+                  (br $exit)))
+              (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+              ;; Any completion: drop writable, → trailers
+              (call $stream-drop-writable-u8 (i32.load offset=28 (local.get $state)))
+              (i32.store offset=28 (local.get $state) (i32.const 0))
+              (i32.store offset=4 (local.get $state) (i32.const 4))
+              (br $L)))
+
+          ;; --- Phase 4: future.write trailers Ok(none) ---
+          (local.set $rc (call $future-write-rt
+            (i32.load offset=32 (local.get $state))
+            (i32.const 0x10)))
+          (if (i32.eq (local.get $rc) (i32.const -1))
+            (then
+              (call $rearm (i32.load offset=32 (local.get $state)) (local.get $ws))
+              (br $exit)))
+          (call $future-drop-writable-rt (i32.load offset=32 (local.get $state)))
+          (i32.store offset=32 (local.get $state) (i32.const 0))
+          (i32.store offset=4 (local.get $state) (i32.const 5))
+          (br $exit))))
+
+    ;; -----------------------------------------------------------------
+    ;; $drive — top-level scheduler.
+    ;;
+    ;; If $post=1, dispatch event by event_code + handle:
+    ;;   EVENT_SUBTASK=1       → on-subtask-returned
+    ;;   EVENT_STREAM_READ=2   → advance req or resp read phase
+    ;;   EVENT_STREAM_WRITE=3  → advance req or resp write phase
+    ;;   EVENT_FUTURE_WRITE=5  → drop trailers writable, advance phase
+    ;;
+    ;; Then pump both sides. Finalize when both done.
+    ;; -----------------------------------------------------------------
+    (func $drive (param $state i32) (param $event i32) (param $waitable i32)
+                 (param $rc i32) (param $post i32) (result i32)
+      (local $ws i32)
+      (local $status i32)
+      (local $count i32)
+
+      (local.set $ws (i32.load offset=40 (local.get $state)))
+
+      (if (local.get $post)
+        (then
+          (block $dispatched
+            ;; --- EVENT_SUBTASK = 1 ---
+            (if (i32.eq (local.get $event) (i32.const 1))
+              (then
+                (call $on-subtask-returned (local.get $state))
+                (br $dispatched)))
+
+            (local.set $status (i32.and (local.get $rc) (i32.const 0xF)))
+            (local.set $count (i32.shr_u (local.get $rc) (i32.const 4)))
+
+            ;; --- EVENT_STREAM_READ = 2 ---
+            (if (i32.eq (local.get $event) (i32.const 2))
+              (then
+                ;; req_in_body_r?
+                (if (i32.eq (local.get $waitable) (i32.load offset=8 (local.get $state)))
+                  (then
+                    (if (i32.eq (local.get $status) (i32.const 1))
+                      (then
+                        (call $stream-drop-readable-u8 (i32.load offset=8 (local.get $state)))
+                        (i32.store offset=8 (local.get $state) (i32.const 0))
+                        (i32.store offset=0 (local.get $state) (i32.const 2)))
+                      (else (if (i32.gt_u (local.get $count) (i32.const 0))
+                        (then
+                          (i32.store offset=44 (local.get $state) (local.get $count))
+                          (i32.store offset=0 (local.get $state) (i32.const 1))))))
+                    (br $dispatched)))
+                ;; resp_in_body_r?
+                (if (i32.eq (local.get $waitable) (i32.load offset=24 (local.get $state)))
+                  (then
+                    (if (i32.eq (local.get $status) (i32.const 1))
+                      (then
+                        (call $stream-drop-readable-u8 (i32.load offset=24 (local.get $state)))
+                        (i32.store offset=24 (local.get $state) (i32.const 0))
+                        (i32.store offset=4 (local.get $state) (i32.const 3)))
+                      (else (if (i32.gt_u (local.get $count) (i32.const 0))
+                        (then
+                          (i32.store offset=48 (local.get $state) (local.get $count))
+                          (i32.store offset=4 (local.get $state) (i32.const 2))))))
+                    (br $dispatched)))
+                (br $dispatched)))
+
+            ;; --- EVENT_STREAM_WRITE = 3 ---
+            (if (i32.eq (local.get $event) (i32.const 3))
+              (then
+                ;; req_out_body_w?
+                (if (i32.eq (local.get $waitable) (i32.load offset=12 (local.get $state)))
+                  (then
+                    (if (i32.eq (local.get $status) (i32.const 1))
+                      (then
+                        (call $abort-req-side (local.get $state))
+                        (br $dispatched)))
+                    (if (i32.gt_u (local.get $count) (i32.const 0))
+                      (then
+                        ;; req_phase 1 (echo) → 0 (read)
+                        (if (i32.eq (i32.load offset=0 (local.get $state)) (i32.const 1))
+                          (then (i32.store offset=0 (local.get $state) (i32.const 0))))
+                        ;; req_phase 2 (fwd) → drop writable, → 3
+                        (if (i32.eq (i32.load offset=0 (local.get $state)) (i32.const 2))
+                          (then
+                            (call $stream-drop-writable-u8 (i32.load offset=12 (local.get $state)))
+                            (i32.store offset=12 (local.get $state) (i32.const 0))
+                            (i32.store offset=0 (local.get $state) (i32.const 3))))))
+                    (br $dispatched)))
+                ;; resp_out_body_w?
+                (if (i32.eq (local.get $waitable) (i32.load offset=28 (local.get $state)))
+                  (then
+                    (if (i32.eq (local.get $status) (i32.const 1))
+                      (then
+                        (call $abort-resp-side (local.get $state))
+                        (br $dispatched)))
+                    (if (i32.gt_u (local.get $count) (i32.const 0))
+                      (then
+                        ;; resp_phase 2 (echo) → 1 (read)
+                        (if (i32.eq (i32.load offset=4 (local.get $state)) (i32.const 2))
+                          (then (i32.store offset=4 (local.get $state) (i32.const 1))))
+                        ;; resp_phase 3 (fwd) → drop writable, → 4
+                        (if (i32.eq (i32.load offset=4 (local.get $state)) (i32.const 3))
+                          (then
+                            (call $stream-drop-writable-u8 (i32.load offset=28 (local.get $state)))
+                            (i32.store offset=28 (local.get $state) (i32.const 0))
+                            (i32.store offset=4 (local.get $state) (i32.const 4))))))
+                    (br $dispatched)))
+                (br $dispatched)))
+
+            ;; --- EVENT_FUTURE_WRITE = 5 ---
+            (if (i32.eq (local.get $event) (i32.const 5))
+              (then
+                ;; req_out_trailers_w?
+                (if (i32.eq (local.get $waitable) (i32.load offset=16 (local.get $state)))
+                  (then
+                    (call $future-drop-writable-rt (i32.load offset=16 (local.get $state)))
+                    (i32.store offset=16 (local.get $state) (i32.const 0))
+                    (i32.store offset=0 (local.get $state) (i32.const 4))
+                    (br $dispatched)))
+                ;; resp_out_trailers_w?
+                (if (i32.eq (local.get $waitable) (i32.load offset=32 (local.get $state)))
+                  (then
+                    (call $future-drop-writable-rt (i32.load offset=32 (local.get $state)))
+                    (i32.store offset=32 (local.get $state) (i32.const 0))
+                    (i32.store offset=4 (local.get $state) (i32.const 5))
+                    (br $dispatched)))))
+          )))
+
+      ;; Pump both sides.
+      (call $pump-req  (local.get $state) (local.get $ws))
+      (call $pump-resp (local.get $state) (local.get $ws))
+
+      ;; Finalize? Both sides done.
+      (if (i32.and
+            (i32.eq (i32.load offset=0 (local.get $state)) (i32.const 4))
+            (i32.eq (i32.load offset=4 (local.get $state)) (i32.const 5)))
+        (then
+          (call $ws-drop (local.get $ws))
+          (return (i32.const 0))))   ;; EXIT
+
+      ;; Yield.
+      (call $ctx-set-0 (local.get $state))
+      (i32.or (i32.const 2) (i32.shl (local.get $ws) (i32.const 4))))
 
     ;; -----------------------------------------------------------------
     ;; handle-start(req_in: i32) -> i32
@@ -617,42 +812,39 @@
       (local.set $subtask-state (i32.and (local.get $upstream-rc) (i32.const 0xF)))
       (local.set $subtask-h     (i32.shr_u (local.get $upstream-rc) (i32.const 4)))
 
-      ;; If subtask completed synchronously (RETURNED=2), record handle=0; else save it.
+      ;; Callback-form upstream should not complete synchronously.
       (if (i32.eq (local.get $subtask-state) (i32.const 2))
-        (then (local.set $subtask-h (i32.const 0))))
+        (then (unreachable)))
 
       ;; --- 5. Allocate ws and seed initial state ---
       (local.set $ws (call $ws-new))
 
-      (i32.store offset=0  (i32.const 0x1000) (i32.const 0))
-      (i32.store offset=4  (i32.const 0x1000) (local.get $req-in-body-r))
-      (i32.store offset=8  (i32.const 0x1000) (local.get $req-out-body-w))
-      (i32.store offset=12 (i32.const 0x1000) (local.get $req-out-trailers-w))
-      (i32.store offset=16 (i32.const 0x1000) (i32.const 0))   ;; resp_in_body_r (later)
-      (i32.store offset=20 (i32.const 0x1000) (i32.const 0))   ;; resp_out_body_w (later)
-      (i32.store offset=24 (i32.const 0x1000) (i32.const 0))   ;; resp_out_trailers_w (later)
-      (i32.store offset=28 (i32.const 0x1000) (i32.const 0))   ;; resp_out_handle (later)
-      (i32.store offset=32 (i32.const 0x1000) (local.get $ws))
-      (i32.store offset=36 (i32.const 0x1000) (i32.const 0))   ;; read_count
-      (i32.store offset=40 (i32.const 0x1000) (local.get $subtask-h))
+      ;; Join subtask to ws so we get the RETURNED event.
+      (call $waitable-join (local.get $subtask-h) (local.get $ws))
 
-      ;; If subtask returned synchronously, we'll need phase 4 to be a no-op. The
-      ;; driver's phase-4 BLOCKED branch joins handle=0 to ws (no-op), but waiting
-      ;; on an empty waitable-set is wrong. Special-case: skip directly to phase 5
-      ;; via post-event with rc=0 (count=0, status=COMPLETED).
-      ;; For Phase 1.2 (non-error path) we expect the upstream impl ALSO uses the
-      ;; callback form — therefore it should NOT complete synchronously. Trap if it does.
-      (if (i32.eqz (local.get $subtask-h))
-        (then (unreachable)))
+      (i32.store offset=0  (i32.const 0x1000) (i32.const 0))     ;; req_phase = 0 (read)
+      (i32.store offset=4  (i32.const 0x1000) (i32.const 0))     ;; resp_phase = 0 (await subtask)
+      (i32.store offset=8  (i32.const 0x1000) (local.get $req-in-body-r))
+      (i32.store offset=12 (i32.const 0x1000) (local.get $req-out-body-w))
+      (i32.store offset=16 (i32.const 0x1000) (local.get $req-out-trailers-w))
+      (i32.store offset=20 (i32.const 0x1000) (local.get $subtask-h))
+      (i32.store offset=24 (i32.const 0x1000) (i32.const 0))     ;; resp_in_body_r (later)
+      (i32.store offset=28 (i32.const 0x1000) (i32.const 0))     ;; resp_out_body_w (later)
+      (i32.store offset=32 (i32.const 0x1000) (i32.const 0))     ;; resp_out_trailers_w (later)
+      (i32.store offset=36 (i32.const 0x1000) (i32.const 0))     ;; (reserved)
+      (i32.store offset=40 (i32.const 0x1000) (local.get $ws))
+      (i32.store offset=44 (i32.const 0x1000) (i32.const 0))     ;; req_echo_count
+      (i32.store offset=48 (i32.const 0x1000) (i32.const 0))     ;; resp_echo_count
 
-      (call $drive (i32.const 0x1000) (i32.const 0) (i32.const 0)))
+      ;; --- 6. Drive — starts req-side pump immediately ---
+      (call $drive (i32.const 0x1000) (i32.const 0) (i32.const 0) (i32.const 0) (i32.const 0)))
 
     ;; -----------------------------------------------------------------
     ;; handle-cb(event, handle, rc) -> i32
     ;; -----------------------------------------------------------------
     (func $handle-cb (export "handle-cb")
           (param $event i32) (param $handle i32) (param $rc i32) (result i32)
-      (call $drive (call $ctx-get-0) (local.get $rc) (i32.const 1))))
+      (call $drive (call $ctx-get-0) (local.get $event) (local.get $handle) (local.get $rc) (i32.const 1))))
 
   ;; ===================================================================
   ;; Wire imports + instantiate
