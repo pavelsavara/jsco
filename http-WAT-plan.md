@@ -517,8 +517,27 @@ Saved as `/memories/repo/wasip3-wat-component-types.md`:
       pattern) instead of a serial phase sequence. Filed as Phase 4 task.
     - **Body-mutation contract validated for A' and B'**:
       `collected_body == request_body + "-handled-"`.
-- [ ] Phase 4a — Concurrent fwd rewrite: rewrite `server-fwd-p3.wat` to
-      use an event-dispatched concurrent driver (interleaved req-pump /
-      resp-pump) so C' and I' can pass with 2 MiB streaming bodies.
+- [x] Phase 4a — Concurrent fwd rewrite: `server-fwd-p3.wat` rewritten from
+      a 10-phase serial driver to a concurrent event-dispatched dual-pump
+      architecture. Req-side (phases 0–4) and resp-side (phases 0–5) run
+      independently, dispatched by event_code + waitable handle. Uses
+      `$on-subtask-returned` for subtask RETURNED handling with early
+      `task.return(Ok(resp))`, separate buffers at 0x4000 (req) and 0xC000
+      (resp). All 28 server-side tests pass (A–K + error variants).
+    - **Test bug found & fixed**: `return drainResponseBody(...)` without
+      `await` in test helpers caused `instance.dispose()` (in `finally`
+      block) to fire before the async drain completed, aborting the stream
+      pump mid-flight. Fixed by adding `await` before all `return
+      drainResponseBody(...)` calls.
+    - **Scenarios C', I' — still SKIPPED** (pending jsco runtime fix). The
+      concurrent WAT driver is correct for small bodies (Scenarios B–K all
+      pass including non-empty bodies through host-wired fwd chains). For
+      2 MiB streaming bodies, a jsco runtime bug in `pumpIterable`
+      backpressure causes exactly 65536 bytes (the `STREAM_BACKPRESSURE`
+      threshold) to be lost during sustained cross-component streaming.
+      Raising the threshold to 4 MB confirms the fix — the WAT logic is
+      sound. The root cause is in the JS-side pump that bridges
+      `AsyncIterable → stream entry` under sustained backpressure; tracked
+      separately.
 - [ ] Phase 4b — Scenario L: `client-consumer-p3.wat` against
       `startEchoServer` via real `fetch`.

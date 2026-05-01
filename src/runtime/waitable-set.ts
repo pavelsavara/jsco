@@ -45,25 +45,21 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
             const set = sets.get(setId);
             if (!set) return 0;
 
-            // Check for already-ready events
-            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            // Spec: task.wait returns exactly ONE event.
             for (const handle of set) {
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
-                    readyEvents.push({
+                    waitable.ready = false;
+                    const ev = {
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    });
-                    waitable.ready = false;
+                    };
+                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait → ready immediately: ${eventTag(ev.eventCode, ev.handle)}`);
+                    }
+                    return writeEvents(ptr, [ev]);
                 }
-            }
-            if (readyEvents.length > 0) {
-                if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
-                    const tags = readyEvents.map(e => eventTag(e.eventCode, e.handle)).join(',');
-                    logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait → ready immediately: ${tags}`);
-                }
-                return writeEvents(ptr, readyEvents);
             }
 
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
@@ -93,24 +89,28 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                             if (settled) return;
                             settled = true;
                             signal.removeEventListener('abort', onAbort);
-                            // Re-check and write events
-                            const events: { eventCode: number, handle: number, returnCode: number }[] = [];
+                            // Find ONE ready event and deliver it
                             for (const h of set) {
                                 const w = pendingWaitables.get(h);
                                 if (w && w.ready) {
-                                    events.push({
+                                    w.ready = false;
+                                    const ev = {
                                         eventCode: w.eventCode,
                                         handle: h,
                                         returnCode: returnCodeFor(h, w.eventCode),
-                                    });
-                                    w.ready = false;
+                                    };
+                                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: ${eventTag(ev.eventCode, ev.handle)}`);
+                                    }
+                                    resolve(writeEvents(ptr, [ev]));
+                                    return;
                                 }
                             }
+                            // Resolver fired but nothing ready (edge case)
                             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
-                                const tags = events.map(e => eventTag(e.eventCode, e.handle)).join(',');
-                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: ${tags || '<empty>'}`);
+                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: <empty>`);
                             }
-                            resolve(writeEvents(ptr, events));
+                            resolve(0);
                         });
                     }
                 }
@@ -121,45 +121,43 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
             const set = sets.get(setId);
             if (!set) return 0;
 
-            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            // Spec: task.poll returns 0 or 1 events.
             for (const handle of set) {
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
-                    readyEvents.push({
+                    waitable.ready = false;
+                    return writeEvents(ptr, [{
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    });
-                    waitable.ready = false;
+                    }]);
                 }
             }
-            return writeEvents(ptr, readyEvents);
+            return 0;
         },
 
         /** Same wait semantics as `wait`, but returns events as JS objects
-         *  rather than writing to linear memory. */
+         *  rather than writing to linear memory. Used by the callback-form
+         *  async-lift trampoline. Returns exactly ONE event per the spec. */
         waitJs(setId: number): { eventCode: number; handle: number; returnCode: number }[] | Promise<{ eventCode: number; handle: number; returnCode: number }[]> {
             const set = sets.get(setId);
             if (!set) return [];
 
-            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            // Spec: one event per wait.
             for (const handle of set) {
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
-                    readyEvents.push({
+                    waitable.ready = false;
+                    const ev = {
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    });
-                    waitable.ready = false;
+                    };
+                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs → ready immediately: ${eventTag(ev.eventCode, ev.handle)}`);
+                    }
+                    return [ev];
                 }
-            }
-            if (readyEvents.length > 0) {
-                if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
-                    const tags = readyEvents.map(e => eventTag(e.eventCode, e.handle)).join(',');
-                    logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs → ready immediately: ${tags}`);
-                }
-                return readyEvents;
             }
 
             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
@@ -189,23 +187,27 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                             if (settled) return;
                             settled = true;
                             signal.removeEventListener('abort', onAbort);
-                            const events: { eventCode: number, handle: number, returnCode: number }[] = [];
+                            // Find ONE ready event
                             for (const h of set) {
                                 const w = pendingWaitables.get(h);
                                 if (w && w.ready) {
-                                    events.push({
+                                    w.ready = false;
+                                    const ev = {
                                         eventCode: w.eventCode,
                                         handle: h,
                                         returnCode: returnCodeFor(h, w.eventCode),
-                                    });
-                                    w.ready = false;
+                                    };
+                                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs resolved: ${eventTag(ev.eventCode, ev.handle)}`);
+                                    }
+                                    resolve([ev]);
+                                    return;
                                 }
                             }
                             if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
-                                const tags = events.map(e => eventTag(e.eventCode, e.handle)).join(',');
-                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs resolved: ${tags || '<empty>'}`);
+                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs resolved: <empty>`);
                             }
-                            resolve(events);
+                            resolve([]);
                         });
                     }
                 }

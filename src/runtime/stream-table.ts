@@ -181,6 +181,7 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             count++;
         }
         if (count > 0) {
+            entry.pendingRead = undefined;
             checkWriteReady(entry);
             return (count << 4) | STREAM_STATUS_COMPLETED;
         }
@@ -228,6 +229,12 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             }
             if (offset > 0) {
                 entry.bufferedBytes = Math.max(0, (entry.bufferedBytes ?? 0) - offset);
+                // Clear any stale pendingRead — the guest read data directly
+                // via stream.read, superseding any earlier BLOCKED pending read.
+                // Without this, a later fulfillPendingRead could overwrite the
+                // guest's buffer with new data before the guest writes the
+                // directly-read data.
+                entry.pendingRead = undefined;
                 checkWriteReady(entry);
                 logEv(handle, `read len=${len} → COMPLETED bytes=${offset}`);
                 return (offset << 4) | STREAM_STATUS_COMPLETED;

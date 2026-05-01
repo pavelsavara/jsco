@@ -253,19 +253,16 @@ function createAsyncLiftWrapper(
                 // directly as i32 callback args, so we don't need a host
                 // memory buffer (and the guest may not even export
                 // cabi_realloc — see waitJs()).
+                // Spec: waitJs returns exactly one event per call.
                 const events = await mctx.waitableSets.waitJs(waitableSetId);
                 if (events.length === 0) {
                     // No events — break out (shouldn't happen normally)
                     break;
                 }
 
-                // Deliver events to the callback one at a time.
-                for (let i = 0; i < events.length; i++) {
-                    const ev = events[i]!;
-                    mctx.currentTask = task;
-                    status = await callbackWasm(ev.eventCode, ev.handle, ev.returnCode) as number;
-                    if (status === EXIT) break;
-                }
+                const ev = events[0]!;
+                mctx.currentTask = task;
+                status = await callbackWasm(ev.eventCode, ev.handle, ev.returnCode) as number;
             }
 
             // Drain background tasks from sync canon.lower stream/future params.

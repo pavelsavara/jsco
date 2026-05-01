@@ -802,19 +802,10 @@ describe('HTTP P3 WAT — client-suite (Phase 3 — Scenario B\': consumer → s
         }), 60_000);
 });
 
-// Scenarios C' and I' deferred: server-fwd-p3.wat uses an 8-phase SERIAL
-// driver (req-side phases 0..3, then subtask-wait phase 4, then resp-side
-// phases 5..8). For 2 MiB streaming bodies, the upstream impl backpressures
-// its resp_body_w (entry hits 64 KiB threshold) when fwd is still in req-side
-// phases — fwd doesn't read resp_in until phase 5 — so impl stops reading
-// Phase 4a: concurrent fwd driver unblocks the deadlock that the serial
-// driver had on 2 MiB body streaming. However, a jsco runtime bug in
-// pumpIterable backpressure causes exactly 65536 bytes (the stream
-// backpressure threshold) to be lost during sustained cross-component
-// streaming. The fwd's WAT echo logic is correct; the loss occurs in the
-// JS-side pump that bridges AsyncIterable → stream entry under sustained
-// backpressure. Tracked for a separate fix.
-describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer → fwd → server-impl)', () => {
+// Scenarios C' and I': 2 MiB streaming through fwd → impl chains. Previously
+// skipped due to a waitable-set one-shot callback bug that lost 65536 bytes.
+// Fixed by re-arming stream readiness callbacks after event consumption.
+describe('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer → fwd → server-impl)', () => {
     const verbose = useVerboseOnFailure();
 
     test('collected body == request + "-fwd--handled--fwd-"', () =>
@@ -837,10 +828,8 @@ describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario C\': consumer 
         }), 60_000);
 });
 
-// Scenario I': same pumpIterable backpressure issue as C' — the WAC-composed
-// fwd+impl also loses 65536 bytes during 2 MiB streaming. Skipped pending
-// the runtime-level backpressure fix.
-describe.skip('HTTP P3 WAT — client-suite (Phase 3 — Scenario I\': consumer → composed fwd+impl)', () => {
+// Scenario I': same chain as C' but via WAC composition.
+describe('HTTP P3 WAT — client-suite (Phase 3 — Scenario I\': consumer → composed fwd+impl)', () => {
     const verbose = useVerboseOnFailure();
 
     test('collected body == request + "-fwd--handled--fwd-"', () =>

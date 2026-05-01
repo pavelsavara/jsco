@@ -1,0 +1,136 @@
+PASS tests/host/wasip2-via-wasip3/wasi-host.test.ts
+PASS tests/utils/wat-printer.test.ts
+PASS tests/host/wasip2-via-wasip3/cli.test.ts
+PASS tests/host/wasip3/multi-async.test.ts
+PASS tests/host/wasip2-via-wasip3/filesystem.test.ts
+PASS tests/host/wasip2-via-wasip3/node/filesystem-node.test.ts
+PASS tests/host/wasip3/jspi-parallel.test.ts
+PASS tests/host/wasip3/node/http-handler-wat.test.ts
+PASS tests/host/wasip3/async-stress.test.ts
+PASS tests/host/wasip2-via-wasip3/hello-world.test.ts
+PASS tests/host/wasip2-via-wasip3/use-number-for-int64.test.ts
+PASS tests/host/wasip3/node/filesystem-node.test.ts
+PASS tests/host/wasip3/node/jspi-parallel-http.test.ts
+PASS tests/host/wasip3/node/sockets.test.ts
+PASS tests/parser/export.test.ts
+PASS tests/host/wasip2-via-wasip3/streams.test.ts
+PASS tests/marshal/edge-cases.test.ts
+PASS tests/runtime/abort-dispose.test.ts
+PASS tests/runtime/abort-dispose-integration.test.ts
+PASS tests/index.test.ts
+PASS tests/marshal/compound-types.test.ts
+PASS tests/resolver/type-isolation.test.ts
+PASS tests/marshal/canonical-abi.test.ts
+PASS tests/marshal/lower.test.ts
+PASS tests/parser/security.test.ts
+PASS tests/resolver/error-paths.test.ts
+PASS tests/host/wasip3/integration.test.ts
+PASS tests/host/wasip2-via-wasip3/http.test.ts
+PASS tests/host/wasip3/http.test.ts
+PASS tests/runtime/task-context-slots.test.ts
+PASS tests/host/wasip2-via-wasip3/adapter-dispatch.test.ts
+PASS tests/marshal/resources.test.ts
+PASS tests/marshal/boundary-validation.test.ts
+PASS tests/host/wasip3/node/http-reactor-concurrent.test.ts
+PASS tests/host/wasip3/random.test.ts
+PASS tests/host/wasip2-via-wasip3/sockets.test.ts
+PASS tests/runtime/subtask-table.test.ts
+FAIL tests/runtime/waitable-set.test.ts
+  ΓùÅ WaitableSetTable ΓÇ║ mixed and multiple ready waitables ΓÇ║ multiple waitables ready: all returned in single poll
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+      398 |
+      399 |             const count = waitableSet.poll(setId, 900);
+    > 400 |             expect(count).toBe(2);
+          |                           ^
+      401 |             // Both events written as 12-byte records
+      402 |             const view = memory.getView(900, 24);
+      403 |             const handles = [view.getInt32(4, true), view.getInt32(16, true)];
+
+      at Object.toBe (tests/runtime/waitable-set.test.ts:400:27)
+
+  ΓùÅ WaitableSetTable ΓÇ║ mixed and multiple ready waitables ΓÇ║ multiple ready in single wait() call
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+      428 |             const count = waitableSet.wait(setId, 1000);
+      429 |             expect(typeof count).toBe('number');
+    > 430 |             expect(count).toBe(2);
+          |                           ^
+      431 |             const view = memory.getView(1000, 24);
+      432 |             const handles = [view.getInt32(4, true), view.getInt32(16, true)];
+      433 |             expect(handles).toContain(h1);
+
+      at Object.toBe (tests/runtime/waitable-set.test.ts:430:27)
+
+PASS tests/host/wasip3/node/stream-jspi-deadlock-repro.test.ts
+PASS tests/runtime/future-table.test.ts
+PASS tests/host/wasip3/node/http-server.test.ts
+PASS tests/host/wasip2-via-wasip3/node/http-server.test.ts
+PASS tests/resolver/indices.test.ts
+PASS tests/host/wasip2-via-wasip3/echo-reactor.test.ts
+PASS tests/marshal/memory-store.test.ts
+PASS tests/utils/streaming.test.ts
+PASS tests/host/wasip2-via-wasip3/poll.test.ts
+PASS tests/host/wasip3/filesystem.test.ts
+PASS tests/host/wasip3/wasip3-host.test.ts
+PASS tests/parser/values.test.ts
+PASS tests/resolver/type-validation.test.ts
+PASS tests/host/wasip3/streams.test.ts
+PASS tests/binder/memoization.test.ts
+PASS tests/host/wasip2-via-wasip3/wall-clock.test.ts
+PASS tests/host/wasip1-via-wasip3/p1-functions.test.ts
+PASS tests/resolver/import-index.test.ts
+PASS tests/host/wasip2-via-wasip3/random.test.ts
+PASS tests/resolver/calling-convention.test.ts
+PASS tests/host/wasip3/clocks.test.ts
+PASS tests/host/wasip3/sockets.test.ts
+PASS tests/host/wasip3/vfs.test.ts
+PASS tests/host/wasip3/resources.test.ts
+PASS tests/runtime/block-watchdog.test.ts
+PASS tests/marshal/primitives.test.ts
+PASS tests/host/wasip2-via-wasip3/node/p2-node-adapter.test.ts
+PASS tests/runtime/resources.test.ts
+PASS tests/utils/args.test.ts
+PASS tests/runtime/error-context.test.ts
+PASS tests/resolver/type-resolution.test.ts
+PASS tests/marshal/memory-load.test.ts
+PASS tests/parser/index.test.ts
+PASS tests/host/wasip2-via-wasip3/monotonic-clock.test.ts
+PASS tests/runtime/stream-table.test.ts
+PASS tests/marshal/lift.test.ts
+PASS tests/host/wasip3/cli.test.ts
+PASS tests/host/wasip3/stdio.test.ts
+PASS tests/utils/assert.test.ts
+PASS tests/host/wasip3/resource-flatten-completeness.test.ts
+PASS tests/host/wasip3/cross-interface.test.ts
+PASS tests/host/wasip3/node/stdio-node.test.ts
+PASS tests/marshal/flat-coercion.test.ts
+PASS tests/host/wasip1-via-wasip3/memory.test.ts
+PASS tests/utils/fetch-like.test.ts
+PASS tests/resolver/function-imports.test.ts
+PASS tests/marshal/validation.test.ts
+PASS tests/parser/otherSection.test.ts
+PASS tests/host/wasip1-via-wasip3/fd-table.test.ts
+PASS tests/host/wasip3/result.test.ts
+PASS tests/binder/cache.test.ts
+PASS tests/runtime/memory.test.ts
+PASS tests/resolver/import-names.test.ts
+PASS tests/resolver/types.test.ts
+PASS tests/utils/debug-names.test.ts
+PASS tests/runtime/heap-watchdog.test.ts
+PASS tests/marshal/spilling.test.ts
+PASS tests/utils/shared.test.ts
+PASS tests/host/wasip3/node/jspi-deadlock-repro.test.ts
+PASS tests/host/wasip3/wasmtime-corpus.test.ts
+PASS tests/host/wasip3/sockets-integration.test.ts
+PASS tests/host/wasip3/http-integration.test.ts (5.228 s)
+PASS tests/host/wasip3/integration-p3-native.test.ts (16.552 s)
+PASS tests/host/wasip2-via-wasip3/integration.test.ts (23.608 s)
