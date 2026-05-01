@@ -587,9 +587,9 @@ describe('memory-store.ts', () => {
             const plan: FlagsStorerPlan = { byteSize: 1, memberNames: ['a', 'b'] };
             flagsStorer(plan, ctx, 4, { a: true, b: true });
             const u8 = new Uint8Array(buffer);
-            expect(u8[3]).toBe(0xCD);   // byte before unchanged
-            expect(u8[4]).toBe(0b11);   // flags byte
-            expect(u8[5]).toBe(0xCD);   // bytes after unchanged
+            expect(u8[3]).toBe(0xCD); // byte before unchanged
+            expect(u8[4]).toBe(0b11); // flags byte
+            expect(u8[5]).toBe(0xCD); // bytes after unchanged
             expect(u8[6]).toBe(0xCD);
             expect(u8[7]).toBe(0xCD);
         });

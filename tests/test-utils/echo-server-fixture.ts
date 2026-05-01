@@ -17,8 +17,26 @@
 
 import { spawn, ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 
-const JSCO_CLI = path.resolve(process.cwd(), 'dist/debug/cli.js');
+/**
+ * Resolve the jsco CLI entry. CI builds either `dist/debug/cli.js` (Debug)
+ * or `dist/release/cli.js` (Release); pick whichever exists. Fall back to
+ * `dist/debug/cli.js` so the resulting error message points at the
+ * canonical local-dev location.
+ */
+function resolveJscoCli(): string {
+    const candidates = [
+        path.resolve(process.cwd(), 'dist/debug/cli.js'),
+        path.resolve(process.cwd(), 'dist/release/cli.js'),
+    ];
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
+    return candidates[0]!;
+}
+
+const JSCO_CLI = resolveJscoCli();
 const ECHO_SERVER_WASM = path.resolve(
     process.cwd(),
     'integration-tests/echo-server-p3/echo_server_p3.wasm',
