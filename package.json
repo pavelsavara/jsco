@@ -25,6 +25,8 @@
         "build:hello-city-wat": "wasm-tools parse integration-tests/hello-city-wat/hello-city.wat -o integration-tests/hello-city-wat/hello-city.wasm",
         "build:hello-p1-wat": "wasm-tools parse integration-tests/hello-p1-world-wat/hello.wat -o integration-tests/hello-p1-world-wat/hello.wasm",
         "build:file-io-p1-wat": "wasm-tools parse integration-tests/file-io-p1-wat/file-io.wat -o integration-tests/file-io-p1-wat/file-io.wasm",
+        "build:echo-stdin-p1-wat": "wasm-tools parse integration-tests/echo-stdin-p1-wat/echo-stdin.wat -o integration-tests/echo-stdin-p1-wat/echo-stdin.wasm",
+        "build:echo-args-p1-wat": "wasm-tools parse integration-tests/echo-args-p1-wat/echo-args.wat -o integration-tests/echo-args-p1-wat/echo-args.wasm",
         "build:bad-guests-p3-wat": "wasm-tools parse integration-tests/bad-guests-p3-wat/bad-guests-p3.wat -o integration-tests/bad-guests-p3-wat/bad-guests-p3.wasm",
         "build:multi-async-p3-wat": "wasm-tools parse integration-tests/multi-async-p3-wat/multi-async-p3.wat -o integration-tests/multi-async-p3-wat/multi-async-p3.wasm",
         "build:echo-async-p3-wat": "wasm-tools parse integration-tests/echo-async-p3-wat/echo-async-p3.wat -o integration-tests/echo-async-p3-wat/echo-async-p3.wasm",

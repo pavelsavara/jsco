@@ -19,6 +19,8 @@ const helloCityWatWasm = './integration-tests/hello-city-wat/hello-city.wasm';
 const helloP1WorldWatWasm = './integration-tests/hello-p1-world-wat/hello.wasm';
 const fileIoP1WatWasm = './integration-tests/file-io-p1-wat/file-io.wasm';
 const envP1WatWasm = './integration-tests/env-p1-wat/env.wasm';
+const echoStdinP1WatWasm = './integration-tests/echo-stdin-p1-wat/echo-stdin.wasm';
+const echoArgsP1WatWasm = './integration-tests/echo-args-p1-wat/echo-args.wasm';
 const clockRandomPollP1WatWasm = './integration-tests/clock-random-poll-p1-wat/test.wasm';
 
 describe('index.ts', () => {
@@ -865,6 +867,129 @@ describe('WASI P1 environment and args', () => {
         p1.environ_sizes_get(8, 12);
         expect(view.getUint32(8, true)).toBe(0);
         expect(view.getUint32(12, true)).toBe(0);
+    });
+});
+
+describe('WASI P1 echo (stdin & argv)', () => {
+    test('echo-stdin-p1-wat: empty stdin → no output, exit 0', async () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        expect(adapter.stdoutChunks.length).toBe(0);
+    });
+
+    test('echo-stdin-p1-wat: piped stdin echoed verbatim to stdout', async () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        const input = 'hello\nworld\n';
+        adapter.stdinChunks.push(new TextEncoder().encode(input));
+
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        const text = new TextDecoder().decode(
+            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+        );
+        expect(text).toBe(input);
+    });
+
+    test('echo-stdin-p1-wat: multi-chunk stdin concatenated to stdout', async () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        const enc = new TextEncoder();
+        adapter.stdinChunks.push(enc.encode('first '));
+        adapter.stdinChunks.push(enc.encode('second '));
+        adapter.stdinChunks.push(enc.encode('third'));
+
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        const text = new TextDecoder().decode(
+            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+        );
+        expect(text).toBe('first second third');
+    });
+
+    test('echo-args-p1-wat: empty argv → no output, exit 0', async () => {
+        const adapter = createWasiP1ViaP3Adapter();
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+        expect(adapter.stdoutChunks.length).toBe(0);
+    });
+
+    test('echo-args-p1-wat: prints each argv entry on its own line', async () => {
+        const adapter = createWasiP1ViaP3Adapter({ args: ['hello', 'world', 'jsco'] });
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        const text = new TextDecoder().decode(
+            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+        );
+        expect(text).toBe('hello\nworld\njsco\n');
+    });
+
+    test('echo-args-p1-wat: UTF-8 args round-trip', async () => {
+        const adapter = createWasiP1ViaP3Adapter({ args: ['unicode', '日本語', 'café'] });
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
+        const module = await WebAssembly.compile(wasmBytes);
+        const instance = await WebAssembly.instantiate(module, adapter.imports);
+        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+
+        try {
+            (instance.exports['_start'] as Function)();
+        } catch (e: unknown) {
+            if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
+        }
+
+        const text = new TextDecoder().decode(
+            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+        );
+        expect(text).toBe('unicode\n日本語\ncafé\n');
     });
 });
 
