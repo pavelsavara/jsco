@@ -9,7 +9,7 @@ import { jsco_assert, LogLevel } from '../utils/assert';
 import { callingConventionName } from '../utils/debug-names';
 import type { ResolvedType } from '../resolver/type-resolution';
 import { getCanonicalResourceId } from '../resolver/context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, flagsSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/model/types';
@@ -386,9 +386,9 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             return enumLoaderFn.bind(null, { memberNames, numMembers });
         }
         case ModelTag.ComponentTypeDefinedFlags: {
-            const wordCount = Math.max(1, Math.ceil(type.members.length / 32));
+            const byteSize = flagsSize(type.members.length);
             const memberNames = type.members.map(m => camelCase(m));
-            return flagsLoader.bind(null, { wordCount, memberNames });
+            return flagsLoader.bind(null, { byteSize, memberNames });
         }
         case ModelTag.ComponentTypeDefinedTuple: {
             const members: { offset: number, loader: MemoryLoader }[] = [];

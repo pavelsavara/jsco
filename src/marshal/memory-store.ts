@@ -211,13 +211,32 @@ export function enumStorerDisc4(plan: EnumStorerPlan, ctx: MarshalingContext, pt
 export function flagsStorer(plan: FlagsStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
     const flags = jsValue as Record<string, boolean>;
-    for (let w = 0; w < plan.wordCount; w++) {
+    const n = plan.memberNames.length;
+    if (n === 0) return;
+    // Spec elem_size_flags: 1/2/4 bytes for n in [1..32]; for legacy n>32 we pack into Nx i32.
+    const dv = ctx.memory.getView(ptr as WasmPointer, plan.byteSize as WasmSize);
+    if (plan.byteSize === 1) {
         let word = 0;
-        for (let b = 0; b < 32 && w * 32 + b < plan.memberNames.length; b++) {
-            if (flags[plan.memberNames[w * 32 + b]!]) word |= (1 << b);
-        }
-        const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
+        for (let b = 0; b < n; b++) if (flags[plan.memberNames[b]!]) word |= (1 << b);
+        dv.setUint8(0, word & 0xFF);
+    } else if (plan.byteSize === 2) {
+        let word = 0;
+        for (let b = 0; b < n; b++) if (flags[plan.memberNames[b]!]) word |= (1 << b);
+        dv.setUint16(0, word & 0xFFFF, true);
+    } else if (plan.byteSize === 4) {
+        let word = 0;
+        for (let b = 0; b < n; b++) if (flags[plan.memberNames[b]!]) word |= (1 << b);
         dv.setInt32(0, word, true);
+    } else {
+        // n > 32: packed across multiple i32 words.
+        const wordCount = plan.byteSize / 4;
+        for (let w = 0; w < wordCount; w++) {
+            let word = 0;
+            for (let b = 0; b < 32 && w * 32 + b < n; b++) {
+                if (flags[plan.memberNames[w * 32 + b]!]) word |= (1 << b);
+            }
+            dv.setInt32(w * 4, word, true);
+        }
     }
 }
 

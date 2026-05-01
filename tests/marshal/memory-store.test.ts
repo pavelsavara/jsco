@@ -572,17 +572,59 @@ describe('memory-store.ts', () => {
     });
 
     describe('flagsStorer', () => {
-        test('stores single word of flags', () => {
+        test('stores small flags (≤8) into 1 byte', () => {
             const { ctx, buffer } = createMockCtx();
-            const plan: FlagsStorerPlan = { wordCount: 1, memberNames: ['a', 'b', 'c'] };
+            const plan: FlagsStorerPlan = { byteSize: 1, memberNames: ['a', 'b', 'c'] };
             flagsStorer(plan, ctx, 0, { a: true, b: false, c: true });
+            // readI32 reads 4 bytes; only the first byte was written, rest stay 0
             expect(readI32(buffer, 0)).toBe(0b101);
         });
 
-        test('stores multi-word flags', () => {
+        test('stores 1-byte flags without touching adjacent bytes', () => {
+            const { ctx, buffer } = createMockCtx();
+            // Pre-fill the whole region with sentinel bytes.
+            new Uint8Array(buffer).fill(0xCD);
+            const plan: FlagsStorerPlan = { byteSize: 1, memberNames: ['a', 'b'] };
+            flagsStorer(plan, ctx, 4, { a: true, b: true });
+            const u8 = new Uint8Array(buffer);
+            expect(u8[3]).toBe(0xCD);   // byte before unchanged
+            expect(u8[4]).toBe(0b11);   // flags byte
+            expect(u8[5]).toBe(0xCD);   // bytes after unchanged
+            expect(u8[6]).toBe(0xCD);
+            expect(u8[7]).toBe(0xCD);
+        });
+
+        test('stores 9-16 flags into 2 bytes', () => {
+            const { ctx, buffer } = createMockCtx();
+            new Uint8Array(buffer).fill(0xCD);
+            const names = Array.from({ length: 12 }, (_, i) => `f${i}`);
+            const plan: FlagsStorerPlan = { byteSize: 2, memberNames: names };
+            const flags: Record<string, boolean> = {};
+            flags['f0'] = true;
+            flags['f11'] = true;
+            flagsStorer(plan, ctx, 0, flags);
+            const u8 = new Uint8Array(buffer);
+            // bit 0 + bit 11 → 0x01 0x08
+            expect(u8[0]).toBe(0x01);
+            expect(u8[1]).toBe(0x08);
+            expect(u8[2]).toBe(0xCD); // byte after must remain untouched
+        });
+
+        test('stores 17-32 flags into 4 bytes', () => {
+            const { ctx, buffer } = createMockCtx();
+            const names = Array.from({ length: 24 }, (_, i) => `f${i}`);
+            const plan: FlagsStorerPlan = { byteSize: 4, memberNames: names };
+            const flags: Record<string, boolean> = {};
+            flags['f0'] = true;
+            flags['f23'] = true;
+            flagsStorer(plan, ctx, 0, flags);
+            expect(readI32(buffer, 0)).toBe((1 << 0) | (1 << 23));
+        });
+
+        test('stores multi-word flags (>32) across i32 words', () => {
             const { ctx, buffer } = createMockCtx();
             const names = Array.from({ length: 33 }, (_, i) => `f${i}`);
-            const plan: FlagsStorerPlan = { wordCount: 2, memberNames: names };
+            const plan: FlagsStorerPlan = { byteSize: 8, memberNames: names };
             const flags: Record<string, boolean> = {};
             flags['f0'] = true;
             flags['f32'] = true;
@@ -593,13 +635,13 @@ describe('memory-store.ts', () => {
 
         test('throws on null input', () => {
             const { ctx } = createMockCtx();
-            const plan: FlagsStorerPlan = { wordCount: 1, memberNames: ['a'] };
+            const plan: FlagsStorerPlan = { byteSize: 1, memberNames: ['a'] };
             expect(() => flagsStorer(plan, ctx, 0, null)).toThrow(TypeError);
         });
 
         test('throws on non-object input', () => {
             const { ctx } = createMockCtx();
-            const plan: FlagsStorerPlan = { wordCount: 1, memberNames: ['a'] };
+            const plan: FlagsStorerPlan = { byteSize: 1, memberNames: ['a'] };
             expect(() => flagsStorer(plan, ctx, 0, 42)).toThrow(TypeError);
         });
     });

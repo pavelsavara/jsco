@@ -216,11 +216,27 @@ export function enumLoaderDisc4(plan: EnumLoaderPlan, ctx: MarshalingContext, pt
 
 export function flagsLoader(plan: FlagsLoaderPlan, ctx: MarshalingContext, ptr: number): Record<string, boolean> {
     const result: Record<string, boolean> = {};
-    for (let w = 0; w < plan.wordCount; w++) {
-        const dv = ctx.memory.getView((ptr + w * 4) as WasmPointer, 4 as WasmSize);
+    const n = plan.memberNames.length;
+    if (n === 0) return result;
+    // Spec elem_size_flags: 1/2/4 bytes for n in [1..32]; for legacy n>32 we pack into Nx i32.
+    const dv = ctx.memory.getView(ptr as WasmPointer, plan.byteSize as WasmSize);
+    if (plan.byteSize === 1) {
+        const word = dv.getUint8(0);
+        for (let b = 0; b < n; b++) result[plan.memberNames[b]!] = !!(word & (1 << b));
+    } else if (plan.byteSize === 2) {
+        const word = dv.getUint16(0, true);
+        for (let b = 0; b < n; b++) result[plan.memberNames[b]!] = !!(word & (1 << b));
+    } else if (plan.byteSize === 4) {
         const word = dv.getInt32(0, true);
-        for (let b = 0; b < 32 && w * 32 + b < plan.memberNames.length; b++) {
-            result[plan.memberNames[w * 32 + b]!] = !!(word & (1 << b));
+        for (let b = 0; b < n; b++) result[plan.memberNames[b]!] = !!(word & (1 << b));
+    } else {
+        // n > 32: packed across multiple i32 words.
+        const wordCount = plan.byteSize / 4;
+        for (let w = 0; w < wordCount; w++) {
+            const word = dv.getInt32(w * 4, true);
+            for (let b = 0; b < 32 && w * 32 + b < n; b++) {
+                result[plan.memberNames[w * 32 + b]!] = !!(word & (1 << b));
+            }
         }
     }
     return result;

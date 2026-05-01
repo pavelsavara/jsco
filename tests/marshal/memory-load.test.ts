@@ -424,15 +424,57 @@ describe('memory-load variant/enum loaders', () => {
 // ─── Flags and tuple loaders ───
 
 describe('memory-load flags/tuple loaders', () => {
-    test('flagsLoader reads single word of flags', () => {
+    test('flagsLoader reads small flags (≤8) from 1 byte', () => {
         const { ctx, dv } = createMockCtx();
         const plan = {
-            wordCount: 1,
+            byteSize: 1,
             memberNames: ['a', 'b', 'c', 'd'],
         };
-        dv.setInt32(100, 0b0101, true); // a=true, b=false, c=true, d=false
+        dv.setUint8(100, 0b0101); // a=true, b=false, c=true, d=false
         const result = flagsLoader(plan, ctx, 100);
         expect(result).toEqual({ a: true, b: false, c: true, d: false });
+    });
+
+    test('flagsLoader does not read past byteSize=1 boundary', () => {
+        // Spec: 1-8 flags occupy exactly 1 byte; bytes after must NOT influence the result.
+        const { ctx, dv } = createMockCtx();
+        const names = Array.from({ length: 8 }, (_, i) => `f${i}`);
+        const plan = { byteSize: 1, memberNames: names };
+        dv.setUint8(100, 0xFF);
+        // Poison the next 3 bytes; they must not be observed.
+        dv.setUint8(101, 0xAA);
+        dv.setUint8(102, 0xBB);
+        dv.setUint8(103, 0xCC);
+        const result = flagsLoader(plan, ctx, 100);
+        expect(Object.values(result).every(v => v === true)).toBe(true);
+        expect(Object.keys(result).length).toBe(8);
+    });
+
+    test('flagsLoader reads 9-16 flags from 2 bytes', () => {
+        const { ctx, dv } = createMockCtx();
+        const names = Array.from({ length: 12 }, (_, i) => `f${i}`);
+        const plan = { byteSize: 2, memberNames: names };
+        dv.setUint16(100, 0b0000_1010_0000_0001, true); // bits 0, 9, 11 set
+        dv.setUint8(102, 0xFF); // poison: must not be read
+        const result = flagsLoader(plan, ctx, 100);
+        expect(result['f0']).toBe(true);
+        expect(result['f9']).toBe(true);
+        expect(result['f11']).toBe(true);
+        expect(result['f1']).toBe(false);
+        expect(result['f8']).toBe(false);
+        expect(result['f10']).toBe(false);
+    });
+
+    test('flagsLoader reads 17-32 flags from 4 bytes', () => {
+        const { ctx, dv } = createMockCtx();
+        const names = Array.from({ length: 24 }, (_, i) => `f${i}`);
+        const plan = { byteSize: 4, memberNames: names };
+        dv.setUint32(100, (1 << 0) | (1 << 16) | (1 << 23), true);
+        const result = flagsLoader(plan, ctx, 100);
+        expect(result['f0']).toBe(true);
+        expect(result['f16']).toBe(true);
+        expect(result['f23']).toBe(true);
+        expect(result['f1']).toBe(false);
     });
 
     test('tupleLoader reads tuple members', () => {

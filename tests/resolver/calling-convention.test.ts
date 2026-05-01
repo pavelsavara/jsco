@@ -40,9 +40,11 @@ describe('discriminantSize', () => {
     test('0 cases → 1', () => expect(discriminantSize(0)).toBe(1));
     test('1 case → 1', () => expect(discriminantSize(1)).toBe(1));
     test('255 cases → 1', () => expect(discriminantSize(255)).toBe(1));
-    test('256 cases → 2', () => expect(discriminantSize(256)).toBe(2));
+    test('256 cases → 1 (spec ceil(log2(256)/8)=1)', () => expect(discriminantSize(256)).toBe(1));
+    test('257 cases → 2', () => expect(discriminantSize(257)).toBe(2));
     test('65535 cases → 2', () => expect(discriminantSize(65535)).toBe(2));
-    test('65536 cases → 2', () => expect(discriminantSize(65536)).toBe(4));
+    test('65536 cases → 2 (spec ceil(log2(65536)/8)=2)', () => expect(discriminantSize(65536)).toBe(2));
+    test('65537 cases → 4', () => expect(discriminantSize(65537)).toBe(4));
     test('100000 cases → 4', () => expect(discriminantSize(100000)).toBe(4));
 });
 
@@ -186,17 +188,33 @@ describe('sizeOf', () => {
     });
 
     describe('flags', () => {
-        test('0 flags → 4', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(4);
+        test('0 flags → 1', () => {
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(1);
         });
-        test('1 flag → 4', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(4);
+        test('1 flag → 1', () => {
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
+        });
+        test('8 flags → 1', () => {
+            const members = Array.from({ length: 8 }, (_, i) => `f${i}`);
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(1);
+        });
+        test('9 flags → 2', () => {
+            const members = Array.from({ length: 9 }, (_, i) => `f${i}`);
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
+        });
+        test('16 flags → 2', () => {
+            const members = Array.from({ length: 16 }, (_, i) => `f${i}`);
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
+        });
+        test('17 flags → 4', () => {
+            const members = Array.from({ length: 17 }, (_, i) => `f${i}`);
+            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
         });
         test('32 flags → 4', () => {
             const members = Array.from({ length: 32 }, (_, i) => `f${i}`);
             expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
         });
-        test('33 flags → 8', () => {
+        test('33 flags → 8 (out-of-spec extension)', () => {
             const members = Array.from({ length: 33 }, (_, i) => `f${i}`);
             expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(8);
         });
@@ -289,8 +307,28 @@ describe('alignOf', () => {
         expect(alignOf({ tag: ModelTag.ComponentTypeDefinedEnum, members } as any)).toBe(2);
     });
 
-    test('flags → 4', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(4);
+    test('flags → size-graduated alignment per spec', () => {
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
+        const m8 = Array.from({ length: 8 }, (_, i) => `f${i}`);
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m8 } as any)).toBe(1);
+        const m9 = Array.from({ length: 9 }, (_, i) => `f${i}`);
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m9 } as any)).toBe(2);
+        const m17 = Array.from({ length: 17 }, (_, i) => `f${i}`);
+        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m17 } as any)).toBe(4);
+    });
+
+    test('record { flags<4>, u8 } compacts to 2 bytes (regression: flags used to force align/size 4)', () => {
+        const flags4 = { tag: ModelTag.ComponentTypeDefinedFlags, members: ['a', 'b', 'c', 'd'] } as any;
+        const recType = {
+            tag: ModelTag.ComponentTypeDefinedRecord,
+            members: [
+                { name: 'fl', type: resolvedVT(flags4) },
+                { name: 'x', type: primVT(PrimitiveValType.U8) },
+            ],
+        } as any;
+        // flags<4>(1) + u8(1) = 2 (no padding); previously: 4 + 1 + pad(3) = 8.
+        expect(sizeOf(recType)).toBe(2);
+        expect(alignOf(recType)).toBe(1);
     });
 
     test('own/borrow → 4', () => {

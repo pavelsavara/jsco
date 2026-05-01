@@ -12,6 +12,6 @@ export type VariantLoaderPlan = {
     caseNames: string[], numCases: number,
 };
 export type EnumLoaderPlan = { memberNames: string[], numMembers: number };
-export type FlagsLoaderPlan = { wordCount: number, memberNames: string[] };
+export type FlagsLoaderPlan = { byteSize: number, memberNames: string[] };
 export type TupleLoaderPlan = { members: { offset: number, loader: MemoryLoader }[] };
 export type OwnResourceLoaderPlan = { resourceTypeIdx: number };
