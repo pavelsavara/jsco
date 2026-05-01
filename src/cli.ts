@@ -124,6 +124,8 @@ export async function main({ command, componentUrl, options }: CliParseResult): 
                 host,
                 port,
                 network: config.network,
+                // eslint-disable-next-line no-console
+                ...(options.verbose ? { onError: (msg: string, e: unknown) => console.error(msg, e instanceof Error ? (e.stack ?? e.message) : e) } : {}),
             });
             // Emit the resolved listening address so external supervisors
             // (e.g. jest globalSetup spawning `jsco serve`) can discover the

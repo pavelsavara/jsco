@@ -119,8 +119,7 @@ describe('E1 reproducer — futures::join!(writer, host-consumer) on in-wasm pip
                 executor: LogLevel.Summary,
             });
 
-            // eslint-disable-next-line no-console
-            console.log(`[control] elapsed=${report.elapsedMs}ms stdout=${JSON.stringify(report.stdout)} threw=${JSON.stringify(report.threw)}`);
+            verbose.logger('control', 1, `elapsed=${report.elapsedMs}ms stdout=${JSON.stringify(report.stdout)} threw=${JSON.stringify(report.threw)}`);
 
             expect(report.threw).toBeUndefined();
             expect(report.stdout).toContain('hello from jsco');
@@ -135,25 +134,22 @@ describe('E1 reproducer — futures::join!(writer, host-consumer) on in-wasm pip
                 executor: LogLevel.Detailed,
             });
 
-            // eslint-disable-next-line no-console
-            console.log(`[candidate] elapsed=${report.elapsedMs}ms stdout=${JSON.stringify(report.stdout)} threw=${JSON.stringify(report.threw)}`);
+            verbose.logger('candidate', 1, `elapsed=${report.elapsedMs}ms stdout=${JSON.stringify(report.stdout)} threw=${JSON.stringify(report.threw)}`);
 
             // Decision matrix — log the outcome explicitly so the test output
             // is self-documenting whether attached to an issue or read locally.
             if (report.threw) {
                 const m = report.threw.message;
                 if (/JSPI suspension stalled|possible deadlock/.test(m)) {
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        '[candidate] OUTCOME = DEADLOCK REPRODUCED. ' +
+                    verbose.logger('candidate', 1,
+                        'OUTCOME = DEADLOCK REPRODUCED. ' +
                         'The watchdog observed a JSPI suspension exceeding ' +
                         `${WATCHDOG_MS}ms. This is the failure mode described ` +
                         'in stream-jspi-deadlock.md §Reproducer.',
                     );
                 } else {
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `[candidate] OUTCOME = OTHER FAILURE (${report.threw.ctor}). ` +
+                    verbose.logger('candidate', 1,
+                        `OUTCOME = OTHER FAILURE (${report.threw.ctor}). ` +
                         'Not a JSPI deadlock; investigate before filing.',
                     );
                 }
@@ -162,9 +158,8 @@ describe('E1 reproducer — futures::join!(writer, host-consumer) on in-wasm pip
             }
 
             // No throw → guest completed.
-            // eslint-disable-next-line no-console
-            console.log(
-                '[candidate] OUTCOME = NO DEADLOCK. ' +
+            verbose.logger('candidate', 1,
+                'OUTCOME = NO DEADLOCK. ' +
                 'The wit_stream + futures::join! pattern completed cleanly. ' +
                 'Either jsco\'s callback-form async lift sidesteps the structural ' +
                 'JSPI deadlock, or the writer-arm canon.write returns synchronously ' +

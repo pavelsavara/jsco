@@ -136,9 +136,8 @@ describe('JSPI canon-lower sync-form + futures::join! over in-task pipe', () => 
             }
             const elapsedMs = Date.now() - t0;
 
-            // eslint-disable-next-line no-console
-            console.log(
-                `[repro] elapsedMs=${elapsedMs} threw=${JSON.stringify(threw)} returned=${returned} ` +
+            verbose.logger('repro', 1,
+                `elapsedMs=${elapsedMs} threw=${JSON.stringify(threw)} returned=${returned} ` +
                 `host.slow-collect calls=${stats.slowCollectCalls} resolved=${stats.slowCollectResolved} ` +
                 `bytesSeen=${stats.bytesSeen}`,
             );

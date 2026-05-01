@@ -36,6 +36,8 @@ export interface ServeConfig {
     host?: string;
     /** Network limits and timeouts */
     network?: NetworkConfig;
+    /** Called when a request handler throws. Silent by default. */
+    onError?: (message: string, error: unknown) => void;
 }
 
 export interface ServeHandle {
@@ -198,6 +200,7 @@ export async function serve(
 
     const requestTimeoutMs = network?.httpRequestTimeoutMs ?? NETWORK_DEFAULTS.httpRequestTimeoutMs;
     const headersTimeoutMs = network?.httpHeadersTimeoutMs ?? NETWORK_DEFAULTS.httpHeadersTimeoutMs;
+    const onError = config?.onError ?? ((): void => { /* silent by default */ });
     const keepAliveTimeoutMs = network?.httpKeepAliveTimeoutMs ?? NETWORK_DEFAULTS.httpKeepAliveTimeoutMs;
 
     const server = http.createServer();
@@ -247,8 +250,7 @@ export async function serve(
 
                 await writeWasiResponse(res, response);
             } catch (e) {
-                // eslint-disable-next-line no-console
-                console.error('jsco serve: request handler threw:', e instanceof Error ? (e.stack ?? e.message) : e);
+                onError('jsco serve: request handler threw:', e);
                 if (!res.headersSent) {
                     res.writeHead(500, { 'Content-Type': 'text/plain' });
                 }

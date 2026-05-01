@@ -26,6 +26,8 @@ export interface CliOptions {
     addr: string | undefined;
     /** Arguments to pass to the WASM component via wasi:cli/environment get-arguments */
     componentArgs: string[];
+    /** Enable verbose logging (e.g. handler errors in serve mode) */
+    verbose: boolean;
 }
 
 export interface CliParseResult {
@@ -51,6 +53,7 @@ Commands:
 If a subcommand is not provided, the \`run\` subcommand will be used.
 
 Common Options:
+  -v, --verbose              Enable verbose logging
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -74,6 +77,7 @@ Arguments:
   <WASM>  The WebAssembly component to run
 
 Options:
+  -v, --verbose              Enable verbose logging
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -133,6 +137,7 @@ Arguments:
 
 Options:
   --addr <SOCKADDR>          Socket address to bind to [default: 0.0.0.0:8080]
+  -v, --verbose              Enable verbose logging (e.g. handler errors)
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -196,6 +201,7 @@ function createDefaultOptions(): CliOptions {
         enabledInterfaces: undefined,
         addr: undefined,
         componentArgs: [],
+        verbose: false,
     };
 }
 
@@ -267,6 +273,8 @@ export function parseCliArgs(args: string[]): CliParseResult {
                 return { command, componentUrl, options, error, help };
             }
             options.yieldThrottle = n;
+        } else if (arg === '--verbose' || arg === '-v') {
+            options.verbose = true;
         } else if (arg === '--validate-types') {
             options.validateTypes = true;
         } else if (arg.startsWith('--component=')) {
