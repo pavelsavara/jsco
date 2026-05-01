@@ -40,17 +40,34 @@ export interface EchoServerHandle {
 /**
  * Spawn `jsco serve echo-server-p3.wasm --addr 127.0.0.1:0` and resolve once
  * the child reports its listening port on stdout.
+ *
+ * @param opts.maxNetworkBufferSize Optional `--max-network-buffer-size` to pass
+ *   to the child. Default = jsco's built-in 1 MiB. Required only for tests that
+ *   echo bodies larger than 1 MiB.
+ * @param opts.maxHttpBodyBytes Optional `--max-http-body-bytes` to pass to the
+ *   child. Default = jsco's built-in 2 MiB. Required only for tests that echo
+ *   bodies larger than 2 MiB.
  */
-export async function startEchoServer(): Promise<EchoServerHandle> {
+export async function startEchoServer(opts?: {
+    maxNetworkBufferSize?: number;
+    maxHttpBodyBytes?: number;
+}): Promise<EchoServerHandle> {
+    const args: string[] = [
+        '--experimental-wasm-jspi',
+        JSCO_CLI,
+        'serve',
+        ECHO_SERVER_WASM,
+        '--addr', '127.0.0.1:0',
+    ];
+    if (opts?.maxNetworkBufferSize !== undefined) {
+        args.push('--max-network-buffer-size', String(opts.maxNetworkBufferSize));
+    }
+    if (opts?.maxHttpBodyBytes !== undefined) {
+        args.push('--max-http-body-bytes', String(opts.maxHttpBodyBytes));
+    }
     const proc = spawn(
         process.execPath,
-        [
-            '--experimental-wasm-jspi',
-            JSCO_CLI,
-            'serve',
-            ECHO_SERVER_WASM,
-            '--addr', '127.0.0.1:0',
-        ],
+        args,
         { stdio: ['ignore', 'pipe', 'pipe'] },
     );
 

@@ -539,5 +539,12 @@ Saved as `/memories/repo/wasip3-wat-component-types.md`:
       sound. The root cause is in the JS-side pump that bridges
       `AsyncIterable → stream entry` under sustained backpressure; tracked
       separately.
-- [ ] Phase 4b — Scenario L: `client-consumer-p3.wat` against
-      `startEchoServer` via real `fetch`.
+- [x] Phase 4b — Scenario L: `client-consumer-p3.wat` against
+      `startEchoServer` via real `fetch`. The upstream JS handler drains the
+      WASIp3 request body to memory, POSTs it to the out-of-process
+      `echo-server-p3` fixture via `fetch`, then streams the fetched response
+      body back through `_HttpResponse.new`. Validates the host wasi:http
+      adapter end-to-end against real network I/O. The 2_097_194-byte body
+      requires the echo server to be started with `maxHttpBodyBytes` and
+      `maxNetworkBufferSize` raised to 4 MiB (defaults are 2 MiB and 1 MiB).
+      `startEchoServer` accepts both as options.

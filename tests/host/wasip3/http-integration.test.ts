@@ -24,6 +24,7 @@ import {
     verboseOptions,
     runWithVerbose,
 } from '../../test-utils/verbose-logger';
+import { startEchoServer, EchoServerHandle } from '../../test-utils/echo-server-fixture';
 
 initializeAsserts();
 
@@ -848,3 +849,97 @@ describe('HTTP P3 WAT — client-suite (Phase 3 — Scenario I\': consumer → c
             }
         }), 60_000);
 });
+
+// =====================================================================
+// Phase 4b — Scenario L: consumer → echo over real fetch + startEchoServer.
+//
+// The upstream `handle` here is a JS bridge that:
+//   1. Drains the incoming WASIp3 request body to memory.
+//   2. POSTs the bytes to the out-of-process echo-server-p3 fixture via
+//      `fetch` (real HTTP roundtrip, kernel sockets included).
+//   3. Streams the fetched response body back through `_HttpResponse.new`
+//      so the consumer-WAT pulls it via its normal stream-read loop.
+//
+// The echo server passes the body through verbatim, so the body-mutation
+// contract collapses to:
+//
+//   collected_body == request_body          (no suffix)
+//
+// This validates the host wasi:http adapter end-to-end against real
+// network I/O for both request-side (consumer → fetch) and response-side
+// (fetch → consumer).
+// =====================================================================
+describe('HTTP P3 WAT — client-suite (Phase 4b — Scenario L: consumer → real fetch echo server)', () => {
+    const verbose = useVerboseOnFailure();
+    let server: EchoServerHandle | undefined;
+
+    beforeAll(async () => {
+        // 2_097_194-byte request body needs both --max-http-body-bytes and
+        // --max-network-buffer-size raised above the 2 MiB / 1 MiB defaults.
+        server = await startEchoServer({
+            maxHttpBodyBytes: 4 * 1024 * 1024,
+            maxNetworkBufferSize: 4 * 1024 * 1024,
+        });
+    }, 30_000);
+
+    afterAll(async () => {
+        if (server) await server.stop();
+    });
+
+    test('collected body == request body (echoed verbatim over fetch)', () =>
+        runWithVerbose(verbose, async () => {
+            if (!server) throw new Error('echo server not started');
+            const url = `http://${server.addr}/echo`;
+
+            const upstream = {
+                async handle(req: unknown): Promise<{ tag: 'ok'; val: unknown } | { tag: 'err'; val: unknown }> {
+                    const completion = Promise.resolve({ tag: 'ok' as const, val: undefined });
+                    const [bodyStream] = _HttpRequest.consumeBody(req as never, completion as never);
+                    const reqBuffers: Uint8Array[] = [];
+                    let reqLen = 0;
+                    for await (const chunk of bodyStream as AsyncIterable<Uint8Array>) {
+                        const copy = new Uint8Array(chunk);
+                        reqBuffers.push(copy);
+                        reqLen += copy.length;
+                    }
+                    const reqFlat = new Uint8Array(reqLen);
+                    {
+                        let off = 0;
+                        for (const c of reqBuffers) { reqFlat.set(c, off); off += c.length; }
+                    }
+
+                    const fetched = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'content-type': 'application/octet-stream',
+                            'content-length': String(reqFlat.length),
+                        },
+                        body: reqFlat,
+                    });
+                    if (fetched.status !== 200) {
+                        throw new Error(`echo server returned status ${fetched.status}`);
+                    }
+                    expect(fetched.headers.get('x-wasmtime-test-method')).toBe('POST');
+
+                    const respBytes = new Uint8Array(await fetched.arrayBuffer());
+                    const respBody: AsyncIterable<Uint8Array> = (async function* () {
+                        const CHUNK = 32 * 1024;
+                        for (let off = 0; off < respBytes.length; off += CHUNK) {
+                            yield respBytes.subarray(off, Math.min(off + CHUNK, respBytes.length));
+                        }
+                    })();
+                    const respHeaders = _HttpFields.fromList([]);
+                    const respTrailers = Promise.resolve({ tag: 'ok' as const, val: undefined });
+                    const [response] = _HttpResponse.new(respHeaders as never, respBody, respTrailers as never);
+                    return { tag: 'ok' as const, val: response };
+                },
+            };
+
+            const collected = await runConsumer(upstream, verbose);
+            const expected = expectedRequestBody();
+            expect(collected.length).toBe(expected.length);
+            expect(bytesEqual(collected, expected)).toBe(true);
+        }), 90_000);
+});
+
+
