@@ -209,28 +209,31 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
         'http-error-code': () => undefined,
         ...resource('fields', {
             ctor: httpTypes.createFields,
-            statics: { 'from-list': httpTypes.createFieldsFromList },
+            statics: { 'from-list': (entries: [string, Uint8Array][]) => ok(httpTypes.createFieldsFromList(entries)) },
             methods: passthrough('get', 'has', 'set', 'append', 'delete', 'entries', 'clone'),
         }),
         ...resource('outgoing-request', {
             ctor: httpTypes.createOutgoingRequest,
-            methods: passthrough(
-                'method', 'set-method', 'path-with-query', 'set-path-with-query',
-                'scheme', 'set-scheme', 'authority', 'set-authority',
-                'headers', 'body',
-            ),
+            methods: {
+                ...passthrough('method', 'path-with-query', 'scheme', 'authority', 'headers', 'body'),
+                'set-method': (self: { setMethod: (m: unknown) => boolean }, m: unknown) => (self.setMethod(m) ? ok() : err()),
+                'set-path-with-query': (self: { setPathWithQuery: (p: unknown) => boolean }, p: unknown) => (self.setPathWithQuery(p) ? ok() : err()),
+                'set-scheme': (self: { setScheme: (s: unknown) => boolean }, s: unknown) => (self.setScheme(s) ? ok() : err()),
+                'set-authority': (self: { setAuthority: (a: unknown) => boolean }, a: unknown) => (self.setAuthority(a) ? ok() : err()),
+            },
         }),
         ...resource('outgoing-body', {
             methods: passthrough('write'),
-            statics: { 'finish': () => ok() },
+            statics: { 'finish': (self: { finish: () => void }) => { self.finish(); return ok(); } },
         }),
         ...resource('request-options', {
             ctor: httpTypes.createRequestOptions,
-            methods: passthrough(
-                'connect-timeout', 'set-connect-timeout',
-                'first-byte-timeout', 'set-first-byte-timeout',
-                'between-bytes-timeout', 'set-between-bytes-timeout',
-            ),
+            methods: {
+                ...passthrough('connect-timeout', 'first-byte-timeout', 'between-bytes-timeout'),
+                'set-connect-timeout': (self: { setConnectTimeout: (t: unknown) => boolean }, t: unknown) => (self.setConnectTimeout(t) ? ok() : err()),
+                'set-first-byte-timeout': (self: { setFirstByteTimeout: (t: unknown) => boolean }, t: unknown) => (self.setFirstByteTimeout(t) ? ok() : err()),
+                'set-between-bytes-timeout': (self: { setBetweenBytesTimeout: (t: unknown) => boolean }, t: unknown) => (self.setBetweenBytesTimeout(t) ? ok() : err()),
+            },
         }),
         ...resource('incoming-response', {
             methods: passthrough('status', 'headers', 'consume'),

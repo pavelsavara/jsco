@@ -18,14 +18,14 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 
-const JSCO_CLI = path.resolve(process.cwd(), 'dist/debug/index.js');
+const JSCO_CLI = path.resolve(process.cwd(), 'dist/debug/cli.js');
 const ECHO_SERVER_WASM = path.resolve(
     process.cwd(),
     'integration-tests/echo-server-p3/echo_server_p3.wasm',
 );
 
 export interface EchoServerHandle {
-    /** Process handle for the spawned `node dist/debug/index.js serve …` */
+    /** Process handle for the spawned `node dist/debug/cli.js serve …` */
     proc: ChildProcess;
     /** Bound host (always `127.0.0.1`). */
     host: string;
