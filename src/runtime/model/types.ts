@@ -145,12 +145,20 @@ export interface SubtaskEntry {
 }
 
 export interface ErrorContextTable {
-    newErrorContext(ptr: number, len: number): number;
-    debugMessage(handle: number, ptr: number): void;
-    drop(handle: number): void;
+    /**
+     * Insert a JS-side error value (typically `{ debugMessage: string }` for
+     * guest-created contexts or an `Error` instance for host-created ones)
+     * and return a fresh i32 handle. Used both by `canon error-context.new`
+     * (after the resolver has decoded the debug message from linear memory)
+     * and by lifting an `error-context` value across a function call.
+     */
     add(value: unknown): number;
+    /** Read back a stored value without changing the table. Throws on unknown handle. */
     get(handle: number): unknown;
+    /** Drop a handle and return its value. Throws on unknown handle. */
     remove(handle: number): unknown;
+    /** Number of live handles (for diagnostics / leak detection in tests). */
+    size(): number;
 }
 
 export interface WaitableSetTable {

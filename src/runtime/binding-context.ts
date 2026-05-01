@@ -49,7 +49,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         streams: streamTable,
         futures: futureTable,
         subtasks: subtaskTable,
-        errorContexts: createErrorContextTable(),
+        errorContexts: createErrorContextTable(resolved.verbose, resolved.logger),
         waitableSets: waitableSetTable,
         utf8Decoder: new TextDecoder('utf-8', { fatal: true }),
         utf8Encoder: new TextEncoder(),
