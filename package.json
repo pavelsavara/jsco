@@ -27,6 +27,7 @@
         "build:file-io-p1-wat": "wasm-tools parse integration-tests/file-io-p1-wat/file-io.wat -o integration-tests/file-io-p1-wat/file-io.wasm",
         "build:bad-guests-p3-wat": "wasm-tools parse integration-tests/bad-guests-p3-wat/bad-guests-p3.wat -o integration-tests/bad-guests-p3-wat/bad-guests-p3.wasm",
         "build:multi-async-p3-wat": "wasm-tools parse integration-tests/multi-async-p3-wat/multi-async-p3.wat -o integration-tests/multi-async-p3-wat/multi-async-p3.wasm",
+        "build:echo-async-p3-wat": "wasm-tools parse integration-tests/echo-async-p3-wat/echo-async-p3.wat -o integration-tests/echo-async-p3-wat/echo-async-p3.wasm",
         "build:server-impl-p3-wat": "wasm-tools parse integration-tests/http-p3-wat/server-impl-p3.wat -o integration-tests/http-p3-wat/server-impl-p3.wasm",
         "build:server-fwd-p3-wat": "wasm-tools parse integration-tests/http-p3-wat/server-fwd-p3.wat -o integration-tests/http-p3-wat/server-fwd-p3.wasm",
         "build:client-consumer-p3-wat": "wasm-tools parse integration-tests/http-p3-wat/client-consumer-p3.wat -o integration-tests/http-p3-wat/client-consumer-p3.wasm",

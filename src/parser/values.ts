@@ -926,12 +926,25 @@ export function readComponentValType(src: SyncSource): ComponentValType {
     // Type indices use standard ULEB128; multi-byte encodings have high bit
     // set on non-final bytes, so the first byte of a multi-byte index will
     // never be in 0x73-0x7F. We read the first byte to distinguish.
+    //
+    // Special case: 0x64 (`error-context`) is also a primvaltype per
+    // Binary.md L195 — it's a handle-typed primitive (not in
+    // PrimitiveValType because it carries no payload), encoded inline
+    // alongside the numeric primitives. Surface it as a resolved inline
+    // `ComponentTypeDefinedErrorContext` so downstream type machinery
+    // treats it like any other defined type.
     const first = src.read();
     if (first <= 0x7f && first >= 0x73) {
         // Single-byte primitive (no continuation bit, in primitive range)
         return {
             tag: ModelTag.ComponentValTypePrimitive,
             value: parsePrimitiveValType(first),
+        };
+    }
+    if (first === 0x64) {
+        return {
+            tag: ModelTag.ComponentValTypeResolved,
+            resolved: { tag: ModelTag.ComponentTypeDefinedErrorContext },
         };
     }
     // Reconstruct the LEB128 value from the first byte onward.
