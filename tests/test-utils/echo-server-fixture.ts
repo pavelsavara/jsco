@@ -1,0 +1,151 @@
+// Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
+
+/**
+ * Spawn the wasmtime-style HTTP echo server fixture (echo-server-p3) in a
+ * separate Node.js process via the jsco CLI's `serve` command, mirroring how
+ * the upstream wasmtime test harness runs its hyper-based echo server.
+ *
+ * The fixture replicates the wire contract documented in
+ * d:\jsco\http-echo-server.md:
+ *   - status 200, header `x-wasmtime-test-method`, header `x-wasmtime-test-uri`,
+ *     content-length passthrough, body echo.
+ *
+ * Use `startEchoServer()` from jest `beforeAll` to receive a `host:port` to
+ * expose to a guest as `HTTP_SERVER`. Always pair with `await stop()` in
+ * `afterAll`.
+ */
+
+import { spawn, ChildProcess } from 'node:child_process';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+/**
+ * Resolve the jsco CLI entry. CI builds either `dist/debug/cli.js` (Debug)
+ * or `dist/release/cli.js` (Release); pick whichever exists. Fall back to
+ * `dist/debug/cli.js` so the resulting error message points at the
+ * canonical local-dev location.
+ */
+function resolveJscoCli(): string {
+    const candidates = [
+        path.resolve(process.cwd(), 'dist/debug/cli.js'),
+        path.resolve(process.cwd(), 'dist/release/cli.js'),
+    ];
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
+    return candidates[0]!;
+}
+
+const JSCO_CLI = resolveJscoCli();
+const ECHO_SERVER_WASM = path.resolve(
+    process.cwd(),
+    'integration-tests/echo-server-p3/echo_server_p3.wasm',
+);
+
+export interface EchoServerHandle {
+    /** Process handle for the spawned `node dist/debug/cli.js serve …` */
+    proc: ChildProcess;
+    /** Bound host (always `127.0.0.1`). */
+    host: string;
+    /** Kernel-chosen port. */
+    port: number;
+    /** `host:port` literal — exactly what guests want as `HTTP_SERVER`. */
+    addr: string;
+    /** Send SIGTERM and wait for exit. */
+    stop(): Promise<void>;
+}
+
+/**
+ * Spawn `jsco serve echo-server-p3.wasm --addr 127.0.0.1:0` and resolve once
+ * the child reports its listening port on stdout.
+ *
+ * @param opts.maxNetworkBufferSize Optional `--max-network-buffer-size` to pass
+ *   to the child. Default = jsco's built-in 1 MiB. Required only for tests that
+ *   echo bodies larger than 1 MiB.
+ * @param opts.maxHttpBodyBytes Optional `--max-http-body-bytes` to pass to the
+ *   child. Default = jsco's built-in 2 MiB. Required only for tests that echo
+ *   bodies larger than 2 MiB.
+ */
+export async function startEchoServer(opts?: {
+    maxNetworkBufferSize?: number;
+    maxHttpBodyBytes?: number;
+}): Promise<EchoServerHandle> {
+    const args: string[] = [
+        '--experimental-wasm-jspi',
+        JSCO_CLI,
+        'serve',
+        ECHO_SERVER_WASM,
+        '--addr', '127.0.0.1:0',
+    ];
+    if (opts?.maxNetworkBufferSize !== undefined) {
+        args.push('--max-network-buffer-size', String(opts.maxNetworkBufferSize));
+    }
+    if (opts?.maxHttpBodyBytes !== undefined) {
+        args.push('--max-http-body-bytes', String(opts.maxHttpBodyBytes));
+    }
+    const proc = spawn(
+        process.execPath,
+        args,
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+
+    let stdoutBuf = '';
+    let stderrBuf = '';
+    proc.stdout!.setEncoding('utf8');
+    proc.stderr!.setEncoding('utf8');
+    proc.stdout!.on('data', (chunk: string) => {
+        stdoutBuf += chunk;
+        if (process.env.JSCO_ECHO_VERBOSE) process.stdout.write(`[echo:out] ${chunk}`);
+    });
+    proc.stderr!.on('data', (chunk: string) => {
+        stderrBuf += chunk;
+        if (process.env.JSCO_ECHO_VERBOSE) process.stderr.write(`[echo:err] ${chunk}`);
+    });
+
+    const port: number = await new Promise<number>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(
+                `echo server did not report listening within 15s\n--- stdout ---\n${stdoutBuf}\n--- stderr ---\n${stderrBuf}`,
+            ));
+        }, 15000);
+
+        const onData = (): void => {
+            const m = stdoutBuf.match(/listening on [^:]+:(\d+)/);
+            if (m) {
+                clearTimeout(timer);
+                proc.stdout!.off('data', onData);
+                resolve(Number.parseInt(m[1]!, 10));
+            }
+        };
+        proc.stdout!.on('data', onData);
+        // Poll once in case the line was already buffered.
+        onData();
+
+        proc.once('exit', (code) => {
+            clearTimeout(timer);
+            reject(new Error(
+                `echo server exited early with code ${code}\n--- stdout ---\n${stdoutBuf}\n--- stderr ---\n${stderrBuf}`,
+            ));
+        });
+        proc.once('error', (e) => { clearTimeout(timer); reject(e); });
+    });
+
+    const host = '127.0.0.1';
+    return {
+        proc,
+        host,
+        port,
+        addr: `${host}:${port}`,
+        stop: () => new Promise<void>((resolve) => {
+            if (proc.exitCode != null || proc.signalCode != null) { resolve(); return; }
+            proc.once('exit', () => resolve());
+            proc.kill('SIGTERM');
+            // Fallback: hard-kill if the child ignores SIGTERM.
+            setTimeout(() => {
+                if (proc.exitCode == null && proc.signalCode == null) {
+                    try { proc.kill('SIGKILL'); } catch { /* ignore */ }
+                }
+            }, 3000).unref();
+        }),
+    };
+}

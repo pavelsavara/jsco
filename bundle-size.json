@@ -1,37 +1,41 @@
 {
     "tolerance": 0.05,
     "sizes": {
-        "cli.js": {
-            "raw": 20640,
-            "gzip": 4593
-        },
         "index.js": {
-            "raw": 109965,
-            "gzip": 28200
+            "raw": 150221,
+            "gzip": 34141
         },
         "wasip1-via-wasip3.js": {
-            "raw": 21251,
-            "gzip": 5801
+            "raw": 23106,
+            "gzip": 5976
+        },
+        "wasip2-node.js": {
+            "raw": 13911,
+            "gzip": 4745
         },
         "wasip2-via-wasip3-node.js": {
-            "raw": 28769,
-            "gzip": 8377
+            "raw": 41272,
+            "gzip": 10770
         },
         "wasip2-via-wasip3.js": {
-            "raw": 20923,
-            "gzip": 6005
+            "raw": 30136,
+            "gzip": 7545
+        },
+        "wasip2.js": {
+            "raw": 43854,
+            "gzip": 13424
         },
         "wasip3-node.js": {
-            "raw": 55915,
-            "gzip": 16007
+            "raw": 62802,
+            "gzip": 16705
         },
         "wasip3.js": {
-            "raw": 33042,
-            "gzip": 9597
+            "raw": 35492,
+            "gzip": 9316
         },
         "__TOTAL__": {
-            "raw": 290505,
-            "gzip": 78580
+            "raw": 400794,
+            "gzip": 102622
         }
     }
 }

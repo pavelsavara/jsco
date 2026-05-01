@@ -24,6 +24,12 @@ import { sock_accept, sock_recv, sock_send, sock_shutdown } from './sockets';
 export type WasiP1Adapter = {
     imports: { wasi_snapshot_preview1: WasiSnapshotPreview1 }
     bindMemory: (memory: WebAssembly.Memory) => void
+    /** FIFO of bytes pending on stdin. Push to feed bytes; `fd_read` drains. */
+    stdinChunks: Uint8Array[]
+    /** Captured bytes written to stdout. */
+    stdoutChunks: Uint8Array[]
+    /** Captured bytes written to stderr. */
+    stderrChunks: Uint8Array[]
 }
 
 export function createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter {
@@ -33,6 +39,7 @@ export function createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter {
     if (config?.fs) {
         vfs.populateFromMap(config.fs);
     }
+    const stdinChunks: Uint8Array[] = [];
     const stdoutChunks: Uint8Array[] = [];
     const stderrChunks: Uint8Array[] = [];
     const envPairs: [string, string][] = config?.env ?? [];
@@ -48,6 +55,7 @@ export function createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter {
         getMemory,
         fdTable,
         vfs,
+        stdinChunks,
         stdoutChunks,
         stderrChunks,
         args,
@@ -108,6 +116,7 @@ export function createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter {
         bindMemory(mem: WebAssembly.Memory): void {
             memory = mem;
         },
+        get stdinChunks(): Uint8Array[] { return stdinChunks; },
         get stdoutChunks(): Uint8Array[] { return stdoutChunks; },
         get stderrChunks(): Uint8Array[] { return stderrChunks; },
     } as WasiP1Adapter;

@@ -26,6 +26,8 @@ export interface CliOptions {
     addr: string | undefined;
     /** Arguments to pass to the WASM component via wasi:cli/environment get-arguments */
     componentArgs: string[];
+    /** Enable verbose logging (e.g. handler errors in serve mode) */
+    verbose: boolean;
 }
 
 export interface CliParseResult {
@@ -51,6 +53,7 @@ Commands:
 If a subcommand is not provided, the \`run\` subcommand will be used.
 
 Common Options:
+  -v, --verbose              Enable verbose logging
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -74,6 +77,7 @@ Arguments:
   <WASM>  The WebAssembly component to run
 
 Options:
+  -v, --verbose              Enable verbose logging
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -102,7 +106,6 @@ Arguments after -- are passed to the component via wasi:cli/environment.
 Networking options:
   --max-http-body-bytes <N>           Max HTTP body size in bytes (default: ${NETWORK_DEFAULTS.maxHttpBodyBytes})
   --max-http-headers-bytes <N>        Max HTTP headers size in bytes (default: ${NETWORK_DEFAULTS.maxHttpHeadersBytes})
-  --socket-buffer-bytes <N>           Per-connection socket buffer in bytes (default: ${NETWORK_DEFAULTS.socketBufferBytes})
   --max-tcp-pending <N>               Max pending TCP connections (default: ${NETWORK_DEFAULTS.maxTcpPendingConnections})
   --tcp-idle-timeout-ms <N>           TCP idle timeout in ms (default: ${NETWORK_DEFAULTS.tcpIdleTimeoutMs})
   --http-request-timeout-ms <N>       HTTP request timeout in ms (default: ${NETWORK_DEFAULTS.httpRequestTimeoutMs})
@@ -122,6 +125,7 @@ Resource limits:
   --max-canon-ops-without-yield <N>   Max canon built-in ops between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxCanonOpsWithoutYield})
   --max-blocking-time-ms <N>          Max ms any single JSPI suspension may block; 0 disables (default: ${LIMIT_DEFAULTS.maxBlockingTimeMs})
   --max-heap-growth-per-yield <N>     Max host heap growth (bytes) between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxHeapGrowthPerYield})
+  --max-network-buffer-size <N>       Max host-side network buffer (HTTP body / stream forward / socket buffer) in bytes (default: ${LIMIT_DEFAULTS.maxNetworkBufferSize})
 `;
 
 const SERVE_HELP_TEXT = `Serves requests from a wasi:http proxy component
@@ -133,6 +137,7 @@ Arguments:
 
 Options:
   --addr <SOCKADDR>          Socket address to bind to [default: 0.0.0.0:8080]
+  -v, --verbose              Enable verbose logging (e.g. handler errors)
   --use-number-for-int64     Use JavaScript number instead of BigInt for i64
   --no-jspi                  Disable JSPI (WebAssembly.Suspending/promising)
   --yield-throttle <N>       Yield to JS event loop every N canon built-in calls
@@ -164,6 +169,7 @@ Resource limits:
   --max-canon-ops-without-yield <N>   Max canon built-in ops between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxCanonOpsWithoutYield})
   --max-blocking-time-ms <N>          Max ms any single JSPI suspension may block; 0 disables (default: ${LIMIT_DEFAULTS.maxBlockingTimeMs})
   --max-heap-growth-per-yield <N>     Max host heap growth (bytes) between JSPI yields; 0 disables (default: ${LIMIT_DEFAULTS.maxHeapGrowthPerYield})
+  --max-network-buffer-size <N>       Max host-side network buffer (HTTP body / stream forward / socket buffer) in bytes (default: ${LIMIT_DEFAULTS.maxNetworkBufferSize})
 `;
 
 export function getHelpText(command?: 'run' | 'serve'): string {
@@ -195,6 +201,7 @@ function createDefaultOptions(): CliOptions {
         enabledInterfaces: undefined,
         addr: undefined,
         componentArgs: [],
+        verbose: false,
     };
 }
 
@@ -266,6 +273,8 @@ export function parseCliArgs(args: string[]): CliParseResult {
                 return { command, componentUrl, options, error, help };
             }
             options.yieldThrottle = n;
+        } else if (arg === '--verbose' || arg === '-v') {
+            options.verbose = true;
         } else if (arg === '--validate-types') {
             options.validateTypes = true;
         } else if (arg.startsWith('--component=')) {
@@ -404,6 +413,16 @@ export function parseCliArgs(args: string[]): CliParseResult {
                 return { command, componentUrl, options, error, help };
             }
             options.limits.maxHeapGrowthPerYield = n;
+        } else if (arg.startsWith('--max-network-buffer-size')) {
+            const cv = consumeValue(arg, '--max-network-buffer-size', args, i);
+            if (!cv) { error = 'Missing value for --max-network-buffer-size'; return { command, componentUrl, options, error, help }; }
+            i = cv.nextI;
+            const n = Number.parseInt(cv.val, 10);
+            if (!Number.isFinite(n) || n <= 0) {
+                error = `Invalid value for --max-network-buffer-size: ${cv.val} (expected positive integer)`;
+                return { command, componentUrl, options, error, help };
+            }
+            options.limits.maxNetworkBufferSize = n;
         } else if (arg.startsWith('--max-http-body-bytes')) {
             const cv = consumeValue(arg, '--max-http-body-bytes', args, i);
             if (!cv) { error = 'Missing value for --max-http-body-bytes'; return { command, componentUrl, options, error, help }; }
@@ -414,11 +433,6 @@ export function parseCliArgs(args: string[]): CliParseResult {
             if (!cv) { error = 'Missing value for --max-http-headers-bytes'; return { command, componentUrl, options, error, help }; }
             i = cv.nextI;
             options.network.maxHttpHeadersBytes = parseInt(cv.val, 10) || 0;
-        } else if (arg.startsWith('--socket-buffer-bytes')) {
-            const cv = consumeValue(arg, '--socket-buffer-bytes', args, i);
-            if (!cv) { error = 'Missing value for --socket-buffer-bytes'; return { command, componentUrl, options, error, help }; }
-            i = cv.nextI;
-            options.network.socketBufferBytes = parseInt(cv.val, 10) || 0;
         } else if (arg.startsWith('--max-tcp-pending')) {
             const cv = consumeValue(arg, '--max-tcp-pending', args, i);
             if (!cv) { error = 'Missing value for --max-tcp-pending'; return { command, componentUrl, options, error, help }; }

@@ -12,6 +12,8 @@
 
 import type { WasiP3Imports } from '../wasip3';
 import type { WasiP2Imports } from '../../../wit/wasip2/types/index';
+import type { AllocationLimits } from '../wasip3/types';
+import { LIMIT_DEFAULTS } from '../wasip3/types';
 import type {
     WasiPollable,
 } from './io';
@@ -49,7 +51,8 @@ export type { WasiP2Imports } from '../../../wit/wasip2/types/index';
  *
  * Both unversioned and versioned (`@0.2.0` through `@0.2.11`) keys are registered.
  */
-export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsImports {
+export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?: AllocationLimits }): WasiP2Imports & JsImports {
+    const maxBufferSize = options?.limits?.maxNetworkBufferSize ?? LIMIT_DEFAULTS.maxNetworkBufferSize;
     const result: Record<string, unknown> = {};
     const register = makeRegister(result, 'wasi:', P2_VERSIONS);
     const notSupported = (): unknown => err('not-supported');
@@ -129,8 +132,8 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
     const env = adaptEnvironment(p3);
     const exit = adaptExit(p3);
     const stdin = adaptStdin(p3);
-    const stdout = adaptStdout(p3);
-    const stderr = adaptStderr(p3);
+    const stdout = adaptStdout(p3, maxBufferSize);
+    const stderr = adaptStderr(p3, maxBufferSize);
     const terminalInput = adaptTerminalInput(p3);
     const terminalStdout = adaptTerminalStdout(p3);
     const terminalStderr = adaptTerminalStderr(p3);
@@ -167,7 +170,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
 
     // ─── wasi:filesystem/* ───
 
-    const preopens = adaptPreopens(p3);
+    const preopens = adaptPreopens(p3, maxBufferSize);
 
     register('filesystem/types', {
         'filesystem-error-code': () => undefined,
@@ -199,35 +202,38 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
 
     // ─── wasi:http/* ───
 
-    const httpTypes = adaptHttpTypes();
-    const outgoingHandler = adaptOutgoingHandler(p3);
+    const httpTypes = adaptHttpTypes(maxBufferSize);
+    const outgoingHandler = adaptOutgoingHandler(p3, maxBufferSize);
 
     register('http/types', {
         'http-error-code': () => undefined,
         ...resource('fields', {
             ctor: httpTypes.createFields,
-            statics: { 'from-list': httpTypes.createFieldsFromList },
+            statics: { 'from-list': (entries: [string, Uint8Array][]) => ok(httpTypes.createFieldsFromList(entries)) },
             methods: passthrough('get', 'has', 'set', 'append', 'delete', 'entries', 'clone'),
         }),
         ...resource('outgoing-request', {
             ctor: httpTypes.createOutgoingRequest,
-            methods: passthrough(
-                'method', 'set-method', 'path-with-query', 'set-path-with-query',
-                'scheme', 'set-scheme', 'authority', 'set-authority',
-                'headers', 'body',
-            ),
+            methods: {
+                ...passthrough('method', 'path-with-query', 'scheme', 'authority', 'headers', 'body'),
+                'set-method': (self: { setMethod: (m: unknown) => boolean }, m: unknown) => (self.setMethod(m) ? ok() : err()),
+                'set-path-with-query': (self: { setPathWithQuery: (p: unknown) => boolean }, p: unknown) => (self.setPathWithQuery(p) ? ok() : err()),
+                'set-scheme': (self: { setScheme: (s: unknown) => boolean }, s: unknown) => (self.setScheme(s) ? ok() : err()),
+                'set-authority': (self: { setAuthority: (a: unknown) => boolean }, a: unknown) => (self.setAuthority(a) ? ok() : err()),
+            },
         }),
         ...resource('outgoing-body', {
             methods: passthrough('write'),
-            statics: { 'finish': () => ok() },
+            statics: { 'finish': (self: { finish: () => void }) => { self.finish(); return ok(); } },
         }),
         ...resource('request-options', {
             ctor: httpTypes.createRequestOptions,
-            methods: passthrough(
-                'connect-timeout', 'set-connect-timeout',
-                'first-byte-timeout', 'set-first-byte-timeout',
-                'between-bytes-timeout', 'set-between-bytes-timeout',
-            ),
+            methods: {
+                ...passthrough('connect-timeout', 'first-byte-timeout', 'between-bytes-timeout'),
+                'set-connect-timeout': (self: { setConnectTimeout: (t: unknown) => boolean }, t: unknown) => (self.setConnectTimeout(t) ? ok() : err()),
+                'set-first-byte-timeout': (self: { setFirstByteTimeout: (t: unknown) => boolean }, t: unknown) => (self.setFirstByteTimeout(t) ? ok() : err()),
+                'set-between-bytes-timeout': (self: { setBetweenBytesTimeout: (t: unknown) => boolean }, t: unknown) => (self.setBetweenBytesTimeout(t) ? ok() : err()),
+            },
         }),
         ...resource('incoming-response', {
             methods: passthrough('status', 'headers', 'consume'),
@@ -252,7 +258,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports): WasiP2Imports & JsI
                 statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
                 setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
                 headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream()) }); },
+                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) }); },
             }),
         }),
         ...resource('response-outparam', {

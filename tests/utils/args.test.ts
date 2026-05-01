@@ -379,9 +379,9 @@ describe('parseCliArgs', () => {
             expect(result.options.network.maxHttpHeadersBytes).toBe(100000);
         });
 
-        test('--socket-buffer-bytes', () => {
-            const result = parseCliArgs(['--socket-buffer-bytes=65536', 'test.wasm']);
-            expect(result.options.network.socketBufferBytes).toBe(65536);
+        test('--max-network-buffer-size', () => {
+            const result = parseCliArgs(['--max-network-buffer-size=65536', 'test.wasm']);
+            expect(result.options.limits.maxNetworkBufferSize).toBe(65536);
         });
 
         test('--max-tcp-pending', () => {
@@ -513,9 +513,9 @@ describe('parseCliArgs', () => {
             expect(result.error).toBe('Missing value for --max-http-headers-bytes');
         });
 
-        test('--socket-buffer-bytes at end returns error', () => {
-            const result = parseCliArgs(['--socket-buffer-bytes']);
-            expect(result.error).toBe('Missing value for --socket-buffer-bytes');
+        test('--max-network-buffer-size at end returns error', () => {
+            const result = parseCliArgs(['--max-network-buffer-size']);
+            expect(result.error).toBe('Missing value for --max-network-buffer-size');
         });
 
         test('--max-tcp-pending at end returns error', () => {
@@ -617,9 +617,9 @@ describe('parseCliArgs', () => {
             expect(result.options.network.maxHttpHeadersBytes).toBe(50000);
         });
 
-        test('--socket-buffer-bytes with space', () => {
-            const result = parseCliArgs(['--socket-buffer-bytes', '32768', 'test.wasm']);
-            expect(result.options.network.socketBufferBytes).toBe(32768);
+        test('--max-network-buffer-size with space', () => {
+            const result = parseCliArgs(['--max-network-buffer-size', '32768', 'test.wasm']);
+            expect(result.options.limits.maxNetworkBufferSize).toBe(32768);
         });
 
         test('--max-tcp-pending with space', () => {

@@ -145,17 +145,32 @@ export interface SubtaskEntry {
 }
 
 export interface ErrorContextTable {
-    newErrorContext(ptr: number, len: number): number;
-    debugMessage(handle: number, ptr: number): void;
-    drop(handle: number): void;
+    /**
+     * Insert a JS-side error value (typically `{ debugMessage: string }` for
+     * guest-created contexts or an `Error` instance for host-created ones)
+     * and return a fresh i32 handle. Used both by `canon error-context.new`
+     * (after the resolver has decoded the debug message from linear memory)
+     * and by lifting an `error-context` value across a function call.
+     */
     add(value: unknown): number;
+    /** Read back a stored value without changing the table. Throws on unknown handle. */
     get(handle: number): unknown;
+    /** Drop a handle and return its value. Throws on unknown handle. */
     remove(handle: number): unknown;
+    /** Number of live handles (for diagnostics / leak detection in tests). */
+    size(): number;
 }
 
 export interface WaitableSetTable {
     newSet(): number;
     wait(setId: number, ptr: number): number | Promise<number>;
+    /**
+     * Like `wait`, but returns events as a JS array instead of writing to
+     * linear memory. Used by the callback-form async-lift trampoline, which
+     * delivers events directly to the guest's callback as i32 params and so
+     * does not need (and may not have) a host-allocated memory buffer.
+     */
+    waitJs(setId: number): { eventCode: number; handle: number; returnCode: number }[] | Promise<{ eventCode: number; handle: number; returnCode: number }[]>;
     poll(setId: number, ptr: number): number;
     drop(setId: number): void;
     join(waitableHandle: number, setId: number): void;
@@ -179,8 +194,6 @@ export interface NetworkConfig {
     maxHttpBodyBytes?: number;
     /** Maximum HTTP headers total size in bytes. Default: 200KB */
     maxHttpHeadersBytes?: number;
-    /** Per-connection socket read buffer size in bytes. Default: 200KB */
-    socketBufferBytes?: number;
     /** Maximum pending TCP connections (backlog). Default: 500 */
     maxTcpPendingConnections?: number;
     /** TCP idle timeout in milliseconds. Default: 120_000 (2 min) */
@@ -206,7 +219,6 @@ export interface NetworkConfig {
 export const NETWORK_DEFAULTS = {
     maxHttpBodyBytes: 2_097_152,
     maxHttpHeadersBytes: 204_800,
-    socketBufferBytes: 204_800,
     maxTcpPendingConnections: 500,
     tcpIdleTimeoutMs: 120_000,
     httpRequestTimeoutMs: 30_000,
@@ -257,6 +269,16 @@ export interface AllocationLimits {
      * otherwise the watchdog is a no-op. Default 0 (disabled).
      */
     maxHeapGrowthPerYield?: number;
+    /**
+     * Maximum size in bytes of any single host-side network buffer used by
+     * the WASI host adapters. Caps:
+     *  - the P2 outbound HTTP body collector (`createOutputStream`)
+     *  - the P3→P2 stdout/stderr/file forward (`createOutputStreamFromP3`)
+     *  - guest-set TCP/UDP `set-receive-buffer-size` / `set-send-buffer-size`
+     *    (calls above the cap trap with `invalid-argument`)
+     * Default: 1_048_576 (1 MiB).
+     */
+    maxNetworkBufferSize?: number;
 }
 
 export const LIMIT_DEFAULTS = {
@@ -267,6 +289,7 @@ export const LIMIT_DEFAULTS = {
     maxCanonOpsWithoutYield: 1_000_000,
     maxBlockingTimeMs: 0,
     maxHeapGrowthPerYield: 0,
+    maxNetworkBufferSize: 1_048_576,
 } as const;
 
 /** WASI-specific host configuration. */

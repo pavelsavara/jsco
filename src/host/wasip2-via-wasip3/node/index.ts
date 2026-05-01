@@ -49,7 +49,7 @@ export function createWasiP2ViaP3NodeHost(
     },
 ): WasiP2Imports & JsImports {
     const p3 = createWasiP3Host(config);
-    return createWasiP2ViaP3Adapter(p3);
+    return createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
 }
 
 /**
@@ -69,7 +69,7 @@ export function createNodeFilesystem(
         throw new Error('At least one mount point is required');
     }
     const p3 = createWasiP3Host({ mounts, limits });
-    const p2 = createWasiP2ViaP3Adapter(p3);
+    const p2 = createWasiP2ViaP3Adapter(p3, { limits });
     return { preopens: p2 };
 }
 

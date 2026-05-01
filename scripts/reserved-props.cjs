@@ -179,6 +179,33 @@ module.exports = [
     'statusText',
     'ok',
 
+    // === Node.js APIs invoked by `jsco serve` and the WASIp3 Node host ===
+    // node:http
+    'createServer',
+    'headersTimeout',
+    'keepAliveTimeout',
+    'requestTimeout',
+    'maxHeadersCount',
+    'writeHead',
+    'setHeader',
+    'getHeader',
+    'removeHeader',
+    'headersSent',
+    'rawHeaders',
+    // node:net / node:dgram
+    'createSocket',
+    'isIPv4',
+    'isIPv6',
+    'allowHalfOpen',
+    'localAddress',
+    'localPort',
+    'setRecvBufferSize',
+    'setSendBufferSize',
+    'setNoDelay',
+    'setKeepAlive',
+    // node:dns
+    'lookup',
+
     // === component model verbose-options sub-fields (already covered above) ===
     // (parser/resolver/binder/executor)
 ];

@@ -71,6 +71,7 @@ export function createVerboseCapture(): VerboseCapture {
  * Pass the result into createComponent() or instantiateWasiComponent() options.
  */
 export function verboseOptions(capture: VerboseCapture, levels?: Partial<Verbosity>) {
+    levels = levels ?? (capture as any)._levels;
     return {
         verbose: {
             parser: levels?.parser ?? LogLevel.Off,

@@ -243,3 +243,96 @@ interface echo-edge-cases {
     /// Result with resource in error tuple
     echo-result-complex: func(v: result<list<u8>, tuple<string, err-ctx>>) -> result<list<u8>, tuple<string, err-ctx>>;
 }
+
+/// Async / streams / futures / error-context — exercises the P3 canonical
+/// built-ins that the synchronous echo interfaces above can't express.
+///
+/// Conventions (mirroring the rest of `jsco-echo.wit`):
+///   * Every function name starts with `echo-` and the function returns a
+///     value derived from its argument so JS-side tests can assert on a
+///     trivial round-trip property.
+///   * Stream / future payloads cover both a primitive (`u8`, `bool`) and
+///     a non-trivial type (`point` record, `shape` variant) so the element
+///     copy / lift-lower path is exercised.
+///   * Async functions are lifted with the callback form so the
+///     `task.return + task.yield + waitable-set.wait` plumbing is
+///     covered.
+interface echo-async {
+    /// Re-declared locally so this interface is self-contained.
+    record point {
+        x: f64,
+        y: f64,
+    }
+
+    /// Re-declared variant payload for the stream/future element-copy test.
+    variant shape {
+        circle(f64),
+        rectangle(tuple<f64, f64>),
+        named(string),
+        dot,
+    }
+
+    // --- streams ------------------------------------------------------
+
+    /// Read every byte from `data` and write it back into the returned
+    /// stream. The function is async-lifted: it must yield while the host
+    /// is producing bytes and resume in its callback. Tests
+    /// `stream.new`, `stream.read`, `stream.write`, both
+    /// `stream.drop-readable` / `stream.drop-writable`.
+    echo-stream-u8: async func(data: stream<u8>) -> stream<u8>;
+
+    /// Same but with a record element so the per-element lift/lower path
+    /// is exercised, not just the bulk u8 memcpy fast path.
+    echo-stream-record: async func(data: stream<point>) -> stream<point>;
+
+    /// Stream of a variant — exercises tagged-element copy.
+    echo-stream-variant: async func(data: stream<shape>) -> stream<shape>;
+
+    // --- futures ------------------------------------------------------
+
+    /// Read a single bool from the input future and republish it on the
+    /// returned future. Tests `future.new`, `future.read`, `future.write`,
+    /// `future.drop-readable`, `future.drop-writable`.
+    echo-future-bool: async func(v: future<bool>) -> future<bool>;
+
+    /// Future of a record — exercises element lift/lower.
+    echo-future-record: async func(v: future<point>) -> future<point>;
+
+    // --- error-context -----------------------------------------------
+
+    /// Allocate a fresh `error-context` carrying `message` as its debug
+    /// message. Sync — exercises `error-context.new`.
+    make-error-context: func(message: string) -> error-context;
+
+    /// Read the debug message back from `e` and drop the handle. Tests
+    /// `error-context.debug-message` followed by `error-context.drop`.
+    take-error-context: func(e: error-context) -> string;
+
+    /// Round-trip an `error-context` value across a function boundary
+    /// without dropping the handle. Tests the lift/lower path used when
+    /// `error-context` flows as a normal value (the table's `add` / `get`
+    /// / `remove` operations).
+    echo-error-context: func(e: error-context) -> error-context;
+
+    // --- async-lifted export with task.return + task.yield ----------
+
+    /// Yield once to the scheduler and then return the input. Tests the
+    /// callback form of async lift with a single `task.yield` event.
+    echo-async-yield: async func(v: u32) -> u32;
+
+    // --- async-lowered import + subtask.cancel -----------------------
+
+    /// Call the imported `host-slow` function asynchronously, immediately
+    /// cancel its subtask, and return how many cancels were observed.
+    /// Tests async-lower of the import plus `subtask.cancel`.
+    echo-cancel-host: async func() -> u32;
+}
+
+/// Imports for the async echo flow — host-side helpers that the guest
+/// invokes through the canonical async-lower path.
+interface echo-async-host {
+    /// A slow host function that suspends the calling subtask until the
+    /// JS test resolves it. Used to exercise async-lowered imports and
+    /// `subtask.cancel`.
+    host-slow: async func();
+}

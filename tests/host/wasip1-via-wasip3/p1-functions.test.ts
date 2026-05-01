@@ -44,6 +44,7 @@ function makeCtx(opts?: {
         getMemory: () => memory,
         fdTable,
         vfs,
+        stdinChunks: [],
         stdoutChunks: [],
         stderrChunks: [],
         args: opts?.args ?? [],

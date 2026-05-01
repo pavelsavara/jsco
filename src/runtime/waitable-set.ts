@@ -1,9 +1,33 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
+import isDebug from 'env:isDebug';
+import { LogLevel } from '../utils/assert';
+import type { LogFn, Verbosity } from '../utils/assert';
 import type { MemoryView, StreamTable, FutureTable, SubtaskTable, WaitableSetTable } from './model/types';
 import { STREAM_STATUS_COMPLETED, EVENT_SUBTASK, EVENT_STREAM_READ, EVENT_STREAM_WRITE, EVENT_FUTURE_READ, EVENT_FUTURE_WRITE } from './constants';
 
-export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, futureTable: FutureTable, subtaskTable: SubtaskTable, signal: AbortSignal = new AbortController().signal): WaitableSetTable {
+function eventTag(eventCode: number, handle: number): string {
+    const base = handle & ~1;
+    const end = (handle & 1) === 0 ? 'r' : 'w';
+    switch (eventCode) {
+        case EVENT_SUBTASK: return `subtask#${handle}`;
+        case EVENT_STREAM_READ: return `stream#${base}r`;
+        case EVENT_STREAM_WRITE: return `stream#${base}w`;
+        case EVENT_FUTURE_READ: return `future#${base}r`;
+        case EVENT_FUTURE_WRITE: return `future#${base}w`;
+        default: return `waitable#${handle}${end}`;
+    }
+}
+
+function kindTag(handle: number, isStream: boolean, isSubtask: boolean): string {
+    const base = handle & ~1;
+    const end = (handle & 1) === 0 ? 'r' : 'w';
+    if (isSubtask) return `subtask#${handle}`;
+    if (isStream) return `stream#${base}${end}`;
+    return `future#${base}${end}`;
+}
+
+export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTable, futureTable: FutureTable, subtaskTable: SubtaskTable, signal: AbortSignal = new AbortController().signal, verbose?: Verbosity, logger?: LogFn): WaitableSetTable {
     let nextSetId = 1; // Must start at 1 — WASM uses NonZeroU32
     // Each set tracks which handles are joined and pending operations
     const sets = new Map<number, Set<number>>();
@@ -21,23 +45,30 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
             const set = sets.get(setId);
             if (!set) return 0;
 
-            // Check for already-ready events
-            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            // Spec: task.wait returns exactly ONE event.
             for (const handle of set) {
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
-                    readyEvents.push({
+                    waitable.ready = false;
+                    const ev = {
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    });
-                    waitable.ready = false;
+                    };
+                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait → ready immediately: ${eventTag(ev.eventCode, ev.handle)}`);
+                    }
+                    return writeEvents(ptr, [ev]);
                 }
             }
-            if (readyEvents.length > 0) {
-                return writeEvents(ptr, readyEvents);
-            }
 
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                const tags = Array.from(set).map(h => {
+                    const w = pendingWaitables.get(h);
+                    return w ? eventTag(w.eventCode, h) : `?#${h}`;
+                }).join(',');
+                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait → BLOCKING (no events ready); set={${tags}} — wasm task suspends here via JSPI`);
+            }
             // No events ready — return a Promise that resolves when one becomes ready
             return new Promise<number>((resolve, reject) => {
                 if (signal.aborted) {
@@ -58,20 +89,28 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                             if (settled) return;
                             settled = true;
                             signal.removeEventListener('abort', onAbort);
-                            // Re-check and write events
-                            const events: { eventCode: number, handle: number, returnCode: number }[] = [];
+                            // Find ONE ready event and deliver it
                             for (const h of set) {
                                 const w = pendingWaitables.get(h);
                                 if (w && w.ready) {
-                                    events.push({
+                                    w.ready = false;
+                                    const ev = {
                                         eventCode: w.eventCode,
                                         handle: h,
                                         returnCode: returnCodeFor(h, w.eventCode),
-                                    });
-                                    w.ready = false;
+                                    };
+                                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: ${eventTag(ev.eventCode, ev.handle)}`);
+                                    }
+                                    resolve(writeEvents(ptr, [ev]));
+                                    return;
                                 }
                             }
-                            resolve(writeEvents(ptr, events));
+                            // Resolver fired but nothing ready (edge case)
+                            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: <empty>`);
+                            }
+                            resolve(0);
                         });
                     }
                 }
@@ -82,19 +121,97 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
             const set = sets.get(setId);
             if (!set) return 0;
 
-            const readyEvents: { eventCode: number, handle: number, returnCode: number }[] = [];
+            // Spec: task.poll returns 0 or 1 events.
             for (const handle of set) {
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
-                    readyEvents.push({
+                    waitable.ready = false;
+                    return writeEvents(ptr, [{
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    });
-                    waitable.ready = false;
+                    }]);
                 }
             }
-            return writeEvents(ptr, readyEvents);
+            return 0;
+        },
+
+        /** Same wait semantics as `wait`, but returns events as JS objects
+         *  rather than writing to linear memory. Used by the callback-form
+         *  async-lift trampoline. Returns exactly ONE event per the spec. */
+        waitJs(setId: number): { eventCode: number; handle: number; returnCode: number }[] | Promise<{ eventCode: number; handle: number; returnCode: number }[]> {
+            const set = sets.get(setId);
+            if (!set) return [];
+
+            // Spec: one event per wait.
+            for (const handle of set) {
+                const waitable = pendingWaitables.get(handle);
+                if (waitable && waitable.ready) {
+                    waitable.ready = false;
+                    const ev = {
+                        eventCode: waitable.eventCode,
+                        handle,
+                        returnCode: returnCodeFor(handle, waitable.eventCode),
+                    };
+                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs → ready immediately: ${eventTag(ev.eventCode, ev.handle)}`);
+                    }
+                    return [ev];
+                }
+            }
+
+            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                const tags = Array.from(set).map(h => {
+                    const w = pendingWaitables.get(h);
+                    return w ? eventTag(w.eventCode, h) : `?#${h}`;
+                }).join(',');
+                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs → BLOCKING (no events ready); set={${tags}} — wasm task suspends here via JSPI`);
+            }
+
+            return new Promise<{ eventCode: number; handle: number; returnCode: number }[]>((resolve, reject) => {
+                if (signal.aborted) {
+                    reject(signal.reason);
+                    return;
+                }
+                let settled = false;
+                function onAbort(): void {
+                    if (settled) return;
+                    settled = true;
+                    reject(signal.reason);
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+                for (const handle of set) {
+                    const waitable = pendingWaitables.get(handle);
+                    if (waitable) {
+                        waitable.resolvers.push(() => {
+                            if (settled) return;
+                            settled = true;
+                            signal.removeEventListener('abort', onAbort);
+                            // Find ONE ready event
+                            for (const h of set) {
+                                const w = pendingWaitables.get(h);
+                                if (w && w.ready) {
+                                    w.ready = false;
+                                    const ev = {
+                                        eventCode: w.eventCode,
+                                        handle: h,
+                                        returnCode: returnCodeFor(h, w.eventCode),
+                                    };
+                                    if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                        logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs resolved: ${eventTag(ev.eventCode, ev.handle)}`);
+                                    }
+                                    resolve([ev]);
+                                    return;
+                                }
+                            }
+                            if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                                logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] waitJs resolved: <empty>`);
+                            }
+                            resolve([]);
+                        });
+                    }
+                }
+            });
         },
 
         drop(setId: number): void {
@@ -114,6 +231,9 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                     s.delete(waitableHandle);
                 }
                 pendingWaitables.delete(waitableHandle);
+                if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                    logger!('executor', LogLevel.Detailed, `[waitable#${waitableHandle}] disjoin from all sets`);
+                }
                 return;
             }
             const set = sets.get(setId);
@@ -149,6 +269,10 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                     resolvers: [],
                 };
                 pendingWaitables.set(waitableHandle, entry);
+
+                if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
+                    logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] join ${kindTag(waitableHandle, !!isStream, !!subtaskEntry)}`);
+                }
 
                 // Wire up readiness tracking based on the table type
                 if (subtaskEntry) {

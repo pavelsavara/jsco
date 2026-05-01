@@ -136,7 +136,7 @@ export function sizeOf(type: ResolvedType): number {
             return discriminantSize(type.members.length);
 
         case ModelTag.ComponentTypeDefinedFlags:
-            return Math.ceil(type.members.length / 32) * 4 || 4; // minimum 4 bytes (1 i32) for 0 flags
+            return flagsSize(type.members.length);
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
@@ -201,7 +201,7 @@ export function alignOf(type: ResolvedType): number {
             return discriminantSize(type.members.length);
 
         case ModelTag.ComponentTypeDefinedFlags:
-            return 4;
+            return flagsSize(type.members.length);
 
         case ModelTag.ComponentTypeDefinedOwn:
         case ModelTag.ComponentTypeDefinedBorrow:
@@ -468,12 +468,24 @@ export function flatCountForValType(valType: ComponentValType): number {
 
 // --- Discriminant sizing per canonical ABI ---
 
+// Spec: discriminant_type(cases) — definitions.py L1149.
+// Number of bytes needed: 1 for up to 256 cases, 2 for up to 65536, 4 beyond.
 export function discriminantSize(caseCount: number): number {
     if (caseCount <= 0) return 1;
-    // Number of bytes needed: 1 for up to 256 cases, 2 for up to 65536, 4 beyond
-    if (caseCount <= 0xFF) return 1;
-    if (caseCount <= 0xFFFF) return 2;
+    if (caseCount <= 0x100) return 1;
+    if (caseCount <= 0x10000) return 2;
     return 4;
+}
+
+// Spec: alignment_flags / elem_size_flags — definitions.py L1165, L1219.
+// Spec asserts 0 < n <= 32; we extend gracefully for n=0 and n>32 (legacy callers).
+export function flagsSize(labelCount: number): number {
+    if (labelCount <= 0) return 1;
+    if (labelCount <= 8) return 1;
+    if (labelCount <= 16) return 2;
+    if (labelCount <= 32) return 4;
+    // Out-of-spec extension: pack into Nx i32 words.
+    return Math.ceil(labelCount / 32) * 4;
 }
 
 // --- Flat type representation per canonical ABI ---

@@ -675,7 +675,8 @@ describe('wasi:http/types adapter dispatch', () => {
     });
 
     it('[static]outgoing-body.finish returns ok', () => {
-        const result = getTypes()['[static]outgoing-body.finish']!();
+        const body = { finish: () => { /* spy */ } };
+        const result = getTypes()['[static]outgoing-body.finish']!(body);
         expect(result.tag).toBe('ok');
     });
 
@@ -714,7 +715,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]outgoing-request.set-method dispatches', () => {
         const req = { setMethod: () => true };
-        expect(getTypes()['[method]outgoing-request.set-method']!(req, { tag: 'get' })).toBe(true);
+        expect(getTypes()['[method]outgoing-request.set-method']!(req, { tag: 'get' })).toEqual({ tag: 'ok' });
     });
 
     it('[method]outgoing-request.path-with-query dispatches', () => {
@@ -724,7 +725,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]outgoing-request.set-path-with-query dispatches', () => {
         const req = { setPathWithQuery: () => true };
-        expect(getTypes()['[method]outgoing-request.set-path-with-query']!(req, '/test')).toBe(true);
+        expect(getTypes()['[method]outgoing-request.set-path-with-query']!(req, '/test')).toEqual({ tag: 'ok' });
     });
 
     it('[method]outgoing-request.scheme dispatches', () => {
@@ -734,7 +735,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]outgoing-request.set-scheme dispatches', () => {
         const req = { setScheme: () => true };
-        expect(getTypes()['[method]outgoing-request.set-scheme']!(req, { tag: 'HTTP' })).toBe(true);
+        expect(getTypes()['[method]outgoing-request.set-scheme']!(req, { tag: 'HTTP' })).toEqual({ tag: 'ok' });
     });
 
     it('[method]outgoing-request.authority dispatches', () => {
@@ -744,7 +745,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]outgoing-request.set-authority dispatches', () => {
         const req = { setAuthority: () => true };
-        expect(getTypes()['[method]outgoing-request.set-authority']!(req, 'host.com')).toBe(true);
+        expect(getTypes()['[method]outgoing-request.set-authority']!(req, 'host.com')).toEqual({ tag: 'ok' });
     });
 
     it('[method]outgoing-request.headers dispatches', () => {
@@ -772,7 +773,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]request-options.set-connect-timeout dispatches', () => {
         const opts = { setConnectTimeout: () => true };
-        expect(getTypes()['[method]request-options.set-connect-timeout']!(opts, 1000n)).toBe(true);
+        expect(getTypes()['[method]request-options.set-connect-timeout']!(opts, 1000n)).toEqual({ tag: 'ok' });
     });
 
     it('[method]request-options.first-byte-timeout dispatches', () => {
@@ -782,7 +783,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]request-options.set-first-byte-timeout dispatches', () => {
         const opts = { setFirstByteTimeout: () => true };
-        expect(getTypes()['[method]request-options.set-first-byte-timeout']!(opts, 2000n)).toBe(true);
+        expect(getTypes()['[method]request-options.set-first-byte-timeout']!(opts, 2000n)).toEqual({ tag: 'ok' });
     });
 
     it('[method]request-options.between-bytes-timeout dispatches', () => {
@@ -792,7 +793,7 @@ describe('wasi:http/types adapter dispatch', () => {
 
     it('[method]request-options.set-between-bytes-timeout dispatches', () => {
         const opts = { setBetweenBytesTimeout: () => true };
-        expect(getTypes()['[method]request-options.set-between-bytes-timeout']!(opts, 4000n)).toBe(true);
+        expect(getTypes()['[method]request-options.set-between-bytes-timeout']!(opts, 4000n)).toEqual({ tag: 'ok' });
     });
 
     it('[method]incoming-response.status dispatches', () => {

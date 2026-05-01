@@ -1,0 +1,20 @@
+// Two P3 HTTP forwarders composed with the P3 HTTP implementer (Scenario J).
+//
+// Topology:  test → outer-fwd → inner-fwd → server-impl
+//
+// The implementer satisfies the inner forwarder's `wasi:http/handler` import,
+// and the inner forwarder's exported handler in turn satisfies the outer
+// forwarder's `wasi:http/handler` import. `wasi:http/types` remains a
+// top-level import that the host satisfies at instantiation time.
+package jsco:double-forwarder-implementer-http-p3;
+
+let impl  = new jsco:server-impl-http-p3 { ... };
+let inner = new jsco:server-fwd-http-p3  {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": impl["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+let outer = new jsco:server-fwd-http-p3  {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": inner["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+export outer...;

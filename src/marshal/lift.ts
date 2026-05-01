@@ -346,11 +346,13 @@ export function errorContextLifting(ctx: MarshalingContext, srcJsValue: JsValue,
 
 /**
  * Coerce a value from one flat type to another during lifting (JS→WASM).
- * Follows the spec's lower_flat_variant coercion table.
+ * Follows the spec's lower_flat_variant coercion table (definitions.py L1979).
+ * NaN inputs are canonicalized per maybe_scramble_nan{32,64} (DETERMINISTIC_PROFILE).
  */
 export function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValue {
-    // (f32, i32): reinterpret f32 as i32
+    // (f32, i32): encode_float_as_i32 — canonicalize NaN before reinterpret
     if (have === FlatType.F32 && want === FlatType.I32) {
+        if (value !== value) return 0x7fc00000;
         _f32[0] = value;
         return _i32[0] as number;
     }
@@ -358,13 +360,15 @@ export function coerceFlatLift(value: number, have: FlatType, want: FlatType): W
     if (have === FlatType.I32 && want === FlatType.I64) {
         return value >>> 0;
     }
-    // (f32, i64): reinterpret f32 as i32, then widen to i64 — keep as Number
+    // (f32, i64): reinterpret f32 as i32, then widen to i64 — canonicalize NaN
     if (have === FlatType.F32 && want === FlatType.I64) {
+        if (value !== value) return 0x7fc00000;
         _f32[0] = value;
         return (_i32[0] as number) >>> 0;
     }
-    // (f64, i64): reinterpret f64 as i64
+    // (f64, i64): reinterpret f64 as i64 — canonicalize NaN
     if (have === FlatType.F64 && want === FlatType.I64) {
+        if (value !== value) return 0x7ff8000000000000n;
         _f64[0] = value;
         return _i64[0] as bigint;
     }

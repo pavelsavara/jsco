@@ -49,13 +49,17 @@ function detectFromNames(names: string[]): WasiType {
 /**
  * Create WASI host imports for the detected type.
  * Returns P3 host directly for P3 components, or P3 host wrapped with P2 adapter for P2 components.
+ * For P3 components that also import 0.2 (typical when adapted with the wasi-snapshot-preview1
+ * reactor adapter), returns the merged P2+P3 imports so all interfaces resolve.
  */
 export async function createWasiImports(wasiType: WasiType, config?: HostConfig): Promise<JsImports | undefined> {
     if (wasiType === WasiType.None) return undefined;
     const { createWasiP3Host } = await loadWasiP3Host();
     const p3 = createWasiP3Host(config);
     if (wasiType === WasiType.P2) {
-        return (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3);
+        return (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
     }
-    return p3;
+    // P3: merge with P2 adapter so reactor-adapted components still resolve their wasi:cli/etc 0.2 imports.
+    const p2 = (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+    return { ...p2, ...p3 } as JsImports;
 }

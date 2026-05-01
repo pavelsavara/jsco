@@ -36,6 +36,8 @@ export interface ServeConfig {
     host?: string;
     /** Network limits and timeouts */
     network?: NetworkConfig;
+    /** Called when a request handler throws. Silent by default. */
+    onError?: (message: string, error: unknown) => void;
 }
 
 export interface ServeHandle {
@@ -140,13 +142,17 @@ async function writeWasiResponse(
     // Write headers
     const headers = response._internalHeaders;
     for (const [name, value] of headers.copyAll()) {
+        // Field values may be plain Array<number> when lifted from a wasm
+        // list<u8>; coerce to Uint8Array for TextDecoder.
+        const bytes = value instanceof Uint8Array ? value : Uint8Array.from(value as ArrayLike<number>);
+        const decoded = new TextDecoder().decode(bytes);
         const existing = res.getHeader(name);
         if (existing !== undefined) {
             const arr = Array.isArray(existing) ? existing : [String(existing)];
-            arr.push(new TextDecoder().decode(value));
+            arr.push(decoded);
             res.setHeader(name, arr);
         } else {
-            res.setHeader(name, new TextDecoder().decode(value));
+            res.setHeader(name, decoded);
         }
     }
 
@@ -194,6 +200,7 @@ export async function serve(
 
     const requestTimeoutMs = network?.httpRequestTimeoutMs ?? NETWORK_DEFAULTS.httpRequestTimeoutMs;
     const headersTimeoutMs = network?.httpHeadersTimeoutMs ?? NETWORK_DEFAULTS.httpHeadersTimeoutMs;
+    const onError = config?.onError ?? ((): void => { /* silent by default */ });
     const keepAliveTimeoutMs = network?.httpKeepAliveTimeoutMs ?? NETWORK_DEFAULTS.httpKeepAliveTimeoutMs;
 
     const server = http.createServer();
@@ -242,7 +249,8 @@ export async function serve(
                 completionFuture.then(() => { /* consumed by request internals */ });
 
                 await writeWasiResponse(res, response);
-            } catch {
+            } catch (e) {
+                onError('jsco serve: request handler threw:', e);
                 if (!res.headersSent) {
                     res.writeHead(500, { 'Content-Type': 'text/plain' });
                 }

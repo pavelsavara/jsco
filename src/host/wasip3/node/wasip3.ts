@@ -51,7 +51,7 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
     const override = makeRegister(host, 'wasi:', P3_VERSIONS);
 
     // Replace browser socket stubs with real Node.js implementations
-    override('sockets/types', createNodeSocketsTypes());
+    override('sockets/types', createNodeSocketsTypes(config?.limits));
     override('sockets/ip-name-lookup', createNodeIpNameLookup());
 
     // Wire real filesystem mounts

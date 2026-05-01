@@ -35,7 +35,7 @@ describe('resource flatten — completeness', () => {
                 '[method]fields.delete',
                 '[method]fields.get-and-delete',
                 '[method]fields.append',
-                '[method]fields.entries',
+                '[method]fields.copy-all',
                 '[method]fields.clone',
             ],
             request: [

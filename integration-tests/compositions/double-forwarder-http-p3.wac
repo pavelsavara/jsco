@@ -1,0 +1,14 @@
+// Two P3 HTTP forwarders composed flat with an open upstream.
+//
+// Topology:  test → outer-fwd → inner-fwd → host-supplied upstream handler
+//
+// The inner forwarder's `wasi:http/handler` import is left as a top-level
+// import that the host satisfies (with a JS handler in tests).
+package jsco:double-forwarder-http-p3;
+
+let inner = new jsco:server-fwd-http-p3 { ... };
+let outer = new jsco:server-fwd-http-p3 {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": inner["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+export outer...;

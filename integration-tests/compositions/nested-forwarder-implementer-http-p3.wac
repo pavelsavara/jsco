@@ -1,0 +1,23 @@
+// Three P3 HTTP forwarders composed flat with the P3 HTTP implementer (Scenario K).
+//
+// Topology:  test → outer-fwd → middle-fwd → inner-fwd → server-impl
+//
+// (wac cannot re-parse a composed HTTP P3 component as a dep due to cm-async
+// type mismatch, so we use three flat forwarder instances rather than a true
+// sub-composition.)
+package jsco:nested-forwarder-implementer-http-p3;
+
+let impl   = new jsco:server-impl-http-p3 { ... };
+let inner  = new jsco:server-fwd-http-p3  {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": impl["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+let middle = new jsco:server-fwd-http-p3  {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": inner["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+let outer  = new jsco:server-fwd-http-p3  {
+    "wasi:http/handler@0.3.0-rc-2026-03-15": middle["wasi:http/handler@0.3.0-rc-2026-03-15"],
+    ...
+};
+export outer...;

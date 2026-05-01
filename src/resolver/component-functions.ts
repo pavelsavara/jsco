@@ -18,7 +18,7 @@ import { resolveComponentImport } from './component-imports';
 import { resolveCoreFunction } from './core-functions';
 import { getCoreFunction, getComponentType, getComponentInstance } from './indices';
 import { Resolver, ResolvedContext, ResolverRes, MarshalingContext, BinderRes, resolveCanonicalOptions } from './types';
-import type { WasmPointer, WasmSize, TaskState } from '../marshal/model/types';
+import type { TaskState } from '../marshal/model/types';
 import camelCase from 'just-camel-case';
 
 export const resolveComponentFunction: Resolver<ComponentFunction> = (rctx, rargs) => {
@@ -191,9 +191,6 @@ function createAsyncLiftWrapper(
     const YIELD = 1;
     // 2 | (ws_id << 4) = WAIT
 
-    const EVENT_BUF_EVENTS = 16;
-    const EVENT_BUF_SIZE = 12 * EVENT_BUF_EVENTS;
-
     return async function asyncLiftTrampoline(...args: unknown[]) {
         // Refuse re-entry on a poisoned instance (mirrors sync lift trampoline).
         checkNotPoisoned(mctx);
@@ -241,9 +238,6 @@ function createAsyncLiftWrapper(
             mctx.currentTask = task;
             let status = await coreFn(...wasmArgs) as number;
 
-            let eventPtr = 0;
-            let eventBufAllocated = false;
-
             while (status !== EXIT) {
                 if (status === YIELD) {
                     // Yield: immediately call callback again
@@ -255,29 +249,20 @@ function createAsyncLiftWrapper(
                 // WAIT: status = 2 | (ws_id << 4)
                 const waitableSetId = status >>> 4;
 
-                // Allocate event buffer if not yet done
-                if (!eventBufAllocated && mctx.allocator.isInitialized()) {
-                    eventPtr = mctx.allocator.alloc(EVENT_BUF_SIZE as WasmSize, 4 as WasmSize) as number;
-                    eventBufAllocated = true;
-                }
-
-                // Wait for events on the waitable set
-                const numEvents = await mctx.waitableSets.wait(waitableSetId, eventPtr);
-                if (numEvents === 0) {
+                // Wait for events. Callback-form async lifts deliver events
+                // directly as i32 callback args, so we don't need a host
+                // memory buffer (and the guest may not even export
+                // cabi_realloc — see waitJs()).
+                // Spec: waitJs returns exactly one event per call.
+                const events = await mctx.waitableSets.waitJs(waitableSetId);
+                if (events.length === 0) {
                     // No events — break out (shouldn't happen normally)
                     break;
                 }
 
-                // Deliver events to the callback one at a time
-                const view = mctx.memory.getView(eventPtr as WasmPointer, numEvents * 12 as WasmSize);
-                for (let i = 0; i < numEvents; i++) {
-                    const eventCode = view.getInt32(i * 12, true);
-                    const handle = view.getInt32(i * 12 + 4, true);
-                    const returnCode = view.getInt32(i * 12 + 8, true);
-                    mctx.currentTask = task;
-                    status = await callbackWasm(eventCode, handle, returnCode) as number;
-                    if (status === EXIT) break;
-                }
+                const ev = events[0]!;
+                mctx.currentTask = task;
+                status = await callbackWasm(ev.eventCode, ev.handle, ev.returnCode) as number;
             }
 
             // Drain background tasks from sync canon.lower stream/future params.

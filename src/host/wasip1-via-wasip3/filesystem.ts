@@ -5,7 +5,7 @@ import {
     Errno, Whence, Filetype, Fdflags, Lookupflags, Oflags, Fstflags,
     FdstatLayout, FilestatLayout, DirentLayout,
 } from './types/wasi-snapshot-preview1';
-import { getView, gatherBytes, readString } from './memory';
+import { getView, gatherBytes, readString, scatterBytes } from './memory';
 import { FdKind, ALL_RIGHTS } from './fd-table';
 import { VfsNodeType, resolvePathComponents } from '../wasip3/vfs';
 import { vfsErrorToErrno, vfsNodeTypeToFiletype, writeFilestat, vfsReadScatter, vfsReadScatterAt, vfsWriteGatherAt } from './vfs-helpers';
@@ -130,7 +130,31 @@ export function fd_read(ctx: AdapterContext, fd: number, iovs: number, iovs_len:
     const mem = ctx.getMemory();
     const view = getView(mem);
     if (entry.kind === FdKind.Stdin) {
-        view.setUint32(retptr0, 0, true);
+        // Drain `ctx.stdinChunks` into the iovec array. Empty queue → 0
+        // bytes (EOF). A partially-consumed leading chunk is replaced
+        // with its tail so the next read continues where this one left
+        // off (matches POSIX read(2) "partial chunk" semantics).
+        let totalRead = 0;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const head = ctx.stdinChunks[0];
+            if (head === undefined) break;
+            const written = scatterBytes(mem, iovs, iovs_len, head);
+            if (written === 0) break; // iovec capacity exhausted
+            totalRead += written;
+            if (written >= head.length) {
+                ctx.stdinChunks.shift();
+            } else {
+                ctx.stdinChunks[0] = head.subarray(written);
+                break; // iovec full
+            }
+            // Loop again only if iovec might still have room — but
+            // scatterBytes always fills from offset 0, so a second call
+            // would overwrite the first. Single-chunk-per-fd_read is the
+            // standard preview1 behaviour; bail out.
+            break;
+        }
+        view.setUint32(retptr0, totalRead, true);
         return Errno.Success;
     }
     if (entry.kind === FdKind.File && entry.vfsPath) {

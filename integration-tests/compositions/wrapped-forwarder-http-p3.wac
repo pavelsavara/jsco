@@ -1,0 +1,10 @@
+// Wraps a single P3 HTTP forwarder in a composed component (open upstream).
+//
+// Topology:  test → wrapped-forwarder → host-supplied upstream handler
+//
+// The forwarder's `wasi:http/handler` import is left as a top-level import
+// that the host satisfies (with a JS handler in tests).
+package jsco:wrapped-forwarder-http-p3;
+
+let fwd = new jsco:server-fwd-http-p3 { ... };
+export fwd...;

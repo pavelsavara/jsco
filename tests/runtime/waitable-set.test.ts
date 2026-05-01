@@ -378,7 +378,7 @@ describe('WaitableSetTable', () => {
             expect(eventHandle).toBe(h1);
         });
 
-        test('multiple waitables ready: all returned in single poll', async () => {
+        test('multiple waitables ready: poll returns one at a time (spec)', async () => {
             const { waitableSet, subtaskTable, memory } = createTestEnv();
             const setId = waitableSet.newSet();
 
@@ -396,16 +396,22 @@ describe('WaitableSetTable', () => {
             await p2;
             await new Promise(r => setTimeout(r, 0));
 
-            const count = waitableSet.poll(setId, 900);
-            expect(count).toBe(2);
-            // Both events written as 12-byte records
-            const view = memory.getView(900, 24);
-            const handles = [view.getInt32(4, true), view.getInt32(16, true)];
-            expect(handles).toContain(h1);
-            expect(handles).toContain(h2);
+            // Spec: poll returns exactly 1 event per call
+            const count1 = waitableSet.poll(setId, 900);
+            expect(count1).toBe(1);
+            const view1 = memory.getView(900, 12);
+            const firstHandle = view1.getInt32(4, true);
+
+            const count2 = waitableSet.poll(setId, 900);
+            expect(count2).toBe(1);
+            const view2 = memory.getView(900, 12);
+            const secondHandle = view2.getInt32(4, true);
+
+            expect([firstHandle, secondHandle]).toContain(h1);
+            expect([firstHandle, secondHandle]).toContain(h2);
         });
 
-        test('multiple ready in single wait() call', async () => {
+        test('multiple ready in single wait() call returns one (spec)', async () => {
             const { waitableSet, subtaskTable, memory } = createTestEnv();
             const setId = waitableSet.newSet();
 
@@ -424,14 +430,21 @@ describe('WaitableSetTable', () => {
             await p2;
             await new Promise(r => setTimeout(r, 0));
 
-            // wait() should return synchronously since events are already ready
-            const count = waitableSet.wait(setId, 1000);
-            expect(typeof count).toBe('number');
-            expect(count).toBe(2);
-            const view = memory.getView(1000, 24);
-            const handles = [view.getInt32(4, true), view.getInt32(16, true)];
-            expect(handles).toContain(h1);
-            expect(handles).toContain(h2);
+            // Spec: wait() returns exactly 1 event per call
+            const count1 = waitableSet.wait(setId, 1000);
+            expect(typeof count1).toBe('number');
+            expect(count1).toBe(1);
+            const view1 = memory.getView(1000, 12);
+            const firstHandle = view1.getInt32(4, true);
+
+            const count2 = waitableSet.wait(setId, 1000);
+            expect(typeof count2).toBe('number');
+            expect(count2).toBe(1);
+            const view2 = memory.getView(1000, 12);
+            const secondHandle = view2.getInt32(4, true);
+
+            expect([firstHandle, secondHandle]).toContain(h1);
+            expect([firstHandle, secondHandle]).toContain(h2);
         });
     });
 });

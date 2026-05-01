@@ -34,8 +34,10 @@ import { getCanonicalResourceId } from './context';
 import { createAllocator } from '../runtime';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
 import type { TCabiRealloc } from '../marshal/model/types';
-import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions } from './types';
+import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions, StringEncoding } from './types';
+import { stringLiftingUtf8, stringLiftingUtf16 } from '../marshal/lift';
 import { SubtaskState } from '../runtime/model/types';
+import type { WasmPointer, WasmSize, WasmValue } from '../marshal/model/types';
 
 
 export const resolveCoreFunction: Resolver<CoreFunction> = (rctx, rargs) => {
@@ -906,15 +908,66 @@ export const resolveCanonicalFunctionFutureDropWritable: Resolver<CanonicalFunct
 };
 
 // --- Error-context canonical built-ins ---
+//
+// Spec: definitions.py L2660–L2693. The handle table itself is in
+// `runtime/error-context.ts` and is memory-agnostic; the string
+// debug-message is decoded/encoded here using the canon options'
+// string encoding before/after touching the table.
+
+function decodeErrorContextString(mctx: MarshalingContext, encoding: StringEncoding, ptr: number, taggedCodeUnits: number): string {
+    if (taggedCodeUnits === 0) return '';
+    if (encoding === StringEncoding.Utf8) {
+        const view = mctx.memory.getViewU8(ptr as WasmPointer, taggedCodeUnits as WasmSize);
+        return mctx.utf8Decoder.decode(view);
+    }
+    if (encoding === StringEncoding.Utf16) {
+        if ((ptr & 1) !== 0) throw new Error(`UTF-16 string pointer not aligned: ptr=${ptr}`);
+        const byteLen = taggedCodeUnits * 2;
+        const view = mctx.memory.getView(ptr as WasmPointer, byteLen as WasmSize);
+        let result = '';
+        for (let i = 0; i < taggedCodeUnits; i++) result += String.fromCharCode(view.getUint16(i * 2, true));
+        return result;
+    }
+    // CompactUtf16 (latin1+utf16) is not yet implemented elsewhere in jsco.
+    throw new Error(`error-context: string encoding ${encoding} not implemented`);
+}
+
+function encodeErrorContextString(mctx: MarshalingContext, encoding: StringEncoding, value: string, descPtr: number): void {
+    const tmp: WasmValue[] = [0, 0];
+    if (encoding === StringEncoding.Utf8) {
+        stringLiftingUtf8(mctx, value, tmp, 0);
+    } else if (encoding === StringEncoding.Utf16) {
+        stringLiftingUtf16(mctx, value, tmp, 0);
+    } else {
+        throw new Error(`error-context: string encoding ${encoding} not implemented`);
+    }
+    const dv = mctx.memory.getView(descPtr as WasmPointer, 8 as WasmSize);
+    dv.setInt32(0, tmp[0] as number, true);
+    dv.setInt32(4, tmp[1] as number, true);
+}
+
+/** Extract the spec's `debug_message` from a stored error-context entry. */
+function extractDebugMessage(entry: unknown): string {
+    if (entry == null) return '';
+    if (typeof entry === 'string') return entry;
+    if (entry instanceof Error) return entry.message;
+    if (typeof entry === 'object' && 'debugMessage' in (entry as object)) {
+        const m = (entry as { debugMessage: unknown }).debugMessage;
+        return typeof m === 'string' ? m : String(m);
+    }
+    return String(entry);
+}
 
 export const resolveCanonicalFunctionErrorContextNew: Resolver<CanonicalFunctionErrorContextNew> = (_rctx, rargs) => {
     const elem = rargs.element;
+    const canonOpts = resolveCanonicalOptions(elem.options);
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
-            const fn = (ptr: number, len: number): number => {
-                return mctx.errorContexts.newErrorContext(ptr, len);
+            const fn = (ptr: number, taggedCodeUnits: number): number => {
+                const message = decodeErrorContextString(mctx, canonOpts.stringEncoding, ptr, taggedCodeUnits);
+                return mctx.errorContexts.add({ debugMessage: message });
             };
             return { result: fn };
         }, `error-context.new:${elem.selfSortIndex}`)
@@ -923,12 +976,15 @@ export const resolveCanonicalFunctionErrorContextNew: Resolver<CanonicalFunction
 
 export const resolveCanonicalFunctionErrorContextDebugMessage: Resolver<CanonicalFunctionErrorContextDebugMessage> = (_rctx, rargs) => {
     const elem = rargs.element;
+    const canonOpts = resolveCanonicalOptions(elem.options);
     return {
         callerElement: rargs.callerElement,
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
-            const fn = (handle: number, ptr: number): void => {
-                mctx.errorContexts.debugMessage(handle, ptr);
+            const fn = (handle: number, descPtr: number): void => {
+                const entry = mctx.errorContexts.get(handle);
+                const message = extractDebugMessage(entry);
+                encodeErrorContextString(mctx, canonOpts.stringEncoding, message, descPtr);
             };
             return { result: fn };
         }, `error-context.debug-message:${elem.selfSortIndex}`)
@@ -942,7 +998,7 @@ export const resolveCanonicalFunctionErrorContextDrop: Resolver<CanonicalFunctio
         element: elem,
         binder: withDebugTrace(async (mctx, _bargs): Promise<BinderRes> => {
             const fn = (handle: number): void => {
-                mctx.errorContexts.drop(handle);
+                mctx.errorContexts.remove(handle);
             };
             return { result: fn };
         }, `error-context.drop:${elem.selfSortIndex}`)

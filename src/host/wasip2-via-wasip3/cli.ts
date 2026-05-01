@@ -56,7 +56,7 @@ export function adaptStdin(p3: WasiP3Imports): { getStdin(): WasiInputStream } {
     };
 }
 
-export function adaptStdout(p3: WasiP3Imports): { getStdout(): WasiOutputStream } {
+export function adaptStdout(p3: WasiP3Imports, maxBufferSize?: number): { getStdout(): WasiOutputStream } {
     const p3stdout = p3['wasi:cli/stdout'];
     let cached: WasiOutputStream | null = null;
 
@@ -66,14 +66,14 @@ export function adaptStdout(p3: WasiP3Imports): { getStdout(): WasiOutputStream 
                 const pair = createStreamPair<Uint8Array>();
                 // Hand readable end to P3 host, keep writable end for P2 guest
                 p3stdout.writeViaStream(pair.readable);
-                cached = createOutputStreamFromP3(pair);
+                cached = createOutputStreamFromP3(pair, maxBufferSize);
             }
             return cached;
         },
     };
 }
 
-export function adaptStderr(p3: WasiP3Imports): { getStderr(): WasiOutputStream } {
+export function adaptStderr(p3: WasiP3Imports, maxBufferSize?: number): { getStderr(): WasiOutputStream } {
     const p3stderr = p3['wasi:cli/stderr'];
     let cached: WasiOutputStream | null = null;
 
@@ -82,7 +82,7 @@ export function adaptStderr(p3: WasiP3Imports): { getStderr(): WasiOutputStream 
             if (!cached) {
                 const pair = createStreamPair<Uint8Array>();
                 p3stderr.writeViaStream(pair.readable);
-                cached = createOutputStreamFromP3(pair);
+                cached = createOutputStreamFromP3(pair, maxBufferSize);
             }
             return cached;
         },

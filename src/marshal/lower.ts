@@ -307,29 +307,33 @@ export function errorContextLowering(ctx: MarshalingContext, ...args: WasmValue[
 
 /**
  * Coerce a value from the joined flat type to the case's natural flat type during lowering (WASM→JS).
- * Follows the spec's lift_flat_variant CoerceValueIter.
+ * Follows the spec's lift_flat_variant CoerceValueIter (definitions.py L1894).
+ * Reinterpret-as-float results are passed through canonicalize_nan{32,64}.
  */
 export function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
-    // (i32, f32): decode_i32_as_float
+    // (i32, f32): decode_i32_as_float = canonicalize_nan32(reinterpret)
     if (have === FlatType.I32 && want === FlatType.F32) {
         _i32[0] = value as number;
-        return _f32[0] as number;
+        const f = _f32[0] as number;
+        return f !== f ? canonicalNaN32 : f;
     }
     // (i64, i32): wrap_i64_to_i32 — use shared buffer to avoid BigInt.asUintN allocation
     if (have === FlatType.I64 && want === FlatType.I32) {
         _i64[0] = value as bigint;
         return _i32_64[0]! >>> 0;
     }
-    // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float
+    // (i64, f32): wrap_i64_to_i32 then decode_i32_as_float — canonicalize NaN
     if (have === FlatType.I64 && want === FlatType.F32) {
         _i64[0] = value as bigint;
         _i32[0] = _i32_64[0]!;
-        return _f32[0] as number;
+        const f = _f32[0] as number;
+        return f !== f ? canonicalNaN32 : f;
     }
-    // (i64, f64): decode_i64_as_float
+    // (i64, f64): decode_i64_as_float = canonicalize_nan64(reinterpret)
     if (have === FlatType.I64 && want === FlatType.F64) {
         _i64[0] = value as bigint;
-        return _f64[0] as number;
+        const f = _f64[0] as number;
+        return f !== f ? canonicalNaN64 : f;
     }
     return value;
 }
