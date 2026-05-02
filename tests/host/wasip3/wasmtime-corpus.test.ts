@@ -15,11 +15,13 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
+import * as http from 'node:http';
 
 import { createComponent } from '../../../src/resolver';
 import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
 import { createWasiP3Host as createP3Host } from '../../../src/host/wasip3/index';
-import { serve } from '../../../src/host/wasip3/node/http-server';
+import { serve, linkHandler } from '../../../src/host/wasip3/node/http-server';
 import type { WasiHttpHandlerExport, ServeHandle } from '../../../src/host/wasip3/node/http-server';
 import { WasiExit } from '../../../src/host/wasip3/cli';
 import { initializeAsserts } from '../../../src/utils/assert';
@@ -110,8 +112,6 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     //    (middleware), or sleep forever (serve_sleep).
     ['p3_cli_serve_sleep.component.wasm', 'service export with infinite sleep — needs cancel/abort harness'],
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by p3 client.send JSPI deadlock'],
-    ['p3_http_middleware.component.wasm', 'service export with imported handler chain — needs in-process handler import wiring'],
-    ['p3_http_middleware_with_chain.component.wasm', 'service export with imported handler chain — needs in-process handler import wiring'],
     // ── Trapping/cancel-on-quota behaviours not yet plumbed.
     ['p3_cli_many_tasks.component.wasm', 'designed to trap after 1000 [async-lower] calls (resource quota)'],
     // ── P3 filesystem: host registers Descriptor class but missing the flat
@@ -229,6 +229,7 @@ describe('wasmtime corpus inventory', () => {
             ...P2_HTTP_OUTBOUND.map(([f]) => f),
             ...P2_HTTP_OUTBOUND_VALIDATION.map(([f]) => f),
             ...P3_SERVE.map(([f]) => f),
+            ...P3_MIDDLEWARE_CHAIN.map(([f]) => f),
         ]);
         const unaccounted: string[] = [];
         for (const f of all) {
@@ -463,6 +464,15 @@ const P3_SERVE: ReadonlyArray<[string]> = [
     ['p3_api_proxy.component.wasm'],
 ];
 
+// ─────────────────── P3 middleware chain roster ───────────────────
+// The outer (middleware) component imports `wasi:http/handler`; we wire
+// `p3_http_echo` as the inner via `linkHandler()`. The chain test below
+// drives both fixtures through serve().
+const P3_MIDDLEWARE_CHAIN: ReadonlyArray<[string]> = [
+    ['p3_http_middleware.component.wasm'],
+    ['p3_http_middleware_with_chain.component.wasm'],
+];
+
 // ─────────────────── HTTP outbound smoke tests ───────────────────
 //
 // The wasmtime guest tests that issue outbound HTTP requests against
@@ -688,5 +698,203 @@ describe('wasmtime corpus — P3 service exports (serve())', () => {
             const r = await serveAndGet('p3_api_proxy.component.wasm', '/');
             expect(r.status).toBe(200);
             expect(r.body).toBe('hello, world!');
+        }), 30000);
+});
+
+// ─────────────────── P3 middleware (handler-import chain) ───────────────────
+//
+// `p3_http_middleware` exports `wasi:http/handler@0.3.0-rc-2026-03-15` AND
+// imports the same interface — it forwards (with optional deflate transcoding)
+// to whichever component satisfies the import. Wasmtime fuses with
+// `wasm-compose`; jsco wires at the JS layer via `linkHandler()`.
+//
+// `p3_http_middleware_with_chain` is the same shape but renames the imported
+// interface to `local:local/chain-http`.
+
+describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () => {
+    const verbose = useVerboseOnFailure();
+
+    /**
+     * Spin up `outer` whose handler import is satisfied by `inner.exports`.
+     * Returns ServeHandle plus a dispose() callback that tears down both
+     * instances in reverse instantiation order (outer first).
+     */
+    async function instantiateChain(
+        innerFile: string,
+        outerFile: string,
+        opts?: { as?: string },
+    ): Promise<{
+        handle: ServeHandle;
+        dispose: () => Promise<void>;
+    }> {
+        const sharedImports = createMergedHosts();
+        const innerComp = await createComponent(WASM_DIR + innerFile, verboseOptions(verbose));
+        const inner = await innerComp.instantiate(sharedImports as Parameters<typeof innerComp.instantiate>[0]);
+        const outerComp = await createComponent(WASM_DIR + outerFile, verboseOptions(verbose));
+        const outerImports = {
+            ...createMergedHosts(),
+            ...linkHandler(inner, opts),
+        };
+        const outer = await outerComp.instantiate(outerImports as Parameters<typeof outerComp.instantiate>[0]);
+        const handler = outer.exports[HANDLER_INTERFACE_P3] as WasiHttpHandlerExport | undefined;
+        if (!handler) throw new Error(`${outerFile}: missing ${HANDLER_INTERFACE_P3}`);
+        const handle = await serve(handler, { port: 0, host: '127.0.0.1' });
+        return {
+            handle,
+            dispose: async (): Promise<void> => {
+                await handle.close();
+                outer.dispose();
+                inner.dispose();
+            },
+        };
+    }
+
+    /**
+     * Make a raw HTTP request with explicit headers so we can control
+     * accept-encoding (Node's `fetch` auto-decompresses and adds
+     * `accept-encoding: gzip, deflate` which would always trigger the
+     * middleware's deflate-response branch).
+     */
+    function rawRequest(
+        port: number,
+        opts: { method?: string; pathname?: string; headers?: Record<string, string>; body?: Buffer | string },
+    ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }> {
+        return new Promise((resolve, reject) => {
+            const req = http.request(
+                {
+                    host: '127.0.0.1',
+                    port,
+                    method: opts.method ?? 'GET',
+                    path: opts.pathname ?? '/',
+                    headers: opts.headers ?? {},
+                },
+                (res) => {
+                    const chunks: Buffer[] = [];
+                    res.on('data', (c) => chunks.push(c));
+                    res.on('end', () => resolve({
+                        status: res.statusCode ?? 0,
+                        headers: res.headers,
+                        body: Buffer.concat(chunks),
+                    }));
+                    res.on('error', reject);
+                },
+            );
+            req.on('error', reject);
+            if (opts.body !== undefined) req.write(opts.body);
+            req.end();
+        });
+    }
+
+    test('I1a: p3_http_middleware → p3_http_echo: plain GET echoes request headers', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain('p3_http_echo.component.wasm', 'p3_http_middleware.component.wasm');
+            try {
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'GET',
+                    pathname: '/get',
+                    headers: { foo: 'bar' },
+                });
+                expect(r.status).toBe(200);
+                // Echo echoes request headers as-is into the response.
+                expect(r.headers['foo']).toBe('bar');
+                // Plain request — no accept-encoding, so middleware does not deflate.
+                expect(r.headers['content-encoding']).toBeUndefined();
+                expect(r.body.length).toBe(0);
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
+
+    test('I1b: p3_http_middleware → p3_http_echo: POST body echoed, no deflate', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain('p3_http_echo.component.wasm', 'p3_http_middleware.component.wasm');
+            try {
+                const payload = 'middleware passthrough body';
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'POST',
+                    pathname: '/post',
+                    headers: { 'content-type': 'text/plain', 'content-length': String(Buffer.byteLength(payload)) },
+                    body: payload,
+                });
+                expect(r.status).toBe(200);
+                expect(r.headers['content-encoding']).toBeUndefined();
+                expect(r.body.toString()).toBe(payload);
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
+
+    test('I1c: p3_http_middleware → p3_http_echo: deflate request body decoded before forwarding', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain('p3_http_echo.component.wasm', 'p3_http_middleware.component.wasm');
+            try {
+                const payload = 'compressible '.repeat(64);
+                const compressed = zlib.deflateRawSync(payload);
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'POST',
+                    pathname: '/post',
+                    headers: {
+                        'content-type': 'text/plain',
+                        'content-encoding': 'deflate',
+                        // No content-length: middleware decodes the body so
+                        // the forwarded length differs from the inbound
+                        // length; echo copies request headers onto the
+                        // response, so a stale content-length would break the
+                        // response framing. Node will use chunked transfer.
+                    },
+                    body: compressed,
+                });
+                expect(r.status).toBe(200);
+                // Middleware decoded the deflated request body before forwarding to echo.
+                // No accept-encoding sent, so response body is plain.
+                expect(r.headers['content-encoding']).toBeUndefined();
+                expect(r.body.toString()).toBe(payload);
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
+
+    test('I1d: p3_http_middleware → p3_http_echo: response deflate-encoded when accept-encoding=deflate', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain('p3_http_echo.component.wasm', 'p3_http_middleware.component.wasm');
+            try {
+                const payload = 'compressible '.repeat(64);
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'POST',
+                    pathname: '/post',
+                    headers: {
+                        'content-type': 'text/plain',
+                        'accept-encoding': 'deflate',
+                        'content-length': String(Buffer.byteLength(payload)),
+                    },
+                    body: payload,
+                });
+                expect(r.status).toBe(200);
+                expect(r.headers['content-encoding']).toBe('deflate');
+                const decoded = zlib.inflateRawSync(r.body).toString();
+                expect(decoded).toBe(payload);
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
+
+    test('I2: p3_http_middleware_with_chain → p3_http_echo (renamed import as local:local/chain-http)', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain(
+                'p3_http_echo.component.wasm',
+                'p3_http_middleware_with_chain.component.wasm',
+                { as: 'local:local/chain-http' },
+            );
+            try {
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'GET',
+                    pathname: '/get',
+                    headers: { foo: 'bar' },
+                });
+                expect(r.status).toBe(200);
+                expect(r.headers['foo']).toBe('bar');
+            } finally {
+                await chain.dispose();
+            }
         }), 30000);
 });

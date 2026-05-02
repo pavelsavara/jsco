@@ -187,6 +187,46 @@ export interface WasiHttpHandlerExport {
     handle(request: unknown): Promise<unknown>;
 }
 
+/** Default WIT interface name for the P3 WASI HTTP handler. */
+export const WASI_HTTP_HANDLER_INTERFACE = 'wasi:http/handler@0.3.0-rc-2026-03-15' as const;
+
+/**
+ * Build an `imports` fragment that satisfies one component instance's
+ * `wasi:http/handler` import (or any equivalent renamed interface) with
+ * another instance's handler export. Pure JavaScript wiring — no binary
+ * fusion, no host-side stub.
+ *
+ * Usage:
+ * ```ts
+ * const inner = await (await createComponent(echo)).instantiate(host);
+ * const outer = await (await createComponent(middleware)).instantiate({
+ *     ...host,
+ *     ...linkHandler(inner),
+ * });
+ * ```
+ *
+ * Pass `opts.as` to expose the export under a different interface name
+ * (e.g. when the importing guest renames the interface to
+ * `local:local/chain-http`).
+ *
+ * Throws if the provider does not export the canonical
+ * `wasi:http/handler@0.3.0-rc-2026-03-15` interface.
+ */
+export function linkHandler(
+    provider: { exports: Record<string, unknown> },
+    opts?: { as?: string },
+): Record<string, WasiHttpHandlerExport> {
+    const ex = provider.exports[WASI_HTTP_HANDLER_INTERFACE];
+    if (!ex || typeof (ex as WasiHttpHandlerExport).handle !== 'function') {
+        throw new Error(
+            `linkHandler: provider does not export ${WASI_HTTP_HANDLER_INTERFACE} `
+            + 'with a handle() method',
+        );
+    }
+    const importName = opts?.as ?? WASI_HTTP_HANDLER_INTERFACE;
+    return { [importName]: ex as WasiHttpHandlerExport };
+}
+
 // ──────────────────── serve() ────────────────────
 
 export async function serve(
