@@ -178,11 +178,10 @@ HTTP/socket budgets enforced by the host. Run `jsco run --help` for the full lis
 # Contribute
 
 ## Goals
-- browser polyfill for running WASM components.
+- browser polyfill for running WASM/WASI components.
 - streaming parser of binary WIT
 - streaming compilation of WASM core modules during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
-- WASIp2 and WASIp3 host
 - keep download size small enough to be practical for browser use
 
 ## Why

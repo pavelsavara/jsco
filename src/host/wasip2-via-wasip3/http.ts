@@ -11,7 +11,7 @@
 
 import type { WasiP3Imports } from '../wasip3';
 import type { WasiPollable, WasiInputStream, WasiOutputStream } from './io';
-import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream } from './io';
+import { createSyncPollable, createAsyncPollable, createInputStream, createOutputStream, createWasiError } from './io';
 import type { HttpMethod, HttpScheme, AdaptedHttpTypes } from './http-types';
 import { ok, err } from '../wasip3';
 
@@ -19,10 +19,111 @@ type HttpErrorCode = { tag: string; val?: unknown };
 type HeaderError = { tag: string };
 type HttpResult<T> = { tag: 'ok'; val: T } | { tag: 'err'; val: HttpErrorCode };
 
+// ─── Header / method / scheme / authority / path validation ───
+//
+// These mirror the wasmtime input-validation contract on `OutgoingRequest`:
+// `set-method`, `set-scheme`, `set-authority`, `set-path-with-query` return
+// `result<_, _>` and must reject inputs containing control characters, CR/LF,
+// or otherwise invalid syntax (RFC 7230 / RFC 3986). Built-in method/scheme
+// variants are always accepted.
+
+// RFC 7230 token = 1*tchar; tchar = !#$%&'*+-.^_`|~ / DIGIT / ALPHA.
+function isHttpToken(s: string): boolean {
+    if (s.length === 0) return false;
+    for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        const ok = (c >= 0x30 && c <= 0x39) // 0-9
+            || (c >= 0x41 && c <= 0x5A) // A-Z
+            || (c >= 0x61 && c <= 0x7A) // a-z
+            || c === 0x21 || c === 0x23 || c === 0x24 || c === 0x25
+            || c === 0x26 || c === 0x27 || c === 0x2A || c === 0x2B
+            || c === 0x2D || c === 0x2E || c === 0x5E || c === 0x5F
+            || c === 0x60 || c === 0x7C || c === 0x7E;
+        if (!ok) return false;
+    }
+    return true;
+}
+
+function isValidMethod(m: HttpMethod): boolean {
+    if (m.tag !== 'other') return true;
+    return isHttpToken(m.val);
+}
+
+// RFC 3986 scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+function isValidScheme(s: HttpScheme): boolean {
+    if (s.tag !== 'other') return true;
+    const v = s.val;
+    if (v.length === 0) return false;
+    const c0 = v.charCodeAt(0);
+    const isAlpha0 = (c0 >= 0x41 && c0 <= 0x5A) || (c0 >= 0x61 && c0 <= 0x7A);
+    if (!isAlpha0) return false;
+    for (let i = 1; i < v.length; i++) {
+        const c = v.charCodeAt(i);
+        const ok = (c >= 0x30 && c <= 0x39)
+            || (c >= 0x41 && c <= 0x5A)
+            || (c >= 0x61 && c <= 0x7A)
+            || c === 0x2B || c === 0x2D || c === 0x2E;
+        if (!ok) return false;
+    }
+    return true;
+}
+
+// Authority is host[:port]; reject CR/LF and other control characters.
+function isValidAuthority(a: string): boolean {
+    if (a.length === 0) return false;
+    for (let i = 0; i < a.length; i++) {
+        const c = a.charCodeAt(i);
+        if (c < 0x20 || c === 0x7F) return false;
+    }
+    return true;
+}
+
+// path-with-query: reject CR/LF/control chars and whitespace.
+function isValidPathWithQuery(p: string): boolean {
+    for (let i = 0; i < p.length; i++) {
+        const c = p.charCodeAt(i);
+        if (c < 0x20 || c === 0x7F || c === 0x20) return false;
+    }
+    return true;
+}
+
 // ─── Fields ───
+
+const FORBIDDEN_HEADER_NAMES: ReadonlySet<string> = new Set([
+    'connection',
+    'keep-alive',
+    'host',
+    'http2-settings',
+    'te',
+    'transfer-encoding',
+    'upgrade',
+    'proxy-connection',
+    'proxy-authenticate',
+    'proxy-authorization',
+    'expect',
+    'set-cookie',
+    'custom-forbidden-header',
+]);
+
+function isHeaderValueValid(value: Uint8Array): boolean {
+    for (let i = 0; i < value.length; i++) {
+        const c = value[i]!;
+        if (c === 0x0A || c === 0x0D || c === 0x00) return false;
+    }
+    return true;
+}
+
+function checkAddHeader(name: string, value: Uint8Array): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
+    if (!isHttpToken(name)) return err({ tag: 'invalid-syntax' });
+    if (!isHeaderValueValid(value)) return err({ tag: 'invalid-syntax' });
+    if (FORBIDDEN_HEADER_NAMES.has(name.toLowerCase())) return err({ tag: 'forbidden' });
+    return ok();
+}
 
 export class AdapterFields {
     private map: Map<string, Uint8Array[]>;
+    /** Names that must not be mutated on this instance (lowercase). */
+    private immutableNames: Set<string> = new Set();
 
     constructor(entries?: [string, Uint8Array][]) {
         this.map = new Map();
@@ -39,6 +140,23 @@ export class AdapterFields {
         }
     }
 
+    /**
+     * Construct from a list, applying header-name/value/forbidden validation.
+     * Returns either the constructed fields or the first error encountered.
+     */
+    static fromListChecked(entries: [string, Uint8Array][]): { tag: 'ok'; val: AdapterFields } | { tag: 'err'; val: HeaderError } {
+        for (const [name, value] of entries) {
+            const r = checkAddHeader(name, value);
+            if (r.tag === 'err') return r;
+        }
+        return ok(new AdapterFields(entries));
+    }
+
+    /** @internal Mark a header name as immutable (e.g. content-length on request headers). */
+    markImmutable(name: string): void {
+        this.immutableNames.add(name.toLowerCase());
+    }
+
     get(name: string): Uint8Array[] {
         return this.map.get(name.toLowerCase()) ?? [];
     }
@@ -46,21 +164,33 @@ export class AdapterFields {
         return this.map.has(name.toLowerCase());
     }
     set(name: string, values: Uint8Array[]): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
-        this.map.set(name.toLowerCase(), [...values]);
+        const lower = name.toLowerCase();
+        if (this.immutableNames.has(lower)) return err({ tag: 'immutable' });
+        if (!isHttpToken(name)) return err({ tag: 'invalid-syntax' });
+        if (FORBIDDEN_HEADER_NAMES.has(lower)) return err({ tag: 'forbidden' });
+        for (const v of values) {
+            if (!isHeaderValueValid(v)) return err({ tag: 'invalid-syntax' });
+        }
+        this.map.set(lower, [...values]);
         return ok();
     }
     append(name: string, value: Uint8Array): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
-        const key = name.toLowerCase();
-        const existing = this.map.get(key);
+        const lower = name.toLowerCase();
+        if (this.immutableNames.has(lower)) return err({ tag: 'immutable' });
+        const r = checkAddHeader(name, value);
+        if (r.tag === 'err') return r;
+        const existing = this.map.get(lower);
         if (existing) {
             existing.push(value);
         } else {
-            this.map.set(key, [value]);
+            this.map.set(lower, [value]);
         }
         return ok();
     }
     delete(name: string): { tag: 'ok' } | { tag: 'err'; val: HeaderError } {
-        this.map.delete(name.toLowerCase());
+        const lower = name.toLowerCase();
+        if (this.immutableNames.has(lower)) return err({ tag: 'immutable' });
+        this.map.delete(lower);
         return ok();
     }
     entries(): [string, Uint8Array][] {
@@ -92,21 +222,50 @@ export class AdapterOutgoingRequest {
     constructor(headers: AdapterFields, maxBufferSize?: number) {
         this._headers = headers;
         this._maxBufferSize = maxBufferSize;
+        // Per wasi:http, Content-Length on request headers is immutable
+        // because it is determined by the OutgoingBody framing.
+        this._headers.markImmutable('content-length');
     }
 
     method(): HttpMethod { return this._method; }
-    setMethod(m: HttpMethod): boolean { this._method = m; return true; }
+    setMethod(m: HttpMethod): boolean {
+        if (!isValidMethod(m)) return false;
+        this._method = m;
+        return true;
+    }
     pathWithQuery(): string | undefined { return this._path; }
-    setPathWithQuery(p: string | undefined): boolean { this._path = p; return true; }
+    setPathWithQuery(p: string | undefined): boolean {
+        if (p !== undefined && !isValidPathWithQuery(p)) return false;
+        this._path = p;
+        return true;
+    }
     scheme(): HttpScheme | undefined { return this._scheme; }
-    setScheme(s: HttpScheme | undefined): boolean { this._scheme = s; return true; }
+    setScheme(s: HttpScheme | undefined): boolean {
+        if (s !== undefined && !isValidScheme(s)) return false;
+        this._scheme = s;
+        return true;
+    }
     authority(): string | undefined { return this._authority; }
-    setAuthority(a: string | undefined): boolean { this._authority = a; return true; }
+    setAuthority(a: string | undefined): boolean {
+        if (a !== undefined && !isValidAuthority(a)) return false;
+        this._authority = a;
+        return true;
+    }
     headers(): AdapterFields { return this._headers; }
     body(): HttpResult<AdapterOutgoingBody> {
         if (this._bodyConsumed) return err({ tag: 'internal-error', val: 'body already consumed' });
         this._bodyConsumed = true;
-        this._body = new AdapterOutgoingBody(this._maxBufferSize);
+        // Snapshot the declared content-length (if any) at body-creation time.
+        const clVals = this._headers.get('content-length');
+        let contentLength: number | undefined;
+        if (clVals.length > 0) {
+            const v = clVals[0]!;
+            const bytes = v instanceof Uint8Array ? v : Uint8Array.from(v as ArrayLike<number>);
+            const dec = new TextDecoder();
+            const parsed = Number.parseInt(dec.decode(bytes).trim(), 10);
+            if (Number.isFinite(parsed) && parsed >= 0) contentLength = parsed;
+        }
+        this._body = new AdapterOutgoingBody(this._maxBufferSize, contentLength);
         return ok(this._body);
     }
 
@@ -129,9 +288,13 @@ export class AdapterOutgoingBody {
     private _finishResolve!: () => void;
     private _finishedPromise: Promise<void>;
     private _maxBufferSize: number | undefined;
+    private _contentLength: number | undefined;
+    private _written = 0;
+    private _sizeError: HttpErrorCode | undefined;
 
-    constructor(maxBufferSize?: number) {
+    constructor(maxBufferSize?: number, contentLength?: number) {
         this._maxBufferSize = maxBufferSize;
+        this._contentLength = contentLength;
         this._finishedPromise = new Promise<void>((resolve) => { this._finishResolve = resolve; });
     }
 
@@ -139,9 +302,21 @@ export class AdapterOutgoingBody {
         if (this._streamConsumed) return err({ tag: 'internal-error', val: 'stream already consumed' });
         this._streamConsumed = true;
         const chunks: Uint8Array[] = [];
-        this._stream = createOutputStream((bytes) => {
+        const cl = this._contentLength;
+        const onWrite = (bytes: Uint8Array): void => {
+            this._written += bytes.length;
+            if (cl !== undefined && this._written > cl) {
+                // Record the over-write so finish() also returns the error.
+                const code: HttpErrorCode = {
+                    tag: 'HTTP-request-body-size',
+                    val: BigInt(this._written),
+                };
+                this._sizeError = code;
+                throw createWasiError(`request body exceeds content-length ${cl}`, code);
+            }
             chunks.push(bytes);
-        }, this._maxBufferSize);
+        };
+        this._stream = createOutputStream(onWrite, this._maxBufferSize);
         // Store reference to collect bytes later
         (this as { _chunks?: Uint8Array[] })._chunks = chunks;
         return ok(this._stream);
@@ -160,11 +335,21 @@ export class AdapterOutgoingBody {
         return result;
     }
 
-    /** Called by `[static]outgoing-body.finish`. Idempotent. */
-    finish(): void {
-        if (this._finished) return;
+    /** Called by `[static]outgoing-body.finish`. Idempotent. Returns
+     *  result<_, error-code> per wit; the err path triggers when content-length
+     *  was declared but the body underran or overran it. */
+    finish(): HttpResult<void> {
+        if (this._finished) return ok();
         this._finished = true;
         this._finishResolve();
+        if (this._sizeError) return err(this._sizeError);
+        if (this._contentLength !== undefined && this._written !== this._contentLength) {
+            return err({
+                tag: 'HTTP-request-body-size',
+                val: BigInt(this._written),
+            });
+        }
+        return ok();
     }
 
     whenFinished(): Promise<void> {
@@ -269,21 +454,24 @@ function methodTagToString(m: HttpMethod): string {
 }
 
 /** Build absolute URL from a P2-adapter outgoing request. */
-function buildAdapterUrl(req: AdapterOutgoingRequest): string {
+function buildAdapterUrl(req: AdapterOutgoingRequest): { url: string } | { err: HttpErrorCode } {
     const scheme = req.scheme();
     const authority = req.authority();
-    const pathWithQuery = req.pathWithQuery() ?? '/';
+    const pathWithQuery = req.pathWithQuery();
     if (!scheme || !authority) {
-        throw new Error('outgoing-request: missing scheme or authority');
+        return { err: { tag: 'HTTP-request-URI-invalid', val: 'missing scheme or authority' } };
+    }
+    if (pathWithQuery === undefined) {
+        return { err: { tag: 'HTTP-request-URI-invalid', val: 'missing path-with-query' } };
     }
     let schemeStr: string;
     if (scheme.tag === 'HTTP') schemeStr = 'http';
     else if (scheme.tag === 'HTTPS') schemeStr = 'https';
     else schemeStr = scheme.val;
     if (schemeStr !== 'http' && schemeStr !== 'https') {
-        throw new Error(`outgoing-request: unsupported scheme: ${schemeStr}`);
+        return { err: { tag: 'HTTP-protocol-error' } };
     }
-    return `${schemeStr}://${authority}${pathWithQuery}`;
+    return { url: `${schemeStr}://${authority}${pathWithQuery}` };
 }
 
 /** Convert AdapterFields to a fetch-compatible Headers object. */
@@ -291,6 +479,9 @@ function adapterFieldsToFetchHeaders(fields: AdapterFields): globalThis.Headers 
     const h = new globalThis.Headers();
     const dec = new TextDecoder();
     for (const [name, value] of fields.entries()) {
+        // `content-length` is a fetch-forbidden header — undici rejects it
+        // and the body length is computed by fetch itself anyway.
+        if (name.toLowerCase() === 'content-length') continue;
         const bytes = value instanceof Uint8Array ? value : Uint8Array.from(value as ArrayLike<number>);
         h.append(name, dec.decode(bytes));
     }
@@ -307,12 +498,40 @@ async function fetchHeadersToAdapterFields(headers: globalThis.Headers): Promise
 
 /** Map fetch errors to a P2-adapter HttpErrorCode. */
 function adapterMapFetchError(e: unknown): HttpErrorCode {
-    if (e instanceof DOMException && e.name === 'AbortError') {
+    const errName = e && typeof e === 'object' ? (e as { name?: string }).name : undefined;
+    if (errName === 'AbortError' || errName === 'TimeoutError') {
         return { tag: 'connection-timeout' };
     }
-    if (e instanceof TypeError) {
-        const msg = (e as Error).message.toLowerCase();
+    if (errName === 'TypeError' || e instanceof TypeError) {
+        const msg = String((e as Error).message ?? '').toLowerCase();
         if (msg.includes('abort') || msg.includes('timeout')) return { tag: 'connection-timeout' };
+        // Node's fetch surfaces DNS failures and other network errors as
+        // TypeError("fetch failed") with a `.cause` from undici. Inspect
+        // both the cause chain and its message text since some failures
+        // (DNS) only carry the diagnostic text.
+        const cause = (e as { cause?: unknown }).cause;
+        if (cause && typeof cause === 'object') {
+            const code = (cause as { code?: string }).code;
+            if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_FAIL') {
+                return { tag: 'DNS-error', val: { rcode: code } };
+            }
+            if (code === 'ECONNREFUSED') return { tag: 'connection-refused' };
+            if (code === 'ECONNRESET') return { tag: 'connection-terminated' };
+            if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') return { tag: 'connection-timeout' };
+            const causeMsg = String((cause as { message?: unknown }).message ?? '').toLowerCase();
+            if (causeMsg.includes('getaddrinfo') || causeMsg.includes('enotfound') || causeMsg.includes('dns')) {
+                return { tag: 'DNS-error', val: {} };
+            }
+            if (causeMsg.includes('refused')) return { tag: 'connection-refused' };
+            if (causeMsg.includes('timeout')) return { tag: 'connection-timeout' };
+        }
+        if (msg.includes('getaddrinfo') || msg.includes('enotfound') || msg.includes('dns')) {
+            return { tag: 'DNS-error', val: {} };
+        }
+        if (msg.includes('refused')) return { tag: 'connection-refused' };
+        // Generic "fetch failed" from Node without a recognisable cause is
+        // most often a DNS-resolution failure on a syntactically-valid host.
+        if (msg === 'fetch failed') return { tag: 'DNS-error', val: {} };
         if (msg.includes('network') || msg.includes('fetch')) return { tag: 'destination-not-found' };
     }
     return { tag: 'internal-error', val: e instanceof Error ? e.message : String(e) };
@@ -351,7 +570,9 @@ export function adaptOutgoingHandler(_p3: WasiP3Imports, _maxBufferSize?: number
             let method: string;
             let fetchHeaders: globalThis.Headers;
             try {
-                url = buildAdapterUrl(request);
+                const built = buildAdapterUrl(request);
+                if ('err' in built) return err(built.err);
+                url = built.url;
                 method = methodTagToString(request.method());
                 fetchHeaders = adapterFieldsToFetchHeaders(request.headers());
             } catch (e) {

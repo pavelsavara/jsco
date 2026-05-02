@@ -18,10 +18,13 @@ import { ok, err } from '../wasip3';
 
 export interface WasiError {
     toDebugString(): string;
+    /** Optional discriminated-union payload that the http adapter's
+     *  `http-error-code` binding maps back to a wasi:http error-code. */
+    httpErrorCode?: { tag: string; val?: unknown };
 }
 
-export function createWasiError(message: string): WasiError {
-    return { toDebugString: () => message };
+export function createWasiError(message: string, httpErrorCode?: { tag: string; val?: unknown }): WasiError {
+    return { toDebugString: () => message, httpErrorCode };
 }
 
 // ─── wasi:io/poll ───
@@ -410,6 +413,12 @@ export function createOutputStream(
                 sink(bytes);
             } catch (e) {
                 closed = true;
+                // If the sink threw a WasiError (e.g. with an attached
+                // httpErrorCode), preserve it so the guest can decode the
+                // error via http-error-code(). Otherwise wrap the message.
+                if (e && typeof e === 'object' && typeof (e as WasiError).toDebugString === 'function') {
+                    return err({ tag: 'last-operation-failed', val: e as WasiError });
+                }
                 return streamFailed(e instanceof Error ? e.message : String(e));
             }
         }

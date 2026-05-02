@@ -16,6 +16,7 @@ import type { AllocationLimits } from '../wasip3/types';
 import { LIMIT_DEFAULTS } from '../wasip3/types';
 import type {
     WasiPollable,
+    WasiError,
 } from './io';
 import { poll, createSyncPollable, createOutputStream } from './io';
 import { adaptEnvironment, adaptExit, adaptStdin, adaptStdout, adaptStderr, adaptTerminalInput, adaptTerminalStdout, adaptTerminalStderr } from './cli';
@@ -24,7 +25,7 @@ import { adaptRandom, adaptInsecure, adaptInsecureSeed } from './random';
 import { adaptPreopens } from './filesystem';
 import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
 import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
-import { adaptHttpTypes, adaptOutgoingHandler } from './http';
+import { adaptHttpTypes, adaptOutgoingHandler, AdapterFields } from './http';
 import { JsImports } from '../../resolver/api-types';
 import { ok, err } from '../wasip3';
 import { resource, passthrough, constant, makeRegister } from '../_shared/resource-table';
@@ -206,10 +207,15 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const outgoingHandler = adaptOutgoingHandler(p3, maxBufferSize);
 
     register('http/types', {
-        'http-error-code': () => undefined,
+        'http-error-code': (e: WasiError | undefined) => e?.httpErrorCode,
         ...resource('fields', {
             ctor: httpTypes.createFields,
-            statics: { 'from-list': (entries: [string, Uint8Array][]) => ok(httpTypes.createFieldsFromList(entries)) },
+            statics: {
+                'from-list': (entries: [string, Uint8Array][]) => {
+                    const r = AdapterFields.fromListChecked(entries);
+                    return r;
+                },
+            },
             methods: passthrough('get', 'has', 'set', 'append', 'delete', 'entries', 'clone'),
         }),
         ...resource('outgoing-request', {
@@ -224,7 +230,15 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
         }),
         ...resource('outgoing-body', {
             methods: passthrough('write'),
-            statics: { 'finish': (self: { finish: () => void }) => { self.finish(); return ok(); } },
+            statics: {
+                'finish': (self: { finish: () => unknown }) => {
+                    const r = self.finish();
+                    // The real adapter returns a `result<_, error-code>`; legacy
+                    // callers may use a plain spy that returns void.
+                    if (r && typeof r === 'object' && 'tag' in r) return r as { tag: 'ok' } | { tag: 'err'; val: unknown };
+                    return ok();
+                },
+            },
         }),
         ...resource('request-options', {
             ctor: httpTypes.createRequestOptions,
