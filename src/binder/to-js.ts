@@ -15,7 +15,8 @@ import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/model/types';
 import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../marshal/trampoline-lower';
 import type { FunctionLowerPlan } from '../marshal/trampoline-lower';
-import { lowerBool, lowerS8, lowerU8, lowerS16, lowerU16, lowerS32, lowerU32, lowerS64BigInt, lowerS64Number, lowerU64BigInt, lowerU64Number, lowerF32, lowerF64, lowerChar, lowerStringUtf8, lowerStringUtf16, lowerOwn, lowerBorrow, lowerBorrowDirect, lowerEnum, lowerFlags, lowerRecord, lowerTuple, lowerList, lowerOption, lowerResult, lowerResultCoerced, lowerVariant, lowerStream, lowerFuture, lowerErrorContext } from '../marshal/lower';
+import { lowerBool, lowerS8, lowerU8, lowerS16, lowerU16, lowerS32, lowerU32, lowerS64BigInt, lowerS64Number, lowerU64BigInt, lowerU64Number, lowerF32, lowerF64, lowerChar, lowerStringUtf8, lowerStringUtf16, lowerOwn, lowerBorrow, lowerBorrowDirect, lowerEnum, lowerFlags, lowerRecord, lowerTuple, lowerList, lowerOption, lowerResult, lowerResultCoerced, lowerVariant } from '../marshal/lower';
+import { liftStream, liftFuture, liftErrorContext } from '../marshal/lift';
 import { loadBool, loadS8, loadU8, loadS16, loadU16, loadS32, loadU32, loadS64BigInt, loadS64Number, loadU64BigInt, loadU64Number, loadF32, loadF64, loadChar, loadStringUtf8, loadStringUtf16, loadRecord, loadList, loadOption, loadResultBoth, loadResultOkOnly, loadResultErrOnly, loadResultVoid, loadVariantDisc1, loadVariantDisc2, loadVariantDisc4, loadEnumDisc1, loadEnumDisc2, loadEnumDisc4, loadFlags, loadTuple, loadOwnResource, loadBorrowResource, loadBorrowResourceDirect, loadStream, loadFuture, loadErrorContext, } from '../marshal/memory-load';
 import camelCase from 'just-camel-case';
 
@@ -549,26 +550,26 @@ function createLowerBorrow(rctx: ResolvedContext, borrowModel: ComponentTypeDefi
     return fn;
 }
 
-// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+// --- Stream lifting (i32 handle → JS AsyncIterable) ---
 
 function createLowerStream(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LoweringToJs {
-    const fn = lowerStream;
+    const fn = liftStream;
     (fn as any).spill = 1;
     return fn;
 }
 
-// --- Future lowering (i32 handle → JS Promise) ---
+// --- Future lifting (i32 handle → JS Promise) ---
 
 function createLowerFuture(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LoweringToJs {
-    const fn = lowerFuture;
+    const fn = liftFuture;
     (fn as any).spill = 1;
     return fn;
 }
 
-// --- Error-context lowering (i32 handle → JS Error) ---
+// --- Error-context lifting (i32 handle → JS Error) ---
 
 function createLowerErrorContext(): LoweringToJs {
-    const fn = lowerErrorContext;
+    const fn = liftErrorContext;
     (fn as any).spill = 1;
     return fn;
 }

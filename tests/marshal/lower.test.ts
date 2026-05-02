@@ -17,9 +17,6 @@ import {
     lowerOption,
     lowerResult,
     lowerVariant,
-    lowerStream,
-    lowerFuture,
-    lowerErrorContext,
     lowerOwn,
     lowerBorrow,
     lowerBorrowDirect,
@@ -27,6 +24,7 @@ import {
     lowerF32,
     lowerF64,
 } from '../../src/marshal/lower';
+import { liftStream, liftFuture, liftErrorContext } from '../../src/marshal/lift';
 import { _f32, _i32, _f64, _i64 } from '../../src/utils/shared';
 
 function createMockCtx(bufferSize = 4096): { ctx: MarshalingContext, buffer: ArrayBuffer, dv: DataView } {
@@ -342,21 +340,21 @@ describe('lower.ts resource/stream/future/errorContext lowering', () => {
         expect(lowerBorrowDirect(plan, ctx, 99)).toBe(99);
     });
 
-    test('streamLowering removes readable by handle', () => {
+    test('streamLifting removes readable by handle', () => {
         const { ctx } = createMockCtx();
-        const result = lowerStream(ctx, 5) as { streamHandle: number };
+        const result = liftStream(ctx, 5) as { streamHandle: number };
         expect(result.streamHandle).toBe(5);
     });
 
-    test('futureLowering removes readable by handle', () => {
+    test('futureLifting removes readable by handle', () => {
         const { ctx } = createMockCtx();
-        const result = lowerFuture(ctx, 8) as { futureHandle: number };
+        const result = liftFuture(ctx, 8) as { futureHandle: number };
         expect(result.futureHandle).toBe(8);
     });
 
-    test('errorContextLowering removes by handle', () => {
+    test('errorContextLifting removes by handle', () => {
         const { ctx } = createMockCtx();
-        const result = lowerErrorContext(ctx, 3) as { errorHandle: number };
+        const result = liftErrorContext(ctx, 3) as { errorHandle: number };
         expect(result.errorHandle).toBe(3);
     });
 });

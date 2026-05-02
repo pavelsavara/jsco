@@ -2,8 +2,8 @@
 
 ## Status — May 2026
 
-Phases 1, 2, 3, 4, 6 landed. Partial: phase 5. Pending: phase 5 remainder
-(S3, S4, S6, S7 doc, S8) and phase 7 (rename `streamLifting`/`streamLowering`).
+Phases 1, 2, 3, 4, 6, 7 landed. Partial: phase 5. Pending: phase 5 remainder
+(S3, S4, S6, S7 doc, S8).
 
 | Phase | Item | Status | Notes |
 |-------|------|--------|-------|
@@ -26,7 +26,7 @@ Phases 1, 2, 3, 4, 6 landed. Partial: phase 5. Pending: phase 5 remainder
 | 6 | I5 — arbitrary rename test | ✅ via I2 + U4 | I2 covers `local:local/chain-http`; U4 covers arbitrary rename via mocks. Synthetic third WAT skipped — would not add coverage |
 | 6 | I6 — inventory hygiene | ✅ | |
 | — | README row for `http/handler` middleware | ✅ | `README.md` |
-| 7 | Rename `streamLifting` → `streamLowering` (and inverse) | ⏳ pending | unrelated to middleware; mechanical rename touching many files |
+| 7 | Rename `liftStream`/`liftFuture`/`liftErrorContext` ↔ `lower*` (and `*LiftPlan` → `*LowerPlan`) | ✅ | mechanical rename via TS language server; comments + test names updated |
 
 Test count delta: 3610 → **3630** passing across **106 suites**, 1 skipped.
 ESLint and `npm run build` clean.

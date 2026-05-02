@@ -2,8 +2,8 @@
 
 import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
-import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan } from './model/lower-plans';
-export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan } from './model/lower-plans';
+import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan, StreamLowerPlan, FutureLowerPlan } from './model/lower-plans';
+export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan, StreamLowerPlan, FutureLowerPlan } from './model/lower-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
 import { validateUtf16, validatePointerAlignment, validateBoundarySize } from './validation';
@@ -284,25 +284,25 @@ export function lowerVariant(plan: VariantLowerPlan, ctx: MarshalingContext, ...
     return { tag: c.name };
 }
 
-// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+// --- Stream lowering (JS AsyncIterable → i32 handle) ---
 
-export function lowerStream(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.streams.removeReadable(0, handle);
+export function lowerStream(plan: StreamLowerPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.streams.addReadable(0, srcJsValue, plan.elementStorer, plan.elementSize, ctx);
+    return 1;
 }
 
-// --- Future lowering (i32 handle → JS Promise) ---
+// --- Future lowering (JS Promise → i32 handle) ---
 
-export function lowerFuture(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.futures.removeReadable(0, handle);
+export function lowerFuture(plan: FutureLowerPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
+    return 1;
 }
 
-// --- Error-context lowering (i32 handle → JS Error) ---
+// --- Error-context lowering (JS Error → i32 handle) ---
 
-export function lowerErrorContext(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.errorContexts.remove(handle);
+export function lowerErrorContext(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.errorContexts.add(srcJsValue);
+    return 1;
 }
 
 /**

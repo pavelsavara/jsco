@@ -15,7 +15,8 @@ import { createLowering, createMemoryLoader } from './to-js';
 import { LiftingFromJs, FnLiftingCallFromJs, LoweringToJs, WasmFunction, JsFunction, MemoryStorer } from '../marshal/model/types';
 import { liftFlatFlat, liftFlatSpilled, liftSpilledFlat, liftSpilledSpilled } from '../marshal/trampoline-lift';
 import type { FunctionLiftPlan } from '../marshal/trampoline-lift';
-import { liftBool, liftS8, liftU8, liftS16, liftU16, liftS32, liftU32, liftS64Number, liftS64BigInt, liftU64Number, liftU64BigInt, liftF32, liftF64, liftChar, liftStringUtf8, liftStringUtf16, liftOwn, liftBorrow, liftBorrowDirect, liftEnum, liftFlags, liftRecord, liftTuple, liftList, liftOption, liftResult, liftResultCoerced, liftVariant, liftStream, liftFuture, liftErrorContext } from '../marshal/lift';
+import { liftBool, liftS8, liftU8, liftS16, liftU16, liftS32, liftU32, liftS64Number, liftS64BigInt, liftU64Number, liftU64BigInt, liftF32, liftF64, liftChar, liftStringUtf8, liftStringUtf16, liftOwn, liftBorrow, liftBorrowDirect, liftEnum, liftFlags, liftRecord, liftTuple, liftList, liftOption, liftResult, liftResultCoerced, liftVariant } from '../marshal/lift';
+import { lowerStream, lowerFuture, lowerErrorContext } from '../marshal/lower';
 import { storeBool, storeS8, storeU8, storeS16, storeU16, storeS32, storeU32, storeS64, storeU64, storeF32, storeF64, storeChar, storeString, storeRecord, storeList, storeOption, storeResultBoth, storeResultOkOnly, storeResultErrOnly, storeResultVoid, storeVariantDisc1, storeVariantDisc2, storeVariantDisc4, storeEnumDisc1, storeEnumDisc2, storeEnumDisc4, storeFlags, storeTuple, storeOwnResource, storeBorrowResource, storeBorrowResourceDirect, storeStream, storeFuture, storeErrorContext, createResultWrappingStorer, } from '../marshal/memory-store';
 import camelCase from 'just-camel-case';
 
@@ -539,7 +540,7 @@ function createLiftBorrow(rctx: ResolvedContext, borrowModel: ComponentTypeDefin
     return liftBorrow.bind(null, { resourceTypeIdx });
 }
 
-// --- Stream lifting (JS AsyncIterable → i32 handle) ---
+// --- Stream lowering (JS AsyncIterable → i32 handle) ---
 
 function createLiftStream(rctx: ResolvedContext, streamModel: ComponentTypeDefinedStream): LiftingFromJs {
     // For typed streams (non-u8), create an element storer so the stream table
@@ -552,14 +553,14 @@ function createLiftStream(rctx: ResolvedContext, streamModel: ComponentTypeDefin
         if (!isU8) {
             const elemStorer = createMemoryStorer(innerType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources);
             const plan = { elementStorer: elemStorer, elementSize: elemSize(innerType) };
-            return (ctx, srcJsValue, out, offset) => liftStream(plan, ctx, srcJsValue, out, offset);
+            return (ctx, srcJsValue, out, offset) => lowerStream(plan, ctx, srcJsValue, out, offset);
         }
     }
     const plan = {};
-    return (ctx, srcJsValue, out, offset) => liftStream(plan, ctx, srcJsValue, out, offset);
+    return (ctx, srcJsValue, out, offset) => lowerStream(plan, ctx, srcJsValue, out, offset);
 }
 
-// --- Future lifting (JS Promise → i32 handle) ---
+// --- Future lowering (JS Promise → i32 handle) ---
 
 function createLiftFuture(rctx: ResolvedContext, futureModel: ComponentTypeDefinedFuture): LiftingFromJs {
     // Create a storer for the future's inner type so future.read can
@@ -575,11 +576,11 @@ function createLiftFuture(rctx: ResolvedContext, futureModel: ComponentTypeDefin
             ? createResultWrappingStorer(memStorer)
             : memStorer;
     }
-    return liftFuture.bind(null, { storer });
+    return lowerFuture.bind(null, { storer });
 }
 
-// --- Error-context lifting (JS Error → i32 handle) ---
+// --- Error-context lowering (JS Error → i32 handle) ---
 
 function createLiftErrorContext(): LiftingFromJs {
-    return liftErrorContext;
+    return lowerErrorContext;
 }

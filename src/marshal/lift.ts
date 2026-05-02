@@ -2,8 +2,8 @@
 
 import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
-import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantLiftPlan, FutureLiftPlan, StreamLiftPlan } from './model/lift-plans';
-export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan, FutureLiftPlan, StreamLiftPlan } from './model/lift-plans';
+import type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantLiftPlan } from './model/lift-plans';
+export type { ResourceLiftPlan, EnumLiftPlan, FlagsLiftPlan, RecordLiftPlan, TupleLiftPlan, ListLiftPlan, OptionLiftPlan, ResultLiftPlan, VariantCaseLiftPlan, VariantLiftPlan } from './model/lift-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64 } from '../utils/shared';
 import { validateAllocResult, validateBoundarySize } from './validation';
@@ -323,25 +323,25 @@ export function liftVariant(plan: VariantLiftPlan, ctx: MarshalingContext, srcJs
     return plan.totalSize;
 }
 
-// --- Stream lifting (JS AsyncIterable → i32 handle) ---
+// --- Stream lifting (i32 handle → JS AsyncIterable) ---
 
-export function liftStream(plan: StreamLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
-    out[offset] = ctx.streams.addReadable(0, srcJsValue, plan.elementStorer, plan.elementSize, ctx);
-    return 1;
+export function liftStream(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.streams.removeReadable(0, handle);
 }
 
-// --- Future lifting (JS Promise → i32 handle) ---
+// --- Future lifting (i32 handle → JS Promise) ---
 
-export function liftFuture(plan: FutureLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
-    out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
-    return 1;
+export function liftFuture(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.futures.removeReadable(0, handle);
 }
 
-// --- Error-context lifting (JS Error → i32 handle) ---
+// --- Error-context lifting (i32 handle → JS Error) ---
 
-export function liftErrorContext(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
-    out[offset] = ctx.errorContexts.add(srcJsValue);
-    return 1;
+export function liftErrorContext(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
+    const handle = args[0] as number;
+    return ctx.errorContexts.remove(handle);
 }
 
 /**
