@@ -897,4 +897,96 @@ describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () =
                 await chain.dispose();
             }
         }), 30000);
+
+    /**
+     * Three-deep chain: middleware -> middleware -> echo. Verifies that
+     * `linkHandler`-wrapped exports themselves expose a usable
+     * `wasi:http/handler` interface that another `linkHandler` can wire to,
+     * and that two layers of deflate transcoding compose without breaking.
+     */
+    test('I3: middleware → middleware → echo (chain depth 2)', () =>
+        runWithVerbose(verbose, async () => {
+            const sharedImports = createMergedHosts();
+            const echoComp = await createComponent(WASM_DIR + 'p3_http_echo.component.wasm', verboseOptions(verbose));
+            const echo = await echoComp.instantiate(sharedImports as Parameters<typeof echoComp.instantiate>[0]);
+            const mw1Comp = await createComponent(WASM_DIR + 'p3_http_middleware.component.wasm', verboseOptions(verbose));
+            const mw1 = await mw1Comp.instantiate({
+                ...createMergedHosts(),
+                ...linkHandler(echo),
+            } as Parameters<typeof mw1Comp.instantiate>[0]);
+            const mw2Comp = await createComponent(WASM_DIR + 'p3_http_middleware.component.wasm', verboseOptions(verbose));
+            const mw2 = await mw2Comp.instantiate({
+                ...createMergedHosts(),
+                ...linkHandler(mw1),
+            } as Parameters<typeof mw2Comp.instantiate>[0]);
+            const handler = mw2.exports[HANDLER_INTERFACE_P3] as WasiHttpHandlerExport | undefined;
+            if (!handler) throw new Error('mw2: missing handler export');
+            const h = await serve(handler, { port: 0, host: '127.0.0.1' });
+            try {
+                const r = await rawRequest(h.port, {
+                    method: 'GET',
+                    pathname: '/get',
+                    headers: { foo: 'bar' },
+                });
+                expect(r.status).toBe(200);
+                expect(r.headers['foo']).toBe('bar');
+                expect(r.headers['content-encoding']).toBeUndefined();
+            } finally {
+                await h.close();
+                mw2.dispose();
+                mw1.dispose();
+                echo.dispose();
+            }
+        }), 60000);
+
+    /**
+     * Concurrency under chain: drive 16 parallel requests through the
+     * middleware → echo chain. Asserts per-task isolation (no header /
+     * body cross-contamination, no resource-handle aliasing).
+     */
+    test('I4: 16 parallel requests through middleware → echo chain', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain('p3_http_echo.component.wasm', 'p3_http_middleware.component.wasm');
+            try {
+                const N = 16;
+                const requests = Array.from({ length: N }, (_, i) => rawRequest(chain.handle.port, {
+                    method: 'POST',
+                    pathname: `/post/${i}`,
+                    headers: {
+                        'content-type': 'text/plain',
+                        'x-req-id': String(i),
+                        'content-length': String(Buffer.byteLength(`payload-${i}`)),
+                    },
+                    body: `payload-${i}`,
+                }));
+                const responses = await Promise.all(requests);
+                for (let i = 0; i < N; i++) {
+                    const r = responses[i]!;
+                    expect(r.status).toBe(200);
+                    // Echo copies request headers onto response — the unique
+                    // x-req-id proves no cross-contamination.
+                    expect(r.headers['x-req-id']).toBe(String(i));
+                    expect(r.body.toString()).toBe(`payload-${i}`);
+                }
+            } finally {
+                await chain.dispose();
+            }
+        }), 60000);
+
+    /**
+     * Inventory hygiene: confirm both middleware corpus files are tracked
+     * in `P3_MIDDLEWARE_CHAIN` (and therefore in the `owned` inventory set)
+     * and not listed in `KNOWN_UNSUPPORTED`. Catches regressions where the
+     * roster drifts out of sync with the corpus.
+     */
+    test('I6: inventory hygiene — middleware files are tracked, not unsupported', () => {
+        const middlewareFiles = P3_MIDDLEWARE_CHAIN.map(([f]) => f);
+        expect(middlewareFiles).toEqual(expect.arrayContaining([
+            'p3_http_middleware.component.wasm',
+            'p3_http_middleware_with_chain.component.wasm',
+        ]));
+        for (const f of middlewareFiles) {
+            expect(KNOWN_UNSUPPORTED.has(f)).toBe(false);
+        }
+    });
 });

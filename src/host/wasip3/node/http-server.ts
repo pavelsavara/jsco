@@ -8,11 +8,17 @@
  */
 
 import * as http from 'node:http';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 import type { WasiStreamReadable } from '../streams';
 import type { NetworkConfig } from '../types';
 import { ok } from '../result';
 import { NETWORK_DEFAULTS } from '../types';
+
+/** Default cap for chained `linkHandler` recursion depth (S1). */
+const DEFAULT_MAX_HANDLER_CHAIN_DEPTH = 8;
+/** Per-async-context handler chain depth, scoped by `linkHandler` wrappers. */
+const handlerDepthStore = new AsyncLocalStorage<number>();
 import {
     _HttpFields as HttpFields,
     _HttpRequest as HttpRequest,
@@ -211,10 +217,24 @@ export const WASI_HTTP_HANDLER_INTERFACE = 'wasi:http/handler@0.3.0-rc-2026-03-1
  *
  * Throws if the provider does not export the canonical
  * `wasi:http/handler@0.3.0-rc-2026-03-15` interface.
+ *
+ * `opts.maxDepth` (default 8) caps the recursion depth across chained
+ * `linkHandler` calls. Each invocation of the returned `handle()` increments
+ * a per-async-context counter (Node `AsyncLocalStorage`), so a wiring like
+ * `A.handler -> B.handler -> A.handler -> ...` aborts with a clear error
+ * before the JSPI stack or the host event loop collapses. Concurrent
+ * unrelated requests get independent counters.
+ *
+ * Trust boundaries (S5): `linkHandler` does **no** header filtering.
+ * Inbound `Authorization`, `Cookie`, `Proxy-Authorization`, `Set-Cookie`,
+ * and similar credential-bearing headers are forwarded verbatim. If the
+ * chain crosses a trust boundary (e.g. a third-party middleware), insert
+ * a JS- or component-level filter between layers; this helper is sugar,
+ * not a security boundary.
  */
 export function linkHandler(
     provider: { exports: Record<string, unknown> },
-    opts?: { as?: string },
+    opts?: { as?: string; maxDepth?: number },
 ): Record<string, WasiHttpHandlerExport> {
     const ex = provider.exports[WASI_HTTP_HANDLER_INTERFACE];
     if (!ex || typeof (ex as WasiHttpHandlerExport).handle !== 'function') {
@@ -223,8 +243,22 @@ export function linkHandler(
             + 'with a handle() method',
         );
     }
+    const inner = ex as WasiHttpHandlerExport;
+    const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_HANDLER_CHAIN_DEPTH;
     const importName = opts?.as ?? WASI_HTTP_HANDLER_INTERFACE;
-    return { [importName]: ex as WasiHttpHandlerExport };
+    const wrapped: WasiHttpHandlerExport = {
+        async handle(request: unknown): Promise<unknown> {
+            const depth = (handlerDepthStore.getStore() ?? 0) + 1;
+            if (depth > maxDepth) {
+                throw new Error(
+                    `linkHandler: handler chain depth ${depth} exceeds maxDepth=${maxDepth} `
+                    + '(possible recursive wiring)',
+                );
+            }
+            return handlerDepthStore.run(depth, () => inner.handle(request));
+        },
+    };
+    return { [importName]: wrapped };
 }
 
 // ──────────────────── serve() ────────────────────

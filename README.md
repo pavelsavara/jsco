@@ -91,6 +91,7 @@ and may behave differently in the browser vs. Node.js.
 | `filesystem/*` (VFS, preopens) | ✅ in-memory | ✅ + real mounts | ✅ | ✅ | ✅ via adapter |
 | `http/client` (Fetch API) | ✅ | ✅ | ✅ | ✅ | — |
 | `http/handler` (server) | ❌ not-supported | ✅ via `serve()` | ✅ | ✅ | — |
+| `http/handler` (middleware / chain) | ❌ not-supported | ✅ via `linkHandler()` | ✅ | — | — |
 | `sockets/*` (TCP, UDP, DNS) | ❌ not-supported | ✅ | ✅ | ✅ | — |
 
 P1 modules are served by the `wasip1-via-wasip3` adapter (`wasi_snapshot_preview1`
