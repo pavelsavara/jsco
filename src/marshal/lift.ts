@@ -13,68 +13,68 @@ import { OK } from './constants';
 // These are stateless top-level functions with no captured state.
 // Signature: (ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number) => number
 
-export function boolLifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftBool(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue ? 1 : 0;
     return 1;
 }
 
-export function s8Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftS8(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = (num << 24) >> 24;
     return 1;
 }
 
-export function u8Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftU8(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = num & 0xFF;
     return 1;
 }
 
-export function s16Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftS16(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = (num << 16) >> 16;
     return 1;
 }
 
-export function u16Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftU16(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = num & 0xFFFF;
     return 1;
 }
 
-export function s32Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftS32(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = num | 0;
     return 1;
 }
 
-export function u32Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftU32(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const num = srcJsValue as number;
     out[offset] = num >>> 0;
     return 1;
 }
 
-export function s64LiftingNumber(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftS64Number(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
 }
 
-export function s64LiftingBigInt(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftS64BigInt(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
 }
 
-export function u64LiftingNumber(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftU64Number(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
 }
 
-export function u64LiftingBigInt(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftU64BigInt(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
 }
 
-export function f32Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftF32(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f32, got ${typeof srcJsValue}`);
     const num = Math.fround(srcJsValue);
     // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
@@ -82,7 +82,7 @@ export function f32Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmV
     return 1;
 }
 
-export function f64Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftF64(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (typeof srcJsValue !== 'number') throw new TypeError(`expected a number for f64, got ${typeof srcJsValue}`);
     const num = +srcJsValue;
     // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
@@ -90,7 +90,7 @@ export function f64Lifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmV
     return 1;
 }
 
-export function charLifting(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftChar(_: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (typeof srcJsValue !== 'string') throw new TypeError(`expected a string for char, got ${typeof srcJsValue}`);
     const cp = srcJsValue.codePointAt(0)!;
     // Spec: char_to_i32 — surrogates are not valid Unicode scalar values
@@ -99,7 +99,7 @@ export function charLifting(_: MarshalingContext, srcJsValue: JsValue, out: Wasm
     return 1;
 }
 
-export function stringLiftingUtf8(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftStringUtf8(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const str = srcJsValue as string;
     if (typeof str !== 'string') throw new TypeError('expected a string');
     if (str.length === 0) {
@@ -122,7 +122,7 @@ export function stringLiftingUtf8(ctx: MarshalingContext, srcJsValue: JsValue, o
     return 2;
 }
 
-export function stringLiftingUtf16(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftStringUtf16(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const str = srcJsValue as string;
     if (typeof str !== 'string') throw new TypeError('expected a string');
     if (str.length === 0) {
@@ -150,24 +150,24 @@ export function stringLiftingUtf16(ctx: MarshalingContext, srcJsValue: JsValue, 
 
 // --- Resource lifting functions ---
 
-export function ownLifting(plan: ResourceLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftOwn(plan: ResourceLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.resources.add(plan.resourceTypeIdx, srcJsValue);
     return 1;
 }
 
-export function borrowLifting(plan: ResourceLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftBorrow(plan: ResourceLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.resources.add(plan.resourceTypeIdx, srcJsValue);
     return 1;
 }
 
-export function borrowLiftingDirect(_plan: ResourceLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftBorrowDirect(_plan: ResourceLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = srcJsValue;
     return 1;
 }
 
 // --- Enum lifting ---
 
-export function enumLifting(plan: EnumLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftEnum(plan: EnumLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     const idx = plan.nameToIndex.get(srcJsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${srcJsValue}`);
     out[offset] = idx;
@@ -176,7 +176,7 @@ export function enumLifting(plan: EnumLiftPlan, _ctx: MarshalingContext, srcJsVa
 
 // --- Flags lifting ---
 
-export function flagsLifting(plan: FlagsLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftFlags(plan: FlagsLiftPlan, _ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null || typeof srcJsValue !== 'object') throw new TypeError(`expected an object for flags, got ${srcJsValue === null ? 'null' : typeof srcJsValue}`);
     const flags = srcJsValue as Record<string, boolean>;
     for (let w = 0; w < plan.wordCount; w++) {
@@ -191,7 +191,7 @@ export function flagsLifting(plan: FlagsLiftPlan, _ctx: MarshalingContext, srcJs
 
 // --- Record lifting ---
 
-export function recordLifting(plan: RecordLiftPlan, ctx: MarshalingContext, srcJsRecord: JsValue, out: WasmValue[], offset: number): number {
+export function liftRecord(plan: RecordLiftPlan, ctx: MarshalingContext, srcJsRecord: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsRecord == null || typeof srcJsRecord !== 'object') throw new TypeError(`expected an object for record, got ${srcJsRecord === null ? 'null' : typeof srcJsRecord}`);
     let pos = 0;
     for (let i = 0; i < plan.fields.length; i++) {
@@ -203,7 +203,7 @@ export function recordLifting(plan: RecordLiftPlan, ctx: MarshalingContext, srcJ
 
 // --- Tuple lifting ---
 
-export function tupleLifting(plan: TupleLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftTuple(plan: TupleLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected an array for tuple, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     if (srcJsValue.length !== plan.elementLifters.length) {
         throw new Error(`Expected tuple of ${plan.elementLifters.length} elements, got ${srcJsValue.length}`);
@@ -218,7 +218,7 @@ export function tupleLifting(plan: TupleLiftPlan, ctx: MarshalingContext, srcJsV
 
 // --- List lifting ---
 
-export function listLifting(plan: ListLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftList(plan: ListLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected an array for list, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     const len = srcJsValue.length;
     if (len === 0) {
@@ -243,7 +243,7 @@ export function listLifting(plan: ListLiftPlan, ctx: MarshalingContext, srcJsVal
 
 // --- Option lifting ---
 
-export function optionLifting(plan: OptionLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftOption(plan: OptionLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out.fill(0, offset, offset + plan.totalSize);
     if (srcJsValue === null || srcJsValue === undefined) {
         return plan.totalSize;
@@ -255,7 +255,7 @@ export function optionLifting(plan: OptionLiftPlan, ctx: MarshalingContext, srcJ
 
 // --- Result lifting ---
 
-export function resultLifting(plan: ResultLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftResult(plan: ResultLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
@@ -269,7 +269,7 @@ export function resultLifting(plan: ResultLiftPlan, ctx: MarshalingContext, srcJ
     return plan.totalSize;
 }
 
-export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftResultCoerced(plan: ResultLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a result value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected result value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
@@ -280,7 +280,7 @@ export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: MarshalingContex
             const okFT = plan.okFlatTypes[i];
             const joinedFT = plan.payloadJoined[i];
             if (okFT !== undefined && joinedFT !== undefined && okFT !== joinedFT) {
-                out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, okFT, joinedFT);
+                out[offset + 1 + i] = liftFlatCoerce(out[offset + 1 + i] as number, okFT, joinedFT);
             }
         }
     } else {
@@ -290,7 +290,7 @@ export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: MarshalingContex
             const errFT = plan.errFlatTypes[i];
             const joinedFT = plan.payloadJoined[i];
             if (errFT !== undefined && joinedFT !== undefined && errFT !== joinedFT) {
-                out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, errFT, joinedFT);
+                out[offset + 1 + i] = liftFlatCoerce(out[offset + 1 + i] as number, errFT, joinedFT);
             }
         }
     }
@@ -299,7 +299,7 @@ export function resultLiftingCoerced(plan: ResultLiftPlan, ctx: MarshalingContex
 
 // --- Variant lifting ---
 
-export function variantLifting(plan: VariantLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftVariant(plan: VariantLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     if (srcJsValue == null) throw new TypeError(`expected a variant value, got ${srcJsValue === null ? 'null' : 'undefined'}`);
     const tag = srcJsValue.tag, val = srcJsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof srcJsValue === 'object' ? JSON.stringify(srcJsValue) : typeof srcJsValue}`);
@@ -316,7 +316,7 @@ export function variantLifting(plan: VariantLiftPlan, ctx: MarshalingContext, sr
             const have = c.caseFlatTypes[i];
             const want = plan.payloadJoined[i];
             if (have !== undefined && want !== undefined && have !== want) {
-                out[offset + 1 + i] = coerceFlatLift(out[offset + 1 + i] as number, have, want);
+                out[offset + 1 + i] = liftFlatCoerce(out[offset + 1 + i] as number, have, want);
             }
         }
     }
@@ -325,21 +325,21 @@ export function variantLifting(plan: VariantLiftPlan, ctx: MarshalingContext, sr
 
 // --- Stream lifting (JS AsyncIterable → i32 handle) ---
 
-export function streamLifting(plan: StreamLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftStream(plan: StreamLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.streams.addReadable(0, srcJsValue, plan.elementStorer, plan.elementSize, ctx);
     return 1;
 }
 
 // --- Future lifting (JS Promise → i32 handle) ---
 
-export function futureLifting(plan: FutureLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftFuture(plan: FutureLiftPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
     return 1;
 }
 
 // --- Error-context lifting (JS Error → i32 handle) ---
 
-export function errorContextLifting(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+export function liftErrorContext(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
     out[offset] = ctx.errorContexts.add(srcJsValue);
     return 1;
 }
@@ -349,7 +349,7 @@ export function errorContextLifting(ctx: MarshalingContext, srcJsValue: JsValue,
  * Follows the spec's lower_flat_variant coercion table (definitions.py L1979).
  * NaN inputs are canonicalized per maybe_scramble_nan{32,64} (DETERMINISTIC_PROFILE).
  */
-export function coerceFlatLift(value: number, have: FlatType, want: FlatType): WasmValue {
+export function liftFlatCoerce(value: number, have: FlatType, want: FlatType): WasmValue {
     // (f32, i32): encode_float_as_i32 — canonicalize NaN before reinterpret
     if (have === FlatType.F32 && want === FlatType.I32) {
         if (value !== value) return 0x7fc00000;
