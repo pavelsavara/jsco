@@ -152,15 +152,16 @@ describe('adaptIpNameLookup', () => {
         expect(r1.val).toBeUndefined(); // empty address list
     });
 
-    it('resolve stream: subscribe.block throws when not resolved', () => {
+    it('resolve stream: subscribe.block suspends via JSPI when not resolved', () => {
         const p3 = mockP3({}, { resolveAddresses: () => new Promise(() => { }) });
         const { resolveAddresses } = adaptIpNameLookup(p3);
         const result = resolveAddresses({}, 'example.com');
         if (result.tag !== 'ok') throw new Error('expected ok');
-        const stream = result.val as { resolveNextAddress(): { tag: string; val?: unknown }; subscribe(): { ready(): boolean; block(): void } };
+        const stream = result.val as { resolveNextAddress(): { tag: string; val?: unknown }; subscribe(): { ready(): boolean; block(): unknown } };
         const pollable = stream.subscribe();
         expect(pollable.ready()).toBe(false);
-        expect(() => pollable.block()).toThrow('not-supported');
+        // block() throws a JspiBlockSignal for JSPI suspension
+        expect(() => pollable.block()).toThrow();
     });
 
     it('resolve stream: subscribe.block is noop when resolved', async () => {

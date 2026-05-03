@@ -21,6 +21,7 @@ import * as http from 'node:http';
 import { createComponent } from '../../../src/resolver';
 import { createWasiP2ViaP3Adapter } from '../../../src/host/wasip2-via-wasip3/index';
 import { createWasiP3Host as createP3Host } from '../../../src/host/wasip3/index';
+import { createWasiP3Host as createNodeP3Host } from '../../../src/host/wasip3/node/wasip3';
 import { serve, linkHandler } from '../../../src/host/wasip3/node/http-server';
 import type { WasiHttpHandlerExport, ServeHandle } from '../../../src/host/wasip3/node/http-server';
 import { WasiExit } from '../../../src/host/wasip3/cli';
@@ -32,6 +33,7 @@ initializeAsserts();
 
 const WASM_DIR = './integration-tests/wasmtime/';
 const P2_RUN_PREFIX = 'wasi:cli/run@0.2.';
+const P3_RUN_EXPORT = 'wasi:cli/run@0.3.0-rc-2026-03-15';
 
 /**
  * Files already exercised by other test files. Keep this in sync with greps
@@ -114,31 +116,14 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by p3 client.send JSPI deadlock'],
     // ── Trapping/cancel-on-quota behaviours not yet plumbed.
     ['p3_cli_many_tasks.component.wasm', 'designed to trap after 1000 [async-lower] calls (resource quota)'],
-    // ── P3 filesystem: host registers Descriptor class but missing the flat
-    //    [method]descriptor.* import table (write-via-stream, read-via-stream,
-    //    read-directory, etc.). Tracked as a host gap.
-    ['p3_filesystem_file_read_write.component.wasm', 'host missing [method]descriptor.write-via-stream import'],
-    ['p3_file_write.component.wasm', 'host missing [method]descriptor.write-via-stream import'],
-    ['p3_readdir.component.wasm', 'host missing [method]descriptor.read-directory import'],
-    // ── P2 sockets: covered by P3 sockets through the adapter.
-    ['p2_tcp_bind.component.wasm', 'P2 sockets — covered by p3_sockets_tcp_bind'],
-    ['p2_tcp_connect.component.wasm', 'P2 sockets — covered by p3_sockets_tcp_connect'],
-    ['p2_tcp_listen.component.wasm', 'P2 sockets — covered by p3_sockets_tcp_listen'],
-    ['p2_tcp_sample_application.component.wasm', 'P2 sockets — covered by p3 sample_application'],
-    ['p2_tcp_sockopts.component.wasm', 'P2 sockets — covered by p3 sockopts'],
-    ['p2_tcp_states.component.wasm', 'P2 sockets — covered by p3 tcp_states'],
-    ['p2_tcp_streams.component.wasm', 'P2 sockets — covered by p3 tcp_streams'],
-    ['p2_udp_bind.component.wasm', 'P2 sockets — covered by p3 udp_bind'],
-    ['p2_udp_connect.component.wasm', 'P2 sockets — covered by p3 udp_connect'],
-    ['p2_udp_sample_application.component.wasm', 'P2 sockets — covered by p3 udp sample_application'],
-    ['p2_udp_send_too_much.component.wasm', 'P2 sockets — relies on send() ENOBUFS shape'],
-    ['p2_udp_sockopts.component.wasm', 'P2 sockets — covered by p3 udp_sockopts'],
-    ['p2_udp_states.component.wasm', 'P2 sockets — covered by p3 udp_states'],
-    ['p2_ip_name_lookup.component.wasm', 'P2 DNS — covered by p3_sockets_ip_name_lookup'],
+    // ── P2 sockets: send-permit overflow not yet enforced.
+    ['p2_udp_send_too_much.component.wasm', 'P2 sockets — relies on send() ENOBUFS shape / permit overflow trap'],
     // ── P2 reactor / API export shape not yet wired.
     ['p2_api_reactor.component.wasm', 'parser bug: canon.lift type_index resolves to ComponentTypeDefinedOwn (68) instead of ComponentTypeFunc when export signature contains own<imported-resource>'],
     ['p2_api_read_only.component.wasm', 'needs read-only descriptor flag in preopen — host always sets write:true'],
     ['p2_api_time.component.wasm', 'asserts specific Instant/SystemTime values — host has no fake-clock injection point'],
+    // ── P3 filesystem: stream lifecycle on error.
+    ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
     // ── P2 file/dir fixtures handled inline by the P2 CLI roster (config.fs).
 ]);
 
@@ -147,6 +132,14 @@ function createMergedHosts(config?: Parameters<typeof createP3Host>[0]): Record<
     const p3 = createP3Host(config);
     const p2 = createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
     return { ...p2, ...p3 };
+}
+
+/** Create merged P2+P3 hosts with Node.js sockets (for P2 socket tests). */
+function createNodeMergedHosts(): Record<string, unknown> {
+    const noop = () => new WritableStream<Uint8Array>({ write() { /* suppress */ } });
+    const p3 = createNodeP3Host({ stdout: noop(), stderr: noop() });
+    const p2 = createWasiP2ViaP3Adapter(p3 as unknown as Record<string, unknown>);
+    return { ...p2, ...p3 as unknown as Record<string, unknown> };
 }
 
 /** Capture stream into a deferred-decoded buffer. */
@@ -191,8 +184,9 @@ async function runP2(
     file: string,
     cfg: Parameters<typeof createP3Host>[0] | undefined,
     verbose: ReturnType<typeof useVerboseOnFailure>,
+    overrideImports?: Record<string, unknown>,
 ): Promise<number> {
-    const imports = createMergedHosts(cfg);
+    const imports = overrideImports ?? createMergedHosts(cfg);
     const component = await createComponent(WASM_DIR + file, verboseOptions(verbose));
     const instance = await component.instantiate(imports);
     try {
@@ -230,6 +224,7 @@ describe('wasmtime corpus inventory', () => {
             ...P2_HTTP_OUTBOUND_VALIDATION.map(([f]) => f),
             ...P3_SERVE.map(([f]) => f),
             ...P3_MIDDLEWARE_CHAIN.map(([f]) => f),
+            ...P2_SOCKETS.map(([f]) => f),
         ]);
         const unaccounted: string[] = [];
         for (const f of all) {
@@ -453,10 +448,45 @@ describe('wasmtime corpus — P2 CLI smoke', () => {
 const P3_CLI_SIMPLE: ReadonlyArray<[string]> = [];
 
 // ─────────────────── P3 filesystem smoke tests ───────────────────
-// All p3 filesystem corpus artifacts currently hit missing host methods
-// (see KNOWN_UNSUPPORTED). Keep the array empty for now; once the host gap
-// is fixed move entries out of KNOWN_UNSUPPORTED and into this list.
-const P3_FS_SIMPLE: ReadonlyArray<[string]> = [];
+// FsDescriptor class methods (readViaStream, writeViaStream, readDirectory)
+// are now implemented. These artifacts exercise file I/O and directory listing.
+const P3_FS_SIMPLE: ReadonlyArray<[string]> = [
+    ['p3_filesystem_file_read_write.component.wasm'],
+    // p3_file_write: 64KB write+read+stat pass, but the final assertion
+    // (write_all to a stream whose read side was never consumed should return
+    // unwritten data) fails because the runtime doesn't auto-cancel unused
+    // stream handles when the future resolves with an error. Runtime-level fix.
+    // ['p3_file_write.component.wasm'],
+    ['p3_readdir.component.wasm'],
+];
+
+/** Run a P3 component to completion via its wasi:cli/run@0.3.* export. */
+async function runP3(
+    file: string,
+    imports: Record<string, unknown>,
+    verbose: ReturnType<typeof useVerboseOnFailure>,
+): Promise<void> {
+    const component = await createComponent(WASM_DIR + file, verboseOptions(verbose));
+    const instance = await component.instantiate(imports);
+    try {
+        const run = (instance.exports as Record<string, unknown>)[P3_RUN_EXPORT] as { run: () => Promise<unknown> } | undefined;
+        if (!run) throw new Error(`No ${P3_RUN_EXPORT} export on ${file}`);
+        await run.run();
+    } finally {
+        instance.dispose();
+    }
+}
+
+describe('wasmtime corpus — P3 filesystem', () => {
+    const verbose = useVerboseOnFailure();
+
+    test.each(P3_FS_SIMPLE)('%s', (file) => runWithVerbose(verbose, async () => {
+        // Filesystem tests start with a clean preopen and create/write/read/delete
+        // their own files. Provide an empty fs map so the VFS preopen is initialized.
+        const imports = createMergedHosts({ fs: new Map() });
+        await runP3(file, imports, verbose);
+    }), 30000);
+});
 
 // ─────────────────── P3 service-export roster ───────────────────
 const P3_SERVE: ReadonlyArray<[string]> = [
@@ -472,6 +502,36 @@ const P3_MIDDLEWARE_CHAIN: ReadonlyArray<[string]> = [
     ['p3_http_middleware.component.wasm'],
     ['p3_http_middleware_with_chain.component.wasm'],
 ];
+
+// ─────────────────── P2 sockets via P2-via-P3 adapter ───────────────────
+// The P2-via-P3 adapter now bridges TCP/UDP methods to the P3 NodeTcpSocket/
+// NodeUdpSocket implementations. These tests exercise the bridge layer
+// against the wasmtime conformance test binaries.
+const P2_SOCKETS: ReadonlyArray<[string]> = [
+    ['p2_tcp_bind.component.wasm'],
+    ['p2_tcp_connect.component.wasm'],
+    ['p2_tcp_listen.component.wasm'],
+    ['p2_tcp_sample_application.component.wasm'],
+    ['p2_tcp_sockopts.component.wasm'],
+    ['p2_tcp_states.component.wasm'],
+    ['p2_tcp_streams.component.wasm'],
+    ['p2_udp_bind.component.wasm'],
+    ['p2_udp_connect.component.wasm'],
+    ['p2_udp_sample_application.component.wasm'],
+    ['p2_udp_sockopts.component.wasm'],
+    ['p2_udp_states.component.wasm'],
+    ['p2_ip_name_lookup.component.wasm'],
+];
+
+describe('wasmtime corpus — P2 sockets via P2-via-P3 adapter (Node.js)', () => {
+    const verbose = useVerboseOnFailure();
+
+    test.each(P2_SOCKETS)('%s', (file) => runWithVerbose(verbose, async () => {
+        const imports = createNodeMergedHosts();
+        const code = await runP2(file, undefined, verbose, imports);
+        expect(code).toBe(0);
+    }), 60000);
+});
 
 // ─────────────────── HTTP outbound smoke tests ───────────────────
 //
@@ -1116,3 +1176,15 @@ describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () =
         }
     });
 });
+
+// ─────────────────── P2 sockets via P2-via-P3 adapter ───────────────────
+//
+// Self-contained P2 socket test programs. Each creates loopback sockets,
+// binds to ephemeral ports, and asserts correctness internally (exit 0 = pass).
+// Uses the Node.js P3 host for real TCP/UDP/DNS, wrapped through the
+// P2-via-P3 adapter.
+//
+// Currently BLOCKED: the P2-via-P3 adapter's sockets/tcp and sockets/udp
+// resource methods are all stubs returning not-supported. They don't
+// delegate to NodeTcpSocket/NodeUdpSocket. All entries moved to
+// KNOWN_UNSUPPORTED until the adapter bridge is implemented.

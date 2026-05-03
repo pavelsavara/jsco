@@ -24,11 +24,11 @@ import { adaptMonotonicClock, adaptWallClock, adaptTimezone } from './clocks';
 import { adaptRandom, adaptInsecure, adaptInsecureSeed } from './random';
 import { adaptPreopens } from './filesystem';
 import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
-import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
+import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup, adaptTcp, adaptUdp, adaptIncomingDatagramStream, adaptOutgoingDatagramStream } from './sockets';
 import { adaptHttpTypes, adaptOutgoingHandler, AdapterFields } from './http';
 import { JsImports } from '../../resolver/api-types';
 import { ok, err } from '../wasip3';
-import { resource, passthrough, constant, makeRegister } from '../_shared/resource-table';
+import { resource, passthrough, makeRegister } from '../_shared/resource-table';
 
 const P2_VERSIONS = [
     '0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5',
@@ -56,7 +56,6 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const maxBufferSize = options?.limits?.maxNetworkBufferSize ?? LIMIT_DEFAULTS.maxNetworkBufferSize;
     const result: Record<string, unknown> = {};
     const register = makeRegister(result, 'wasi:', P2_VERSIONS);
-    const notSupported = (): unknown => err('not-supported');
     const syncPollable = (): WasiPollable => createSyncPollable(() => true);
 
     // ─── wasi:random/* ───
@@ -291,16 +290,18 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
 
     // ─── wasi:sockets/* ───
     //
-    // P3's sockets shape (P3 instance methods are `bind`/`connect`/...) does not match
-    // P2's split start/finish state machine, so the methods below are effectively
-    // "not-supported" stubs in both browser and Node hosts. Future virtual-socket
-    // bridging would replace these blocks.
+    // TCP/UDP methods delegate to the P3 socket objects via the adapter bridge.
+    // The P2 start/finish state machine is mapped onto P3's direct async methods.
 
     const instanceNet = adaptInstanceNetwork();
     const network = adaptNetwork();
     const tcpCreate = adaptTcpCreateSocket(p3);
     const udpCreate = adaptUdpCreateSocket(p3);
     const ipLookup = adaptIpNameLookup(p3);
+    const tcpMethods = adaptTcp();
+    const udpMethods = adaptUdp();
+    const incomingDgMethods = adaptIncomingDatagramStream();
+    const outgoingDgMethods = adaptOutgoingDatagramStream();
 
     register('sockets/instance-network', {
         'instance-network': instanceNet.instanceNetwork,
@@ -314,22 +315,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     });
     register('sockets/tcp', resource('tcp-socket', {
         methods: {
-            ...constant(notSupported,
-                'start-bind', 'finish-bind', 'start-connect', 'finish-connect',
-                'start-listen', 'finish-listen', 'accept',
-                'local-address', 'remote-address', 'set-listen-backlog-size',
-                'keep-alive-enabled', 'set-keep-alive-enabled',
-                'keep-alive-idle-time', 'set-keep-alive-idle-time',
-                'keep-alive-interval', 'set-keep-alive-interval',
-                'keep-alive-count', 'set-keep-alive-count',
-                'hop-limit', 'set-hop-limit',
-                'receive-buffer-size', 'set-receive-buffer-size',
-                'send-buffer-size', 'set-send-buffer-size',
-                'shutdown',
-            ),
-            ...constant(false, 'is-listening'),
-            ...constant('ipv4', 'address-family'),
-            'subscribe': syncPollable,
+            ...tcpMethods,
         },
     }));
     register('sockets/udp-create-socket', {
@@ -338,27 +324,17 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     register('sockets/udp', {
         ...resource('udp-socket', {
             methods: {
-                ...constant(notSupported,
-                    'start-bind', 'finish-bind', 'stream',
-                    'local-address', 'remote-address',
-                    'unicast-hop-limit', 'set-unicast-hop-limit',
-                    'receive-buffer-size', 'set-receive-buffer-size',
-                    'send-buffer-size', 'set-send-buffer-size',
-                ),
-                ...constant('ipv4', 'address-family'),
-                'subscribe': syncPollable,
+                ...udpMethods,
             },
         }),
         ...resource('incoming-datagram-stream', {
             methods: {
-                ...constant(notSupported, 'receive'),
-                'subscribe': syncPollable,
+                ...incomingDgMethods,
             },
         }),
         ...resource('outgoing-datagram-stream', {
             methods: {
-                ...constant(notSupported, 'check-send', 'send'),
-                'subscribe': syncPollable,
+                ...outgoingDgMethods,
             },
         }),
     });
@@ -366,8 +342,12 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
         'resolve-addresses': ipLookup.resolveAddresses,
         ...resource('resolve-address-stream', {
             methods: {
-                ...constant(notSupported, 'resolve-next-address'),
-                'subscribe': syncPollable,
+                'resolve-next-address'(self: { resolveNextAddress(): unknown }): unknown {
+                    return self.resolveNextAddress();
+                },
+                'subscribe'(self: { subscribe(): unknown }): unknown {
+                    return self.subscribe();
+                },
             },
         }),
     });

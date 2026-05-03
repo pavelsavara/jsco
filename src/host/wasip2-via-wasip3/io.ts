@@ -58,6 +58,33 @@ export function createAsyncPollable(promise: Promise<void>): WasiPollable {
     };
 }
 
+/**
+ * Create a pollable whose readiness is determined lazily at each check.
+ *
+ * `isReady` returns true when no blocking is needed (e.g. no pending op, or
+ * the pending op has resolved).
+ *
+ * `getBlockingPromise` returns the Promise to JSPI-suspend on, or undefined
+ * if there's nothing to block on (in which case `block()` is a no-op).
+ *
+ * This is needed for the P2 socket `subscribe()` pattern where the guest
+ * creates the pollable BEFORE starting the async operation.
+ */
+export function createDynamicPollable(
+    isReady: () => boolean,
+    getBlockingPromise: () => Promise<void> | undefined,
+): WasiPollable {
+    return {
+        ready: isReady,
+        block(): void {
+            if (isReady()) return;
+            const p = getBlockingPromise();
+            if (!p) return;
+            throw new JspiBlockSignal(p);
+        },
+    };
+}
+
 export class JspiBlockSignal {
     constructor(public readonly promise: Promise<unknown>) { }
 }
@@ -135,6 +162,8 @@ export interface WasiInputStream {
     skip(len: bigint): StreamResult<bigint>;
     blockingSkip(len: bigint): StreamResult<bigint>;
     subscribe(): WasiPollable;
+    /** Signal the stream as closed (used by TCP shutdown). */
+    close?(): void;
 }
 
 export interface WasiOutputStream {
@@ -148,6 +177,8 @@ export interface WasiOutputStream {
     splice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
     blockingSplice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
     subscribe(): WasiPollable;
+    /** Signal the stream as closed (used by TCP shutdown). */
+    close?(): void;
 }
 
 /**
@@ -258,6 +289,12 @@ export function createInputStreamFromP3(
             }
             return createSyncPollable(() => true);
         },
+
+        /** Signal the stream as closed (used by TCP shutdown). */
+        close(): void {
+            closed = true;
+            buffer = new Uint8Array(0);
+        },
     };
 }
 
@@ -342,6 +379,12 @@ export function createOutputStreamFromP3(
         subscribe(): WasiPollable {
             if (closed) return createSyncPollable(() => true);
             return createSyncPollable(() => !closed);
+        },
+
+        /** Signal the stream as closed (used by TCP shutdown). */
+        close(): void {
+            closed = true;
+            pair.close();
         },
     };
 }
