@@ -756,7 +756,8 @@ export function adaptIpNameLookup(p3: WasiP3Imports): { resolveAddresses(_networ
                 return socketErr('invalid-argument');
             }
             // Reject IP:port patterns like "127.0.0.1:80" or "[::]:80"
-            if (/:\d+$/.test(name)) {
+            // Must not match bare IPv6 addresses like "::1" or "dead:beef::0"
+            if (/\.\d+:\d+$/.test(name) || /\]:\d+$/.test(name)) {
                 return socketErr('invalid-argument');
             }
             // Reject URLs like "http://example.com/"
