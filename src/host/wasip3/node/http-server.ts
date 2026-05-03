@@ -19,6 +19,26 @@ import { NETWORK_DEFAULTS } from '../types';
 const DEFAULT_MAX_HANDLER_CHAIN_DEPTH = 8;
 /** Per-async-context handler chain depth, scoped by `linkHandler` wrappers. */
 const handlerDepthStore = new AsyncLocalStorage<number>();
+
+/** Shared mutable aggregate byte counter for a single HTTP request (S3). */
+interface AggregateByteCounter {
+    current: number;
+    max: number;
+}
+/** Per-async-context aggregate byte counter, scoped by `serve()`. */
+const aggregateBytesStore = new AsyncLocalStorage<AggregateByteCounter>();
+
+/** Check and increment the aggregate byte counter. Throws when over limit. */
+function trackAggregateBytes(len: number): void {
+    const counter = aggregateBytesStore.getStore();
+    if (!counter || counter.max === 0) return;
+    counter.current += len;
+    if (counter.current > counter.max) {
+        throw new Error(
+            `aggregate inflight bytes ${counter.current} exceed limit ${counter.max}`,
+        );
+    }
+}
 import {
     _HttpFields as HttpFields,
     _HttpRequest as HttpRequest,
@@ -98,6 +118,7 @@ function nodeRequestToWasi(
                 if (totalBytes > limits.maxHttpBodyBytes) {
                     throw new Error('request body size exceeded');
                 }
+                trackAggregateBytes(buf.length);
                 yield buf;
             }
         },
@@ -138,6 +159,7 @@ function nodeRequestToWasi(
 async function writeWasiResponse(
     res: http.ServerResponse,
     wasiResponse: unknown,
+    signal?: AbortSignal,
 ): Promise<void> {
     const response = wasiResponse as HttpResponse;
 
@@ -166,8 +188,13 @@ async function writeWasiResponse(
     const contents = response._internalContents;
     if (contents) {
         for await (const chunk of contents) {
+            // S4: stop writing if the client disconnected
+            if (signal?.aborted) break;
+            const buf = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayLike<number>);
+            trackAggregateBytes(buf.length);
             await new Promise<void>((resolve, reject) => {
-                const ok = res.write(chunk);
+                if (res.destroyed) { resolve(); return; }
+                const ok = res.write(buf);
                 if (ok) {
                     resolve();
                 } else {
@@ -276,6 +303,7 @@ export async function serve(
     const headersTimeoutMs = network?.httpHeadersTimeoutMs ?? NETWORK_DEFAULTS.httpHeadersTimeoutMs;
     const onError = config?.onError ?? ((): void => { /* silent by default */ });
     const keepAliveTimeoutMs = network?.httpKeepAliveTimeoutMs ?? NETWORK_DEFAULTS.httpKeepAliveTimeoutMs;
+    const maxAggregateBytes = network?.maxAggregateInflightBytes ?? NETWORK_DEFAULTS.maxAggregateInflightBytes;
 
     const server = http.createServer();
 
@@ -290,6 +318,14 @@ export async function serve(
         activeConnections.add(res);
         res.on('close', () => activeConnections.delete(res));
 
+        // S4: per-request abort controller — fires when the client disconnects
+        // before the response is fully written. Use `res.on('close')` gated
+        // by `writableFinished` so normal completions do not trigger abort.
+        const requestAc = new AbortController();
+        res.on('close', () => {
+            if (!res.writableFinished) requestAc.abort();
+        });
+
         // Per-request timeout. unref() so a stuck timer alone never keeps Node
         // alive past the natural end of the test/process.
         const timer = setTimeout(() => {
@@ -300,10 +336,15 @@ export async function serve(
         }, requestTimeoutMs);
         (timer as unknown as { unref?: () => void }).unref?.();
 
+        // S3: per-request aggregate byte counter
+        const counter: AggregateByteCounter = { current: 0, max: maxAggregateBytes };
+
         (async (): Promise<void> => {
             try {
                 const [request, completionFuture] = nodeRequestToWasi(req, limits);
-                const handlerResult = await handler.handle(request);
+                const handlerResult = await aggregateBytesStore.run(counter, () =>
+                    handler.handle(request),
+                );
 
                 // WIT spec: `handle` returns result<response, error-code>.
                 if (handlerResult === null || typeof handlerResult !== 'object' || !('tag' in (handlerResult as object))) {
@@ -322,7 +363,9 @@ export async function serve(
                 // If handler succeeded, resolve the request completion
                 completionFuture.then(() => { /* consumed by request internals */ });
 
-                await writeWasiResponse(res, response);
+                await aggregateBytesStore.run(counter, () =>
+                    writeWasiResponse(res, response, requestAc.signal),
+                );
             } catch (e) {
                 onError('jsco serve: request handler threw:', e);
                 if (!res.headersSent) {

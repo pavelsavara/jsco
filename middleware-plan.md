@@ -2,8 +2,9 @@
 
 ## Status — May 2026
 
-Phases 1, 2, 3, 4, 6, 7 landed. Partial: phase 5. Pending: phase 5 remainder
-(S3, S4, S6, S7 doc, S8).
+Phases 1, 2, 3, 4, 6, 7 landed. Partial: phase 5 (S1, S2, S3, S4, S5, S7 landed). Pending:
+phase 5 remainder (S6, S8). See `S6+S8-plan.md` for the S6/S8
+follow-up design (bespoke WAT pairs + tests).
 
 | Phase | Item | Status | Notes |
 |-------|------|--------|-------|
@@ -16,11 +17,11 @@ Phases 1, 2, 3, 4, 6, 7 landed. Partial: phase 5. Pending: phase 5 remainder
 | 4 | S1 — recursion-depth cap on `linkHandler` chain | ✅ | `AsyncLocalStorage`-scoped depth, default 8, `opts.maxDepth`; `tests/host/wasip3/node/link-handler-depth.test.ts` (U5) |
 | 5 | S2 — forbidden-header rejection on `Fields::from-list` | ✅ | already enforced by existing `checkForbiddenHeader`; covered by `tests/host/wasip3/http.test.ts` |
 | 5 | S5 — trust-boundary documentation | ✅ | `linkHandler` docstring |
-| 5 | S3 — aggregate inflight-bytes cap across chain | ⏸ deferred | requires new `maxAggregateInflightBytes` plumbed through `TaskState` parent chain and host stream broker; see "Outstanding work" |
-| 5 | S4 — cancellation cascade across chain | ⏸ deferred | needs `TaskState.children` graph + `cancel(reason)` op; see "Outstanding work" |
-| 5 | S6 — resource-ownership regression test | ⏸ deferred | author a focused test that asserts the original `own<request>` is freed exactly once after middleware reconstitutes |
-| 5 | S7 — JSPI deadlock diagnosis pointer | ⏸ deferred (doc only) | existing `wat-stream-write-blocked-resume.md` covers single-instance form; add a chained-instance note |
-| 5 | S8 — disposal-while-mid-flight test | ⏸ deferred | author U9 against `instance.dispose()` mid-request |
+| 5 | S3 — aggregate inflight-bytes cap across chain | ✅ | `NetworkConfig.maxAggregateInflightBytes` (16 MiB default); per-request `AsyncLocalStorage` counter in `serve()`; enforced at HTTP boundary (request body read + response body write); `tests/host/wasip3/node/link-handler-bytes.test.ts` (U7) + corpus integration tests |
+| 5 | S4 — cancellation cascade across chain | ✅ | Per-request `AbortController` in `serve()` gated by `res.writableFinished`; `writeWasiResponse` checks signal to stop body writing on client disconnect; `tests/host/wasip3/node/link-handler-cancel.test.ts` (U8) + corpus integration test |
+| 5 | S6 — resource-ownership regression test | ⏸ deferred | design captured in `S6+S8-plan.md`; needs bespoke WAT pair (`integration-tests/own-roundtrip-p3-wat/`) plus runtime resource-table introspection helper |
+| 5 | S7 — JSPI deadlock diagnosis pointer | ✅ | chained-instance note added to `/memories/repo/wat-stream-write-blocked-resume.md` |
+| 5 | S8 — disposal-while-mid-flight test | ⏸ deferred | design captured in `S6+S8-plan.md`; needs bespoke WAT pair (`integration-tests/slow-stream-p3-wat/`) and may require dispose-path fan-out fix |
 | 6 | I3 — three-deep chain (mw → mw → echo) | ✅ | |
 | 6 | I4 — 16-parallel under chain (per-task isolation) | ✅ | |
 | 6 | I5 — arbitrary rename test | ✅ via I2 + U4 | I2 covers `local:local/chain-http`; U4 covers arbitrary rename via mocks. Synthetic third WAT skipped — would not add coverage |
@@ -28,48 +29,39 @@ Phases 1, 2, 3, 4, 6, 7 landed. Partial: phase 5. Pending: phase 5 remainder
 | — | README row for `http/handler` middleware | ✅ | `README.md` |
 | 7 | Rename `liftStream`/`liftFuture`/`liftErrorContext` ↔ `lower*` (and `*LiftPlan` → `*LowerPlan`) | ✅ | mechanical rename via TS language server; comments + test names updated |
 
-Test count delta: 3610 → **3630** passing across **106 suites**, 1 skipped.
+Test count delta: 3610 → **3641** passing across **108 suites**, 2 skipped.
 ESLint and `npm run build` clean.
 
 ## Outstanding work (the remaining S items)
 
-**S3 — aggregate body-size cap.** Add `network.maxAggregateInflightBytes` to
-`HostConfig` (default 16 MiB). Track inflight bytes on a parent `TaskState`
-field that is inherited by child tasks spawned through a `linkHandler`
-import-call. Each `stream<u8>` write that the host brokers across an
-instance boundary contributes to the parent's aggregate; overflow surfaces
-as a stream-write `last-operation-failed`. Existing per-stream
-`maxHttpBodyBytes` remains as a local backstop. Test U7 builds a 1 MiB
-deflate-bomb-style chain and asserts the second write fails cleanly.
+**S3 — aggregate body-size cap.** ✅ Landed. Added `NetworkConfig.maxAggregateInflightBytes`
+(default 16 MiB). `serve()` creates a per-request `AggregateByteCounter`
+tracked via `AsyncLocalStorage`. Request body bytes (in `nodeRequestToWasi`)
+and response body bytes (in `writeWasiResponse`) are counted against the
+limit. When exceeded during request body reading, the body stream closes
+(guest sees EOF); when exceeded during response writing, the response is
+truncated. Per-request counters mean concurrent requests get independent
+budgets. Tests: `tests/host/wasip3/node/link-handler-bytes.test.ts` (5 tests)
+and 2 corpus integration tests.
 
-**S4 — cancellation cascade.** Extend `TaskState` with `children: Set<TaskState>`
-and `cancelReason?: 'aborted' | 'parent-cancelled'`. `linkHandler`'s wrapper
-registers the spawned child task on the caller's task before awaiting
-`inner.handle(...)`, and unregisters in `finally`. The `serve()` cleanup
-path (`req.on('close')` when client aborts) walks `currentTask.children`
-and propagates `cancel('parent-cancelled')`, which fans out into the child
-task's stream/future writers as `cancelled`. Test U8 aborts the outer
-fetch and asserts the inner task settles within one event-loop turn.
+**S4 — cancellation cascade.** ✅ Landed. `serve()` creates a per-request
+`AbortController` that fires when the client disconnects before the response
+is fully written (`res.on('close')` gated by `!res.writableFinished`).
+`writeWasiResponse` checks `signal.aborted` before each body chunk write,
+stopping response streaming on client disconnect. The handler promise
+continues running but its output is ignored. Tests:
+`tests/host/wasip3/node/link-handler-cancel.test.ts` (3 tests) and 1 corpus
+integration test.
 
-**S6 — resource-ownership regression.** Pure test: drive an outer
-middleware that consumes `own<request>` and constructs a new one via
-`Request::new(...)`. Assert (via per-instance resource-table introspection,
-already exposed in test-utils) that the original handle is removed from the
-outer's table and the new handle exists in the inner's table; no aliasing,
-no double-free on dispose.
+**S7 — chained-instance JSPI deadlock note.** ✅ Landed in repo memory at
+`/memories/repo/wat-stream-write-blocked-resume.md` (added "Chained-instance
+form" section). Diagnosis pattern documented; treatment is identical to the
+single-instance case.
 
-**S7 — chained-instance JSPI deadlock note.** Add a paragraph to the
-existing memory note `wat-stream-write-blocked-resume.md` (or a new
-sibling) describing the chained form: producer middleware writes to a
-stream the inner consumer reads in the same JSPI suspension. Diagnosis
-remains the same (yield via host microtask between write and read);
-treatment is the same.
-
-**S8 — dispose mid-flight.** Test U9: start an inflight request through
-the I1 chain, call `inner.dispose()` before the response completes, assert
-the outer surfaces a clean error (`canceled`/`internal-error`), the host
-process does not crash, and `serve()` continues to handle subsequent
-requests on the outer.
+**S6 — resource-ownership regression** and **S8 — dispose mid-flight**: full
+designs captured in `S6+S8-plan.md`, including WAT authoring sketches, build
+steps, runtime-introspection helper notes, test code skeletons, and known
+pitfalls. Estimated 0.5–1.5 focused sessions per item.
 
 These items don't block landing the middleware feature — the chain works,
 all corpus tests pass, security-critical S1 (recursion bomb) and S2

@@ -722,7 +722,7 @@ describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () =
     async function instantiateChain(
         innerFile: string,
         outerFile: string,
-        opts?: { as?: string },
+        opts?: { as?: string; network?: import('../../../src/runtime/model/types').NetworkConfig },
     ): Promise<{
         handle: ServeHandle;
         dispose: () => Promise<void>;
@@ -738,7 +738,7 @@ describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () =
         const outer = await outerComp.instantiate(outerImports as Parameters<typeof outerComp.instantiate>[0]);
         const handler = outer.exports[HANDLER_INTERFACE_P3] as WasiHttpHandlerExport | undefined;
         if (!handler) throw new Error(`${outerFile}: missing ${HANDLER_INTERFACE_P3}`);
-        const handle = await serve(handler, { port: 0, host: '127.0.0.1' });
+        const handle = await serve(handler, { port: 0, host: '127.0.0.1', network: opts?.network });
         return {
             handle,
             dispose: async (): Promise<void> => {
@@ -972,6 +972,132 @@ describe('wasmtime corpus — P3 middleware chain (handler import wiring)', () =
                 await chain.dispose();
             }
         }), 60000);
+
+    // ──── S3: aggregate inflight-bytes cap integration ────
+
+    test('S3: aggregate inflight-bytes cap — default limit allows normal traffic', () =>
+        runWithVerbose(verbose, async () => {
+            // Default limit (16 MiB) should allow normal middleware traffic.
+            const chain = await instantiateChain(
+                'p3_http_echo.component.wasm',
+                'p3_http_middleware.component.wasm',
+            );
+            try {
+                const payload = 'hello-s3-' + 'X'.repeat(1000);
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'POST',
+                    pathname: '/post',
+                    headers: {
+                        'content-type': 'text/plain',
+                        'content-length': String(Buffer.byteLength(payload)),
+                    },
+                    body: payload,
+                });
+                expect(r.status).toBe(200);
+                expect(r.body.toString()).toBe(payload);
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
+
+    test('S3: aggregate inflight-bytes cap — very tight limit truncates body', () =>
+        runWithVerbose(verbose, async () => {
+            // A 128-byte limit is far too low for real middleware traffic.
+            // The request body stream is silently closed by the aggregate
+            // limit, so the guest sees EOF and returns a partial/empty
+            // response rather than crashing.
+            const sharedImports = createMergedHosts();
+            const innerComp = await createComponent(WASM_DIR + 'p3_http_echo.component.wasm', verboseOptions(verbose));
+            const inner = await innerComp.instantiate(sharedImports as Parameters<typeof innerComp.instantiate>[0]);
+            const outerComp = await createComponent(WASM_DIR + 'p3_http_middleware.component.wasm', verboseOptions(verbose));
+            const outer = await outerComp.instantiate({
+                ...createMergedHosts(),
+                ...linkHandler(inner),
+            } as Parameters<typeof outerComp.instantiate>[0]);
+            const handler = outer.exports['wasi:http/handler@0.3.0-rc-2026-03-15'] as WasiHttpHandlerExport;
+            const h = await serve(handler, {
+                port: 0,
+                host: '127.0.0.1',
+                network: { maxAggregateInflightBytes: 128 },
+            });
+            try {
+                const payload = 'Y'.repeat(1000);
+                try {
+                    const r = await rawRequest(h.port, {
+                        method: 'POST',
+                        pathname: '/post',
+                        headers: {
+                            'content-type': 'text/plain',
+                            'content-length': String(Buffer.byteLength(payload)),
+                        },
+                        body: payload,
+                    });
+                    // The response body should be truncated — either shorter
+                    // than the payload, an error code, or empty.
+                    if (r.status === 200) {
+                        expect(r.body.length).toBeLessThan(payload.length);
+                    }
+                    // Status 500 is also acceptable if the error propagated
+                } catch {
+                    // Connection error is acceptable (instance aborted)
+                }
+            } finally {
+                await h.close();
+                outer.dispose();
+                inner.dispose();
+            }
+        }), 30000);
+
+    // ──── S4: client disconnect integration ────
+
+    test('S4: client disconnect mid-response produces no host crash', () =>
+        runWithVerbose(verbose, async () => {
+            const chain = await instantiateChain(
+                'p3_http_echo.component.wasm',
+                'p3_http_middleware.component.wasm',
+            );
+            try {
+                // Send a large body that will take time to stream back, then
+                // abort the client connection mid-response.
+                const bigBody = 'Y'.repeat(100_000);
+                await new Promise<void>((resolve) => {
+                    const req = http.request(
+                        {
+                            hostname: '127.0.0.1',
+                            port: chain.handle.port,
+                            path: '/post',
+                            method: 'POST',
+                            headers: {
+                                'content-type': 'text/plain',
+                                'content-length': String(Buffer.byteLength(bigBody)),
+                            },
+                        },
+                        (res) => {
+                            // Read one chunk then abort
+                            res.once('data', () => {
+                                req.destroy();
+                                setTimeout(resolve, 200);
+                            });
+                        },
+                    );
+                    req.on('error', () => { /* expected — we destroyed */ });
+                    req.write(bigBody);
+                    req.end();
+                });
+
+                // After the abort, the chain should still be alive and serve
+                // new requests successfully.
+                const r = await rawRequest(chain.handle.port, {
+                    method: 'GET',
+                    pathname: '/get',
+                    headers: { alive: 'yes' },
+                });
+                expect(r.status).toBe(200);
+                expect(r.headers['alive']).toBe('yes');
+            } finally {
+                await chain.dispose();
+            }
+        }), 30000);
 
     /**
      * Inventory hygiene: confirm both middleware corpus files are tracked

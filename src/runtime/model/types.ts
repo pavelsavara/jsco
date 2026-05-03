@@ -214,6 +214,14 @@ export interface NetworkConfig {
     httpHeadersTimeoutMs?: number;
     /** HTTP server keepAliveTimeout in ms. Default: 5_000 */
     httpKeepAliveTimeoutMs?: number;
+    /**
+     * Maximum aggregate bytes flowing through the HTTP boundary of a single
+     * request across a `linkHandler` chain. Counts request body bytes read
+     * by `serve()` plus response body bytes written back. Exceeding the cap
+     * aborts the response with an error. Default: 16_777_216 (16 MiB).
+     * 0 disables.
+     */
+    maxAggregateInflightBytes?: number;
 }
 
 export const NETWORK_DEFAULTS = {
@@ -229,6 +237,7 @@ export const NETWORK_DEFAULTS = {
     maxRequestUrlBytes: 8_192,
     httpHeadersTimeoutMs: 60_000,
     httpKeepAliveTimeoutMs: 5_000,
+    maxAggregateInflightBytes: 16_777_216,
 } as const;
 
 /** Allocation and size limits. */
