@@ -92,7 +92,6 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     //    Once those host gaps are resolved, move the relevant entries into
     //    a roster that exercises them with `HTTP_SERVER` set to the fixture.
     ['p2_http_outbound_request_invalid_version.component.wasm', 'needs HTTP/2 server'],
-    ['p2_http_outbound_request_response_build.component.wasm', 'host missing [method]outgoing-response.body — OutgoingResponse type not implemented'],
     ['p3_http_outbound_request_get.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
     ['p3_http_outbound_request_post.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
     ['p3_http_outbound_request_put.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
@@ -120,8 +119,6 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     ['p2_udp_send_too_much.component.wasm', 'P2 sockets — relies on send() ENOBUFS shape / permit overflow trap'],
     // ── P2 reactor / API export shape not yet wired.
     ['p2_api_reactor.component.wasm', 'parser bug: canon.lift type_index resolves to ComponentTypeDefinedOwn (68) instead of ComponentTypeFunc when export signature contains own<imported-resource>'],
-    ['p2_api_read_only.component.wasm', 'needs read-only descriptor flag in preopen — host always sets write:true'],
-    ['p2_api_time.component.wasm', 'asserts specific Instant/SystemTime values — host has no fake-clock injection point'],
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
     // ── P2 file/dir fixtures handled inline by the P2 CLI roster (config.fs).
@@ -225,6 +222,7 @@ describe('wasmtime corpus inventory', () => {
             ...P3_SERVE.map(([f]) => f),
             ...P3_MIDDLEWARE_CHAIN.map(([f]) => f),
             ...P2_SOCKETS.map(([f]) => f),
+            ...P2_API.map(([f]) => f),
         ]);
         const unaccounted: string[] = [];
         for (const f of all) {
@@ -531,6 +529,57 @@ describe('wasmtime corpus — P2 sockets via P2-via-P3 adapter (Node.js)', () =>
         const code = await runP2(file, undefined, verbose, imports);
         expect(code).toBe(0);
     }), 60000);
+});
+
+// ─────────────────── P2 API tests (targeted host config) ───────────────────
+
+const P2_API: ReadonlyArray<[string]> = [
+    ['p2_api_read_only.component.wasm'],
+    ['p2_api_time.component.wasm'],
+    ['p2_http_outbound_request_response_build.component.wasm'],
+];
+
+describe('wasmtime corpus — P2 API tests (targeted host config)', () => {
+    const verbose = useVerboseOnFailure();
+
+    test('p2_api_read_only.component.wasm', () => runWithVerbose(verbose, async () => {
+        // Guest reads bar.txt (27 bytes), attempts writes (must fail),
+        // and checks that create/rename/remove operations are rejected.
+        const imports = createMergedHosts({
+            fs: new Map([
+                ['/bar.txt', 'And stood awhile in thought'],
+                ['/sub/.keep', ''],
+            ]),
+            fsReadOnly: true,
+        });
+        const code = await runP2('p2_api_read_only.component.wasm', undefined, verbose, imports);
+        expect(code).toBe(0);
+    }), 30000);
+
+    test('p2_api_time.component.wasm', () => runWithVerbose(verbose, async () => {
+        // Guest expects:
+        //   Instant::elapsed() == 42 seconds
+        //   SystemTime::now() == UNIX_EPOCH + Duration::new(1431648000, 100)
+        let monotonicCallCount = 0;
+        const imports = createMergedHosts({
+            monotonicNow: () => {
+                // First call: 0, all subsequent calls: 42 seconds in nanoseconds
+                return monotonicCallCount++ === 0 ? 0n : 42_000_000_000n;
+            },
+            wallClockNow: () => ({
+                seconds: 1431648000n,
+                nanoseconds: 100,
+            }),
+        });
+        const code = await runP2('p2_api_time.component.wasm', undefined, verbose, imports);
+        expect(code).toBe(0);
+    }), 30000);
+
+    test('p2_http_outbound_request_response_build.component.wasm', () => runWithVerbose(verbose, async () => {
+        const imports = createMergedHosts();
+        const code = await runP2('p2_http_outbound_request_response_build.component.wasm', undefined, verbose, imports);
+        expect(code).toBe(0);
+    }), 30000);
 });
 
 // ─────────────────── HTTP outbound smoke tests ───────────────────

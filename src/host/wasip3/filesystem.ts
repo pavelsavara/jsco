@@ -573,10 +573,11 @@ export function initFilesystem(config?: HostConfig): FilesystemState {
 
     // Create preopens — default: preopen root as '/'
     const preopens: Array<[FsDescriptor, string]> = [];
+    const readOnly = config?.fsReadOnly ?? false;
     const rootDesc = new FsDescriptor(backend, [], {
         read: true,
-        write: true,
-        mutateDirectory: true,
+        write: !readOnly,
+        mutateDirectory: !readOnly,
     }, maxPathLength);
     preopens.push([rootDesc, '/']);
 

@@ -328,6 +328,12 @@ export interface HostConfig {
      * Default: all interfaces enabled. When set, only matching prefixes are registered.
      */
     enabledInterfaces?: string[];
+    /** When true, the VFS root preopen is read-only (writes/creates/renames/removes fail). */
+    fsReadOnly?: boolean;
+    /** Override monotonic clock `now()`. Returns nanoseconds since an arbitrary epoch. */
+    monotonicNow?: () => bigint;
+    /** Override wall clock `now()`. Returns `{ seconds, nanoseconds }`. */
+    wallClockNow?: () => { seconds: bigint; nanoseconds: number };
 }
 
 /** Runtime configuration extending host config with runtime-generic fields. */

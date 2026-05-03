@@ -271,8 +271,18 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
                 statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
                 setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
                 headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) }); },
+                body: function (): unknown {
+                    const self = this as { _body?: unknown };
+                    if (self._body) return err();
+                    const body = { write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) };
+                    self._body = body;
+                    return ok(body);
+                },
             }),
+            methods: {
+                ...passthrough('status-code', 'headers', 'body'),
+                'set-status-code': (self: { setStatusCode: (code: number) => boolean }, code: number): unknown => (self.setStatusCode(code) ? ok() : err()),
+            },
         }),
         ...resource('response-outparam', {
             statics: { 'set': () => { /* stub */ } },
