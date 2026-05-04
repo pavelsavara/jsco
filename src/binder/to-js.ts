@@ -9,14 +9,15 @@ import { jsco_assert, LogLevel } from '../utils/assert';
 import { callingConventionName } from '../utils/debug-names';
 import type { ResolvedType } from '../resolver/type-resolution';
 import { getCanonicalResourceId } from '../resolver/context';
-import { CallingConvention, determineFunctionCallingConvention, sizeOf, alignOf, alignUp, alignOfValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, flagsSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
+import { CallingConvention, determineFunctionCallingConvention, elemSize, alignment, alignUp, alignmentValType, resolveValType, resolveValTypePure, deepResolveType, discriminantSize, flagsSize, FlatType, flattenType, flattenValType, flattenVariant } from '../resolver/calling-convention';
 import { memoize } from './cache';
 import { createLifting, createMemoryStorer } from './to-abi';
 import { LoweringToJs, FnLoweringCallToJs, LiftingFromJs, WasmValue, WasmFunction, JsFunction } from '../marshal/model/types';
 import { lowerFlatFlat, lowerFlatSpilled, lowerSpilledFlat, lowerSpilledSpilled } from '../marshal/trampoline-lower';
 import type { FunctionLowerPlan } from '../marshal/trampoline-lower';
-import { boolLowering, s8Lowering, u8Lowering, s16Lowering, u16Lowering, s32Lowering, u32Lowering, s64LoweringBigInt, s64LoweringNumber, u64LoweringBigInt, u64LoweringNumber, f32Lowering, f64Lowering, charLowering, stringLoweringUtf8, stringLoweringUtf16, ownLowering, borrowLowering, borrowLoweringDirect, enumLowering, flagsLowering, recordLowering, tupleLowering, listLowering, optionLowering, resultLowering, resultLoweringCoerced, variantLowering, streamLowering, futureLowering, errorContextLowering } from '../marshal/lower';
-import { boolLoader, s8Loader, u8Loader, s16Loader, u16Loader, s32Loader, u32Loader, s64LoaderBigInt, s64LoaderNumber, u64LoaderBigInt, u64LoaderNumber, f32Loader, f64Loader, charLoader, stringLoaderUtf8, stringLoaderUtf16, recordLoader, listLoader, optionLoader, resultLoaderBoth, resultLoaderOkOnly, resultLoaderErrOnly, resultLoaderVoid, variantLoaderDisc1, variantLoaderDisc2, variantLoaderDisc4, enumLoaderDisc1, enumLoaderDisc2, enumLoaderDisc4, flagsLoader, tupleLoader, ownResourceLoader, borrowResourceLoader, borrowResourceDirectLoader, streamLoader, futureLoader, errorContextLoader } from '../marshal/memory-load';
+import { lowerBool, lowerS8, lowerU8, lowerS16, lowerU16, lowerS32, lowerU32, lowerS64BigInt, lowerS64Number, lowerU64BigInt, lowerU64Number, lowerF32, lowerF64, lowerChar, lowerStringUtf8, lowerStringUtf16, lowerOwn, lowerBorrow, lowerBorrowDirect, lowerEnum, lowerFlags, lowerRecord, lowerTuple, lowerList, lowerOption, lowerResult, lowerResultCoerced, lowerVariant } from '../marshal/lower';
+import { liftStream, liftFuture, liftErrorContext } from '../marshal/lift';
+import { loadBool, loadS8, loadU8, loadS16, loadU16, loadS32, loadU32, loadS64BigInt, loadS64Number, loadU64BigInt, loadU64Number, loadF32, loadF64, loadChar, loadStringUtf8, loadStringUtf16, loadRecord, loadList, loadOption, loadResultBoth, loadResultOkOnly, loadResultErrOnly, loadResultVoid, loadVariantDisc1, loadVariantDisc2, loadVariantDisc4, loadEnumDisc1, loadEnumDisc2, loadEnumDisc4, loadFlags, loadTuple, loadOwnResource, loadBorrowResource, loadBorrowResourceDirect, loadStream, loadFuture, loadErrorContext, } from '../marshal/memory-load';
 import camelCase from 'just-camel-case';
 
 
@@ -64,10 +65,10 @@ export function createFunctionLowering(rctx: ResolvedContext, exportModel: Compo
         {
             let off = 0;
             for (const pt of paramResolvedTypes) {
-                const a = alignOf(pt);
+                const a = alignment(pt);
                 off = alignUp(off, a);
                 spilledParamOffsets.push(off);
-                off += sizeOf(pt);
+                off += elemSize(pt);
             }
         }
 
@@ -117,35 +118,35 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
             case ModelTag.ComponentTypeDefinedPrimitive:
                 switch (typeModel.value) {
                     case PrimitiveValType.String:
-                        return createStringLowering(rctx.stringEncoding);
+                        return createLowerString(rctx.stringEncoding);
                     case PrimitiveValType.Bool:
-                        return createBoolLowering();
+                        return createLowerBool();
                     case PrimitiveValType.S8:
-                        return createS8Lowering();
+                        return createLowerS8();
                     case PrimitiveValType.U8:
-                        return createU8Lowering();
+                        return createLowerU8();
                     case PrimitiveValType.S16:
-                        return createS16Lowering();
+                        return createLowerS16();
                     case PrimitiveValType.U16:
-                        return createU16Lowering();
+                        return createLowerU16();
                     case PrimitiveValType.S32:
-                        return createS32Lowering();
+                        return createLowerS32();
                     case PrimitiveValType.U32:
-                        return createU32Lowering();
+                        return createLowerU32();
                     case PrimitiveValType.S64:
                         return rctx.usesNumberForInt64
-                            ? createS64LoweringNumber()
-                            : createS64LoweringBigInt();
+                            ? createLowerS64Number()
+                            : createLowerS64BigInt();
                     case PrimitiveValType.U64:
                         return rctx.usesNumberForInt64
-                            ? createU64LoweringNumber()
-                            : createU64LoweringBigInt();
+                            ? createLowerU64Number()
+                            : createLowerU64BigInt();
                     case PrimitiveValType.Float32:
-                        return createF32Lowering();
+                        return createLowerF32();
                     case PrimitiveValType.Float64:
-                        return createF64Lowering();
+                        return createLowerF64();
                     case PrimitiveValType.Char:
-                        return createCharLowering();
+                        return createLowerChar();
                     default:
                         throw new Error('Not implemented');
                 }
@@ -157,108 +158,108 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
             case ModelTag.ComponentValTypeResolved:
                 return createLowering(rctx, typeModel.resolved as ResolvedType);
             case ModelTag.ComponentTypeDefinedRecord:
-                return createRecordLowering(rctx, typeModel);
+                return createLowerRecord(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedList:
-                return createListLowering(rctx, typeModel);
+                return createLowerList(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedOption:
-                return createOptionLowering(rctx, typeModel);
+                return createLowerOption(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedResult:
-                return createResultLowering(rctx, typeModel);
+                return createLowerResult(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedVariant:
-                return createVariantLowering(rctx, typeModel);
+                return createLowerVariant(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedEnum:
-                return createEnumLowering(rctx, typeModel);
+                return createLowerEnum(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedFlags:
-                return createFlagsLowering(rctx, typeModel);
+                return createLowerFlags(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedTuple:
-                return createTupleLowering(rctx, typeModel);
+                return createLowerTuple(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedOwn:
-                return createOwnLowering(rctx, typeModel);
+                return createLowerOwn(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedBorrow:
-                return createBorrowLowering(rctx, typeModel);
+                return createLowerBorrow(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedStream:
-                return createStreamLowering(rctx, typeModel);
+                return createLowerStream(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedFuture:
-                return createFutureLowering(rctx, typeModel);
+                return createLowerFuture(rctx, typeModel);
             case ModelTag.ComponentTypeDefinedErrorContext:
-                return createErrorContextLowering();
+                return createLowerErrorContext();
             default:
                 throw new Error('Not implemented');
         }
     });
 }
 
-function createBoolLowering(): LoweringToJs {
-    (boolLowering as any).spill = 1;
-    return boolLowering;
+function createLowerBool(): LoweringToJs {
+    (lowerBool as any).spill = 1;
+    return lowerBool;
 }
 
-function createS8Lowering(): LoweringToJs {
-    (s8Lowering as any).spill = 1;
-    return s8Lowering;
+function createLowerS8(): LoweringToJs {
+    (lowerS8 as any).spill = 1;
+    return lowerS8;
 }
 
-function createU8Lowering(): LoweringToJs {
-    (u8Lowering as any).spill = 1;
-    return u8Lowering;
+function createLowerU8(): LoweringToJs {
+    (lowerU8 as any).spill = 1;
+    return lowerU8;
 }
 
-function createS16Lowering(): LoweringToJs {
-    (s16Lowering as any).spill = 1;
-    return s16Lowering;
+function createLowerS16(): LoweringToJs {
+    (lowerS16 as any).spill = 1;
+    return lowerS16;
 }
 
-function createU16Lowering(): LoweringToJs {
-    (u16Lowering as any).spill = 1;
-    return u16Lowering;
+function createLowerU16(): LoweringToJs {
+    (lowerU16 as any).spill = 1;
+    return lowerU16;
 }
 
-function createS32Lowering(): LoweringToJs {
-    (s32Lowering as any).spill = 1;
-    return s32Lowering;
+function createLowerS32(): LoweringToJs {
+    (lowerS32 as any).spill = 1;
+    return lowerS32;
 }
 
-function createU32Lowering(): LoweringToJs {
-    (u32Lowering as any).spill = 1;
-    return u32Lowering;
+function createLowerU32(): LoweringToJs {
+    (lowerU32 as any).spill = 1;
+    return lowerU32;
 }
 
-function createS64LoweringBigInt(): LoweringToJs {
-    (s64LoweringBigInt as any).spill = 1;
-    return s64LoweringBigInt;
+function createLowerS64BigInt(): LoweringToJs {
+    (lowerS64BigInt as any).spill = 1;
+    return lowerS64BigInt;
 }
 
-function createS64LoweringNumber(): LoweringToJs {
-    (s64LoweringNumber as any).spill = 1;
-    return s64LoweringNumber;
+function createLowerS64Number(): LoweringToJs {
+    (lowerS64Number as any).spill = 1;
+    return lowerS64Number;
 }
 
-function createU64LoweringBigInt(): LoweringToJs {
-    (u64LoweringBigInt as any).spill = 1;
-    return u64LoweringBigInt;
+function createLowerU64BigInt(): LoweringToJs {
+    (lowerU64BigInt as any).spill = 1;
+    return lowerU64BigInt;
 }
 
-function createU64LoweringNumber(): LoweringToJs {
-    (u64LoweringNumber as any).spill = 1;
-    return u64LoweringNumber;
+function createLowerU64Number(): LoweringToJs {
+    (lowerU64Number as any).spill = 1;
+    return lowerU64Number;
 }
 
-function createF32Lowering(): LoweringToJs {
-    (f32Lowering as any).spill = 1;
-    return f32Lowering;
+function createLowerF32(): LoweringToJs {
+    (lowerF32 as any).spill = 1;
+    return lowerF32;
 }
 
-function createF64Lowering(): LoweringToJs {
-    (f64Lowering as any).spill = 1;
-    return f64Lowering;
+function createLowerF64(): LoweringToJs {
+    (lowerF64 as any).spill = 1;
+    return lowerF64;
 }
 
-function createCharLowering(): LoweringToJs {
-    (charLowering as any).spill = 1;
-    return charLowering;
+function createLowerChar(): LoweringToJs {
+    (lowerChar as any).spill = 1;
+    return lowerChar;
 }
 
-function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
+function createLowerRecord(rctx: ResolvedContext, recordModel: ComponentTypeDefinedRecord): LoweringToJs {
     const fields: { name: string, lowerer: LoweringToJs, spill: number }[] = [];
     for (const member of recordModel.members) {
         const lowerer = createLowering(rctx, member.type);
@@ -268,29 +269,29 @@ function createRecordLowering(rctx: ResolvedContext, recordModel: ComponentTypeD
     for (const fl of fields) {
         totalSpill += fl.spill;
     }
-    const fn = recordLowering.bind(null, { fields });
+    const fn = lowerRecord.bind(null, { fields });
     (fn as any).spill = totalSpill;
     return fn;
 }
 
-function createStringLowering(encoding: StringEncoding): LoweringToJs {
+function createLowerString(encoding: StringEncoding): LoweringToJs {
     if (encoding === StringEncoding.Utf16) {
-        return createStringLoweringUtf16();
+        return createLowerStringUtf16();
     }
     if (encoding === StringEncoding.CompactUtf16) {
         throw new Error('CompactUTF-16 (latin1+utf16) string encoding not yet supported');
     }
-    return createStringLoweringUtf8();
+    return createLowerStringUtf8();
 }
 
-function createStringLoweringUtf8(): LoweringToJs {
-    (stringLoweringUtf8 as any).spill = 2;
-    return stringLoweringUtf8;
+function createLowerStringUtf8(): LoweringToJs {
+    (lowerStringUtf8 as any).spill = 2;
+    return lowerStringUtf8;
 }
 
-function createStringLoweringUtf16(): LoweringToJs {
-    (stringLoweringUtf16 as any).spill = 2;
-    return stringLoweringUtf16;
+function createLowerStringUtf16(): LoweringToJs {
+    (lowerStringUtf16 as any).spill = 2;
+    return lowerStringUtf16;
 }
 
 // --- Memory load helpers (for list element loading) ---
@@ -299,20 +300,20 @@ export type MemoryLoader = (ctx: MarshalingContext, ptr: number) => any;
 
 function createPrimitiveLoader(prim: PrimitiveValType, encoding: StringEncoding, usesNumberForInt64: boolean): MemoryLoader {
     switch (prim) {
-        case PrimitiveValType.Bool: return boolLoader;
-        case PrimitiveValType.S8: return s8Loader;
-        case PrimitiveValType.U8: return u8Loader;
-        case PrimitiveValType.S16: return s16Loader;
-        case PrimitiveValType.U16: return u16Loader;
-        case PrimitiveValType.S32: return s32Loader;
-        case PrimitiveValType.U32: return u32Loader;
-        case PrimitiveValType.S64: return usesNumberForInt64 ? s64LoaderNumber : s64LoaderBigInt;
-        case PrimitiveValType.U64: return usesNumberForInt64 ? u64LoaderNumber : u64LoaderBigInt;
-        case PrimitiveValType.Float32: return f32Loader;
-        case PrimitiveValType.Float64: return f64Loader;
-        case PrimitiveValType.Char: return charLoader;
+        case PrimitiveValType.Bool: return loadBool;
+        case PrimitiveValType.S8: return loadS8;
+        case PrimitiveValType.U8: return loadU8;
+        case PrimitiveValType.S16: return loadS16;
+        case PrimitiveValType.U16: return loadU16;
+        case PrimitiveValType.S32: return loadS32;
+        case PrimitiveValType.U32: return loadU32;
+        case PrimitiveValType.S64: return usesNumberForInt64 ? loadS64Number : loadS64BigInt;
+        case PrimitiveValType.U64: return usesNumberForInt64 ? loadU64Number : loadU64BigInt;
+        case PrimitiveValType.Float32: return loadF32;
+        case PrimitiveValType.Float64: return loadF64;
+        case PrimitiveValType.Char: return loadChar;
         case PrimitiveValType.String:
-            return encoding === StringEncoding.Utf16 ? stringLoaderUtf16 : stringLoaderUtf8;
+            return encoding === StringEncoding.Utf16 ? loadStringUtf16 : loadStringUtf8;
         default:
             throw new Error('createPrimitiveLoader not implemented for ' + prim);
     }
@@ -328,46 +329,44 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             let offset = 0;
             for (const member of type.members) {
                 const fieldType = resolveValTypePure(member.type);
-                const fieldAlign = alignOf(fieldType);
+                const fieldAlign = alignment(fieldType);
                 offset = alignUp(offset, fieldAlign);
                 fields.push({
                     name: camelCase(member.name),
                     offset,
                     loader: createMemoryLoader(fieldType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64)
                 });
-                offset += sizeOf(fieldType);
+                offset += elemSize(fieldType);
             }
-            return recordLoader.bind(null, { fields });
+            return loadRecord.bind(null, { fields });
         }
         case ModelTag.ComponentTypeDefinedList: {
             const elemType = resolveValTypePure(type.value);
-            const elemSize = sizeOf(elemType);
-            const elemAlign = alignOf(elemType);
             const elemLoader = createMemoryLoader(elemType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64);
-            return listLoader.bind(null, { elemSize, elemAlign, elemLoader });
+            return loadList.bind(null, { elemSize: elemSize(elemType), elemAlign: alignment(elemType), elemLoader });
         }
         case ModelTag.ComponentTypeDefinedOption: {
             const payloadType = resolveValTypePure(type.value);
-            const payloadAlign = alignOf(payloadType);
+            const payloadAlign = alignment(payloadType);
             const payloadOffset = alignUp(1, payloadAlign);
             const payloadLoader = createMemoryLoader(payloadType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64);
-            return optionLoader.bind(null, { payloadOffset, payloadLoader });
+            return loadOption.bind(null, { payloadOffset, payloadLoader });
         }
         case ModelTag.ComponentTypeDefinedResult: {
             let payloadAlign = 1;
-            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
-            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
+            if (type.ok !== undefined) payloadAlign = Math.max(payloadAlign, alignmentValType(type.ok));
+            if (type.err !== undefined) payloadAlign = Math.max(payloadAlign, alignmentValType(type.err));
             const payloadOffset = alignUp(1, payloadAlign);
             const okLdr = type.ok !== undefined ? createMemoryLoader(resolveValTypePure(type.ok), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
             const errLdr = type.err !== undefined ? createMemoryLoader(resolveValTypePure(type.err), stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) : undefined;
-            const resultLoaderFn = okLdr && errLdr ? resultLoaderBoth : okLdr ? resultLoaderOkOnly : errLdr ? resultLoaderErrOnly : resultLoaderVoid;
+            const resultLoaderFn = okLdr && errLdr ? loadResultBoth : okLdr ? loadResultOkOnly : errLdr ? loadResultErrOnly : loadResultVoid;
             return resultLoaderFn.bind(null, { payloadOffset, okLoader: okLdr, errLoader: errLdr });
         }
         case ModelTag.ComponentTypeDefinedVariant: {
             const discSize = discriminantSize(type.variants.length);
             let maxPayloadAlign = 1;
             for (const c of type.variants) {
-                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(c.ty));
+                if (c.ty !== undefined) maxPayloadAlign = Math.max(maxPayloadAlign, alignmentValType(c.ty));
             }
             const payloadOffset = alignUp(discSize, maxPayloadAlign);
             const caseLoaders = type.variants.map(c =>
@@ -375,50 +374,50 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
             );
             const caseNames = type.variants.map(c => c.name);
             const numCases = type.variants.length;
-            const variantLoaderFn = discSize === 1 ? variantLoaderDisc1 : discSize === 2 ? variantLoaderDisc2 : variantLoaderDisc4;
+            const variantLoaderFn = discSize === 1 ? loadVariantDisc1 : discSize === 2 ? loadVariantDisc2 : loadVariantDisc4;
             return variantLoaderFn.bind(null, { payloadOffset, caseLoaders, caseNames, numCases });
         }
         case ModelTag.ComponentTypeDefinedEnum: {
             const discSize = discriminantSize(type.members.length);
             const memberNames = type.members;
             const numMembers = type.members.length;
-            const enumLoaderFn = discSize === 1 ? enumLoaderDisc1 : discSize === 2 ? enumLoaderDisc2 : enumLoaderDisc4;
+            const enumLoaderFn = discSize === 1 ? loadEnumDisc1 : discSize === 2 ? loadEnumDisc2 : loadEnumDisc4;
             return enumLoaderFn.bind(null, { memberNames, numMembers });
         }
         case ModelTag.ComponentTypeDefinedFlags: {
             const byteSize = flagsSize(type.members.length);
             const memberNames = type.members.map(m => camelCase(m));
-            return flagsLoader.bind(null, { byteSize, memberNames });
+            return loadFlags.bind(null, { byteSize, memberNames });
         }
         case ModelTag.ComponentTypeDefinedTuple: {
             const members: { offset: number, loader: MemoryLoader }[] = [];
             let offset = 0;
             for (const member of type.members) {
                 const memberType = resolveValTypePure(member);
-                const memberAlign = alignOf(memberType);
+                const memberAlign = alignment(memberType);
                 offset = alignUp(offset, memberAlign);
                 members.push({ offset, loader: createMemoryLoader(memberType, stringEncoding, canonicalResourceIds, ownInstanceResources, usesNumberForInt64) });
-                offset += sizeOf(memberType);
+                offset += elemSize(memberType);
             }
-            return tupleLoader.bind(null, { members });
+            return loadTuple.bind(null, { members });
         }
         case ModelTag.ComponentTypeDefinedOwn: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
-            return ownResourceLoader.bind(null, { resourceTypeIdx });
+            return loadOwnResource.bind(null, { resourceTypeIdx });
         }
         case ModelTag.ComponentTypeDefinedBorrow: {
             const resourceTypeIdx = canonicalResourceIds?.get(type.value) ?? type.value;
             if (ownInstanceResources?.has(resourceTypeIdx)) {
-                return borrowResourceDirectLoader.bind(null, { resourceTypeIdx });
+                return loadBorrowResourceDirect.bind(null, { resourceTypeIdx });
             }
-            return borrowResourceLoader.bind(null, { resourceTypeIdx });
+            return loadBorrowResource.bind(null, { resourceTypeIdx });
         }
         case ModelTag.ComponentTypeDefinedStream:
-            return streamLoader;
+            return loadStream;
         case ModelTag.ComponentTypeDefinedFuture:
-            return futureLoader;
+            return loadFuture;
         case ModelTag.ComponentTypeDefinedErrorContext:
-            return errorContextLoader;
+            return loadErrorContext;
         default:
             throw new Error('createMemoryLoader not implemented for tag ' + type.tag);
     }
@@ -426,29 +425,27 @@ export function createMemoryLoader(type: ResolvedType, stringEncoding: StringEnc
 
 // --- List lowering ---
 
-function createListLowering(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LoweringToJs {
+function createLowerList(rctx: ResolvedContext, listModel: ComponentTypeDefinedList): LoweringToJs {
     const elementType = deepResolveType(rctx, resolveValType(rctx, listModel.value));
-    const elemSize = sizeOf(elementType);
-    const elemAlign = alignOf(elementType);
     const elemLoader = createMemoryLoader(elementType, rctx.stringEncoding, rctx.canonicalResourceIds, rctx.ownInstanceResources, rctx.usesNumberForInt64);
-    const fn = listLowering.bind(null, { elemSize, elemAlign, elemLoader });
+    const fn = lowerList.bind(null, { elemSize: elemSize(elementType), elemAlign: alignment(elementType), elemLoader });
     (fn as any).spill = 2;
     return fn;
 }
 
 // --- Option lowering ---
 
-function createOptionLowering(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
+function createLowerOption(rctx: ResolvedContext, optionModel: ComponentTypeDefinedOption): LoweringToJs {
     const innerLowerer = createLowering(rctx, optionModel.value);
     const innerSpill = (innerLowerer as any).spill as number;
-    const fn = optionLowering.bind(null, { innerLowerer, innerSpill });
+    const fn = lowerOption.bind(null, { innerLowerer, innerSpill });
     (fn as any).spill = 1 + innerSpill;
     return fn;
 }
 
 // --- Result lowering ---
 
-function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
+function createLowerResult(rctx: ResolvedContext, resultModel: ComponentTypeDefinedResult): LoweringToJs {
     const okLowerer = resultModel.ok ? createLowering(rctx, resultModel.ok) : undefined;
     const errLowerer = resultModel.err ? createLowering(rctx, resultModel.err) : undefined;
 
@@ -462,7 +459,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
     const okNeedsCoercion = okFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
     const errNeedsCoercion = errFlatTypes.some((ct, i) => ct !== payloadJoined[i]);
 
-    const resultLoweringFn = okNeedsCoercion || errNeedsCoercion ? resultLoweringCoerced : resultLowering;
+    const resultLoweringFn = okNeedsCoercion || errNeedsCoercion ? lowerResultCoerced : lowerResult;
     const fn = resultLoweringFn.bind(null, { okLowerer, errLowerer, payloadJoined, okFlatTypes, errFlatTypes });
     (fn as any).spill = totalSpill;
     return fn;
@@ -470,7 +467,7 @@ function createResultLowering(rctx: ResolvedContext, resultModel: ComponentTypeD
 
 // --- Variant lowering ---
 
-function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
+function createLowerVariant(rctx: ResolvedContext, variantModel: ComponentTypeDefinedVariant): LoweringToJs {
     const joinedFlatTypes = flattenVariant(deepResolveType(rctx, variantModel) as ComponentTypeDefinedVariant);
     const payloadJoined = joinedFlatTypes.slice(1);
     const totalSpill = joinedFlatTypes.length;
@@ -487,32 +484,32 @@ function createVariantLowering(rctx: ResolvedContext, variantModel: ComponentTyp
         };
     });
 
-    const fn = variantLowering.bind(null, { cases, payloadJoined });
+    const fn = lowerVariant.bind(null, { cases, payloadJoined });
     (fn as any).spill = totalSpill;
     return fn;
 }
 
 // --- Enum lowering ---
 
-function createEnumLowering(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
-    const fn = enumLowering.bind(null, { members: enumModel.members });
+function createLowerEnum(_rctx: ResolvedContext, enumModel: ComponentTypeDefinedEnum): LoweringToJs {
+    const fn = lowerEnum.bind(null, { members: enumModel.members });
     (fn as any).spill = 1;
     return fn;
 }
 
 // --- Flags lowering ---
 
-function createFlagsLowering(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
+function createLowerFlags(_rctx: ResolvedContext, flagsModel: ComponentTypeDefinedFlags): LoweringToJs {
     const wordCount = Math.max(1, Math.ceil(flagsModel.members.length / 32));
     const memberNames = flagsModel.members.map(m => camelCase(m));
-    const fn = flagsLowering.bind(null, { wordCount, memberNames });
+    const fn = lowerFlags.bind(null, { wordCount, memberNames });
     (fn as any).spill = wordCount;
     return fn;
 }
 
 // --- Tuple lowering ---
 
-function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
+function createLowerTuple(rctx: ResolvedContext, tupleModel: ComponentTypeDefinedTuple): LoweringToJs {
     const elements = tupleModel.members.map(m => {
         const lowerer = createLowering(rctx, m);
         return { lowerer, spill: (lowerer as any).spill as number };
@@ -521,58 +518,58 @@ function createTupleLowering(rctx: ResolvedContext, tupleModel: ComponentTypeDef
     let totalSpill = 0;
     for (const el of elements) totalSpill += el.spill;
 
-    const fn = tupleLowering.bind(null, { elements });
+    const fn = lowerTuple.bind(null, { elements });
     (fn as any).spill = totalSpill;
     return fn;
 }
 
 // --- Resource handle lowering ---
 
-function createOwnLowering(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
+function createLowerOwn(rctx: ResolvedContext, ownModel: ComponentTypeDefinedOwn): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, ownModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for own<${ownModel.value}>`);
-    const fn = ownLowering.bind(null, { resourceTypeIdx });
+    const fn = lowerOwn.bind(null, { resourceTypeIdx });
     (fn as any).spill = 1;
     return fn;
 }
 
-function createBorrowLowering(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
+function createLowerBorrow(rctx: ResolvedContext, borrowModel: ComponentTypeDefinedBorrow): LoweringToJs {
     const resourceTypeIdx = getCanonicalResourceId(rctx, borrowModel.value);
     jsco_assert(typeof resourceTypeIdx === 'number' && resourceTypeIdx >= 0,
         () => `Invalid canonical resource ID ${resourceTypeIdx} for borrow<${borrowModel.value}>`);
     // Canonical ABI: lift_borrow — if cx.inst is t.rt.impl (own-instance resource),
     // the value is already the rep, not a handle.
     if (rctx.ownInstanceResources.has(resourceTypeIdx)) {
-        const fn = borrowLoweringDirect.bind(null, { resourceTypeIdx });
+        const fn = lowerBorrowDirect.bind(null, { resourceTypeIdx });
         (fn as any).spill = 1;
         return fn;
     }
-    const fn = borrowLowering.bind(null, { resourceTypeIdx });
+    const fn = lowerBorrow.bind(null, { resourceTypeIdx });
     (fn as any).spill = 1;
     return fn;
 }
 
-// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+// --- Stream lifting (i32 handle → JS AsyncIterable) ---
 
-function createStreamLowering(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LoweringToJs {
-    const fn = streamLowering;
+function createLowerStream(_rctx: ResolvedContext, _streamModel: ComponentTypeDefinedStream): LoweringToJs {
+    const fn = liftStream;
     (fn as any).spill = 1;
     return fn;
 }
 
-// --- Future lowering (i32 handle → JS Promise) ---
+// --- Future lifting (i32 handle → JS Promise) ---
 
-function createFutureLowering(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LoweringToJs {
-    const fn = futureLowering;
+function createLowerFuture(_rctx: ResolvedContext, _futureModel: ComponentTypeDefinedFuture): LoweringToJs {
+    const fn = liftFuture;
     (fn as any).spill = 1;
     return fn;
 }
 
-// --- Error-context lowering (i32 handle → JS Error) ---
+// --- Error-context lifting (i32 handle → JS Error) ---
 
-function createErrorContextLowering(): LoweringToJs {
-    const fn = errorContextLowering;
+function createLowerErrorContext(): LoweringToJs {
+    const fn = liftErrorContext;
     (fn as any).spill = 1;
     return fn;
 }

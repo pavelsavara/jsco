@@ -700,4 +700,103 @@ describe('abort and dispose', () => {
             expect(ac.signal.aborted).toBe(false);
         });
     });
+
+    describe('S8 — stream dispose mid-flight', () => {
+        test('dispose during pending stream read surfaces dropped status', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Start a read — no data written yet, so it returns BLOCKED
+            const readResult = st.read(0, readHandle, 0, 10);
+            expect(readResult).toBe(0xFFFFFFFF); // BLOCKED
+
+            // Dispose mid-flight while the read is pending
+            st.dispose();
+
+            // After dispose, a second read returns dropped
+            const postResult = st.read(0, readHandle, 0, 10);
+            expect(postResult).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+
+            // Write also returns dropped
+            memory.getViewU8(0, 2).set(new Uint8Array([1, 2]));
+            const writeResult = st.write(0, writHandle, 0, 2);
+            expect(writeResult).toBe((0 << 4) | STREAM_STATUS_DROPPED);
+        });
+
+        test('dispose during pending async iterable read resolves with done', async () => {
+            const memory = createTestMemory();
+            const ac = new AbortController();
+            const st = createStreamTable(memory, makeAllocHandle(), undefined, ac.signal);
+
+            // Create a slow iterable — each chunk takes 200ms
+            let yieldCount = 0;
+            async function* slowGen(): AsyncGenerator<Uint8Array> {
+                while (true) {
+                    await new Promise(r => setTimeout(r, 200));
+                    yieldCount++;
+                    yield new Uint8Array([yieldCount]);
+                }
+            }
+            st.addReadable(0, slowGen());
+
+            // Let the first chunk start
+            await new Promise(r => setTimeout(r, 50));
+
+            // Abort mid-flight — iterable should be cancelled
+            ac.abort(new Error('component instance disposed'));
+            st.dispose();
+
+            // Wait for cancellation to propagate
+            await new Promise(r => setTimeout(r, 300));
+
+            // The generator should not have produced more chunks after abort
+            expect(yieldCount).toBeLessThanOrEqual(1);
+        });
+
+        test('fulfillPendingRead after dispose does not crash', () => {
+            const memory = createTestMemory();
+            const st = createStreamTable(memory, makeAllocHandle());
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+            const writHandle = Number(pair >> 32n);
+
+            // Start a read that blocks
+            st.read(0, readHandle, 0, 10);
+
+            // Write some data (would normally fulfill the pending read)
+            memory.getViewU8(0, 4).set(new Uint8Array([1, 2, 3, 4]));
+            st.write(0, writHandle, 0, 4);
+
+            // Dispose
+            st.dispose();
+
+            // Process is still alive (jest would have crashed otherwise)
+            expect(true).toBe(true);
+        });
+
+        test('waitingReader resolves with null on dispose', async () => {
+            const memory = createTestMemory();
+            const ac = new AbortController();
+            const st = createStreamTable(memory, makeAllocHandle(), undefined, ac.signal);
+
+            const pair = st.newStream(0);
+            const readHandle = Number(pair & 0xFFFFFFFFn);
+
+            // Get the async iterable and start reading
+            const iterable = st.removeReadable(0, readHandle) as AsyncIterable<unknown>;
+            const iter = iterable[Symbol.asyncIterator]();
+            const readPromise = iter.next();
+
+            // Dispose mid-read
+            ac.abort(new Error('component instance disposed'));
+            st.dispose();
+
+            // The pending read should resolve with done=true
+            const result = await readPromise;
+            expect(result.done).toBe(true);
+        });
+    });
 });

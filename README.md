@@ -91,6 +91,7 @@ and may behave differently in the browser vs. Node.js.
 | `filesystem/*` (VFS, preopens) | ✅ in-memory | ✅ + real mounts | ✅ | ✅ | ✅ via adapter |
 | `http/client` (Fetch API) | ✅ | ✅ | ✅ | ✅ | — |
 | `http/handler` (server) | ❌ not-supported | ✅ via `serve()` | ✅ | ✅ | — |
+| `http/handler` (middleware / chain) | ❌ not-supported | ✅ via `linkHandler()` | ✅ | — | — |
 | `sockets/*` (TCP, UDP, DNS) | ❌ not-supported | ✅ | ✅ | ✅ | — |
 
 P1 modules are served by the `wasip1-via-wasip3` adapter (`wasi_snapshot_preview1`
@@ -178,11 +179,10 @@ HTTP/socket budgets enforced by the host. Run `jsco run --help` for the full lis
 # Contribute
 
 ## Goals
-- browser polyfill for running WASM components.
+- browser polyfill for running WASM/WASI components.
 - streaming parser of binary WIT
 - streaming compilation of WASM core modules during .wasm file download
 - in-the-browser creation of instances and necessary JavaScript interop
-- WASIp2 and WASIp3 host
 - keep download size small enough to be practical for browser use
 
 ## Why

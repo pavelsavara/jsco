@@ -15,14 +15,14 @@ import type { Instant } from '../../../wit/wasip3/types/cli/command/host/interfa
  * Uses `performance.now()` for nanosecond-precision monotonic time.
  * `waitUntil()` and `waitFor()` use `setTimeout` for async waiting.
  */
-export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
+export function createMonotonicClock(overrideNow?: () => bigint): typeof WasiClocksMonotonicClock {
     // Max setTimeout delay: 2^31-1 ms ≈ 24.8 days (Node.js clamps larger values to 1)
     const MAX_DELAY_NS = BigInt(0x7fffffff) * 1_000_000n;
+    const getNow: () => bigint = overrideNow ?? ((): bigint => BigInt(Math.round(performance.now() * 1_000_000)));
 
     return {
         now(): bigint {
-            // performance.now() returns milliseconds with microsecond precision
-            return BigInt(Math.round(performance.now() * 1_000_000));
+            return getNow();
         },
 
         getResolution(): bigint {
@@ -32,7 +32,7 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
 
         waitUntil(when: bigint): Promise<void> {
             if (typeof when !== 'bigint') return undefined as unknown as Promise<void>;
-            const nowNs = BigInt(Math.round(performance.now() * 1_000_000));
+            const nowNs = getNow();
             const delayNs = when - nowNs;
             // Sync return for zero/past deadlines — async lowering treats non-Promise as instant completion
             if (delayNs <= 0n) return undefined as unknown as Promise<void>;
@@ -63,9 +63,10 @@ export function createMonotonicClock(): typeof WasiClocksMonotonicClock {
  * Uses `Date.now()` for wall-clock time, returned as an `Instant`
  * with seconds and nanoseconds components.
  */
-export function createSystemClock(): typeof WasiClocksSystemClock {
+export function createSystemClock(overrideNow?: () => Instant): typeof WasiClocksSystemClock {
     return {
         now(): Instant {
+            if (overrideNow) return overrideNow();
             const ms = Date.now();
             const seconds = BigInt(Math.floor(ms / 1000));
             const nanoseconds = (ms % 1000) * 1_000_000;

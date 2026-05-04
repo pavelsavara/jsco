@@ -28,6 +28,7 @@ import {
 import { createStreamPair } from './streams';
 import { LIMIT_DEFAULTS } from './types';
 import { ok, err, type WasiResult } from './result';
+import { flattenResource } from './resource-flatten';
 
 // ──────────────────── Local type aliases ────────────────────
 // (avoids inline import() — per project conventions)
@@ -112,6 +113,10 @@ function vfsErrorToErrorCode(e: VfsError): ErrorCode {
 function throwFsError(e: unknown): never {
     if (e instanceof VfsError) {
         throw vfsErrorToErrorCode(e);
+    }
+    // Re-throw error-code-shaped objects (e.g. from ensureWrite/ensureMutateDir)
+    if (e && typeof e === 'object' && typeof (e as { tag?: unknown }).tag === 'string') {
+        throw e;
     }
     throw { tag: 'io' };
 }
@@ -568,10 +573,11 @@ export function initFilesystem(config?: HostConfig): FilesystemState {
 
     // Create preopens — default: preopen root as '/'
     const preopens: Array<[FsDescriptor, string]> = [];
+    const readOnly = config?.fsReadOnly ?? false;
     const rootDesc = new FsDescriptor(backend, [], {
         read: true,
-        write: true,
-        mutateDirectory: true,
+        write: !readOnly,
+        mutateDirectory: !readOnly,
     }, maxPathLength);
     preopens.push([rootDesc, '/']);
 
@@ -591,17 +597,32 @@ export function createPreopens(state: FilesystemState): typeof WasiFilesystemPre
 }
 
 /**
+ * Methods on FsDescriptor whose WIT return types are NOT `result<T, E>`.
+ * These are passed through as-is rather than wrapped with `wrapResultCall`.
+ *
+ * `write-via-stream` / `append-via-stream` return `future<result<_, error-code>>`
+ * — the result is INSIDE the future, so wrapResultCall correctly wraps the
+ * Promise resolution value.
+ */
+const FS_NON_RESULT = new Set([
+    'read-via-stream', // -> tuple<stream<u8>, future<result<_, error-code>>>
+    'read-directory', // -> tuple<stream<directory-entry>, future<result<_, error-code>>>
+    'drop', // resource drop — no return
+]);
+
+/**
  * Create the `wasi:filesystem/types` interface.
  *
- * The WIT interface is essentially the Descriptor class with its static
- * type exports. We provide the Descriptor class constructor that creates
- * descriptors backed by the VFS.
+ * Flattens the FsDescriptor class into the `[method]descriptor.*` /
+ * `[resource-drop]descriptor` entries the component model resolver expects.
+ * Also exposes `Descriptor` (PascalCase) for direct host tests.
  */
 export function createFilesystemTypes(_state: FilesystemState): typeof WasiFilesystemTypes {
-    // The WIT type expects `typeof WasiFilesystemTypes` which includes the Descriptor class
-    // All the type-only exports (ErrorCode, DescriptorType, etc.) are compile-time only.
-    // The runtime export is the Descriptor class.
-    return {
-        Descriptor: FsDescriptor as unknown as typeof WasiFilesystemTypes.Descriptor,
-    } as typeof WasiFilesystemTypes;
+    const flat = flattenResource(
+        'descriptor',
+        FsDescriptor as unknown as { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown },
+        FS_NON_RESULT,
+    );
+    flat['Descriptor'] = FsDescriptor;
+    return flat as typeof WasiFilesystemTypes;
 }

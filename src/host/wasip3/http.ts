@@ -189,6 +189,12 @@ class HttpFields {
     static fromIncomingList(entries: Array<[FieldName, FieldValue]>, limits?: HttpLimits): HttpFields {
         const f = new HttpFields(limits);
         for (const [name, value] of entries) {
+            // Spec/wasmtime parity: silently drop forbidden headers from
+            // incoming requests/responses so that a guest middleware that
+            // round-trips headers via `from-list` doesn't observe `host`,
+            // `connection`, etc. (Wasmtime: `remove_forbidden_headers` in
+            // `crates/wasi-http/src/p2/types.rs`.)
+            if (FORBIDDEN_HEADERS.has(name.toLowerCase())) continue;
             validateFieldName(name);
             validateFieldValue(value);
             const entrySize = name.length + value.length;
