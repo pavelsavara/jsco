@@ -48,7 +48,7 @@ interface P3TcpSocket {
     connect(addr: IpSocketAddress): Promise<void>;
     listen(): Promise<AsyncIterable<P3TcpSocket>>;
     send(data: AsyncIterable<Uint8Array>): Promise<void>;
-    receive(): [{ push(v: Uint8Array): void; close(): void; [Symbol.asyncIterator](): AsyncIterator<Uint8Array>; onReadableDrop?: () => void }, Promise<void>];
+    receive(): [{ push(v: Uint8Array): void; close(): void;[Symbol.asyncIterator](): AsyncIterator<Uint8Array>; onReadableDrop?: () => void }, Promise<void>];
     getLocalAddress(): IpSocketAddress;
     getRemoteAddress(): IpSocketAddress;
     getIsListening(): boolean;

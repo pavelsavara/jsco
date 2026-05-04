@@ -117,8 +117,7 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     ['p3_cli_many_tasks.component.wasm', 'designed to trap after 1000 [async-lower] calls (resource quota)'],
     // ── P2 sockets: send-permit overflow not yet enforced.
     ['p2_udp_send_too_much.component.wasm', 'P2 sockets — relies on send() ENOBUFS shape / permit overflow trap'],
-    // ── P2 reactor / API export shape not yet wired.
-    ['p2_api_reactor.component.wasm', 'parser bug: canon.lift type_index resolves to ComponentTypeDefinedOwn (68) instead of ComponentTypeFunc when export signature contains own<imported-resource>'],
+
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
     // ── P2 file/dir fixtures handled inline by the P2 CLI roster (config.fs).
@@ -537,6 +536,7 @@ const P2_API: ReadonlyArray<[string]> = [
     ['p2_api_read_only.component.wasm'],
     ['p2_api_time.component.wasm'],
     ['p2_http_outbound_request_response_build.component.wasm'],
+    ['p2_api_reactor.component.wasm'],
 ];
 
 describe('wasmtime corpus — P2 API tests (targeted host config)', () => {
@@ -576,9 +576,42 @@ describe('wasmtime corpus — P2 API tests (targeted host config)', () => {
     }), 30000);
 
     test('p2_http_outbound_request_response_build.component.wasm', () => runWithVerbose(verbose, async () => {
-        const imports = createMergedHosts();
+        const out = captureStream();
+        const err = captureStream();
+        const imports = createMergedHosts({ stdout: out.stream, stderr: err.stream });
         const code = await runP2('p2_http_outbound_request_response_build.component.wasm', undefined, verbose, imports);
         expect(code).toBe(0);
+    }), 30000);
+
+    test('p2_api_reactor — instantiates and exports reactor functions', () => runWithVerbose(verbose, async () => {
+        // This test validates the parser fix for type imports (ComponentTypeRefType)
+        // which caused canon.lift to resolve the wrong type when the export signature
+        // contains own<imported-resource>. The component instantiates successfully,
+        // proving the type index space is correctly aligned.
+        //
+        // Calling the reactor's exported functions requires the Rust runtime to be
+        // fully initialized (including getenv/environ_sizes_get via P1 shim), which
+        // currently triggers a JSPI SuspendError when called outside of run().
+        // TODO: once JSPI context propagation across core module boundaries is fixed,
+        // exercise add-strings, get-strings, and pass-an-imported-record end-to-end.
+        const imports = createMergedHosts({
+            env: [['GOOD_DOG', 'gussie']],
+        });
+        const component = await createComponent(WASM_DIR + 'p2_api_reactor.component.wasm', verboseOptions(verbose));
+        const instance = await component.instantiate(imports as Parameters<typeof component.instantiate>[0]);
+        try {
+            const exports = instance.exports as Record<string, unknown>;
+            // Verify the reactor's plain function exports are available
+            expect(typeof exports['add-strings']).toBe('function');
+            expect(typeof exports['get-strings']).toBe('function');
+            expect(typeof exports['write-strings-to']).toBe('function');
+            expect(typeof exports['pass-an-imported-record']).toBe('function');
+            // Verify the P2 run shim is also exported
+            const run = getP2RunExport(exports);
+            expect(run).toBeDefined();
+        } finally {
+            instance.dispose();
+        }
     }), 30000);
 });
 

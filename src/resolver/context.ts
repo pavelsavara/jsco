@@ -194,6 +194,23 @@ function populateIndexes(rctx: ResolverContext, sections: Iterable<TaggedElement
             if (imp.ty.tag === ModelTag.ComponentTypeRefFunc) {
                 indexes.componentFunctions.push(imp);
             }
+            // Type imports contribute to the type index space (TYPE sort).
+            // Without this, subsequent type indices are off by the number of type imports.
+            if (imp.ty.tag === ModelTag.ComponentTypeRefType) {
+                if (imp.ty.value.tag === ModelTag.TypeBoundsEq) {
+                    // Alias to an existing type — reuse that type entry (shallow clone).
+                    const aliased = indexes.componentTypes[imp.ty.value.value];
+                    if (aliased) {
+                        indexes.componentTypes.push({ ...aliased });
+                    } else {
+                        // Aliased type not yet populated — push a placeholder resource.
+                        indexes.componentTypes.push({ tag: ModelTag.ComponentTypeResource, rep: 0 as never, dtor: undefined } as ComponentTypeResource);
+                    }
+                } else {
+                    // SubResource — fresh resource type in the type index space.
+                    indexes.componentTypes.push({ tag: ModelTag.ComponentTypeResource, rep: 0 as never, dtor: undefined } as ComponentTypeResource);
+                }
+            }
         }
 
         // Component model spec: export definitions extend the index space of their kind.
