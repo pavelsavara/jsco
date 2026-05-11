@@ -50,9 +50,7 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     ['p3_http_outbound_request_post.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
     ['p3_http_outbound_request_put.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
     ['p3_http_outbound_request_large_post.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
-    // ── response_build: dropping Request must cascade-close the owned stream
-    //    handle so write_all returns unwritten data. Needs resource ownership tracking.
-    ['p3_http_outbound_request_response_build.component.wasm', 'needs cascading resource drops: drop(Request) must close owned stream handle'],
+
     // ── HTTP service exports: proxy makes outbound requests (JSPI deadlock).
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by JSPI deadlock in client::send body streaming'],
     // ── P3 filesystem: stream lifecycle on error.
@@ -922,6 +920,8 @@ const P3_HTTP_OUTBOUND_VALIDATION: ReadonlyArray<[string]> = [
     ['p3_http_outbound_request_invalid_version.component.wasm'],
     // unsupported scheme (e.g. ftp://) → error before fetch
     ['p3_http_outbound_request_unsupported_scheme.component.wasm'],
+    // request/response resource build + drop: cascade-closes owned body stream
+    ['p3_http_outbound_request_response_build.component.wasm'],
 ];
 
 describe('wasmtime corpus — P3 HTTP outbound (in-process)', () => {

@@ -563,6 +563,17 @@ class HttpRequest {
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
     }
 
+    /** Cascade-close the owned body stream (and trailers future) when
+     *  this Request resource is dropped.  Mirrors wasmtime P3 Body::drop. */
+    drop(): void {
+        if (this._contents) {
+            const cancellable = this._contents as { _streamCancel?(): void };
+            if (typeof cancellable._streamCancel === 'function') {
+                cancellable._streamCancel();
+            }
+        }
+    }
+
     /** @internal Access for send() implementation. */
     get _internalContents(): WasiStreamReadable<Uint8Array> | undefined { return this._contents; }
     get _internalHeaders(): HttpFields { return this._headers; }
@@ -649,6 +660,17 @@ class HttpResponse {
         };
 
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
+    }
+
+    /** Cascade-close the owned body stream when this Response resource
+     *  is dropped.  Mirrors wasmtime P3 Body::drop. */
+    drop(): void {
+        if (this._contents) {
+            const cancellable = this._contents as { _streamCancel?(): void };
+            if (typeof cancellable._streamCancel === 'function') {
+                cancellable._streamCancel();
+            }
+        }
     }
 
     /** @internal Access for serve() implementation. */

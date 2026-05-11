@@ -180,6 +180,21 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
         return iterable;
     }
 
+    /** Attach an idempotent cancel closure that mirrors dropReadable logic.
+     *  Used by host resources (e.g. HttpRequest) to cascade-close an owned stream
+     *  when the parent resource is dropped. */
+    function attachStreamCancel(iterable: AsyncIterable<unknown>, base: number, entry: StreamEntry): void {
+        (iterable as any)._streamCancel = (): void => {
+            if (entry.readableDropped) return;
+            entry.readableDropped = true;
+            entry.closed = true;
+            if (entry.onReadableDrop) entry.onReadableDrop();
+            checkWriteReady(entry);
+            logEv(base, 'cancel via _streamCancel (closes stream)');
+            if (entry.writableDropped) entries.delete(base);
+        };
+    }
+
     /** Read typed (non-byte) elements from a stream: encode each via elementStorer. */
     function readTypedElements(entry: StreamEntry, ptr: number, len: number): number {
         const elemSize = entry.elementSize!;
@@ -391,12 +406,18 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             if (val !== undefined) {
                 jsReadables.delete(handle);
                 if (entry && typeof (val as any)[Symbol.asyncIterator] === 'function') {
-                    return makeAsyncIterable(entry);
+                    const iterable = makeAsyncIterable(entry);
+                    attachStreamCancel(iterable, base, entry);
+                    return iterable;
                 }
                 return val;
             }
             // For stream.new()-created handles, create an async iterable from the buffer
-            if (entry) return makeAsyncIterable(entry);
+            if (entry) {
+                const iterable = makeAsyncIterable(entry);
+                attachStreamCancel(iterable, base, entry);
+                return iterable;
+            }
             return undefined;
         },
         addWritable(_typeIdx: number, value: unknown): number {
