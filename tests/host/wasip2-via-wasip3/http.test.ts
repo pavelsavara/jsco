@@ -595,3 +595,93 @@ describe('wasi:http/outgoing-handler (via P3 adapter)', () => {
         expect(result.tag).toBe('err');
     });
 });
+
+// ─── Forbidden method validation (Step 11) ───
+
+import { adaptOutgoingHandler, AdapterOutgoingRequest, AdapterFields } from '../../../src/host/wasip2-via-wasip3/http';
+
+describe('adaptOutgoingHandler — forbidden method validation', () => {
+    // Use a minimal mock P3 object (adaptOutgoingHandler doesn't use it for forbidden methods).
+    const handler = adaptOutgoingHandler({} as any);
+
+    function makeRequest(method: { tag: string; val?: string }): AdapterOutgoingRequest {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod(method as any);
+        req.setScheme({ tag: 'HTTP' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        return req;
+    }
+
+    test('CONNECT method returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'connect' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('TRACE method returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'trace' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('TRACK method (other variant) returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'other', val: 'TRACK' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('GET method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'get' });
+        const result = handler.handle(req as any);
+        // Should not be HTTP-protocol-error — it will proceed to fetch (returns ok with future)
+        expect(result.tag).toBe('ok');
+    });
+
+    test('POST method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'post' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('PUT method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'put' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('DELETE method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'delete' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('custom method (PURGE) is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'other', val: 'PURGE' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('missing scheme returns HTTP-request-URI-invalid', () => {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod({ tag: 'get' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        // scheme not set → undefined
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: expect.objectContaining({ tag: 'HTTP-request-URI-invalid' }) });
+    });
+
+    test('unsupported scheme (ftp) returns HTTP-protocol-error', () => {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod({ tag: 'get' } as any);
+        req.setScheme({ tag: 'other', val: 'ftp' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+});

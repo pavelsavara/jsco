@@ -574,6 +574,12 @@ export function adaptOutgoingHandler(_p3: WasiP3Imports, _maxBufferSize?: number
                 if ('err' in built) return err(built.err);
                 url = built.url;
                 method = methodTagToString(request.method());
+                // CONNECT, TRACE, and TRACK are forbidden methods per the Fetch
+                // spec and cannot be used with outgoing-handler. Return
+                // HTTP-protocol-error per the WASI HTTP contract.
+                if (method === 'CONNECT' || method === 'TRACE' || method === 'TRACK') {
+                    return err({ tag: 'HTTP-protocol-error' });
+                }
                 fetchHeaders = adapterFieldsToFetchHeaders(request.headers());
             } catch (e) {
                 return err({ tag: 'HTTP-request-URI-invalid', val: e instanceof Error ? e.message : String(e) });

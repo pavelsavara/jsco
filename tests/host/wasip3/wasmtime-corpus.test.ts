@@ -91,7 +91,7 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     //      while the guest only drops `contents_tx` after `send` returns.
     //    Once those host gaps are resolved, move the relevant entries into
     //    a roster that exercises them with `HTTP_SERVER` set to the fixture.
-    ['p2_http_outbound_request_invalid_version.component.wasm', 'needs HTTP/2 server'],
+
     ['p3_http_outbound_request_get.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
     ['p3_http_outbound_request_post.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
     ['p3_http_outbound_request_put.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
@@ -111,7 +111,7 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     //    serve() Node HTTP harness. The remaining ones either deadlock on the
     //    JSPI client.send issue (proxy) or need an imported handler chain
     //    (middleware), or sleep forever (serve_sleep).
-    ['p3_cli_serve_sleep.component.wasm', 'service export with infinite sleep — needs cancel/abort harness'],
+
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by p3 client.send JSPI deadlock'],
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
@@ -486,6 +486,7 @@ describe('wasmtime corpus — P3 filesystem', () => {
 const P3_SERVE: ReadonlyArray<[string]> = [
     ['p3_cli_serve_hello_world.component.wasm'],
     ['p3_api_proxy.component.wasm'],
+    ['p3_cli_serve_sleep.component.wasm'],
 ];
 
 // ─────────────────── P3 middleware chain roster ───────────────────
@@ -737,6 +738,8 @@ const P2_HTTP_OUTBOUND: ReadonlyArray<[string]> = [
     // the under/over-write cases panic the guest BEFORE issuing a request, so they
     // exercise the host's outgoing-body finish/blocking-write validation only.
     ['p2_http_outbound_request_content_length.component.wasm'],
+    // CONNECT method → HTTP-protocol-error (Step 11: forbidden method validation)
+    ['p2_http_outbound_request_invalid_version.component.wasm'],
 ];
 
 // P2 HTTP outbound guests that exercise client-side input validation — they
@@ -869,6 +872,30 @@ describe('wasmtime corpus — P3 service exports (serve())', () => {
             expect(r.status).toBe(200);
             expect(r.body).toBe('hello, world!');
         }), 30000);
+
+    test('p3_cli_serve_sleep — handler sleeps forever, server returns 504 after timeout', () =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(WASM_DIR + 'p3_cli_serve_sleep.component.wasm', verboseOptions(verbose));
+            const instance = await component.instantiate(imports as Parameters<typeof component.instantiate>[0]);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE_P3] as WasiHttpHandlerExport | undefined;
+                if (!handler) throw new Error('p3_cli_serve_sleep: missing handler export');
+                // Use a short request timeout so the test doesn't hang for 30s.
+                handle = await serve(handler, {
+                    port: 0,
+                    host: '127.0.0.1',
+                    network: { httpRequestTimeoutMs: 1000 },
+                });
+                const r = await fetch(`http://127.0.0.1:${handle.port}/`);
+                expect(r.status).toBe(504);
+                expect(await r.text()).toBe('Gateway Timeout');
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 15000);
 });
 
 // ─────────────────── P3 middleware (handler-import chain) ───────────────────
