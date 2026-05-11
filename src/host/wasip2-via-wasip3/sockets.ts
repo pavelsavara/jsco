@@ -558,14 +558,21 @@ function createIncomingDatagramStream(socket: P3UdpSocket): IncomingDatagramStre
 }
 
 function createOutgoingDatagramStream(socket: P3UdpSocket, remoteAddress: IpSocketAddress | undefined, _connectPromise: Promise<void> | undefined): OutgoingDatagramStream {
+    let lastPermits = 0n;
     return {
         socket,
         remoteAddress,
         checkSend(): SocketResult<bigint> {
-            // Always allow sending — no permit tracking needed for the bridge
-            return ok(64n);
+            lastPermits = 64n;
+            return ok(lastPermits);
         },
         send(datagrams: { data: Uint8Array; remoteAddress?: IpSocketAddress }[]): SocketResult<bigint> | Promise<SocketResult<bigint>> {
+            // Per WASI spec: sending more datagrams than check_send permitted is a trap.
+            if (BigInt(datagrams.length) > lastPermits) {
+                throw new WebAssembly.RuntimeError(
+                    `outgoing-datagram-stream.send: sent ${datagrams.length} datagrams but check-send permitted only ${lastPermits}`,
+                );
+            }
             const promises: Promise<void>[] = [];
             for (const dg of datagrams) {
                 const buf = dg.data instanceof Uint8Array ? dg.data : new Uint8Array(dg.data);

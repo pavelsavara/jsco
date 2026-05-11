@@ -113,11 +113,6 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     //    (middleware), or sleep forever (serve_sleep).
     ['p3_cli_serve_sleep.component.wasm', 'service export with infinite sleep — needs cancel/abort harness'],
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by p3 client.send JSPI deadlock'],
-    // ── Trapping/cancel-on-quota behaviours not yet plumbed.
-    ['p3_cli_many_tasks.component.wasm', 'designed to trap after 1000 [async-lower] calls (resource quota)'],
-    // ── P2 sockets: send-permit overflow not yet enforced.
-    ['p2_udp_send_too_much.component.wasm', 'P2 sockets — relies on send() ENOBUFS shape / permit overflow trap'],
-
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
     // ── P2 file/dir fixtures handled inline by the P2 CLI roster (config.fs).
@@ -220,7 +215,9 @@ describe('wasmtime corpus inventory', () => {
             ...P2_HTTP_OUTBOUND_VALIDATION.map(([f]) => f),
             ...P3_SERVE.map(([f]) => f),
             ...P3_MIDDLEWARE_CHAIN.map(([f]) => f),
+            ...P3_TRAP.map(([f]) => f),
             ...P2_SOCKETS.map(([f]) => f),
+            ...P2_SOCKETS_TRAP.map(([f]) => f),
             ...P2_API.map(([f]) => f),
         ]);
         const unaccounted: string[] = [];
@@ -500,6 +497,25 @@ const P3_MIDDLEWARE_CHAIN: ReadonlyArray<[string]> = [
     ['p3_http_middleware_with_chain.component.wasm'],
 ];
 
+// ─────────────────── P3 trap tests (resource quota) ───────────────────
+// Components that are designed to trap by exhausting implementation limits.
+const P3_TRAP: ReadonlyArray<[string]> = [
+    ['p3_cli_many_tasks.component.wasm'],
+];
+
+describe('wasmtime corpus — P3 trap tests (resource quota)', () => {
+    const verbose = useVerboseOnFailure();
+
+    test('p3_cli_many_tasks — traps on async-lower subtask quota', () => runWithVerbose(verbose, async () => {
+        // Guest calls [async-lower]wait-for(1<<60) in a tight loop 1000 times.
+        // The maxConcurrentSubtasks limit (default 100) should trap before
+        // all 1000 iterations complete.
+        const imports = createMergedHosts();
+        await expect(runP3('p3_cli_many_tasks.component.wasm', imports, verbose))
+            .rejects.toThrow(/exceeded max concurrent subtasks|RuntimeError/);
+    }), 30000);
+});
+
 // ─────────────────── P2 sockets via P2-via-P3 adapter ───────────────────
 // The P2-via-P3 adapter now bridges TCP/UDP methods to the P3 NodeTcpSocket/
 // NodeUdpSocket implementations. These tests exercise the bridge layer
@@ -520,6 +536,11 @@ const P2_SOCKETS: ReadonlyArray<[string]> = [
     ['p2_ip_name_lookup.component.wasm'],
 ];
 
+// P2 socket tests that are designed to trap (exit 1).
+const P2_SOCKETS_TRAP: ReadonlyArray<[string]> = [
+    ['p2_udp_send_too_much.component.wasm'],
+];
+
 describe('wasmtime corpus — P2 sockets via P2-via-P3 adapter (Node.js)', () => {
     const verbose = useVerboseOnFailure();
 
@@ -527,6 +548,13 @@ describe('wasmtime corpus — P2 sockets via P2-via-P3 adapter (Node.js)', () =>
         const imports = createNodeMergedHosts();
         const code = await runP2(file, undefined, verbose, imports);
         expect(code).toBe(0);
+    }), 60000);
+
+    // Trap tests: guests designed to trigger a WebAssembly.RuntimeError trap.
+    test.each(P2_SOCKETS_TRAP)('%s traps as expected', (file) => runWithVerbose(verbose, async () => {
+        const imports = createNodeMergedHosts();
+        const code = await runP2(file, undefined, verbose, imports);
+        expect(code).toBe(1); // RuntimeError trap → exit code 1
     }), 60000);
 });
 

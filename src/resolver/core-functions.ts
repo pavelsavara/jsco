@@ -185,6 +185,13 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 const asyncLowerTrampoline = (...wasmArgs: unknown[]): number => {
                     const result = wasmFunction(...wasmArgs);
                     if (result instanceof Promise) {
+                        // Enforce concurrent subtask limit
+                        const cap = effectivemctx.maxConcurrentSubtasks;
+                        if (cap && effectivemctx.subtasks.size() >= cap) {
+                            throw new WebAssembly.RuntimeError(
+                                `async-lower: exceeded max concurrent subtasks (${cap})`,
+                            );
+                        }
                         // Async: create a subtask, return packed state|handle
                         const handle = effectivemctx.subtasks.create(result);
                         return SubtaskState.STARTED | (handle << 4);

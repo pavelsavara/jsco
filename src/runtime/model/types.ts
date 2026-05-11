@@ -133,6 +133,8 @@ export interface SubtaskTable {
     cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
+    /** Number of live (not yet dropped) subtask entries. */
+    size(): number;
     /** Dispose all subtasks: clear onResolve, clear entries. */
     dispose(): void;
 }
@@ -288,6 +290,13 @@ export interface AllocationLimits {
      * Default: 1_048_576 (1 MiB).
      */
     maxNetworkBufferSize?: number;
+    /**
+     * Maximum number of concurrently in-flight async-lower subtasks per
+     * component instance. When exceeded, the instance traps with a
+     * WebAssembly.RuntimeError. Mirrors wasmtime's `max_concurrent_tasks`.
+     * Default: 100. 0 disables.
+     */
+    maxConcurrentSubtasks?: number;
 }
 
 export const LIMIT_DEFAULTS = {
@@ -299,6 +308,7 @@ export const LIMIT_DEFAULTS = {
     maxBlockingTimeMs: 0,
     maxHeapGrowthPerYield: 0,
     maxNetworkBufferSize: 1_048_576,
+    maxConcurrentSubtasks: 100,
 } as const;
 
 /** WASI-specific host configuration. */

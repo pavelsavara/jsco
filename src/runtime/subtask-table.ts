@@ -62,6 +62,10 @@ export function createSubtaskTable(allocHandle: () => number): SubtaskTable {
             entries.delete(handle);
         },
 
+        size(): number {
+            return entries.size;
+        },
+
         dispose(): void {
             for (const entry of entries.values()) {
                 entry.onResolve = undefined;

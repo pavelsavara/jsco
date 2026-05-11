@@ -82,6 +82,8 @@ export type MarshalingContext = {
     heapAtLastYield?: number;
     /** Consecutive over-cap heap samples. */
     heapGrowthOverCount?: number;
+    /** Cap for concurrent in-flight async-lower subtasks. 0/undefined disables. */
+    maxConcurrentSubtasks?: number;
 }
 
 /** Per-task state read by canonical built-ins. Owned by the in-flight task
