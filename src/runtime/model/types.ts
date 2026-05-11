@@ -91,6 +91,12 @@ export type StreamEntry = {
     readableDropped?: boolean;
     /** True after dropWritable has fired; second drop traps. */
     writableDropped?: boolean;
+    /** Content-length limit: max bytes accepted via write(). */
+    maxWriteBytes?: number;
+    /** Total bytes accepted via write() (when maxWriteBytes is set). */
+    totalWritten?: number;
+    /** When a write overruns maxWriteBytes: totalWritten + attempted len. */
+    rejectedWriteTotal?: number;
 };
 
 export interface FutureTable {

@@ -206,7 +206,7 @@ async function writeWasiResponse(
     }
 
     // Signal completion
-    response._internalCompletionResolve(ok(undefined));
+    response._internalCompletionResolve(undefined);
 
     // End the response
     await new Promise<void>((resolve) => {

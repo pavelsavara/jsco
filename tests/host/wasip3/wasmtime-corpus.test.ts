@@ -4,8 +4,7 @@
  * WASIp3 wasmtime corpus tests — every prebuilt `.component.wasm` artifact
  * in `integration-tests/wasmtime/` is either:
  *   1. Wired to a parameterized smoke test below, OR
- *   2. Already exercised by another test file (KNOWN_TESTED), OR
- *   3. Listed in KNOWN_UNSUPPORTED with a one-line reason.
+ *   2. Listed in KNOWN_UNSUPPORTED with a one-line reason.
  *
  * The inventory test fails if a new `.component.wasm` lands in the corpus
  * without being classified, forcing every artifact to be accounted for.
@@ -34,41 +33,7 @@ initializeAsserts();
 const WASM_DIR = './integration-tests/wasmtime/';
 const P2_RUN_PREFIX = 'wasi:cli/run@0.2.';
 const P3_RUN_EXPORT = 'wasi:cli/run@0.3.0-rc-2026-03-15';
-
-/**
- * Files already exercised by other test files. Keep this in sync with greps
- * across `tests/host/wasip3/*.test.ts` and `tests/host/wasip3/node/*.test.ts`.
- */
-const KNOWN_TESTED: ReadonlySet<string> = new Set([
-    // tests/host/wasip3/integration.test.ts
-    'p3_big_random_buf.component.wasm',
-    'p3_random_imports.component.wasm',
-    'p3_cli_hello_stdout.component.wasm',
-    'p3_cli.component.wasm',
-    'p3_clocks_sleep.component.wasm',
-    'p3_cli_much_stdout.component.wasm',
-    'p3_cli_read_stdin.component.wasm',
-    'p3_cli_hello_stdout_post_return.component.wasm',
-    'p3_cli_random_limits.component.wasm',
-    // tests/host/wasip3/node/http-reactor-concurrent.test.ts
-    'p3_http_echo.component.wasm',
-    // tests/host/wasip3/sockets-integration.test.ts
-    'p3_sockets_tcp_sample_application.component.wasm',
-    'p3_sockets_tcp_bind.component.wasm',
-    'p3_sockets_tcp_connect.component.wasm',
-    'p3_sockets_tcp_listen.component.wasm',
-    'p3_sockets_tcp_states.component.wasm',
-    'p3_sockets_tcp_streams.component.wasm',
-    'p3_sockets_tcp_sockopts.component.wasm',
-    'p3_sockets_udp_bind.component.wasm',
-    'p3_sockets_udp_connect.component.wasm',
-    'p3_sockets_udp_send.component.wasm',
-    'p3_sockets_udp_receive.component.wasm',
-    'p3_sockets_udp_sample_application.component.wasm',
-    'p3_sockets_udp_states.component.wasm',
-    'p3_sockets_udp_sockopts.component.wasm',
-    'p3_sockets_ip_name_lookup.component.wasm',
-]);
+const HANDLER_INTERFACE_P3 = 'wasi:http/handler@0.3.0-rc-2026-03-15';
 
 /**
  * Allowlist of artifacts not yet wired with reasons. Each entry should
@@ -78,44 +43,24 @@ const KNOWN_TESTED: ReadonlySet<string> = new Set([
  * exercised end-to-end.
  */
 const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
-    // ── HTTP outbound: the echo-server-p3 fixture (see
-    //    `tests/test-utils/echo-server-fixture.ts` and the smoke test in
-    //    "echo server fixture" describe block below) is wired and verified
-    //    via fetch(). However the wasmtime guests fail today because:
-    //    • P2: `wasi:http/outgoing-handler.handle` in
-    //      `src/host/wasip2-via-wasip3` is a stub that returns
-    //      `internal-error` ("HTTP adapter not fully implemented").
-    //    • P3: `client::send(request)` in `src/host/wasip3/http.ts` deadlocks
-    //      when a guest passes a still-unwritten contents stream
-    //      (`Some(contents_rx)`) — fetch's pull() awaits the wasi stream
-    //      while the guest only drops `contents_tx` after `send` returns.
-    //    Once those host gaps are resolved, move the relevant entries into
-    //    a roster that exercises them with `HTTP_SERVER` set to the fixture.
-
-    ['p3_http_outbound_request_get.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
-    ['p3_http_outbound_request_post.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
-    ['p3_http_outbound_request_put.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
-    ['p3_http_outbound_request_content_length.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
-    ['p3_http_outbound_request_large_post.component.wasm', 'p3 client.send deadlocks: JSPI suspends wasm task while host awaits body drain from same task'],
-    ['p3_http_outbound_request_invalid_dnsname.component.wasm', 'needs DNS-failure mapping fixture'],
-    ['p3_http_outbound_request_invalid_header.component.wasm', 'needs HTTP/2 server with header validation'],
-    ['p3_http_outbound_request_invalid_port.component.wasm', 'needs port-validation error mapping'],
-    ['p3_http_outbound_request_invalid_version.component.wasm', 'needs HTTP/2 server'],
-    ['p3_http_outbound_request_missing_path_and_query.component.wasm', 'needs raw-socket-level error injection'],
-    ['p3_http_outbound_request_response_build.component.wasm', 'asserts client-side response builder shape'],
-    ['p3_http_outbound_request_timeout.component.wasm', 'needs slow-response server fixture'],
-    ['p3_http_outbound_request_unknown_method.component.wasm', 'asserts client-side method validation'],
-    ['p3_http_outbound_request_unsupported_scheme.component.wasm', 'asserts client-side scheme validation'],
-    // ── HTTP service exports (handler/serve) — wired below where feasible.
-    //    `p3_cli_serve_hello_world` and `p3_api_proxy` are exercised via the
-    //    serve() Node HTTP harness. The remaining ones either deadlock on the
-    //    JSPI client.send issue (proxy) or need an imported handler chain
-    //    (middleware), or sleep forever (serve_sleep).
-
-    ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by p3 client.send JSPI deadlock'],
+    // ── HTTP outbound: body-after-send pattern deadlocks with JSPI.
+    //    The request() helper writes body in an inner join! that runs AFTER
+    //    client::send(request).await returns. Since JSPI suspends the entire
+    //    wasm task, the stream-write arm cannot run before fetch reads the body.
+    ['p3_http_outbound_request_post.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
+    ['p3_http_outbound_request_put.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
+    ['p3_http_outbound_request_large_post.component.wasm', 'JSPI deadlock: request() helper writes body in inner join after send.await returns'],
+    // ── response_build: dropping Request must cascade-close the owned stream
+    //    handle so write_all returns unwritten data. Needs resource ownership tracking.
+    ['p3_http_outbound_request_response_build.component.wasm', 'needs cascading resource drops: drop(Request) must close owned stream handle'],
+    // ── HTTP service exports: proxy makes outbound requests (JSPI deadlock).
+    ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by JSPI deadlock in client::send body streaming'],
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
-    // ── P2 file/dir fixtures handled inline by the P2 CLI roster (config.fs).
+    // ── HTTP outbound: early-error path (before fetch) interacts with wit-bindgen
+    //    async_support.rs causing Option::unwrap panic during error propagation.
+    ['p3_http_outbound_request_unsupported_scheme.component.wasm', 'wit-bindgen async runtime panic on early send error (unsupported scheme) — error delivery vs join! timing'],
+    ['p3_http_outbound_request_invalid_version.component.wasm', 'wit-bindgen async runtime panic on early send error (CONNECT forbidden) — error delivery vs join! timing'],
 ]);
 
 /** Create merged P2+P3 hosts. Mirror integration.test.ts. */
@@ -213,23 +158,26 @@ describe('wasmtime corpus inventory', () => {
             ...P3_FS_SIMPLE.map(([f]) => f),
             ...P2_HTTP_OUTBOUND.map(([f]) => f),
             ...P2_HTTP_OUTBOUND_VALIDATION.map(([f]) => f),
+            ...P3_HTTP_OUTBOUND.map(([f]) => f),
+            ...P3_HTTP_OUTBOUND_VALIDATION.map(([f]) => f),
             ...P3_SERVE.map(([f]) => f),
             ...P3_MIDDLEWARE_CHAIN.map(([f]) => f),
             ...P3_TRAP.map(([f]) => f),
+            ...P3_SOCKETS.map(([f]) => f),
+            ...P3_HTTP_REACTOR.map(([f]) => f),
             ...P2_SOCKETS.map(([f]) => f),
             ...P2_SOCKETS_TRAP.map(([f]) => f),
             ...P2_API.map(([f]) => f),
         ]);
         const unaccounted: string[] = [];
         for (const f of all) {
-            if (KNOWN_TESTED.has(f)) continue;
             if (KNOWN_UNSUPPORTED.has(f)) continue;
             if (owned.has(f)) continue;
             unaccounted.push(f);
         }
         if (unaccounted.length > 0) {
             throw new Error(
-                'Unaccounted wasmtime corpus files (add to KNOWN_TESTED, '
+                'Unaccounted wasmtime corpus files (add to '
                 + 'KNOWN_UNSUPPORTED, or wire a smoke test):\n  '
                 + unaccounted.join('\n  '),
             );
@@ -237,7 +185,6 @@ describe('wasmtime corpus inventory', () => {
         // Sanity: every entry in the allowlists must point at an existing file.
         const present = new Set(all);
         const missing: string[] = [];
-        for (const f of KNOWN_TESTED) if (!present.has(f)) missing.push(`KNOWN_TESTED: ${f}`);
         for (const f of KNOWN_UNSUPPORTED.keys()) if (!present.has(f)) missing.push(`KNOWN_UNSUPPORTED: ${f}`);
         if (missing.length > 0) {
             throw new Error(`Stale allowlist entry (file not on disk):\n  ${missing.join('\n  ')}`);
@@ -436,10 +383,66 @@ describe('wasmtime corpus — P2 CLI smoke', () => {
 });
 
 // ─────────────────────── P3 CLI smoke tests ───────────────────────
-// All P3 CLI artifacts in the corpus are either KNOWN_TESTED or KNOWN_UNSUPPORTED;
-// no parametric roster needed here yet. The empty array is referenced by the
-// inventory test below as a future extension point.
-const P3_CLI_SIMPLE: ReadonlyArray<[string]> = [];
+
+const P3_CLI_SIMPLE: ReadonlyArray<[string, CliConfigFactory]> = [
+    // random — get 1024+ random bytes.
+    ['p3_big_random_buf.component.wasm', sinkStdoutStderr],
+    // random_imports — exercises random + insecure + insecure_seed.
+    ['p3_random_imports.component.wasm', sinkStdoutStderr],
+    // hello_stdout — prints "hello, world" to stdout.
+    ['p3_cli_hello_stdout.component.wasm', sinkStdoutStderr],
+    // cli — exercises environment, args, terminals, stdio.
+    ['p3_cli.component.wasm', () => ({
+        cfg: {
+            args: ['p3_cli.component', '.'],
+            env: [['TEST_KEY', 'TEST_VALUE']],
+            stdout: captureStream().stream,
+            stderr: captureStream().stream,
+        },
+    })],
+    // clocks_sleep — monotonic clock sleep/wait.
+    ['p3_clocks_sleep.component.wasm', sinkStdoutStderr],
+    // much_stdout — writes "x" 1000 times.
+    ['p3_cli_much_stdout.component.wasm', () => ({
+        cfg: {
+            args: ['p3_cli_much_stdout.component', 'x', '1000'],
+            stdout: captureStream().stream,
+            stderr: captureStream().stream,
+        },
+    })],
+    // read_stdin — reads "hello!" from stdin.
+    ['p3_cli_read_stdin.component.wasm', () => ({
+        cfg: {
+            stdin: stringToReadable('hello!'),
+            stdout: captureStream().stream,
+            stderr: captureStream().stream,
+        },
+    })],
+    // hello_stdout_post_return — writes after run returns.
+    ['p3_cli_hello_stdout_post_return.component.wasm', sinkStdoutStderr],
+    // random_limits — random bytes with size arg.
+    ['p3_cli_random_limits.component.wasm', () => ({
+        cfg: {
+            args: ['p3_cli_random_limits.component', 'random', '128'],
+            stdout: captureStream().stream,
+            stderr: captureStream().stream,
+        },
+    })],
+];
+
+describe('wasmtime corpus — P3 CLI smoke', () => {
+    const verbose = useVerboseOnFailure();
+
+    test.each(P3_CLI_SIMPLE.map(([f]) => [f]) as Array<[string]>)(
+        '%s exits 0',
+        (file) => runWithVerbose(verbose, async () => {
+            const factory = P3_CLI_SIMPLE.find(([f]) => f === file)![1];
+            const { cfg } = factory();
+            const imports = createMergedHosts(cfg);
+            await runP3(file, imports, verbose);
+        }),
+    );
+});
 
 // ─────────────────── P3 filesystem smoke tests ───────────────────
 // FsDescriptor class methods (readViaStream, writeViaStream, readDirectory)
@@ -504,6 +507,34 @@ const P3_TRAP: ReadonlyArray<[string]> = [
     ['p3_cli_many_tasks.component.wasm'],
 ];
 
+// ─────────────────── P3 sockets (Node.js) ───────────────────
+// P3 socket test programs (TCP, UDP, DNS). Needs Node.js real socket
+// implementations. Each program creates sockets, binds to localhost:0,
+// and asserts correctness internally (exit 0 = pass).
+const P3_SOCKETS: ReadonlyArray<[string]> = [
+    ['p3_sockets_tcp_sample_application.component.wasm'],
+    ['p3_sockets_tcp_bind.component.wasm'],
+    ['p3_sockets_tcp_connect.component.wasm'],
+    ['p3_sockets_tcp_listen.component.wasm'],
+    ['p3_sockets_tcp_states.component.wasm'],
+    ['p3_sockets_tcp_streams.component.wasm'],
+    ['p3_sockets_tcp_sockopts.component.wasm'],
+    ['p3_sockets_udp_bind.component.wasm'],
+    ['p3_sockets_udp_connect.component.wasm'],
+    ['p3_sockets_udp_send.component.wasm'],
+    ['p3_sockets_udp_receive.component.wasm'],
+    ['p3_sockets_udp_sample_application.component.wasm'],
+    ['p3_sockets_udp_states.component.wasm'],
+    ['p3_sockets_udp_sockopts.component.wasm'],
+    ['p3_sockets_ip_name_lookup.component.wasm'],
+];
+
+// ─────────────────── P3 HTTP reactor (handler export) ───────────────────
+// HTTP reactor components that export wasi:http/handler (no wasi:cli/run).
+const P3_HTTP_REACTOR: ReadonlyArray<[string]> = [
+    ['p3_http_echo.component.wasm'],
+];
+
 describe('wasmtime corpus — P3 trap tests (resource quota)', () => {
     const verbose = useVerboseOnFailure();
 
@@ -515,6 +546,37 @@ describe('wasmtime corpus — P3 trap tests (resource quota)', () => {
         await expect(runP3('p3_cli_many_tasks.component.wasm', imports, verbose))
             .rejects.toThrow(/exceeded max concurrent subtasks|RuntimeError/);
     }), 30000);
+});
+
+describe('wasmtime corpus — P3 sockets (Node.js)', () => {
+    const verbose = useVerboseOnFailure();
+
+    test.each(P3_SOCKETS)('%s', (file) => runWithVerbose(verbose, async () => {
+        const imports = createNodeMergedHosts();
+        await runP3(file, imports as Record<string, unknown>, verbose);
+    }), 60000);
+});
+
+describe('wasmtime corpus — P3 HTTP reactor', () => {
+    const verbose = useVerboseOnFailure();
+
+    test.each(P3_HTTP_REACTOR)('%s handles a GET request', (file) =>
+        runWithVerbose(verbose, async () => {
+            const imports = createMergedHosts();
+            const component = await createComponent(WASM_DIR + file, verboseOptions(verbose));
+            const instance = await component.instantiate(imports as Parameters<typeof component.instantiate>[0]);
+            let handle: ServeHandle | undefined;
+            try {
+                const handler = instance.exports[HANDLER_INTERFACE_P3] as WasiHttpHandlerExport | undefined;
+                if (!handler) throw new Error(`${file}: missing ${HANDLER_INTERFACE_P3}`);
+                handle = await serve(handler, { port: 0, host: '127.0.0.1' });
+                const r = await fetch(`http://127.0.0.1:${handle.port}/test`);
+                expect(r.status).toBe(200);
+            } finally {
+                if (handle) await handle.close();
+                instance.dispose();
+            }
+        }), 30000);
 });
 
 // ─────────────────── P2 sockets via P2-via-P3 adapter ───────────────────
@@ -837,7 +899,77 @@ describe('wasmtime corpus — P2 HTTP client-side validation', () => {
         }), 30000);
 });
 
-const HANDLER_INTERFACE_P3 = 'wasi:http/handler@0.3.0-rc-2026-03-15';
+// ─────────────────── P3 HTTP outbound corpus tests ───────────────────
+//
+// P3 guests that issue outbound HTTP requests via `wasi:http/client::send`.
+// GET requests work because sendImpl skips body streaming for bodyless methods.
+// The echo-server-p3 fixture provides the target endpoint.
+
+const P3_HTTP_OUTBOUND: ReadonlyArray<[string]> = [
+    ['p3_http_outbound_request_get.component.wasm'],
+    ['p3_http_outbound_request_content_length.component.wasm'],
+];
+
+// P3 HTTP outbound guests that exercise client-side input validation.
+// These never issue real network traffic — they error before or during send().
+const P3_HTTP_OUTBOUND_VALIDATION: ReadonlyArray<[string]> = [
+    ['p3_http_outbound_request_unknown_method.component.wasm'],
+    ['p3_http_outbound_request_missing_path_and_query.component.wasm'],
+    ['p3_http_outbound_request_invalid_header.component.wasm'],
+    // GET to invalid DNS name — expects DnsError or ConnectionRefused.
+    ['p3_http_outbound_request_invalid_dnsname.component.wasm'],
+    // GET to port 99999 — expects connection error.
+    ['p3_http_outbound_request_invalid_port.component.wasm'],
+    // GET to TEST-NET-3 with 200ms connect timeout — expects ConnectionTimeout.
+    ['p3_http_outbound_request_timeout.component.wasm'],
+];
+
+describe('wasmtime corpus — P3 HTTP outbound (in-process)', () => {
+    const verbose = useVerboseOnFailure();
+    let server: EchoServerHandle | undefined;
+
+    beforeAll(async () => {
+        server = await startEchoServer();
+    }, 30000);
+
+    afterAll(async () => {
+        if (server) await server.stop();
+    });
+
+    test.each(P3_HTTP_OUTBOUND)('%s exits 0 against echo server', (file) =>
+        runWithVerbose(verbose, async () => {
+            if (!server) throw new Error('echo server not started');
+            const imports = createMergedHosts({
+                env: [['HTTP_SERVER', server.addr]],
+            });
+            await runP3(file, imports, verbose);
+        }), 60000);
+});
+
+describe('wasmtime corpus — P3 HTTP client-side validation', () => {
+    const verbose = useVerboseOnFailure();
+    let server: EchoServerHandle | undefined;
+
+    beforeAll(async () => {
+        // invalid_version (CONNECT) needs HTTP_SERVER env var
+        server = await startEchoServer();
+    }, 30000);
+
+    afterAll(async () => {
+        if (server) await server.stop();
+    });
+
+    test.each(P3_HTTP_OUTBOUND_VALIDATION)('%s exits 0', (file) =>
+        runWithVerbose(verbose, async () => {
+            const env: [string, string][] = [];
+            // invalid_version needs HTTP_SERVER to set authority
+            if (file.includes('invalid_version') && server) {
+                env.push(['HTTP_SERVER', server.addr]);
+            }
+            const imports = createMergedHosts({ env });
+            await runP3(file, imports, verbose);
+        }), 30000);
+});
 
 describe('wasmtime corpus — P3 service exports (serve())', () => {
     const verbose = useVerboseOnFailure();

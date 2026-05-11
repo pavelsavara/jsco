@@ -1149,8 +1149,9 @@ const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (rctx, ra
     };
 };
 
-const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const wrapLower = rctx.resolved.wrapLower;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -1169,7 +1170,12 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
                 }
                 return r;
             };
-            return { result: fn };
+            // waitable-set.wait is the only canonical built-in that can return
+            // a Promise (to block for events). It MUST be wrapped with
+            // WebAssembly.Suspending so JSPI suspends the wasm stack when
+            // no events are immediately ready.
+            const result = wrapLower ? wrapLower(fn) : fn;
+            return { result };
         }, `waitable-set.wait:${elem.selfSortIndex}`)
     };
 };

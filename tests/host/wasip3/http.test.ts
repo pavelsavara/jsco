@@ -832,7 +832,7 @@ describe('HttpClient.send()', () => {
 
         await expect(
             sendUnwrap(client, req)
-        ).rejects.toMatchObject({ tag: 'HTTP-request-URI-invalid' });
+        ).rejects.toMatchObject({ tag: 'HTTP-protocol-error' });
     });
 
     it('rejects missing scheme', async () => {
@@ -929,11 +929,12 @@ describe('HttpClient.send()', () => {
         const client = createHttpClient();
         await sendUnwrap(client, req as unknown as RequestLike);
 
-        const result = await completionFuture;
-        expect(result.tag).toBe('ok');
+        // completionFuture resolves (not rejects) on success;
+        // createResultWrappingStorer wraps resolve→ok in the real binder path.
+        await expect(completionFuture).resolves.toBeUndefined();
     });
 
-    it('resolves completion future with error on failed send', async () => {
+    it('rejects completion future with error on failed send', async () => {
         mockFetch(async () => {
             throw new TypeError('network error');
         });
@@ -952,8 +953,9 @@ describe('HttpClient.send()', () => {
             // expected
         }
 
-        const result = await completionFuture;
-        expect(result.tag).toBe('err');
+        // completionFuture rejects on error;
+        // createResultWrappingStorer wraps reject→err in the real binder path.
+        await expect(completionFuture).rejects.toBeDefined();
     });
 
     it('handles response with no body', async () => {

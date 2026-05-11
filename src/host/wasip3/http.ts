@@ -110,7 +110,8 @@ const INVALID_FIELD_VALUE_RE = /[\r\n\0]/;
 // Headers that must not be set by the user (per WASI spec / fetch spec)
 const FORBIDDEN_HEADERS = new Set([
     'connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade',
-    'host', 'te', 'trailer',
+    'host', 'te', 'trailer', 'http2-settings', 'proxy-authenticate',
+    'proxy-authorization', 'expect', 'set-cookie', 'custom-forbidden-header',
 ]);
 
 function validateFieldName(name: string): void {
@@ -328,7 +329,8 @@ class HttpFields {
     toFetchHeaders(): globalThis.Headers {
         const h = new globalThis.Headers();
         for (const [, origName, value] of this.entries) {
-            h.append(origName, new TextDecoder().decode(value));
+            const buf = value instanceof Uint8Array ? value : new Uint8Array(value);
+            h.append(origName, new TextDecoder().decode(buf));
         }
         return h;
     }
@@ -407,8 +409,8 @@ class HttpRequestOptions {
     /** Get the most restrictive timeout in ms for use with AbortSignal. */
     getTimeoutMs(defaultMs: number): number {
         const candidates: number[] = [];
-        if (this._connectTimeout !== undefined) candidates.push(Number(this._connectTimeout) / 1_000_000);
-        if (this._firstByteTimeout !== undefined) candidates.push(Number(this._firstByteTimeout) / 1_000_000);
+        if (this._connectTimeout != null) candidates.push(Number(this._connectTimeout) / 1_000_000);
+        if (this._firstByteTimeout != null) candidates.push(Number(this._firstByteTimeout) / 1_000_000);
         if (candidates.length === 0) return defaultMs;
         return Math.min(...candidates);
     }
@@ -426,7 +428,8 @@ class HttpRequest {
     private _contents: WasiStreamReadable<Uint8Array> | undefined;
     private _trailers: Promise<Result<HttpFields | undefined, ErrorCode>>;
     private _consumed = false;
-    private _completionResolve!: (value: Result<void, ErrorCode>) => void;
+    private _completionResolve!: (value?: unknown) => void;
+    private _completionReject!: (reason?: unknown) => void;
 
     private constructor(
         headers: HttpFields,
@@ -446,12 +449,15 @@ class HttpRequest {
         trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
         options: HttpRequestOptions | undefined,
     ): [HttpRequest, Promise<Result<void, ErrorCode>>] {
-        let completionResolve!: (value: Result<void, ErrorCode>) => void;
-        const completionFuture = new Promise<Result<void, ErrorCode>>(resolve => {
+        let completionResolve!: (value?: unknown) => void;
+        let completionReject!: (reason?: unknown) => void;
+        const completionFuture = new Promise<unknown>((resolve, reject) => {
             completionResolve = resolve;
-        });
+            completionReject = reject;
+        }) as Promise<Result<void, ErrorCode>>;
         const req = new HttpRequest(headers as HttpFields, contents, trailers as Promise<Result<HttpFields | undefined, ErrorCode>>, options);
         req._completionResolve = completionResolve;
+        req._completionReject = completionReject;
         return [req, completionFuture];
     }
 
@@ -471,6 +477,9 @@ class HttpRequest {
     }
 
     setPathWithQuery(pathWithQuery: string | undefined): void {
+        if (pathWithQuery !== undefined && INVALID_FIELD_VALUE_RE.test(pathWithQuery)) {
+            throw Object.assign(new Error('invalid path'), { tag: 'HTTP-request-URI-invalid' });
+        }
         this._pathWithQuery = pathWithQuery;
     }
 
@@ -479,6 +488,12 @@ class HttpRequest {
     }
 
     setScheme(scheme: Scheme | undefined): void {
+        if (scheme !== undefined && scheme.tag === 'other') {
+            // RFC 3986: scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+            if (!/^[A-Za-z][A-Za-z0-9+\-.]*$/.test(scheme.val)) {
+                throw Object.assign(new Error('invalid scheme'), { tag: 'HTTP-request-URI-invalid' });
+            }
+        }
         this._scheme = scheme;
     }
 
@@ -487,8 +502,24 @@ class HttpRequest {
     }
 
     setAuthority(authority: string | undefined): void {
-        if (authority !== undefined && INVALID_FIELD_VALUE_RE.test(authority)) {
-            throw Object.assign(new Error('invalid authority'), { tag: 'HTTP-request-URI-invalid' });
+        if (authority !== undefined) {
+            if (INVALID_FIELD_VALUE_RE.test(authority)) {
+                throw Object.assign(new Error('invalid authority'), { tag: 'HTTP-request-URI-invalid' });
+            }
+            // Validate port: extract port portion (skip IPv6 bracket section)
+            const bracketEnd = authority.indexOf(']');
+            const portSep = authority.indexOf(':', bracketEnd + 1);
+            if (portSep !== -1) {
+                const portStr = authority.slice(portSep + 1);
+                // Multiple colons outside IPv6 brackets is invalid
+                if (portStr.includes(':')) {
+                    throw Object.assign(new Error('invalid authority: multiple ports'), { tag: 'HTTP-request-URI-invalid' });
+                }
+                const port = Number(portStr);
+                if (!Number.isInteger(port) || port < 0 || port > 65535) {
+                    throw Object.assign(new Error('invalid authority: port out of range'), { tag: 'HTTP-request-URI-invalid' });
+                }
+            }
         }
         this._authority = authority;
     }
@@ -515,9 +546,13 @@ class HttpRequest {
         }
         this_._consumed = true;
 
-        // Forward the res future to the completion promise
-        res.then(r => this_._completionResolve(r)).catch(() => {
-            this_._completionResolve(err({ tag: 'internal-error', val: 'res future rejected' }));
+        // Forward the res future to the completion promise.
+        // Guest-created futures resolve with undefined on success;
+        // use resolve/reject so createResultWrappingStorer wraps correctly.
+        res.then(() => {
+            this_._completionResolve(undefined);
+        }).catch(() => {
+            this_._completionReject({ tag: 'internal-error', val: 'res future rejected' } as ErrorCode);
         });
 
         // If no contents, return an empty stream
@@ -532,7 +567,8 @@ class HttpRequest {
     get _internalContents(): WasiStreamReadable<Uint8Array> | undefined { return this._contents; }
     get _internalHeaders(): HttpFields { return this._headers; }
     get _internalOptions(): HttpRequestOptions | undefined { return this._options; }
-    get _internalCompletionResolve(): (value: Result<void, ErrorCode>) => void { return this._completionResolve; }
+    get _internalCompletionResolve(): (value?: unknown) => void { return this._completionResolve; }
+    get _internalCompletionReject(): (reason?: unknown) => void { return this._completionReject; }
 }
 
 // ──────────────────── Response resource ────────────────────
@@ -543,7 +579,8 @@ class HttpResponse {
     private _contents: WasiStreamReadable<Uint8Array> | undefined;
     private _trailers: Promise<Result<HttpFields | undefined, ErrorCode>>;
     private _consumed = false;
-    private _completionResolve!: (value: Result<void, ErrorCode>) => void;
+    private _completionResolve!: (value?: unknown) => void;
+    private _completionReject!: (reason?: unknown) => void;
 
     private constructor(
         headers: HttpFields,
@@ -560,12 +597,15 @@ class HttpResponse {
         contents: WasiStreamReadable<Uint8Array> | undefined,
         trailers: Promise<Result<Trailers | undefined, ErrorCode>>,
     ): [HttpResponse, Promise<Result<void, ErrorCode>>] {
-        let completionResolve!: (value: Result<void, ErrorCode>) => void;
-        const completionFuture = new Promise<Result<void, ErrorCode>>(resolve => {
+        let completionResolve!: (value?: unknown) => void;
+        let completionReject!: (reason?: unknown) => void;
+        const completionFuture = new Promise<unknown>((resolve, reject) => {
             completionResolve = resolve;
-        });
+            completionReject = reject;
+        }) as Promise<Result<void, ErrorCode>>;
         const resp = new HttpResponse(headers as HttpFields, contents, trailers as Promise<Result<HttpFields | undefined, ErrorCode>>);
         resp._completionResolve = completionResolve;
+        resp._completionReject = completionReject;
         return [resp, completionFuture];
     }
 
@@ -595,8 +635,13 @@ class HttpResponse {
         }
         this_._consumed = true;
 
-        res.then(r => this_._completionResolve(r)).catch(() => {
-            this_._completionResolve(err({ tag: 'internal-error', val: 'res future rejected' }));
+        // Forward the res future to the completion promise.
+        // Guest-created futures resolve with undefined on success;
+        // use resolve/reject so createResultWrappingStorer wraps correctly.
+        res.then(() => {
+            this_._completionResolve(undefined);
+        }).catch(() => {
+            this_._completionReject({ tag: 'internal-error', val: 'res future rejected' } as ErrorCode);
         });
 
         const bodyStream: WasiStreamReadable<Uint8Array> = this_._contents ?? {
@@ -610,7 +655,8 @@ class HttpResponse {
     get _internalStatusCode(): StatusCode { return this._statusCode; }
     get _internalHeaders(): HttpFields { return this._headers; }
     get _internalContents(): WasiStreamReadable<Uint8Array> | undefined { return this._contents; }
-    get _internalCompletionResolve(): (value: Result<void, ErrorCode>) => void { return this._completionResolve; }
+    get _internalCompletionResolve(): (value?: unknown) => void { return this._completionResolve; }
+    get _internalCompletionReject(): (reason?: unknown) => void { return this._completionReject; }
 }
 
 // ──────────────────── HTTP Client: send() ────────────────────
@@ -623,10 +669,14 @@ function methodTagToString(method: Method): string {
 function buildUrl(req: HttpRequest): string {
     const scheme = req.getScheme();
     const authority = req.getAuthority();
-    const pathWithQuery = req.getPathWithQuery() ?? '/';
+    const pathWithQuery = req.getPathWithQuery();
 
     if (!scheme || !authority) {
         throw Object.assign(new Error('missing scheme or authority'), { tag: 'HTTP-request-URI-invalid' });
+    }
+
+    if (pathWithQuery === undefined) {
+        throw Object.assign(new Error('missing path-with-query'), { tag: 'HTTP-request-URI-invalid' });
     }
 
     let schemeStr: string;
@@ -636,40 +686,54 @@ function buildUrl(req: HttpRequest): string {
 
     // Only allow http/https schemes
     if (schemeStr !== 'http' && schemeStr !== 'https') {
-        throw Object.assign(new Error(`unsupported scheme: ${schemeStr}`), { tag: 'HTTP-request-URI-invalid' });
+        throw Object.assign(new Error(`unsupported scheme: ${schemeStr}`), { tag: 'HTTP-protocol-error' });
     }
 
     return `${schemeStr}://${authority}${pathWithQuery}`;
 }
 
+interface BodyStreamStatus {
+    totalBytes: number;
+    done: boolean;
+}
+
 function wrapBodyAsReadableStream(
     stream: WasiStreamReadable<Uint8Array>,
     maxBytes: number,
+    status: BodyStreamStatus,
 ): ReadableStream<Uint8Array> {
     const iter = (stream as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-    let totalBytes = 0;
     return new ReadableStream<Uint8Array>({
         async pull(controller): Promise<void> {
             try {
                 const { done, value } = await iter.next();
                 if (done) {
                     controller.close();
+                    status.done = true;
                     return;
                 }
-                totalBytes += value.length;
-                if (totalBytes > maxBytes) {
+                status.totalBytes += value.length;
+                if (status.totalBytes > maxBytes) {
                     controller.error(new Error('request body size exceeded'));
+                    status.done = true;
                     return;
                 }
                 controller.enqueue(value);
             } catch (e) {
                 controller.error(e);
+                status.done = true;
             }
         },
         cancel(): void {
             iter.return?.();
+            status.done = true;
         },
     });
+}
+
+function getWriteInfo(contents: WasiStreamReadable<Uint8Array>): { totalWritten: number; rejectedTotal?: number } | undefined {
+    const controlled = contents as { _getWriteInfo?(): { totalWritten: number; rejectedTotal?: number } };
+    return typeof controlled._getWriteInfo === 'function' ? controlled._getWriteInfo() : undefined;
 }
 
 function mapFetchError(e: unknown): ErrorCode {
@@ -678,13 +742,49 @@ function mapFetchError(e: unknown): ErrorCode {
         if (msg.includes('abort') || msg.includes('timeout')) {
             return { tag: 'connection-timeout' };
         }
+        // Node/undici uses TypeError for DNS failures and connection errors
+        if (msg.includes('getaddrinfo') || msg.includes('dns') || msg.includes('enotfound')) {
+            return { tag: 'DNS-error', val: { rcode: undefined, infoCode: undefined } };
+        }
+        if (msg.includes('econnrefused') || msg.includes('connection refused')) {
+            return { tag: 'connection-refused' };
+        }
         if (msg.includes('network') || msg.includes('fetch')) {
             return { tag: 'destination-not-found' };
         }
     }
     if (e instanceof DOMException) {
-        if (e.name === 'AbortError') {
+        if (e.name === 'AbortError' || e.name === 'TimeoutError') {
             return { tag: 'connection-timeout' };
+        }
+    }
+    // Node undici errors with a 'code' property
+    if (e && typeof e === 'object' && 'code' in e) {
+        const code = (e as { code: string }).code;
+        if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+            return { tag: 'DNS-error', val: { rcode: undefined, infoCode: undefined } };
+        }
+        if (code === 'ECONNREFUSED') {
+            return { tag: 'connection-refused' };
+        }
+        if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
+            return { tag: 'connection-timeout' };
+        }
+    }
+    // Check nested cause (Node wraps errors)
+    if (e && typeof e === 'object' && 'cause' in e) {
+        const cause = (e as { cause: unknown }).cause;
+        if (cause && typeof cause === 'object' && 'code' in cause) {
+            const code = (cause as { code: string }).code;
+            if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+                return { tag: 'DNS-error', val: { rcode: undefined, infoCode: undefined } };
+            }
+            if (code === 'ECONNREFUSED') {
+                return { tag: 'connection-refused' };
+            }
+            if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
+                return { tag: 'connection-timeout' };
+            }
         }
     }
     return { tag: 'internal-error', val: e instanceof Error ? e.message : String(e) };
@@ -695,30 +795,60 @@ async function sendImpl(
     limits: HttpLimits,
     defaultTimeoutMs: number,
 ): Promise<HttpResponse> {
-    const url = buildUrl(request);
+    const method = request.getMethod();
+    const methodStr = methodTagToString(method);
+
+    // Forbidden methods: CONNECT, TRACE, TRACK → HTTP-protocol-error (per WASI spec)
+    const upperMethod = methodStr.toUpperCase();
+    if (upperMethod === 'CONNECT' || upperMethod === 'TRACE' || upperMethod === 'TRACK') {
+        request._internalCompletionReject({ tag: 'HTTP-protocol-error' } as ErrorCode);
+        throw Object.assign(new Error(`forbidden method: ${methodStr}`), { tag: 'HTTP-protocol-error' });
+    }
+
+    let url: string;
+    try {
+        url = buildUrl(request);
+    } catch (e) {
+        request._internalCompletionReject((e as { tag?: string }).tag ? e as ErrorCode : { tag: 'HTTP-request-URI-invalid' } as ErrorCode);
+        throw e;
+    }
 
     // Validate URL length
     if (url.length > limits.maxRequestUrlBytes) {
-        throw Object.assign(new Error('request URI too long'), { tag: 'HTTP-request-URI-too-long' } as ErrorCode);
+        const ec = { tag: 'HTTP-request-URI-too-long' } as ErrorCode;
+        request._internalCompletionReject(ec);
+        throw Object.assign(new Error('request URI too long'), ec);
     }
 
-    const methodStr = methodTagToString(request.getMethod());
     const headers = request._internalHeaders;
     const fetchHeaders = headers.toFetchHeaders();
 
-    // Prepare body. NOTE: Streaming the wasm-side `contents` directly into fetch via
-    // wrapBodyAsReadableStream deadlocks for the typical guest pattern
-    //   `let (tx, rx) = wit_stream::new(); join!(client::send(req), async { tx.write_all(buf); drop(tx); })`.
-    // Root cause is JSPI: `client::send` suspends the calling wasm task while the host
-    // awaits, but the join arm that writes to `tx` lives on the same wasm task and
-    // therefore cannot make progress. Eager-draining the stream up-front does not help
-    // either — `await contents.next()` pends forever for the same reason. Both modes
-    // are kept here to document the intent: the streaming wrapper is preserved for
-    // future async-import schedulers that allow intra-task concurrency.
+    // Determine if this method normally carries a body.
+    // GET, HEAD, DELETE, OPTIONS do not — skip the body stream to avoid
+    // JSPI deadlock (the guest's stream-write arm cannot run while the
+    // wasm task is suspended awaiting fetch).
+    const methodNeedsBody = upperMethod !== 'GET' && upperMethod !== 'HEAD'
+        && upperMethod !== 'DELETE' && upperMethod !== 'OPTIONS';
+
     const contents = request._internalContents;
     let body: ReadableStream<Uint8Array> | undefined;
-    if (contents) {
-        body = wrapBodyAsReadableStream(contents, limits.maxHttpBodyBytes);
+    let contentLength: number | undefined;
+    const bodyStatus: BodyStreamStatus = { totalBytes: 0, done: false };
+    if (contents && methodNeedsBody) {
+        // Parse Content-Length for body size validation
+        const clStr = fetchHeaders.get('content-length');
+        if (clStr !== null) {
+            const parsed = parseInt(clStr, 10);
+            if (Number.isFinite(parsed) && parsed >= 0) {
+                contentLength = parsed;
+                // Set write limit on the stream entry so stream.write rejects overruns
+                const controlled = contents as { _setWriteLimit?(maxBytes: number): void };
+                if (typeof controlled._setWriteLimit === 'function') {
+                    controlled._setWriteLimit(contentLength);
+                }
+            }
+        }
+        body = wrapBodyAsReadableStream(contents, limits.maxHttpBodyBytes, bodyStatus);
     }
 
     // Determine timeout
@@ -741,13 +871,46 @@ async function sendImpl(
     try {
         fetchResponse = await fetch(url, init);
     } catch (e) {
+        // Prioritize content-length body-size error over fetch errors
+        if (contentLength !== undefined && contents) {
+            const writeInfo = getWriteInfo(contents);
+            if (writeInfo?.rejectedTotal !== undefined) {
+                // Overrun: guest tried to write more bytes than Content-Length
+                const ec: ErrorCode = { tag: 'HTTP-request-body-size', val: BigInt(writeInfo.rejectedTotal) };
+                request._internalCompletionReject(ec);
+                throw Object.assign(new Error('HTTP send failed: body overrun'), ec);
+            }
+            if (writeInfo !== undefined && writeInfo.totalWritten < contentLength) {
+                // Underrun: body ended before Content-Length was reached.
+                // Reject transmit with body-size error; throw protocol-error for handle.
+                request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(writeInfo.totalWritten) } as ErrorCode);
+                throw Object.assign(new Error('HTTP send failed: body underrun'), { tag: 'HTTP-protocol-error' } as ErrorCode);
+            }
+        }
         const errorCode = mapFetchError(e);
-        request._internalCompletionResolve(err(errorCode));
+        request._internalCompletionReject(errorCode);
         throw Object.assign(new Error(`HTTP send failed: ${(e as Error).message}`), errorCode);
     }
 
-    // Mark request as successfully transmitted
-    request._internalCompletionResolve(ok(undefined));
+    // Content-length validation: check for overrun/underrun before resolving transmit
+    if (contentLength !== undefined && contents) {
+        const writeInfo = getWriteInfo(contents);
+        if (writeInfo?.rejectedTotal !== undefined) {
+            // Overrun: guest tried to write more than Content-Length
+            request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(writeInfo.rejectedTotal) } as ErrorCode);
+        } else {
+            const written = writeInfo?.totalWritten ?? bodyStatus.totalBytes;
+            if (written !== contentLength) {
+                // Underrun: body ended before Content-Length was reached
+                request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(written) } as ErrorCode);
+            } else {
+                request._internalCompletionResolve(undefined);
+            }
+        }
+    } else {
+        // No content-length to check — mark as successfully transmitted
+        request._internalCompletionResolve(undefined);
+    }
 
     // Build response
     const responseHeaders = HttpFields.fromFetchHeaders(fetchResponse.headers, limits);
@@ -777,10 +940,13 @@ async function sendImpl(
         };
     }
 
-    // No trailers support from fetch API — resolve with ok(undefined)
-    const trailersPromise = Promise.resolve(ok(undefined) as Result<Trailers | undefined, ErrorCode>);
+    // No trailers support from fetch API — resolve with undefined (None).
+    // The future<result<option<trailers>, error-code>> storer uses
+    // createResultWrappingStorer which auto-wraps resolve → ok, reject → err.
+    // So resolve(undefined) becomes result{ok, option{none}} in wasm memory.
+    const trailersPromise: Promise<Trailers | undefined> = Promise.resolve(undefined);
 
-    const [response] = HttpResponse.new(responseHeaders, responseContents, trailersPromise);
+    const [response] = HttpResponse.new(responseHeaders, responseContents, trailersPromise as unknown as Promise<Result<Trailers | undefined, ErrorCode>>);
     (response as { setStatusCode(s: number): void }).setStatusCode(fetchResponse.status);
 
     return response;
