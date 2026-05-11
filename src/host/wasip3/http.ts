@@ -801,22 +801,14 @@ async function sendImpl(
     // Forbidden methods: CONNECT, TRACE, TRACK → HTTP-protocol-error (per WASI spec)
     const upperMethod = methodStr.toUpperCase();
     if (upperMethod === 'CONNECT' || upperMethod === 'TRACE' || upperMethod === 'TRACK') {
-        request._internalCompletionReject({ tag: 'HTTP-protocol-error' } as ErrorCode);
         throw Object.assign(new Error(`forbidden method: ${methodStr}`), { tag: 'HTTP-protocol-error' });
     }
 
-    let url: string;
-    try {
-        url = buildUrl(request);
-    } catch (e) {
-        request._internalCompletionReject((e as { tag?: string }).tag ? e as ErrorCode : { tag: 'HTTP-request-URI-invalid' } as ErrorCode);
-        throw e;
-    }
+    const url = buildUrl(request);
 
     // Validate URL length
     if (url.length > limits.maxRequestUrlBytes) {
         const ec = { tag: 'HTTP-request-URI-too-long' } as ErrorCode;
-        request._internalCompletionReject(ec);
         throw Object.assign(new Error('request URI too long'), ec);
     }
 
@@ -877,18 +869,18 @@ async function sendImpl(
             if (writeInfo?.rejectedTotal !== undefined) {
                 // Overrun: guest tried to write more bytes than Content-Length
                 const ec: ErrorCode = { tag: 'HTTP-request-body-size', val: BigInt(writeInfo.rejectedTotal) };
-                request._internalCompletionReject(ec);
                 throw Object.assign(new Error('HTTP send failed: body overrun'), ec);
             }
             if (writeInfo !== undefined && writeInfo.totalWritten < contentLength) {
                 // Underrun: body ended before Content-Length was reached.
-                // Reject transmit with body-size error; throw protocol-error for handle.
-                request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(writeInfo.totalWritten) } as ErrorCode);
-                throw Object.assign(new Error('HTTP send failed: body underrun'), { tag: 'HTTP-protocol-error' } as ErrorCode);
+                // Underrun: body ended before Content-Length was reached.
+                throw Object.assign(new Error('HTTP send failed: body underrun'), {
+                    tag: 'HTTP-protocol-error',
+                    _transmitError: { tag: 'HTTP-request-body-size', val: BigInt(writeInfo.totalWritten) } as ErrorCode,
+                } as ErrorCode & { _transmitError: ErrorCode });
             }
         }
         const errorCode = mapFetchError(e);
-        request._internalCompletionReject(errorCode);
         throw Object.assign(new Error(`HTTP send failed: ${(e as Error).message}`), errorCode);
     }
 
@@ -897,12 +889,16 @@ async function sendImpl(
         const writeInfo = getWriteInfo(contents);
         if (writeInfo?.rejectedTotal !== undefined) {
             // Overrun: guest tried to write more than Content-Length
-            request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(writeInfo.rejectedTotal) } as ErrorCode);
+            throw Object.assign(new Error('HTTP send: body overrun after fetch'), { tag: 'HTTP-request-body-size', val: BigInt(writeInfo.rejectedTotal) } as ErrorCode);
         } else {
             const written = writeInfo?.totalWritten ?? bodyStatus.totalBytes;
             if (written !== contentLength) {
                 // Underrun: body ended before Content-Length was reached
-                request._internalCompletionReject({ tag: 'HTTP-request-body-size', val: BigInt(written) } as ErrorCode);
+                // Underrun: body ended before Content-Length was reached
+                throw Object.assign(new Error('HTTP send: body underrun after fetch'), {
+                    tag: 'HTTP-protocol-error',
+                    _transmitError: { tag: 'HTTP-request-body-size', val: BigInt(written) } as ErrorCode,
+                } as ErrorCode & { _transmitError: ErrorCode });
             } else {
                 request._internalCompletionResolve(undefined);
             }
@@ -1097,11 +1093,23 @@ export function createHttpClient(config?: HostConfig): typeof WasiHttpClient {
                 const response = await sendImpl(request as HttpRequest, limits, defaultTimeoutMs);
                 return ok(response);
             } catch (e: unknown) {
-                if (e && typeof e === 'object' && 'tag' in e) {
-                    const tagged = e as { tag: ErrorCode['tag']; val?: unknown };
-                    return err({ tag: tagged.tag, val: tagged.val } as ErrorCode);
-                }
-                return err({ tag: 'internal-error', val: e instanceof Error ? e.message : String(e) });
+                const errorCode: ErrorCode = (e && typeof e === 'object' && 'tag' in e)
+                    ? { tag: (e as { tag: ErrorCode['tag'] }).tag, val: (e as { val?: unknown }).val } as ErrorCode
+                    : { tag: 'internal-error', val: e instanceof Error ? e.message : String(e) };
+                // If sendImpl attached a separate transmit error (e.g. underrun
+                // uses HTTP-protocol-error for the handle but HTTP-request-body-size
+                // for the transmit future), use that; otherwise both get the same error.
+                const transmitError: ErrorCode = (e && typeof e === 'object' && '_transmitError' in e)
+                    ? (e as { _transmitError: ErrorCode })._transmitError
+                    : errorCode;
+                // Defer the transmit future rejection to a microtask so it fires
+                // AFTER this Promise resolves and JSPI resumes the guest. If the
+                // rejection fires synchronously, the waitable event arrives before
+                // the guest's callback loop can deliver it, causing a panic in
+                // wit-bindgen's deliver_waitable_event.
+                const req = request as HttpRequest;
+                Promise.resolve().then(() => req._internalCompletionReject(transmitError));
+                return err(errorCode);
             }
         },
     } as unknown as typeof WasiHttpClient;

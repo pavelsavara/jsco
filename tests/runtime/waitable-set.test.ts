@@ -82,7 +82,7 @@ describe('WaitableSetTable', () => {
             expect(waitableSet.poll(setId, 100)).toBe(0);
         });
 
-        test('poll returns event count and writes events to memory when ready', async () => {
+        test('poll returns event_code and writes payload to memory when ready', async () => {
             const { waitableSet, subtaskTable, memory } = createTestEnv();
             const setId = waitableSet.newSet();
             const { promise, resolve } = Promise.withResolvers<void>();
@@ -93,14 +93,12 @@ describe('WaitableSetTable', () => {
             await promise;
             await new Promise(r => setTimeout(r, 0));
 
-            const count = waitableSet.poll(setId, 200);
-            expect(count).toBe(1);
-            // Read event: 12 bytes at ptr 200
-            const view = memory.getView(200, 12);
-            const eventCode = view.getInt32(0, true);
-            const eventHandle = view.getInt32(4, true);
-            const returnCode = view.getInt32(8, true);
+            const eventCode = waitableSet.poll(setId, 200);
             expect(eventCode).toBe(EVENT_SUBTASK);
+            // Canonical ABI: ptr has [handle, returnCode] (8 bytes)
+            const view = memory.getView(200, 8);
+            const eventHandle = view.getInt32(0, true);
+            const returnCode = view.getInt32(4, true);
             expect(eventHandle).toBe(handle);
             expect(returnCode).toBe(SubtaskState.RETURNED);
         });
@@ -118,9 +116,9 @@ describe('WaitableSetTable', () => {
 
             waitableSet.join(handle, setId);
             const result = waitableSet.wait(setId, 300);
-            // Should return synchronously (not a Promise)
+            // Should return synchronously (not a Promise) — returns event_code
             expect(typeof result).toBe('number');
-            expect(result).toBe(1);
+            expect(result).toBe(EVENT_SUBTASK);
         });
 
         test('wait returns a Promise when no events ready', () => {
@@ -152,7 +150,7 @@ describe('WaitableSetTable', () => {
 
     describe('event types', () => {
         test('subtask handle produces EVENT_SUBTASK', async () => {
-            const { waitableSet, subtaskTable, memory } = createTestEnv();
+            const { waitableSet, subtaskTable } = createTestEnv();
             const setId = waitableSet.newSet();
             const { promise, resolve } = Promise.withResolvers<void>();
             const handle = subtaskTable.create(promise);
@@ -161,13 +159,12 @@ describe('WaitableSetTable', () => {
             await promise;
             await new Promise(r => setTimeout(r, 0));
 
-            waitableSet.poll(setId, 600);
-            const eventCode = memory.getView(600, 4).getInt32(0, true);
+            const eventCode = waitableSet.poll(setId, 600);
             expect(eventCode).toBe(EVENT_SUBTASK);
         });
 
         test('future readable handle produces EVENT_FUTURE_READ', async () => {
-            const { waitableSet, futureTable, memory } = createTestEnv();
+            const { waitableSet, futureTable } = createTestEnv();
             const setId = waitableSet.newSet();
             const { promise, resolve } = Promise.withResolvers<string>();
             const handle = futureTable.addReadable(0, promise);
@@ -176,14 +173,12 @@ describe('WaitableSetTable', () => {
             await promise;
             await new Promise(r => setTimeout(r, 0));
 
-            const count = waitableSet.poll(setId, 700);
-            expect(count).toBe(1);
-            const eventCode = memory.getView(700, 4).getInt32(0, true);
+            const eventCode = waitableSet.poll(setId, 700);
             expect(eventCode).toBe(EVENT_FUTURE_READ);
         });
 
         test('stream readable handle produces EVENT_STREAM_READ', async () => {
-            const { waitableSet, streamTable, memory } = createTestEnv();
+            const { waitableSet, streamTable } = createTestEnv();
             const setId = waitableSet.newSet();
 
             // Use async iterable so pumpIterable triggers signalReady → onReady
@@ -197,15 +192,13 @@ describe('WaitableSetTable', () => {
             resolve(new Uint8Array([42]));
             await new Promise(r => setTimeout(r, 50));
 
-            const count = waitableSet.poll(setId, 800);
-            expect(count).toBe(1);
-            const eventCode = memory.getView(800, 4).getInt32(0, true);
+            const eventCode = waitableSet.poll(setId, 800);
             expect(eventCode).toBe(EVENT_STREAM_READ);
         });
     });
 
     describe('event delivery format', () => {
-        test('events written as 12-byte records little-endian', async () => {
+        test('events written as 8-byte payload records little-endian', async () => {
             const { waitableSet, subtaskTable, memory } = createTestEnv();
             const setId = waitableSet.newSet();
             const { promise, resolve } = Promise.withResolvers<void>();
@@ -215,14 +208,13 @@ describe('WaitableSetTable', () => {
             await promise;
             await new Promise(r => setTimeout(r, 0));
 
-            waitableSet.poll(setId, 900);
-            const view = memory.getView(900, 12);
-            // eventCode: i32 at offset 0
-            // handle: i32 at offset 4
-            // returnCode: i32 at offset 8
-            expect(view.getInt32(0, true)).toBe(EVENT_SUBTASK);
-            expect(view.getInt32(4, true)).toBe(handle);
-            expect(view.getInt32(8, true)).toBe(SubtaskState.RETURNED);
+            const eventCode = waitableSet.poll(setId, 900);
+            // Canonical ABI: event_code is the return value
+            expect(eventCode).toBe(EVENT_SUBTASK);
+            // Payload at ptr: [handle, returnCode] (8 bytes)
+            const view = memory.getView(900, 8);
+            expect(view.getInt32(0, true)).toBe(handle);
+            expect(view.getInt32(4, true)).toBe(SubtaskState.RETURNED);
         });
     });
 
@@ -287,9 +279,9 @@ describe('WaitableSetTable', () => {
             await promise;
             await new Promise(r => setTimeout(r, 0));
 
-            const count = waitableSet.poll(setId, 100);
+            const eventCode = waitableSet.poll(setId, 100);
             // Should only get 1 event, not 2
-            expect(count).toBe(1);
+            expect(eventCode).toBe(EVENT_SUBTASK);
         });
     });
 
@@ -324,9 +316,7 @@ describe('WaitableSetTable', () => {
             streamTable.read(0, readHandle, 100, 20);
 
             // Now poll — should have EVENT_STREAM_WRITE
-            const count = waitableSet.poll(setId, 700);
-            expect(count).toBe(1);
-            const eventCode = memory.getView(700, 4).getInt32(0, true);
+            const eventCode = waitableSet.poll(setId, 700);
             expect(eventCode).toBe(EVENT_STREAM_WRITE);
         });
 
@@ -347,9 +337,7 @@ describe('WaitableSetTable', () => {
             memory.getViewU8(0, 4).set(new Uint8Array([1, 2, 3, 4]));
             futureTable.write(0, writHandle, 0);
 
-            const count = waitableSet.poll(setId, 700);
-            expect(count).toBe(1);
-            const eventCode = memory.getView(700, 4).getInt32(0, true);
+            const eventCode = waitableSet.poll(setId, 700);
             expect(eventCode).toBe(EVENT_FUTURE_WRITE);
         });
     });
@@ -372,9 +360,10 @@ describe('WaitableSetTable', () => {
             await p1;
             await new Promise(r => setTimeout(r, 0));
 
-            const count = waitableSet.poll(setId, 800);
-            expect(count).toBe(1);
-            const eventHandle = memory.getView(800, 12).getInt32(4, true);
+            const eventCode = waitableSet.poll(setId, 800);
+            expect(eventCode).toBe(EVENT_SUBTASK);
+            // Payload: [handle, returnCode]
+            const eventHandle = memory.getView(800, 4).getInt32(0, true);
             expect(eventHandle).toBe(h1);
         });
 
@@ -396,16 +385,14 @@ describe('WaitableSetTable', () => {
             await p2;
             await new Promise(r => setTimeout(r, 0));
 
-            // Spec: poll returns exactly 1 event per call
-            const count1 = waitableSet.poll(setId, 900);
-            expect(count1).toBe(1);
-            const view1 = memory.getView(900, 12);
-            const firstHandle = view1.getInt32(4, true);
+            // Spec: poll returns exactly 1 event per call (event_code as return)
+            const ec1 = waitableSet.poll(setId, 900);
+            expect(ec1).toBe(EVENT_SUBTASK);
+            const firstHandle = memory.getView(900, 4).getInt32(0, true);
 
-            const count2 = waitableSet.poll(setId, 900);
-            expect(count2).toBe(1);
-            const view2 = memory.getView(900, 12);
-            const secondHandle = view2.getInt32(4, true);
+            const ec2 = waitableSet.poll(setId, 900);
+            expect(ec2).toBe(EVENT_SUBTASK);
+            const secondHandle = memory.getView(900, 4).getInt32(0, true);
 
             expect([firstHandle, secondHandle]).toContain(h1);
             expect([firstHandle, secondHandle]).toContain(h2);
@@ -430,18 +417,16 @@ describe('WaitableSetTable', () => {
             await p2;
             await new Promise(r => setTimeout(r, 0));
 
-            // Spec: wait() returns exactly 1 event per call
-            const count1 = waitableSet.wait(setId, 1000);
-            expect(typeof count1).toBe('number');
-            expect(count1).toBe(1);
-            const view1 = memory.getView(1000, 12);
-            const firstHandle = view1.getInt32(4, true);
+            // Spec: wait() returns exactly 1 event per call (event_code as return)
+            const ec1 = waitableSet.wait(setId, 1000);
+            expect(typeof ec1).toBe('number');
+            expect(ec1).toBe(EVENT_SUBTASK);
+            const firstHandle = memory.getView(1000, 4).getInt32(0, true);
 
-            const count2 = waitableSet.wait(setId, 1000);
-            expect(typeof count2).toBe('number');
-            expect(count2).toBe(1);
-            const view2 = memory.getView(1000, 12);
-            const secondHandle = view2.getInt32(4, true);
+            const ec2 = waitableSet.wait(setId, 1000);
+            expect(typeof ec2).toBe('number');
+            expect(ec2).toBe(EVENT_SUBTASK);
+            const secondHandle = memory.getView(1000, 4).getInt32(0, true);
 
             expect([firstHandle, secondHandle]).toContain(h1);
             expect([firstHandle, secondHandle]).toContain(h2);

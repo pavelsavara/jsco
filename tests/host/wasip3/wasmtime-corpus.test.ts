@@ -57,10 +57,6 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by JSPI deadlock in client::send body streaming'],
     // ── P3 filesystem: stream lifecycle on error.
     ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
-    // ── HTTP outbound: early-error path (before fetch) interacts with wit-bindgen
-    //    async_support.rs causing Option::unwrap panic during error propagation.
-    ['p3_http_outbound_request_unsupported_scheme.component.wasm', 'wit-bindgen async runtime panic on early send error (unsupported scheme) — error delivery vs join! timing'],
-    ['p3_http_outbound_request_invalid_version.component.wasm', 'wit-bindgen async runtime panic on early send error (CONNECT forbidden) — error delivery vs join! timing'],
 ]);
 
 /** Create merged P2+P3 hosts. Mirror integration.test.ts. */
@@ -922,6 +918,10 @@ const P3_HTTP_OUTBOUND_VALIDATION: ReadonlyArray<[string]> = [
     ['p3_http_outbound_request_invalid_port.component.wasm'],
     // GET to TEST-NET-3 with 200ms connect timeout — expects ConnectionTimeout.
     ['p3_http_outbound_request_timeout.component.wasm'],
+    // CONNECT method → HTTP-protocol-error (forbidden method validation)
+    ['p3_http_outbound_request_invalid_version.component.wasm'],
+    // unsupported scheme (e.g. ftp://) → error before fetch
+    ['p3_http_outbound_request_unsupported_scheme.component.wasm'],
 ];
 
 describe('wasmtime corpus — P3 HTTP outbound (in-process)', () => {
