@@ -108,18 +108,61 @@ function nodeRequestToWasi(
     }
     const headers = HttpFields.fromIncomingList(headerEntries, limits);
 
-    // Streaming request body
+    // Streaming request body — eagerly attach listeners so data arriving
+    // between the 'request' event and the pump's first read is not lost.
+    // (On Linux the body may arrive in a later event-loop tick than headers.)
+    const bodyChunks: Uint8Array[] = [];
+    let bodyDone = false;
+    let bodyError: Error | undefined;
+    let bodyWaiting: ((chunk: Uint8Array | null) => void) | undefined;
+    let bodyTotalBytes = 0;
+
+    req.on('data', (chunk: Buffer) => {
+        const buf = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+        bodyTotalBytes += buf.length;
+        if (bodyTotalBytes > limits.maxHttpBodyBytes) {
+            bodyError = new Error('request body size exceeded');
+            req.destroy();
+            if (bodyWaiting) { const w = bodyWaiting; bodyWaiting = undefined; w(null); }
+            return;
+        }
+        if (bodyWaiting) {
+            const w = bodyWaiting;
+            bodyWaiting = undefined;
+            w(buf);
+        } else {
+            bodyChunks.push(buf);
+        }
+    });
+    req.on('end', () => {
+        bodyDone = true;
+        if (bodyWaiting) { const w = bodyWaiting; bodyWaiting = undefined; w(null); }
+    });
+    req.on('error', (e: Error) => {
+        bodyError = e;
+        bodyDone = true;
+        if (bodyWaiting) { const w = bodyWaiting; bodyWaiting = undefined; w(null); }
+    });
+
     const bodyStream: WasiStreamReadable<Uint8Array> = {
         async *[Symbol.asyncIterator]() {
-            let totalBytes = 0;
-            for await (const chunk of req) {
-                const buf = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as Buffer);
-                totalBytes += buf.length;
-                if (totalBytes > limits.maxHttpBodyBytes) {
-                    throw new Error('request body size exceeded');
+            while (true) {
+                if (bodyError) throw bodyError;
+                if (bodyChunks.length > 0) {
+                    const buf = bodyChunks.shift()!;
+                    trackAggregateBytes(buf.length);
+                    yield buf;
+                } else if (bodyDone) {
+                    break;
+                } else {
+                    const chunk = await new Promise<Uint8Array | null>((resolve) => { bodyWaiting = resolve; });
+                    if (chunk === null) {
+                        if (bodyError) throw bodyError;
+                        break;
+                    }
+                    trackAggregateBytes(chunk.length);
+                    yield chunk;
                 }
-                trackAggregateBytes(buf.length);
-                yield buf;
             }
         },
     };
@@ -360,8 +403,10 @@ export async function serve(
                 }
                 const response = r.val;
 
-                // If handler succeeded, resolve the request completion
-                completionFuture.then(() => { /* consumed by request internals */ });
+                // If handler succeeded, resolve the request completion.
+                // Attach .catch to avoid unhandled rejection if the guest
+                // drops the body-done future without resolving it.
+                completionFuture.then(() => { /* consumed by request internals */ }, () => { /* swallow */ });
 
                 await aggregateBytesStore.run(counter, () =>
                     writeWasiResponse(res, response, requestAc.signal),
