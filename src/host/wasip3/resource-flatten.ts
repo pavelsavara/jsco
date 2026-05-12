@@ -63,7 +63,10 @@ export function wrapResultCall(target: Any, method: string, ...args: Any[]): Any
  *
  * Methods whose WIT return type is `result<T, E>` are auto-wrapped via
  * `wrapResultCall`. Methods listed in `nonResultMethods` (kebab-case) are
- * passed through as-is.
+ * passed through as-is — synchronous throws propagate to the trampoline
+ * (trap). Methods listed in `throwToRejectMethods` convert ErrorCode-shaped
+ * throws to rejected Promises (for methods whose WIT return type wraps
+ * result inside a future, e.g. `future<result<_,E>>`).
  *
  * - `cls.create` (if present) → `[static]<name>.create`
  * - All prototype methods → `[method]<name>.<kebab-case>`
@@ -73,6 +76,7 @@ export function flattenResource(
     name: string,
     cls: { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown },
     nonResultMethods?: ReadonlySet<string>,
+    throwToRejectMethods?: ReadonlySet<string>,
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     result[name] = cls;
@@ -83,7 +87,22 @@ export function flattenResource(
         if (key === 'constructor') continue;
         if (typeof cls.prototype[key] !== 'function') continue;
         const kebab = camelToKebab(key);
-        if (nonResultMethods?.has(kebab)) {
+        if (throwToRejectMethods?.has(kebab)) {
+            // Methods returning future<result<_,E>>: convert ErrorCode throws
+            // to rejected Promises so createResultWrappingStorer handles the
+            // error at the future-table level, avoiding double-wrapping.
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+            result[`[method]${name}.${kebab}`] = (self: Any, ...args: Any[]): unknown => {
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+                    return self[key](...args);
+                } catch (e: Any) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    if (e && typeof e === 'object' && typeof e.tag === 'string') return Promise.reject(e);
+                    throw e;
+                }
+            };
+        } else if (nonResultMethods?.has(kebab)) {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
             result[`[method]${name}.${kebab}`] = (self: Any, ...args: Any[]): unknown => self[key](...args);
         } else {
@@ -93,3 +112,4 @@ export function flattenResource(
     result[`[resource-drop]${name}`] = (self: Any): void => { if (self && typeof self.drop === 'function') self.drop(); };
     return result;
 }
+

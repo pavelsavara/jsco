@@ -30,6 +30,15 @@ import { LIMIT_DEFAULTS } from './types';
 import { ok, err, type WasiResult } from './result';
 import { flattenResource } from './resource-flatten';
 
+/** Cancel a stream that was lifted from a guest handle but never consumed.
+ *  Uses the _streamCancel closure attached by stream-table's removeReadable. */
+function cancelStream(data: WasiStreamReadable<Uint8Array>): void {
+    const cancellable = data as { _streamCancel?(): void };
+    if (typeof cancellable._streamCancel === 'function') {
+        cancellable._streamCancel();
+    }
+}
+
 // ──────────────────── Local type aliases ────────────────────
 // (avoids inline import() — per project conventions)
 
@@ -152,7 +161,7 @@ class FsDescriptor {
     }
 
     private ensureWrite(): void {
-        if (!this.flags.write) throw { tag: 'read-only' };
+        if (!this.flags.write) throw { tag: 'not-permitted' };
     }
 
     private ensureMutateDir(): void {
@@ -212,38 +221,50 @@ class FsDescriptor {
 
     writeViaStream(data: WasiStreamReadable<Uint8Array>, offset: bigint): WasiFuture<void> {
         this.ensureNotDropped();
-        this.ensureWrite();
+        try {
+            this.ensureWrite();
+        } catch (e) {
+            cancelStream(data);
+            throw e;
+        }
 
         const backend = this.backend;
         const path = this.path;
 
         return (async (): Promise<void> => {
-            try {
-                let currentOffset = offset;
-                for await (const chunk of data) {
+            let currentOffset = offset;
+            for await (const chunk of data) {
+                try {
                     backend.write(path, chunk, currentOffset);
-                    currentOffset += BigInt(chunk.length);
+                } catch (e) {
+                    cancelStream(data);
+                    throwFsError(e);
                 }
-            } catch (e) {
-                throwFsError(e);
+                currentOffset += BigInt(chunk.length);
             }
         })();
     }
 
     appendViaStream(data: WasiStreamReadable<Uint8Array>): WasiFuture<void> {
         this.ensureNotDropped();
-        this.ensureWrite();
+        try {
+            this.ensureWrite();
+        } catch (e) {
+            cancelStream(data);
+            throw e;
+        }
 
         const backend = this.backend;
         const path = this.path;
 
         return (async (): Promise<void> => {
-            try {
-                for await (const chunk of data) {
+            for await (const chunk of data) {
+                try {
                     backend.append(path, chunk);
+                } catch (e) {
+                    cancelStream(data);
+                    throwFsError(e);
                 }
-            } catch (e) {
-                throwFsError(e);
             }
         })();
     }
@@ -600,14 +621,26 @@ export function createPreopens(state: FilesystemState): typeof WasiFilesystemPre
  * Methods on FsDescriptor whose WIT return types are NOT `result<T, E>`.
  * These are passed through as-is rather than wrapped with `wrapResultCall`.
  *
- * `write-via-stream` / `append-via-stream` return `future<result<_, error-code>>`
- * — the result is INSIDE the future, so wrapResultCall correctly wraps the
- * Promise resolution value.
+ * `write-via-stream` / `append-via-stream` / `read-via-stream` return
+ * `future<result<_, error-code>>` — the result is INSIDE the future.
+ * `createResultWrappingStorer` already maps resolve→ok, reject→err at
+ * the future-table level, so `wrapResultCall` must NOT re-wrap them.
+ *
+ * Methods returning bare `future<result<_,E>>` go into FS_THROW_TO_REJECT:
+ * synchronous permission throws are converted to rejected Promises by
+ * flattenResource, so direct callers (P2 adapter) still see throws while
+ * the P3 path (via future table) sees rejected Promises.
  */
 const FS_NON_RESULT = new Set([
     'read-via-stream', // -> tuple<stream<u8>, future<result<_, error-code>>>
     'read-directory', // -> tuple<stream<directory-entry>, future<result<_, error-code>>>
     'drop', // resource drop — no return
+]);
+
+/** Methods returning `future<result<_,E>>` whose ErrorCode throws must become rejected Promises. */
+const FS_THROW_TO_REJECT = new Set([
+    'write-via-stream', // -> future<result<_, error-code>>
+    'append-via-stream', // -> future<result<_, error-code>>
 ]);
 
 /**
@@ -622,6 +655,7 @@ export function createFilesystemTypes(_state: FilesystemState): typeof WasiFiles
         'descriptor',
         FsDescriptor as unknown as { prototype: Record<string, unknown>; create?: (...args: unknown[]) => unknown },
         FS_NON_RESULT,
+        FS_THROW_TO_REJECT,
     );
     flat['Descriptor'] = FsDescriptor;
     return flat as typeof WasiFilesystemTypes;

@@ -53,8 +53,7 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
 
     // ── HTTP service exports: proxy makes outbound requests (JSPI deadlock).
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by JSPI deadlock in client::send body streaming'],
-    // ── P3 filesystem: stream lifecycle on error.
-    ['p3_file_write.component.wasm', 'stream lifecycle: unused readable stream not auto-cancelled when host future resolves with error — runtime-level fix needed'],
+
 ]);
 
 /** Create merged P2+P3 hosts. Mirror integration.test.ts. */
@@ -443,11 +442,7 @@ describe('wasmtime corpus — P3 CLI smoke', () => {
 // are now implemented. These artifacts exercise file I/O and directory listing.
 const P3_FS_SIMPLE: ReadonlyArray<[string]> = [
     ['p3_filesystem_file_read_write.component.wasm'],
-    // p3_file_write: 64KB write+read+stat pass, but the final assertion
-    // (write_all to a stream whose read side was never consumed should return
-    // unwritten data) fails because the runtime doesn't auto-cancel unused
-    // stream handles when the future resolves with an error. Runtime-level fix.
-    // ['p3_file_write.component.wasm'],
+    ['p3_file_write.component.wasm'],
     ['p3_readdir.component.wasm'],
 ];
 
