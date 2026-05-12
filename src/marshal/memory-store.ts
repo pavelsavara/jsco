@@ -9,58 +9,58 @@ import { OK, ERR } from './constants';
 
 // --- Primitive memory storers ---
 
-export function boolStorer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeBool(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, val ? 1 : 0);
 }
 
-export function s8Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeS8(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setInt8(0, val as number);
 }
 
-export function u8Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeU8(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, (val as number) & 0xFF);
 }
 
-export function s16Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeS16(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setInt16(0, val as number, true);
 }
 
-export function u16Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeU16(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, (val as number) & 0xFFFF, true);
 }
 
-export function s32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeS32(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, val as number, true);
 }
 
-export function u32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeU32(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, (val as number) >>> 0, true);
 }
 
-export function s64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeS64(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigInt64(0, BigInt(val), true);
 }
 
-export function u64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeU64(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setBigUint64(0, BigInt(val), true);
 }
 
-export function f32Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeF32(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'number') throw new TypeError(`expected a number for f32, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setFloat32(0, val, true);
 }
 
-export function f64Storer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeF64(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'number') throw new TypeError(`expected a number for f64, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).setFloat64(0, val, true);
 }
 
-export function charStorer(ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeChar(ctx: MarshalingContext, ptr: number, val: JsValue): void {
     if (typeof val !== 'string') throw new TypeError(`expected a string for char, got ${typeof val}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, val.codePointAt(0)!, true);
 }
 
-export function stringStorer(plan: StringStorerPlan, ctx: MarshalingContext, ptr: number, val: JsValue): void {
+export function storeString(plan: StringStorerPlan, ctx: MarshalingContext, ptr: number, val: JsValue): void {
     const tmp: WasmValue[] = [0, 0];
     plan.lifter(ctx, val, tmp, 0);
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
@@ -71,7 +71,7 @@ export function stringStorer(plan: StringStorerPlan, ctx: MarshalingContext, ptr
 // --- Compound memory storers ---
 
 
-export function recordStorer(plan: RecordStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeRecord(plan: RecordStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for record, got ${jsValue === null ? 'null' : typeof jsValue}`);
     for (let i = 0; i < plan.fields.length; i++) {
         const f = plan.fields[i]!;
@@ -79,7 +79,7 @@ export function recordStorer(plan: RecordStorerPlan, ctx: MarshalingContext, ptr
     }
 }
 
-export function listStorer(plan: ListStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeList(plan: ListStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected an array for list, got ${jsValue === null ? 'null' : 'undefined'}`);
     const len = jsValue.length;
     const totalSize = len * plan.elemSize;
@@ -99,7 +99,7 @@ export function listStorer(plan: ListStorerPlan, ctx: MarshalingContext, ptr: nu
     dv.setInt32(4, len, true);
 }
 
-export function optionStorer(plan: OptionStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeOption(plan: OptionStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue === null || jsValue === undefined) {
         dv.setUint8(0, 0);
@@ -109,7 +109,7 @@ export function optionStorer(plan: OptionStorerPlan, ctx: MarshalingContext, ptr
     }
 }
 
-export function resultStorerBoth(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeResultBoth(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
@@ -123,7 +123,7 @@ export function resultStorerBoth(plan: ResultStorerPlan, ctx: MarshalingContext,
     }
 }
 
-export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeResultOkOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
@@ -136,7 +136,7 @@ export function resultStorerOkOnly(plan: ResultStorerPlan, ctx: MarshalingContex
     }
 }
 
-export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeResultErrOnly(plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
@@ -149,7 +149,7 @@ export function resultStorerErrOnly(plan: ResultStorerPlan, ctx: MarshalingConte
     }
 }
 
-export function resultStorerVoid(_plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeResultVoid(_plan: ResultStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     if (jsValue == null) throw new TypeError(`expected a result value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag;
@@ -157,7 +157,7 @@ export function resultStorerVoid(_plan: ResultStorerPlan, ctx: MarshalingContext
     dv.setUint8(0, tag === OK ? 0 : 1);
 }
 
-export function variantStorerDisc1(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeVariantDisc1(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -168,7 +168,7 @@ export function variantStorerDisc1(plan: VariantStorerPlan, ctx: MarshalingConte
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function variantStorerDisc2(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeVariantDisc2(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -179,7 +179,7 @@ export function variantStorerDisc2(plan: VariantStorerPlan, ctx: MarshalingConte
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function variantStorerDisc4(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeVariantDisc4(plan: VariantStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected a variant value, got ${jsValue === null ? 'null' : 'undefined'}`);
     const tag = jsValue.tag, val = jsValue.val;
     if (typeof tag !== 'string') throw new TypeError(`Expected variant value with 'tag' field, got ${typeof jsValue === 'object' ? JSON.stringify(jsValue) : typeof jsValue}`);
@@ -190,25 +190,25 @@ export function variantStorerDisc4(plan: VariantStorerPlan, ctx: MarshalingConte
     if (storer && val !== undefined) storer(ctx, ptr + plan.payloadOffset, val);
 }
 
-export function enumStorerDisc1(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeEnumDisc1(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).setUint8(0, idx);
 }
 
-export function enumStorerDisc2(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeEnumDisc2(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).setUint16(0, idx, true);
 }
 
-export function enumStorerDisc4(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeEnumDisc4(plan: EnumStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const idx = plan.nameToIndex.get(jsValue as string);
     if (idx === undefined) throw new Error(`Unknown enum value: ${jsValue}`);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setUint32(0, idx, true);
 }
 
-export function flagsStorer(plan: FlagsStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeFlags(plan: FlagsStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null || typeof jsValue !== 'object') throw new TypeError(`expected an object for flags, got ${jsValue === null ? 'null' : typeof jsValue}`);
     const flags = jsValue as Record<string, boolean>;
     const n = plan.memberNames.length;
@@ -240,7 +240,7 @@ export function flagsStorer(plan: FlagsStorerPlan, ctx: MarshalingContext, ptr: 
     }
 }
 
-export function tupleStorer(plan: TupleStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeTuple(plan: TupleStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     if (jsValue == null) throw new TypeError(`expected an array for tuple, got ${jsValue === null ? 'null' : 'undefined'}`);
     if (jsValue.length !== plan.members.length) {
         throw new Error(`Expected tuple of ${plan.members.length} elements, got ${jsValue.length}`);
@@ -253,28 +253,28 @@ export function tupleStorer(plan: TupleStorerPlan, ctx: MarshalingContext, ptr: 
 
 // --- Resource memory storers ---
 
-export function ownResourceStorer(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeOwnResource(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.resources.add(plan.resourceTypeIdx, jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function borrowResourceStorer(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeBorrowResource(plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.resources.add(plan.resourceTypeIdx, jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function borrowResourceDirectStorer(_plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeBorrowResourceDirect(_plan: OwnResourceStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, jsValue as number, true);
 }
 
 // --- Stream/Future/ErrorContext memory storers ---
 
-export function streamStorer(plan: StreamStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeStream(plan: StreamStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.streams.addReadable(0, jsValue, plan.elementStorer, plan.elementSize, ctx);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
 
-export function futureMemStorer(plan: FutureStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeFuture(plan: FutureStorerPlan, ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.futures.addReadable(0, jsValue, plan.futureStorer);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }
@@ -293,7 +293,7 @@ export function createResultWrappingStorer(memStorer: MemoryStorer): (ctx: Marsh
     };
 }
 
-export function errorContextStorer(ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
+export function storeErrorContext(ctx: MarshalingContext, ptr: number, jsValue: JsValue): void {
     const handle = ctx.errorContexts.add(jsValue);
     ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).setInt32(0, handle, true);
 }

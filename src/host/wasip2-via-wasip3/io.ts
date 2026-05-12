@@ -18,10 +18,13 @@ import { ok, err } from '../wasip3';
 
 export interface WasiError {
     toDebugString(): string;
+    /** Optional discriminated-union payload that the http adapter's
+     *  `http-error-code` binding maps back to a wasi:http error-code. */
+    httpErrorCode?: { tag: string; val?: unknown };
 }
 
-export function createWasiError(message: string): WasiError {
-    return { toDebugString: () => message };
+export function createWasiError(message: string, httpErrorCode?: { tag: string; val?: unknown }): WasiError {
+    return { toDebugString: () => message, httpErrorCode };
 }
 
 // ─── wasi:io/poll ───
@@ -51,6 +54,33 @@ export function createAsyncPollable(promise: Promise<void>): WasiPollable {
         block(): void {
             if (resolved) return;
             throw new JspiBlockSignal(promise);
+        },
+    };
+}
+
+/**
+ * Create a pollable whose readiness is determined lazily at each check.
+ *
+ * `isReady` returns true when no blocking is needed (e.g. no pending op, or
+ * the pending op has resolved).
+ *
+ * `getBlockingPromise` returns the Promise to JSPI-suspend on, or undefined
+ * if there's nothing to block on (in which case `block()` is a no-op).
+ *
+ * This is needed for the P2 socket `subscribe()` pattern where the guest
+ * creates the pollable BEFORE starting the async operation.
+ */
+export function createDynamicPollable(
+    isReady: () => boolean,
+    getBlockingPromise: () => Promise<void> | undefined,
+): WasiPollable {
+    return {
+        ready: isReady,
+        block(): void {
+            if (isReady()) return;
+            const p = getBlockingPromise();
+            if (!p) return;
+            throw new JspiBlockSignal(p);
         },
     };
 }
@@ -132,6 +162,8 @@ export interface WasiInputStream {
     skip(len: bigint): StreamResult<bigint>;
     blockingSkip(len: bigint): StreamResult<bigint>;
     subscribe(): WasiPollable;
+    /** Signal the stream as closed (used by TCP shutdown). */
+    close?(): void;
 }
 
 export interface WasiOutputStream {
@@ -145,6 +177,8 @@ export interface WasiOutputStream {
     splice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
     blockingSplice(src: WasiInputStream, len: bigint): StreamResult<bigint>;
     subscribe(): WasiPollable;
+    /** Signal the stream as closed (used by TCP shutdown). */
+    close?(): void;
 }
 
 /**
@@ -255,6 +289,12 @@ export function createInputStreamFromP3(
             }
             return createSyncPollable(() => true);
         },
+
+        /** Signal the stream as closed (used by TCP shutdown). */
+        close(): void {
+            closed = true;
+            buffer = new Uint8Array(0);
+        },
     };
 }
 
@@ -340,6 +380,12 @@ export function createOutputStreamFromP3(
             if (closed) return createSyncPollable(() => true);
             return createSyncPollable(() => !closed);
         },
+
+        /** Signal the stream as closed (used by TCP shutdown). */
+        close(): void {
+            closed = true;
+            pair.close();
+        },
     };
 }
 
@@ -410,6 +456,12 @@ export function createOutputStream(
                 sink(bytes);
             } catch (e) {
                 closed = true;
+                // If the sink threw a WasiError (e.g. with an attached
+                // httpErrorCode), preserve it so the guest can decode the
+                // error via http-error-code(). Otherwise wrap the message.
+                if (e && typeof e === 'object' && typeof (e as WasiError).toDebugString === 'function') {
+                    return err({ tag: 'last-operation-failed', val: e as WasiError });
+                }
                 return streamFailed(e instanceof Error ? e.message : String(e));
             }
         }

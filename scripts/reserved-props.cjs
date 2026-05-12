@@ -192,6 +192,16 @@ module.exports = [
     'removeHeader',
     'headersSent',
     'rawHeaders',
+    // node:http / node:stream — properties on ServerResponse / IncomingMessage
+    'destroyed',
+    'writableFinished',
+    'writable',
+    'unref',
+    // node:async_hooks — AsyncLocalStorage
+    'getStore',
+    // node:http — Server graceful shutdown (Node 18.2+)
+    'closeAllConnections',
+    'closeIdleConnections',
     // node:net / node:dgram
     'createSocket',
     'isIPv4',

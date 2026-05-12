@@ -576,22 +576,357 @@ describe('AdapterFutureIncomingResponse', () => {
     });
 });
 
-// ─── Outgoing Handler (stub) ───
+// ─── Outgoing Handler ───
 
 describe('wasi:http/outgoing-handler (via P3 adapter)', () => {
-    test('handle returns err (stub not fully implemented)', () => {
-        const { handler, createFields, createReq } = getHttp();
+    test('handle returns ok with future', () => {
+        const { types, handler, createFields, createReq } = getHttp();
         const req = createReq(createFields());
+        // P2 requires scheme, authority, and path to be set
+        (types['[method]outgoing-request.set-scheme'] as any)(req, { tag: 'HTTP' });
+        (types['[method]outgoing-request.set-authority'] as any)(req, 'example.com');
+        (types['[method]outgoing-request.set-path-with-query'] as any)(req, '/');
         const result = handler['handle']!(req) as { tag: string; val: unknown };
-        expect(result.tag).toBe('err');
+        expect(result.tag).toBe('ok');
     });
 
-    test('handle with options returns err (stub)', () => {
-        const { handler, createFields, createReq, createOpts } = getHttp();
+    test('handle with options returns ok with future', () => {
+        const { types, handler, createFields, createReq, createOpts } = getHttp();
         const req = createReq(createFields());
+        (types['[method]outgoing-request.set-scheme'] as any)(req, { tag: 'HTTP' });
+        (types['[method]outgoing-request.set-authority'] as any)(req, 'example.com');
+        (types['[method]outgoing-request.set-path-with-query'] as any)(req, '/');
         const opts = createOpts();
         opts.setConnectTimeout(1_000_000_000n);
         const result = handler['handle']!(req, opts) as { tag: string; val: unknown };
-        expect(result.tag).toBe('err');
+        expect(result.tag).toBe('ok');
+    });
+});
+
+// ─── Forbidden method validation (Step 11) ───
+
+import { adaptOutgoingHandler, AdapterOutgoingRequest, AdapterFields } from '../../../src/host/wasip2-via-wasip3/http';
+import { createHttpTypes, createHttpClient } from '../../../src/host/wasip3/http';
+
+describe('adaptOutgoingHandler — forbidden method validation', () => {
+    // Use real P3 types/client so the handler can construct P3 objects.
+    const p3 = {
+        'wasi:http/types': createHttpTypes(),
+        'wasi:http/client': createHttpClient(),
+    };
+    const handler = adaptOutgoingHandler(p3 as any);
+
+    function makeRequest(method: { tag: string; val?: string }): AdapterOutgoingRequest {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod(method as any);
+        req.setScheme({ tag: 'HTTP' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        return req;
+    }
+
+    test('CONNECT method returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'connect' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('TRACE method returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'trace' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('TRACK method (other variant) returns HTTP-protocol-error', () => {
+        const req = makeRequest({ tag: 'other', val: 'TRACK' });
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+
+    test('GET method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'get' });
+        const result = handler.handle(req as any);
+        // Should not be HTTP-protocol-error — it will proceed to fetch (returns ok with future)
+        expect(result.tag).toBe('ok');
+    });
+
+    test('POST method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'post' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('PUT method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'put' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('DELETE method is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'delete' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('custom method (PURGE) is NOT rejected as forbidden', () => {
+        const req = makeRequest({ tag: 'other', val: 'PURGE' });
+        const result = handler.handle(req as any);
+        expect(result.tag).toBe('ok');
+    });
+
+    test('missing scheme returns HTTP-request-URI-invalid', () => {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod({ tag: 'get' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        // scheme not set → undefined
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: expect.objectContaining({ tag: 'HTTP-request-URI-invalid' }) });
+    });
+
+    test('unsupported scheme (ftp) returns HTTP-protocol-error', () => {
+        const headers = new AdapterFields();
+        const req = new AdapterOutgoingRequest(headers);
+        req.setMethod({ tag: 'get' } as any);
+        req.setScheme({ tag: 'other', val: 'ftp' } as any);
+        req.setAuthority('example.com');
+        req.setPathWithQuery('/');
+        const result = handler.handle(req as any);
+        expect(result).toEqual({ tag: 'err', val: { tag: 'HTTP-protocol-error' } });
+    });
+});
+
+// ─── OutgoingResponse resource (Step 5) ───
+
+describe('wasi:http/types outgoing-response (via P3 adapter)', () => {
+    function getResponseTypes() {
+        const p2 = createWasiP2ViaP3Adapter(createMockP3());
+        const types = p2['wasi:http/types']!;
+        const createFields = () => types['[constructor]fields']!() as Fields;
+        const createResponse = (headers: Fields) => types['[constructor]outgoing-response']!(headers) as any;
+        return { types, createFields, createResponse };
+    }
+
+    test('constructor creates response with default 200 status', () => {
+        const { createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        expect(resp.statusCode()).toBe(200);
+    });
+
+    test('set-status-code changes status', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const setFn = types['[method]outgoing-response.set-status-code']!;
+        const result = setFn(resp, 404);
+        expect(result.tag).toBe('ok');
+        expect(resp.statusCode()).toBe(404);
+    });
+
+    test('status-code dispatches via adapter method', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const statusFn = types['[method]outgoing-response.status-code']!;
+        expect(statusFn(resp)).toBe(200);
+    });
+
+    test('headers returns the fields passed to constructor', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const fields = createFields();
+        fields.set('x-test', [enc.encode('hello')]);
+        const resp = createResponse(fields);
+        const headersFn = types['[method]outgoing-response.headers']!;
+        const h = headersFn(resp) as Fields;
+        expect(h.has('x-test')).toBe(true);
+        expect(dec.decode(h.get('x-test')[0])).toBe('hello');
+    });
+
+    test('body() returns ok with outgoing body on first call', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const bodyFn = types['[method]outgoing-response.body']!;
+        const result = bodyFn(resp) as { tag: string; val: any };
+        expect(result.tag).toBe('ok');
+        expect(result.val).toBeDefined();
+    });
+
+    test('body() returns err on second call (already consumed)', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const bodyFn = types['[method]outgoing-response.body']!;
+        bodyFn(resp);
+        const result2 = bodyFn(resp) as { tag: string; val: any };
+        expect(result2.tag).toBe('err');
+    });
+
+    test('body.write() returns ok with a writable output stream', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const bodyFn = types['[method]outgoing-response.body']!;
+        const bodyResult = bodyFn(resp) as { tag: string; val: any };
+        const body = bodyResult.val;
+        const writeResult = body.write() as { tag: string; val: any };
+        expect(writeResult.tag).toBe('ok');
+        const stream = writeResult.val;
+        expect(stream.checkWrite).toBeDefined();
+        expect(stream.write).toBeDefined();
+        expect(stream.blockingWriteAndFlush).toBeDefined();
+    });
+
+    test('output stream accepts writes (response body)', () => {
+        const { types, createFields, createResponse } = getResponseTypes();
+        const resp = createResponse(createFields());
+        const bodyFn = types['[method]outgoing-response.body']!;
+        const bodyResult = bodyFn(resp) as { tag: string; val: any };
+        const body = bodyResult.val;
+        const writeResult = body.write() as { tag: string; val: any };
+        const stream = writeResult.val;
+
+        // Check available capacity
+        const avail = stream.checkWrite();
+        expect(avail.tag).toBe('ok');
+        expect(avail.val).toBeGreaterThan(0n);
+
+        // Write data
+        const data = enc.encode('response-body');
+        const r = stream.blockingWriteAndFlush(data);
+        expect(r.tag).toBe('ok');
+    });
+});
+
+// ─── OutgoingRequest input validation (Step 5) ───
+
+describe('OutgoingRequest input validation (P2 adapter)', () => {
+    test('invalid method (contains space) is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        const ok = req.setMethod({ tag: 'other', val: 'invalid method' } as any);
+        expect(ok).toBe(false);
+        // Method should remain unchanged (default GET)
+        expect(req.method().tag).toBe('get');
+    });
+
+    test('valid custom method (PURGE) is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        const ok = req.setMethod({ tag: 'other', val: 'PURGE' } as any);
+        expect(ok).toBe(true);
+        expect((req.method() as any).val).toBe('PURGE');
+    });
+
+    test('built-in method tags are always accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setMethod({ tag: 'get' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'post' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'put' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'delete' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'patch' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'head' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'options' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'connect' } as any)).toBe(true);
+        expect(req.setMethod({ tag: 'trace' } as any)).toBe(true);
+    });
+
+    test('authority with newline is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('bad-\nhost')).toBe(false);
+        expect(req.authority()).toBeUndefined();
+    });
+
+    test('authority with carriage return is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('bad-\rhost')).toBe(false);
+    });
+
+    test('authority with null byte is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('bad-\x00host')).toBe(false);
+    });
+
+    test('IPv6 address with port is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('[::]:443')).toBe(true);
+        expect(req.authority()).toBe('[::]:443');
+    });
+
+    test('IPv6 address without port is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('[::]')).toBe(true);
+        expect(req.authority()).toBe('[::]');
+    });
+
+    test('normal authority is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setAuthority('www.example.com:8080')).toBe(true);
+        expect(req.authority()).toBe('www.example.com:8080');
+    });
+
+    test('scheme with newline is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setScheme({ tag: 'other', val: 'bad\nscheme' } as any)).toBe(false);
+        expect(req.scheme()).toBeUndefined();
+    });
+
+    test('scheme with number first char is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setScheme({ tag: 'other', val: '1invalid' } as any)).toBe(false);
+    });
+
+    test('empty scheme string is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setScheme({ tag: 'other', val: '' } as any)).toBe(false);
+    });
+
+    test('built-in scheme tags (HTTP/HTTPS) are always accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setScheme({ tag: 'HTTP' } as any)).toBe(true);
+        expect(req.setScheme({ tag: 'HTTPS' } as any)).toBe(true);
+    });
+
+    test('valid custom scheme (myproto) is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setScheme({ tag: 'other', val: 'myproto' } as any)).toBe(true);
+    });
+
+    test('path with newline is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setPathWithQuery('/bad\npath')).toBe(false);
+        expect(req.pathWithQuery()).toBeUndefined();
+    });
+
+    test('path with carriage return is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setPathWithQuery('/bad\rpath')).toBe(false);
+    });
+
+    test('path with space is rejected', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setPathWithQuery('/bad path')).toBe(false);
+    });
+
+    test('valid path with query is accepted', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        expect(req.setPathWithQuery('/api/data?page=1&q=hello')).toBe(true);
+        expect(req.pathWithQuery()).toBe('/api/data?page=1&q=hello');
+    });
+
+    test('undefined path clears the value', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        req.setPathWithQuery('/initial');
+        expect(req.setPathWithQuery(undefined)).toBe(true);
+        expect(req.pathWithQuery()).toBeUndefined();
+    });
+
+    test('undefined authority clears the value', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        req.setAuthority('example.com');
+        expect(req.setAuthority(undefined)).toBe(true);
+        expect(req.authority()).toBeUndefined();
+    });
+
+    test('undefined scheme clears the value', () => {
+        const req = new AdapterOutgoingRequest(new AdapterFields());
+        req.setScheme({ tag: 'HTTP' } as any);
+        expect(req.setScheme(undefined)).toBe(true);
+        expect(req.scheme()).toBeUndefined();
     });
 });

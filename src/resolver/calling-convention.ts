@@ -63,7 +63,7 @@ export function alignUp(offset: number, align: number): number {
     return (offset + align - 1) & ~(align - 1);
 }
 
-export function sizeOf(type: ResolvedType): number {
+export function elemSize(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -72,22 +72,22 @@ export function sizeOf(type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let size = 0;
             for (const member of type.members) {
-                const fieldAlign = alignOfValType(member.type);
+                const fieldAlign = alignmentValType(member.type);
                 size = alignUp(size, fieldAlign);
-                size += sizeOfValType(member.type);
+                size += elemSizeValType(member.type);
             }
-            const recordAlign = alignOf(type);
+            const recordAlign = alignment(type);
             return alignUp(size, recordAlign);
         }
 
         case ModelTag.ComponentTypeDefinedTuple: {
             let size = 0;
             for (const member of type.members) {
-                const fieldAlign = alignOfValType(member);
+                const fieldAlign = alignmentValType(member);
                 size = alignUp(size, fieldAlign);
-                size += sizeOfValType(member);
+                size += elemSizeValType(member);
             }
-            const tupleAlign = alignOf(type);
+            const tupleAlign = alignment(type);
             return alignUp(size, tupleAlign);
         }
 
@@ -95,8 +95,8 @@ export function sizeOf(type: ResolvedType): number {
             return 8; // pointer + length
 
         case ModelTag.ComponentTypeDefinedOption: {
-            const payloadAlign = alignOfValType(type.value);
-            const payloadSize = sizeOfValType(type.value);
+            const payloadAlign = alignmentValType(type.value);
+            const payloadSize = elemSizeValType(type.value);
             // discriminant (1 byte) + padding to payload alignment + payload
             const totalAlign = Math.max(1, payloadAlign);
             return alignUp(alignUp(1, payloadAlign) + payloadSize, totalAlign);
@@ -106,12 +106,12 @@ export function sizeOf(type: ResolvedType): number {
             let payloadSize = 0;
             let payloadAlign = 1;
             if (type.ok !== undefined) {
-                payloadSize = Math.max(payloadSize, sizeOfValType(type.ok));
-                payloadAlign = Math.max(payloadAlign, alignOfValType(type.ok));
+                payloadSize = Math.max(payloadSize, elemSizeValType(type.ok));
+                payloadAlign = Math.max(payloadAlign, alignmentValType(type.ok));
             }
             if (type.err !== undefined) {
-                payloadSize = Math.max(payloadSize, sizeOfValType(type.err));
-                payloadAlign = Math.max(payloadAlign, alignOfValType(type.err));
+                payloadSize = Math.max(payloadSize, elemSizeValType(type.err));
+                payloadAlign = Math.max(payloadAlign, alignmentValType(type.err));
             }
             const totalAlign = Math.max(1, payloadAlign);
             return alignUp(alignUp(1, payloadAlign) + payloadSize, totalAlign);
@@ -124,8 +124,8 @@ export function sizeOf(type: ResolvedType): number {
             let maxPayloadAlign = 1;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxPayloadSize = Math.max(maxPayloadSize, sizeOfValType(c.ty));
-                    maxPayloadAlign = Math.max(maxPayloadAlign, alignOfValType(c.ty));
+                    maxPayloadSize = Math.max(maxPayloadSize, elemSizeValType(c.ty));
+                    maxPayloadAlign = Math.max(maxPayloadAlign, alignmentValType(c.ty));
                 }
             }
             const totalAlign = Math.max(discAlign, maxPayloadAlign);
@@ -151,7 +151,7 @@ export function sizeOf(type: ResolvedType): number {
     }
 }
 
-export function alignOf(type: ResolvedType): number {
+export function alignment(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -160,7 +160,7 @@ export function alignOf(type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let maxAlign = 1;
             for (const member of type.members) {
-                maxAlign = Math.max(maxAlign, alignOfValType(member.type));
+                maxAlign = Math.max(maxAlign, alignmentValType(member.type));
             }
             return maxAlign;
         }
@@ -168,7 +168,7 @@ export function alignOf(type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedTuple: {
             let maxAlign = 1;
             for (const member of type.members) {
-                maxAlign = Math.max(maxAlign, alignOfValType(member));
+                maxAlign = Math.max(maxAlign, alignmentValType(member));
             }
             return maxAlign;
         }
@@ -177,12 +177,12 @@ export function alignOf(type: ResolvedType): number {
             return 4; // pointer alignment
 
         case ModelTag.ComponentTypeDefinedOption:
-            return Math.max(1, alignOfValType(type.value));
+            return Math.max(1, alignmentValType(type.value));
 
         case ModelTag.ComponentTypeDefinedResult: {
             let maxAlign = 1;
-            if (type.ok !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(type.ok));
-            if (type.err !== undefined) maxAlign = Math.max(maxAlign, alignOfValType(type.err));
+            if (type.ok !== undefined) maxAlign = Math.max(maxAlign, alignmentValType(type.ok));
+            if (type.err !== undefined) maxAlign = Math.max(maxAlign, alignmentValType(type.err));
             return maxAlign;
         }
 
@@ -191,7 +191,7 @@ export function alignOf(type: ResolvedType): number {
             let maxAlign = disc;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxAlign = Math.max(maxAlign, alignOfValType(c.ty));
+                    maxAlign = Math.max(maxAlign, alignmentValType(c.ty));
                 }
             }
             return maxAlign;
@@ -215,7 +215,7 @@ export function alignOf(type: ResolvedType): number {
     }
 }
 
-export function flatCount(type: ResolvedType): number {
+export function flattenTypeCount(type: ResolvedType): number {
     switch (type.tag) {
         case ModelTag.ComponentValTypePrimitive:
         case ModelTag.ComponentTypeDefinedPrimitive:
@@ -224,7 +224,7 @@ export function flatCount(type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedRecord: {
             let count = 0;
             for (const member of type.members) {
-                count += flatCountForValType(member.type);
+                count += flattenValTypeCount(member.type);
             }
             return count;
         }
@@ -232,7 +232,7 @@ export function flatCount(type: ResolvedType): number {
         case ModelTag.ComponentTypeDefinedTuple: {
             let count = 0;
             for (const member of type.members) {
-                count += flatCountForValType(member);
+                count += flattenValTypeCount(member);
             }
             return count;
         }
@@ -241,12 +241,12 @@ export function flatCount(type: ResolvedType): number {
             return 2; // pointer + length
 
         case ModelTag.ComponentTypeDefinedOption:
-            return 1 + flatCountForValType(type.value); // discriminant + payload
+            return 1 + flattenValTypeCount(type.value); // discriminant + payload
 
         case ModelTag.ComponentTypeDefinedResult: {
             let maxPayloadFlat = 0;
-            if (type.ok !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(type.ok));
-            if (type.err !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flatCountForValType(type.err));
+            if (type.ok !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flattenValTypeCount(type.ok));
+            if (type.err !== undefined) maxPayloadFlat = Math.max(maxPayloadFlat, flattenValTypeCount(type.err));
             return 1 + maxPayloadFlat; // discriminant + max(ok, err)
         }
 
@@ -254,7 +254,7 @@ export function flatCount(type: ResolvedType): number {
             let maxCaseFlat = 0;
             for (const c of type.variants) {
                 if (c.ty !== undefined) {
-                    maxCaseFlat = Math.max(maxCaseFlat, flatCountForValType(c.ty));
+                    maxCaseFlat = Math.max(maxCaseFlat, flattenValTypeCount(c.ty));
                 }
             }
             return 1 + maxCaseFlat; // discriminant + max case
@@ -454,16 +454,16 @@ function _deepResolve(rctx: ResolvedContext, type: ResolvedType, cache: Map<unkn
     return result;
 }
 
-export function sizeOfValType(valType: ComponentValType): number {
-    return sizeOf(resolveValTypePure(valType));
+export function elemSizeValType(valType: ComponentValType): number {
+    return elemSize(resolveValTypePure(valType));
 }
 
-export function alignOfValType(valType: ComponentValType): number {
-    return alignOf(resolveValTypePure(valType));
+export function alignmentValType(valType: ComponentValType): number {
+    return alignment(resolveValTypePure(valType));
 }
 
-export function flatCountForValType(valType: ComponentValType): number {
-    return flatCount(resolveValTypePure(valType));
+export function flattenValTypeCount(valType: ComponentValType): number {
+    return flattenTypeCount(resolveValTypePure(valType));
 }
 
 // --- Discriminant sizing per canonical ABI ---
@@ -602,19 +602,19 @@ export function determineFunctionCallingConvention(
 ): FunctionCallingConvention {
     let paramFlatCount = 0;
     for (const param of funcType.params) {
-        paramFlatCount += flatCountForValType(param.type);
+        paramFlatCount += flattenValTypeCount(param.type);
     }
 
     let resultFlatCount = 0;
     switch (funcType.results.tag) {
         case ModelTag.ComponentFuncResultNamed: {
             for (const res of funcType.results.values) {
-                resultFlatCount += flatCountForValType(res.type);
+                resultFlatCount += flattenValTypeCount(res.type);
             }
             break;
         }
         case ModelTag.ComponentFuncResultUnnamed: {
-            resultFlatCount = flatCountForValType(funcType.results.type);
+            resultFlatCount = flattenValTypeCount(funcType.results.type);
             break;
         }
     }

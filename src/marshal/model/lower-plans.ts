@@ -3,6 +3,7 @@
 import type { LiftingFromJs, LoweringToJs, WasmValue, MemoryStorer } from './types';
 import type { MemoryLoader } from '../../binder/to-js';
 import type { FlatType } from '../../resolver/calling-convention';
+import type { MarshalingContext } from '../../resolver/types';
 
 export type ResourceLowerPlan = { resourceTypeIdx: number };
 export type EnumLowerPlan = { members: string[] };
@@ -23,6 +24,8 @@ export type VariantCaseLowerPlan = {
 export type VariantLowerPlan = {
     cases: VariantCaseLowerPlan[], payloadJoined: FlatType[],
 };
+export type FutureLowerPlan = { storer?: (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void };
+export type StreamLowerPlan = { elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number };
 
 export type FunctionLowerPlan = {
     paramLowerers: Function[],

@@ -330,7 +330,7 @@ describe('filesystem-node (P2-via-P3 adapter)', () => {
 
             // openAt with read-only flags should succeed
             const file = unwrap(await root.openAt({}, 'readonly.txt', {}, { read: true }));
-            expectErr(await file.write(enc.encode('new'), 0n), 'read-only');
+            expectErr(await file.write(enc.encode('new'), 0n), 'not-permitted');
         });
 
         test('create file fails on read-only mount', async () => {

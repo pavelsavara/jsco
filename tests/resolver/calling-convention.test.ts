@@ -6,7 +6,7 @@ initializeAsserts();
 import { ModelTag } from '../../src/parser/model/tags';
 import { PrimitiveValType, ComponentValType } from '../../src/parser/model/types';
 import {
-    sizeOf, alignOf, flatCount, flattenType, alignUp,
+    elemSize, alignment, flattenTypeCount, flattenType, alignUp,
     discriminantSize, joinFlatType, FlatType,
     determineFunctionCallingConvention, CallingConvention,
     deepResolveType, flattenVariant, resolveValType, resolveValTypePure,
@@ -65,20 +65,20 @@ describe('joinFlatType', () => {
 
 describe('sizeOf', () => {
     describe('primitives', () => {
-        test('bool', () => expect(sizeOf(prim(PrimitiveValType.Bool))).toBe(1));
-        test('u8', () => expect(sizeOf(prim(PrimitiveValType.U8))).toBe(1));
-        test('u16', () => expect(sizeOf(prim(PrimitiveValType.U16))).toBe(2));
-        test('u32', () => expect(sizeOf(prim(PrimitiveValType.U32))).toBe(4));
-        test('u64', () => expect(sizeOf(prim(PrimitiveValType.U64))).toBe(8));
-        test('f32', () => expect(sizeOf(prim(PrimitiveValType.Float32))).toBe(4));
-        test('f64', () => expect(sizeOf(prim(PrimitiveValType.Float64))).toBe(8));
-        test('char', () => expect(sizeOf(prim(PrimitiveValType.Char))).toBe(4));
-        test('string', () => expect(sizeOf(prim(PrimitiveValType.String))).toBe(8));
+        test('bool', () => expect(elemSize(prim(PrimitiveValType.Bool))).toBe(1));
+        test('u8', () => expect(elemSize(prim(PrimitiveValType.U8))).toBe(1));
+        test('u16', () => expect(elemSize(prim(PrimitiveValType.U16))).toBe(2));
+        test('u32', () => expect(elemSize(prim(PrimitiveValType.U32))).toBe(4));
+        test('u64', () => expect(elemSize(prim(PrimitiveValType.U64))).toBe(8));
+        test('f32', () => expect(elemSize(prim(PrimitiveValType.Float32))).toBe(4));
+        test('f64', () => expect(elemSize(prim(PrimitiveValType.Float64))).toBe(8));
+        test('char', () => expect(elemSize(prim(PrimitiveValType.Char))).toBe(4));
+        test('string', () => expect(elemSize(prim(PrimitiveValType.String))).toBe(8));
     });
 
     describe('record', () => {
         test('empty record', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedRecord, members: [] } as any)).toBe(0);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedRecord, members: [] } as any)).toBe(0);
         });
         test('record {u8, u32}', () => {
             const type = {
@@ -89,7 +89,7 @@ describe('sizeOf', () => {
                 ],
             } as any;
             // u8(1) + padding(3) + u32(4) = 8
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
     });
 
@@ -99,13 +99,13 @@ describe('sizeOf', () => {
                 tag: ModelTag.ComponentTypeDefinedTuple,
                 members: [primVT(PrimitiveValType.U8), primVT(PrimitiveValType.U32)],
             } as any;
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
     });
 
     describe('list', () => {
         test('list<u8> size is 8 (ptr+len)', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U8) } as any)).toBe(8);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U8) } as any)).toBe(8);
         });
     });
 
@@ -113,12 +113,12 @@ describe('sizeOf', () => {
         test('option<u32>', () => {
             const type = { tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U32) } as any;
             // disc(1) + pad(3) + u32(4) = 8
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
         test('option<u8>', () => {
             const type = { tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U8) } as any;
             // disc(1) + u8(1) = 2, aligned to 1 → 2
-            expect(sizeOf(type)).toBe(2);
+            expect(elemSize(type)).toBe(2);
         });
     });
 
@@ -130,7 +130,7 @@ describe('sizeOf', () => {
                 err: primVT(PrimitiveValType.U8),
             } as any;
             // disc(1) + pad(3) + max(u32=4, u8=1) = 8
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
         test('result<_, string>', () => {
             const type = {
@@ -139,7 +139,7 @@ describe('sizeOf', () => {
                 err: primVT(PrimitiveValType.String),
             } as any;
             // disc(1) + pad(3) + string(8) = 12
-            expect(sizeOf(type)).toBe(12);
+            expect(elemSize(type)).toBe(12);
         });
         test('result<u32, _>', () => {
             const type = {
@@ -147,7 +147,7 @@ describe('sizeOf', () => {
                 ok: primVT(PrimitiveValType.U32),
                 err: undefined,
             } as any;
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
     });
 
@@ -158,7 +158,7 @@ describe('sizeOf', () => {
                 variants: [{ name: 'a', ty: primVT(PrimitiveValType.U32) }],
             } as any;
             // disc(1) + pad(3) + u32(4) = 8
-            expect(sizeOf(type)).toBe(8);
+            expect(elemSize(type)).toBe(8);
         });
         test('variant with no-payload case', () => {
             const type = {
@@ -166,74 +166,74 @@ describe('sizeOf', () => {
                 variants: [{ name: 'a', ty: undefined }, { name: 'b', ty: primVT(PrimitiveValType.U8) }],
             } as any;
             // disc(1) + u8(1) = 2
-            expect(sizeOf(type)).toBe(2);
+            expect(elemSize(type)).toBe(2);
         });
         test('variant with many cases (>255)', () => {
             const cases = Array.from({ length: 300 }, (_, i) => ({ name: `c${i}`, ty: undefined }));
             cases[0]!.ty = primVT(PrimitiveValType.U8) as any;
             const type = { tag: ModelTag.ComponentTypeDefinedVariant, variants: cases } as any;
             // disc(2) + u8(1) + pad(1) = 4
-            expect(sizeOf(type)).toBe(4);
+            expect(elemSize(type)).toBe(4);
         });
     });
 
     describe('enum', () => {
         test('small enum', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b', 'c'] } as any)).toBe(1);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b', 'c'] } as any)).toBe(1);
         });
         test('large enum (>255)', () => {
             const members = Array.from({ length: 300 }, (_, i) => `e${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedEnum, members } as any)).toBe(2);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedEnum, members } as any)).toBe(2);
         });
     });
 
     describe('flags', () => {
         test('0 flags → 1', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(1);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(1);
         });
         test('1 flag → 1', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
         });
         test('8 flags → 1', () => {
             const members = Array.from({ length: 8 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(1);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(1);
         });
         test('9 flags → 2', () => {
             const members = Array.from({ length: 9 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
         });
         test('16 flags → 2', () => {
             const members = Array.from({ length: 16 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
         });
         test('17 flags → 4', () => {
             const members = Array.from({ length: 17 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
         });
         test('32 flags → 4', () => {
             const members = Array.from({ length: 32 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(4);
         });
         test('33 flags → 8 (out-of-spec extension)', () => {
             const members = Array.from({ length: 33 }, (_, i) => `f${i}`);
-            expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(8);
+            expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(8);
         });
     });
 
     describe('own/borrow', () => {
-        test('own → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(4));
-        test('borrow → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4));
+        test('own → 4', () => expect(elemSize({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(4));
+        test('borrow → 4', () => expect(elemSize({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4));
     });
 
     describe('stream/future/error-context', () => {
-        test('stream → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4));
-        test('future → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4));
-        test('error-context → 4', () => expect(sizeOf({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4));
+        test('stream → 4', () => expect(elemSize({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4));
+        test('future → 4', () => expect(elemSize({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4));
+        test('error-context → 4', () => expect(elemSize({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4));
     });
 
     describe('func', () => {
         test('func → 0', () => {
-            expect(sizeOf({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
+            expect(elemSize({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
         });
     });
 });
@@ -241,9 +241,9 @@ describe('sizeOf', () => {
 // --- alignOf ---
 
 describe('alignOf', () => {
-    test('u32 → 4', () => expect(alignOf(prim(PrimitiveValType.U32))).toBe(4));
-    test('u64 → 8', () => expect(alignOf(prim(PrimitiveValType.U64))).toBe(8));
-    test('string → 4', () => expect(alignOf(prim(PrimitiveValType.String))).toBe(4));
+    test('u32 → 4', () => expect(alignment(prim(PrimitiveValType.U32))).toBe(4));
+    test('u64 → 8', () => expect(alignment(prim(PrimitiveValType.U64))).toBe(8));
+    test('string → 4', () => expect(alignment(prim(PrimitiveValType.String))).toBe(4));
 
     test('record {u8, u32} → 4', () => {
         const type = {
@@ -253,7 +253,7 @@ describe('alignOf', () => {
                 { name: 'b', type: primVT(PrimitiveValType.U32) },
             ],
         } as any;
-        expect(alignOf(type)).toBe(4);
+        expect(alignment(type)).toBe(4);
     });
 
     test('tuple (u8, u64) → 8', () => {
@@ -261,15 +261,15 @@ describe('alignOf', () => {
             tag: ModelTag.ComponentTypeDefinedTuple,
             members: [primVT(PrimitiveValType.U8), primVT(PrimitiveValType.U64)],
         } as any;
-        expect(alignOf(type)).toBe(8);
+        expect(alignment(type)).toBe(8);
     });
 
     test('list → 4', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U64) } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U64) } as any)).toBe(4);
     });
 
     test('option<u32> → 4', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U32) } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U32) } as any)).toBe(4);
     });
 
     test('result<u64, u8> → 8', () => {
@@ -278,7 +278,7 @@ describe('alignOf', () => {
             ok: primVT(PrimitiveValType.U64),
             err: primVT(PrimitiveValType.U8),
         } as any;
-        expect(alignOf(type)).toBe(8);
+        expect(alignment(type)).toBe(8);
     });
 
     test('result<_, u32> → 4', () => {
@@ -287,7 +287,7 @@ describe('alignOf', () => {
             ok: undefined,
             err: primVT(PrimitiveValType.U32),
         } as any;
-        expect(alignOf(type)).toBe(4);
+        expect(alignment(type)).toBe(4);
     });
 
     test('variant → max(disc, payload)', () => {
@@ -298,23 +298,23 @@ describe('alignOf', () => {
                 { name: 'b', ty: undefined },
             ],
         } as any;
-        expect(alignOf(type)).toBe(8);
+        expect(alignment(type)).toBe(8);
     });
 
     test('enum → discriminant alignment', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b'] } as any)).toBe(1);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b'] } as any)).toBe(1);
         const members = Array.from({ length: 300 }, (_, i) => `e${i}`);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedEnum, members } as any)).toBe(2);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedEnum, members } as any)).toBe(2);
     });
 
     test('flags → size-graduated alignment per spec', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedFlags, members: ['a'] } as any)).toBe(1);
         const m8 = Array.from({ length: 8 }, (_, i) => `f${i}`);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m8 } as any)).toBe(1);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedFlags, members: m8 } as any)).toBe(1);
         const m9 = Array.from({ length: 9 }, (_, i) => `f${i}`);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m9 } as any)).toBe(2);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedFlags, members: m9 } as any)).toBe(2);
         const m17 = Array.from({ length: 17 }, (_, i) => `f${i}`);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFlags, members: m17 } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedFlags, members: m17 } as any)).toBe(4);
     });
 
     test('record { flags<4>, u8 } compacts to 2 bytes (regression: flags used to force align/size 4)', () => {
@@ -327,31 +327,31 @@ describe('alignOf', () => {
             ],
         } as any;
         // flags<4>(1) + u8(1) = 2 (no padding); previously: 4 + 1 + pad(3) = 8.
-        expect(sizeOf(recType)).toBe(2);
-        expect(alignOf(recType)).toBe(1);
+        expect(elemSize(recType)).toBe(2);
+        expect(alignment(recType)).toBe(1);
     });
 
     test('own/borrow → 4', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(4);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(4);
     });
 
     test('stream/future/error-context → 4', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4);
-        expect(alignOf({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(4);
+        expect(alignment({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(4);
     });
 
     test('func → 0', () => {
-        expect(alignOf({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
+        expect(alignment({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
     });
 });
 
 // --- flatCount ---
 
 describe('flatCount', () => {
-    test('u32 → 1', () => expect(flatCount(prim(PrimitiveValType.U32))).toBe(1));
-    test('string → 2', () => expect(flatCount(prim(PrimitiveValType.String))).toBe(2));
+    test('u32 → 1', () => expect(flattenTypeCount(prim(PrimitiveValType.U32))).toBe(1));
+    test('string → 2', () => expect(flattenTypeCount(prim(PrimitiveValType.String))).toBe(2));
 
     test('record {u32, string} → 3', () => {
         const type = {
@@ -361,7 +361,7 @@ describe('flatCount', () => {
                 { name: 'b', type: primVT(PrimitiveValType.String) },
             ],
         } as any;
-        expect(flatCount(type)).toBe(3);
+        expect(flattenTypeCount(type)).toBe(3);
     });
 
     test('tuple (u32, u32) → 2', () => {
@@ -369,15 +369,15 @@ describe('flatCount', () => {
             tag: ModelTag.ComponentTypeDefinedTuple,
             members: [primVT(PrimitiveValType.U32), primVT(PrimitiveValType.U32)],
         } as any;
-        expect(flatCount(type)).toBe(2);
+        expect(flattenTypeCount(type)).toBe(2);
     });
 
     test('list → 2', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U32) } as any)).toBe(2);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedList, value: primVT(PrimitiveValType.U32) } as any)).toBe(2);
     });
 
     test('option<u32> → 2', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U32) } as any)).toBe(2);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedOption, value: primVT(PrimitiveValType.U32) } as any)).toBe(2);
     });
 
     test('result<u32, u8> → 2', () => {
@@ -386,7 +386,7 @@ describe('flatCount', () => {
             ok: primVT(PrimitiveValType.U32),
             err: primVT(PrimitiveValType.U8),
         } as any;
-        expect(flatCount(type)).toBe(2);
+        expect(flattenTypeCount(type)).toBe(2);
     });
 
     test('result<_, _> → 1', () => {
@@ -395,7 +395,7 @@ describe('flatCount', () => {
             ok: undefined,
             err: undefined,
         } as any;
-        expect(flatCount(type)).toBe(1);
+        expect(flattenTypeCount(type)).toBe(1);
     });
 
     test('variant → 1 + max case', () => {
@@ -408,44 +408,44 @@ describe('flatCount', () => {
             ],
         } as any;
         // disc(1) + max(u32=1, string=2, 0) = 3
-        expect(flatCount(type)).toBe(3);
+        expect(flattenTypeCount(type)).toBe(3);
     });
 
     test('enum → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b'] } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedEnum, members: ['a', 'b'] } as any)).toBe(1);
     });
 
     test('flags 0 → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedFlags, members: [] } as any)).toBe(1);
     });
 
     test('flags 33 → 2', () => {
         const members = Array.from({ length: 33 }, (_, i) => `f${i}`);
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedFlags, members } as any)).toBe(2);
     });
 
     test('own → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedOwn, value: 0 } as any)).toBe(1);
     });
 
     test('borrow → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedBorrow, value: 0 } as any)).toBe(1);
     });
 
     test('stream → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedStream } as any)).toBe(1);
     });
 
     test('future → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedFuture } as any)).toBe(1);
     });
 
     test('error-context → 1', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(1);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeDefinedErrorContext } as any)).toBe(1);
     });
 
     test('func → 0', () => {
-        expect(flatCount({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
+        expect(flattenTypeCount({ tag: ModelTag.ComponentTypeFunc, params: [], results: { tag: ModelTag.ComponentFuncResultNamed, values: [] } } as any)).toBe(0);
     });
 });
 

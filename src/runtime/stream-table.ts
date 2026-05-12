@@ -118,9 +118,11 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
         pump();
     }
 
-    /** Build an async-iterable backed by the stream entry's internal buffer. */
+    /** Build an async-iterable backed by the stream entry's internal buffer.
+     *  Optionally exposes `_setWriteLimit` / `_getWriteInfo` for host-side
+     *  content-length enforcement (HTTP body streams). */
     function makeAsyncIterable(entry: StreamEntry): AsyncIterable<unknown> {
-        return {
+        const iterable: AsyncIterable<unknown> = {
             [Symbol.asyncIterator](): AsyncIterator<unknown> {
                 return {
                     next(): Promise<IteratorResult<unknown>> {
@@ -165,6 +167,31 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
                     },
                 };
             },
+        };
+        // Attach control methods for host-side content-length enforcement (duck-typed)
+        (iterable as any)._setWriteLimit = (maxBytes: number): void => {
+            entry.maxWriteBytes = maxBytes;
+            entry.totalWritten = entry.totalWritten ?? 0;
+        };
+        (iterable as any)._getWriteInfo = (): { totalWritten: number; rejectedTotal?: number } => ({
+            totalWritten: entry.totalWritten ?? 0,
+            rejectedTotal: entry.rejectedWriteTotal,
+        });
+        return iterable;
+    }
+
+    /** Attach an idempotent cancel closure that mirrors dropReadable logic.
+     *  Used by host resources (e.g. HttpRequest) to cascade-close an owned stream
+     *  when the parent resource is dropped. */
+    function attachStreamCancel(iterable: AsyncIterable<unknown>, base: number, entry: StreamEntry): void {
+        (iterable as any)._streamCancel = (): void => {
+            if (entry.readableDropped) return;
+            entry.readableDropped = true;
+            entry.closed = true;
+            if (entry.onReadableDrop) entry.onReadableDrop();
+            checkWriteReady(entry);
+            logEv(base, 'cancel via _streamCancel (closes stream)');
+            if (entry.writableDropped) entries.delete(base);
         };
     }
 
@@ -258,6 +285,21 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             if (entry.closed) {
                 logEv(handle, `write len=${len} → DROPPED (closed)`);
                 return (0 << 4) | STREAM_STATUS_DROPPED;
+            }
+            // Content-length enforcement: reject writes that would exceed the limit.
+            if (entry.maxWriteBytes !== undefined && len > 0) {
+                const wouldWrite = (entry.totalWritten ?? 0) + len;
+                if (wouldWrite > entry.maxWriteBytes) {
+                    entry.rejectedWriteTotal = wouldWrite;
+                    entry.closed = true;
+                    if (entry.waitingReader) {
+                        entry.waitingReader(null);
+                    }
+                    signalReady(entry);
+                    logEv(handle, `write len=${len} → DROPPED (exceeds write limit ${entry.maxWriteBytes})`);
+                    return (0 << 4) | STREAM_STATUS_DROPPED;
+                }
+                entry.totalWritten = wouldWrite;
             }
             if (len > 0) {
                 // Backpressure: block if buffer is full and no reader is waiting
@@ -364,12 +406,18 @@ export function createStreamTable(memory: MemoryView, allocHandle: () => number,
             if (val !== undefined) {
                 jsReadables.delete(handle);
                 if (entry && typeof (val as any)[Symbol.asyncIterator] === 'function') {
-                    return makeAsyncIterable(entry);
+                    const iterable = makeAsyncIterable(entry);
+                    attachStreamCancel(iterable, base, entry);
+                    return iterable;
                 }
                 return val;
             }
             // For stream.new()-created handles, create an async iterable from the buffer
-            if (entry) return makeAsyncIterable(entry);
+            if (entry) {
+                const iterable = makeAsyncIterable(entry);
+                attachStreamCancel(iterable, base, entry);
+                return iterable;
+            }
             return undefined;
         },
         addWritable(_typeIdx: number, value: unknown): number {

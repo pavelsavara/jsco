@@ -739,6 +739,11 @@ class NodeUdpSocket {
     private _sendBufferSize = 65536n;
     private _pendingOptions: (() => void)[] = [];
 
+    /** Buffered incoming messages to avoid losing them between once('message') calls. */
+    private _msgQueue: [Uint8Array, IpSocketAddress][] = [];
+    /** If a receive() is waiting, resolve it when a message arrives. */
+    private _receiveWaiter: ((msg: [Uint8Array, IpSocketAddress]) => void) | null = null;
+
     private constructor(family: IpAddressFamily) {
         this._family = family;
         this._socket = dgram.createSocket(family === 'ipv4' ? 'udp4' : 'udp6');
@@ -785,6 +790,18 @@ class NodeUdpSocket {
                 const addr = this._socket.address();
                 this._localAddress = nodeAddressToIpSocket(addr.address, addr.port, addr.family);
                 this._applyPendingOptions();
+                // Install persistent message listener to buffer all incoming datagrams
+                this._socket.on('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+                    const fromAddr = nodeAddressToIpSocket(rinfo.address, rinfo.port, rinfo.family);
+                    const entry: [Uint8Array, IpSocketAddress] = [new Uint8Array(msg), fromAddr];
+                    if (this._receiveWaiter) {
+                        const waiter = this._receiveWaiter;
+                        this._receiveWaiter = null;
+                        waiter(entry);
+                    } else {
+                        this._msgQueue.push(entry);
+                    }
+                });
                 resolve();
             });
             this._socket.once('error', onError);
@@ -876,19 +893,13 @@ class NodeUdpSocket {
         if (this._state === UdpState.Created) {
             throwError('invalid-state', 'Socket has not been bound');
         }
-        return new Promise<[Uint8Array, IpSocketAddress]>((resolve, reject) => {
-            const sock = this._socket;
-            const onMessage = (msg: Buffer, rinfo: dgram.RemoteInfo): void => {
-                sock.removeListener('error', onError);
-                const addr = nodeAddressToIpSocket(rinfo.address, rinfo.port, rinfo.family);
-                resolve([new Uint8Array(msg), addr]);
-            };
-            const onError = (err: NodeJS.ErrnoException): void => {
-                sock.removeListener('message', onMessage);
-                try { mapNodeError(err); } catch (e) { reject(e); }
-            };
-            sock.once('message', onMessage);
-            sock.once('error', onError);
+        // Return from buffer if available
+        if (this._msgQueue.length > 0) {
+            return this._msgQueue.shift()!;
+        }
+        // Wait for the next message
+        return new Promise<[Uint8Array, IpSocketAddress]>((resolve) => {
+            this._receiveWaiter = resolve;
         });
     }
 

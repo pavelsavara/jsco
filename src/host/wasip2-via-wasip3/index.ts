@@ -16,6 +16,7 @@ import type { AllocationLimits } from '../wasip3/types';
 import { LIMIT_DEFAULTS } from '../wasip3/types';
 import type {
     WasiPollable,
+    WasiError,
 } from './io';
 import { poll, createSyncPollable, createOutputStream } from './io';
 import { adaptEnvironment, adaptExit, adaptStdin, adaptStdout, adaptStderr, adaptTerminalInput, adaptTerminalStdout, adaptTerminalStderr } from './cli';
@@ -23,11 +24,11 @@ import { adaptMonotonicClock, adaptWallClock, adaptTimezone } from './clocks';
 import { adaptRandom, adaptInsecure, adaptInsecureSeed } from './random';
 import { adaptPreopens } from './filesystem';
 import type { P2DescriptorAdapter, NewTimestamp } from './filesystem';
-import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup } from './sockets';
-import { adaptHttpTypes, adaptOutgoingHandler } from './http';
+import { adaptInstanceNetwork, adaptNetwork, adaptTcpCreateSocket, adaptUdpCreateSocket, adaptIpNameLookup, adaptTcp, adaptUdp, adaptIncomingDatagramStream, adaptOutgoingDatagramStream } from './sockets';
+import { adaptHttpTypes, adaptOutgoingHandler, AdapterFields } from './http';
 import { JsImports } from '../../resolver/api-types';
 import { ok, err } from '../wasip3';
-import { resource, passthrough, constant, makeRegister } from '../_shared/resource-table';
+import { resource, passthrough, makeRegister } from '../_shared/resource-table';
 
 const P2_VERSIONS = [
     '0.2.0', '0.2.1', '0.2.2', '0.2.3', '0.2.4', '0.2.5',
@@ -55,7 +56,6 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const maxBufferSize = options?.limits?.maxNetworkBufferSize ?? LIMIT_DEFAULTS.maxNetworkBufferSize;
     const result: Record<string, unknown> = {};
     const register = makeRegister(result, 'wasi:', P2_VERSIONS);
-    const notSupported = (): unknown => err('not-supported');
     const syncPollable = (): WasiPollable => createSyncPollable(() => true);
 
     // ─── wasi:random/* ───
@@ -206,10 +206,15 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const outgoingHandler = adaptOutgoingHandler(p3, maxBufferSize);
 
     register('http/types', {
-        'http-error-code': () => undefined,
+        'http-error-code': (e: WasiError | undefined) => e?.httpErrorCode,
         ...resource('fields', {
             ctor: httpTypes.createFields,
-            statics: { 'from-list': (entries: [string, Uint8Array][]) => ok(httpTypes.createFieldsFromList(entries)) },
+            statics: {
+                'from-list': (entries: [string, Uint8Array][]) => {
+                    const r = AdapterFields.fromListChecked(entries);
+                    return r;
+                },
+            },
             methods: passthrough('get', 'has', 'set', 'append', 'delete', 'entries', 'clone'),
         }),
         ...resource('outgoing-request', {
@@ -224,7 +229,15 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
         }),
         ...resource('outgoing-body', {
             methods: passthrough('write'),
-            statics: { 'finish': (self: { finish: () => void }) => { self.finish(); return ok(); } },
+            statics: {
+                'finish': (self: { finish: () => unknown }) => {
+                    const r = self.finish();
+                    // The real adapter returns a `result<_, error-code>`; legacy
+                    // callers may use a plain spy that returns void.
+                    if (r && typeof r === 'object' && 'tag' in r) return r as { tag: 'ok' } | { tag: 'err'; val: unknown };
+                    return ok();
+                },
+            },
         }),
         ...resource('request-options', {
             ctor: httpTypes.createRequestOptions,
@@ -258,8 +271,18 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
                 statusCode: function (): number { return (this as { _statusCode: number })._statusCode; },
                 setStatusCode: function (code: number): boolean { (this as { _statusCode: number })._statusCode = code; return true; },
                 headers: function (): unknown { return (this as { _headers: unknown })._headers; },
-                body: function (): unknown { return ok({ write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) }); },
+                body: function (): unknown {
+                    const self = this as { _body?: unknown };
+                    if (self._body) return err();
+                    const body = { write: (): unknown => ok(createOutputStream(undefined, maxBufferSize)) };
+                    self._body = body;
+                    return ok(body);
+                },
             }),
+            methods: {
+                ...passthrough('status-code', 'headers', 'body'),
+                'set-status-code': (self: { setStatusCode: (code: number) => boolean }, code: number): unknown => (self.setStatusCode(code) ? ok() : err()),
+            },
         }),
         ...resource('response-outparam', {
             statics: { 'set': () => { /* stub */ } },
@@ -277,16 +300,18 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
 
     // ─── wasi:sockets/* ───
     //
-    // P3's sockets shape (P3 instance methods are `bind`/`connect`/...) does not match
-    // P2's split start/finish state machine, so the methods below are effectively
-    // "not-supported" stubs in both browser and Node hosts. Future virtual-socket
-    // bridging would replace these blocks.
+    // TCP/UDP methods delegate to the P3 socket objects via the adapter bridge.
+    // The P2 start/finish state machine is mapped onto P3's direct async methods.
 
     const instanceNet = adaptInstanceNetwork();
     const network = adaptNetwork();
     const tcpCreate = adaptTcpCreateSocket(p3);
     const udpCreate = adaptUdpCreateSocket(p3);
     const ipLookup = adaptIpNameLookup(p3);
+    const tcpMethods = adaptTcp();
+    const udpMethods = adaptUdp();
+    const incomingDgMethods = adaptIncomingDatagramStream();
+    const outgoingDgMethods = adaptOutgoingDatagramStream();
 
     register('sockets/instance-network', {
         'instance-network': instanceNet.instanceNetwork,
@@ -300,22 +325,7 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     });
     register('sockets/tcp', resource('tcp-socket', {
         methods: {
-            ...constant(notSupported,
-                'start-bind', 'finish-bind', 'start-connect', 'finish-connect',
-                'start-listen', 'finish-listen', 'accept',
-                'local-address', 'remote-address', 'set-listen-backlog-size',
-                'keep-alive-enabled', 'set-keep-alive-enabled',
-                'keep-alive-idle-time', 'set-keep-alive-idle-time',
-                'keep-alive-interval', 'set-keep-alive-interval',
-                'keep-alive-count', 'set-keep-alive-count',
-                'hop-limit', 'set-hop-limit',
-                'receive-buffer-size', 'set-receive-buffer-size',
-                'send-buffer-size', 'set-send-buffer-size',
-                'shutdown',
-            ),
-            ...constant(false, 'is-listening'),
-            ...constant('ipv4', 'address-family'),
-            'subscribe': syncPollable,
+            ...tcpMethods,
         },
     }));
     register('sockets/udp-create-socket', {
@@ -324,27 +334,17 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     register('sockets/udp', {
         ...resource('udp-socket', {
             methods: {
-                ...constant(notSupported,
-                    'start-bind', 'finish-bind', 'stream',
-                    'local-address', 'remote-address',
-                    'unicast-hop-limit', 'set-unicast-hop-limit',
-                    'receive-buffer-size', 'set-receive-buffer-size',
-                    'send-buffer-size', 'set-send-buffer-size',
-                ),
-                ...constant('ipv4', 'address-family'),
-                'subscribe': syncPollable,
+                ...udpMethods,
             },
         }),
         ...resource('incoming-datagram-stream', {
             methods: {
-                ...constant(notSupported, 'receive'),
-                'subscribe': syncPollable,
+                ...incomingDgMethods,
             },
         }),
         ...resource('outgoing-datagram-stream', {
             methods: {
-                ...constant(notSupported, 'check-send', 'send'),
-                'subscribe': syncPollable,
+                ...outgoingDgMethods,
             },
         }),
     });
@@ -352,8 +352,12 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
         'resolve-addresses': ipLookup.resolveAddresses,
         ...resource('resolve-address-stream', {
             methods: {
-                ...constant(notSupported, 'resolve-next-address'),
-                'subscribe': syncPollable,
+                'resolve-next-address'(self: { resolveNextAddress(): unknown }): unknown {
+                    return self.resolveNextAddress();
+                },
+                'subscribe'(self: { subscribe(): unknown }): unknown {
+                    return self.subscribe();
+                },
             },
         }),
     });

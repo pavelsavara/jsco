@@ -67,6 +67,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         maxHeapGrowthPerYield: config?.limits?.maxHeapGrowthPerYield ?? LIMIT_DEFAULTS.maxHeapGrowthPerYield,
         heapAtLastYield: 0,
         heapGrowthOverCount: 0,
+        maxConcurrentSubtasks: config?.limits?.maxConcurrentSubtasks ?? LIMIT_DEFAULTS.maxConcurrentSubtasks,
         abortSignal: abortController.signal,
         abort: (reason?: string) => {
             ctx.poisoned = true;

@@ -9,66 +9,66 @@ import { OK, ERR } from './constants';
 
 // --- Primitive memory loaders ---
 
-export function boolLoader(ctx: MarshalingContext, ptr: number): boolean {
+export function loadBool(ctx: MarshalingContext, ptr: number): boolean {
     return ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0) !== 0;
 }
 
-export function s8Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadS8(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getInt8(0);
 }
 
-export function u8Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadU8(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
 }
 
-export function s16Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadS16(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).getInt16(0, true);
 }
 
-export function u16Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadU16(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).getUint16(0, true);
 }
 
-export function s32Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadS32(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
 }
 
-export function u32Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadU32(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
 }
 
-export function s64LoaderBigInt(ctx: MarshalingContext, ptr: number): bigint {
+export function loadS64BigInt(ctx: MarshalingContext, ptr: number): bigint {
     return ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigInt64(0, true);
 }
 
-export function s64LoaderNumber(ctx: MarshalingContext, ptr: number): number {
+export function loadS64Number(ctx: MarshalingContext, ptr: number): number {
     return Number(ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigInt64(0, true));
 }
 
-export function u64LoaderBigInt(ctx: MarshalingContext, ptr: number): bigint {
+export function loadU64BigInt(ctx: MarshalingContext, ptr: number): bigint {
     return ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigUint64(0, true);
 }
 
-export function u64LoaderNumber(ctx: MarshalingContext, ptr: number): number {
+export function loadU64Number(ctx: MarshalingContext, ptr: number): number {
     return Number(ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getBigUint64(0, true));
 }
 
-export function f32Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadF32(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getFloat32(0, true);
 }
 
-export function f64Loader(ctx: MarshalingContext, ptr: number): number {
+export function loadF64(ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize).getFloat64(0, true);
 }
 
-export function charLoader(ctx: MarshalingContext, ptr: number): string {
+export function loadChar(ctx: MarshalingContext, ptr: number): string {
     const i = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
     if (i >= 0x110000) throw new Error(`Invalid char codepoint: ${i} >= 0x110000`);
     if (i >= 0xD800 && i <= 0xDFFF) throw new Error(`Invalid char codepoint: surrogate ${i}`);
     return String.fromCodePoint(i);
 }
 
-export function stringLoaderUtf16(ctx: MarshalingContext, ptr: number): string {
+export function loadStringUtf16(ctx: MarshalingContext, ptr: number): string {
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
     const strPtr = dv.getUint32(0, true);
     const strLen = dv.getUint32(4, true);
@@ -90,7 +90,7 @@ export function stringLoaderUtf16(ctx: MarshalingContext, ptr: number): string {
     return '';
 }
 
-export function stringLoaderUtf8(ctx: MarshalingContext, ptr: number): string {
+export function loadStringUtf8(ctx: MarshalingContext, ptr: number): string {
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
     const strPtr = dv.getUint32(0, true);
     const strLen = dv.getUint32(4, true);
@@ -108,7 +108,7 @@ export function stringLoaderUtf8(ctx: MarshalingContext, ptr: number): string {
 
 // --- Compound memory loaders ---
 
-export function recordLoader(plan: RecordLoaderPlan, ctx: MarshalingContext, ptr: number): Record<string, unknown> {
+export function loadRecord(plan: RecordLoaderPlan, ctx: MarshalingContext, ptr: number): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (let i = 0; i < plan.fields.length; i++) {
         const fl = plan.fields[i]!;
@@ -117,7 +117,7 @@ export function recordLoader(plan: RecordLoaderPlan, ctx: MarshalingContext, ptr
     return result;
 }
 
-export function listLoader(plan: ListLoaderPlan, ctx: MarshalingContext, ptr: number): unknown[] {
+export function loadList(plan: ListLoaderPlan, ctx: MarshalingContext, ptr: number): unknown[] {
     const dv = ctx.memory.getView(ptr as WasmPointer, 8 as WasmSize);
     const listPtr = dv.getUint32(0, true);
     const len = dv.getUint32(4, true);
@@ -137,7 +137,7 @@ export function listLoader(plan: ListLoaderPlan, ctx: MarshalingContext, ptr: nu
     return result;
 }
 
-export function optionLoader(plan: OptionLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
+export function loadOption(plan: OptionLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
     const dv = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize);
     const disc = dv.getUint8(0);
     if (disc > 1) throw new Error(`Invalid option discriminant: ${disc}`);
@@ -145,34 +145,34 @@ export function optionLoader(plan: OptionLoaderPlan, ctx: MarshalingContext, ptr
     return plan.payloadLoader(ctx, ptr + plan.payloadOffset);
 }
 
-export function resultLoaderBoth(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadResultBoth(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
     if (disc === 0) return { tag: OK, val: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
     return { tag: ERR, val: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
 }
 
-export function resultLoaderOkOnly(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadResultOkOnly(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
     if (disc === 0) return { tag: OK, val: plan.okLoader!(ctx, ptr + plan.payloadOffset) };
     return { tag: ERR, val: undefined };
 }
 
-export function resultLoaderErrOnly(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadResultErrOnly(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
     if (disc === 0) return { tag: OK, val: undefined };
     return { tag: ERR, val: plan.errLoader!(ctx, ptr + plan.payloadOffset) };
 }
 
-export function resultLoaderVoid(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadResultVoid(plan: ResultLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc > 1) throw new Error(`Invalid result discriminant: ${disc}`);
     return disc === 0 ? { tag: OK, val: undefined } : { tag: ERR, val: undefined };
 }
 
-export function variantLoaderDisc1(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadVariantDisc1(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
@@ -180,7 +180,7 @@ export function variantLoaderDisc1(plan: VariantLoaderPlan, ctx: MarshalingConte
     return { tag: plan.caseNames[disc] };
 }
 
-export function variantLoaderDisc2(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadVariantDisc2(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).getUint16(0, true);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
@@ -188,7 +188,7 @@ export function variantLoaderDisc2(plan: VariantLoaderPlan, ctx: MarshalingConte
     return { tag: plan.caseNames[disc] };
 }
 
-export function variantLoaderDisc4(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
+export function loadVariantDisc4(plan: VariantLoaderPlan, ctx: MarshalingContext, ptr: number): JsValue {
     const disc = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
     if (disc >= plan.numCases) throw new Error(`Invalid variant discriminant: ${disc} >= ${plan.numCases}`);
     const loader = plan.caseLoaders[disc];
@@ -196,25 +196,25 @@ export function variantLoaderDisc4(plan: VariantLoaderPlan, ctx: MarshalingConte
     return { tag: plan.caseNames[disc] };
 }
 
-export function enumLoaderDisc1(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
+export function loadEnumDisc1(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
     const disc = ctx.memory.getView(ptr as WasmPointer, 1 as WasmSize).getUint8(0);
     if (disc >= plan.numMembers) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.numMembers}`);
     return plan.memberNames[disc]!;
 }
 
-export function enumLoaderDisc2(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
+export function loadEnumDisc2(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
     const disc = ctx.memory.getView(ptr as WasmPointer, 2 as WasmSize).getUint16(0, true);
     if (disc >= plan.numMembers) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.numMembers}`);
     return plan.memberNames[disc]!;
 }
 
-export function enumLoaderDisc4(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
+export function loadEnumDisc4(plan: EnumLoaderPlan, ctx: MarshalingContext, ptr: number): string {
     const disc = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getUint32(0, true);
     if (disc >= plan.numMembers) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.numMembers}`);
     return plan.memberNames[disc]!;
 }
 
-export function flagsLoader(plan: FlagsLoaderPlan, ctx: MarshalingContext, ptr: number): Record<string, boolean> {
+export function loadFlags(plan: FlagsLoaderPlan, ctx: MarshalingContext, ptr: number): Record<string, boolean> {
     const result: Record<string, boolean> = {};
     const n = plan.memberNames.length;
     if (n === 0) return result;
@@ -242,7 +242,7 @@ export function flagsLoader(plan: FlagsLoaderPlan, ctx: MarshalingContext, ptr: 
     return result;
 }
 
-export function tupleLoader(plan: TupleLoaderPlan, ctx: MarshalingContext, ptr: number): unknown[] {
+export function loadTuple(plan: TupleLoaderPlan, ctx: MarshalingContext, ptr: number): unknown[] {
     const result = new Array(plan.members.length);
     for (let i = 0; i < plan.members.length; i++) {
         const ml = plan.members[i]!;
@@ -253,33 +253,33 @@ export function tupleLoader(plan: TupleLoaderPlan, ctx: MarshalingContext, ptr: 
 
 // --- Resource memory loaders ---
 
-export function ownResourceLoader(plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
+export function loadOwnResource(plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
     return ctx.resources.remove(plan.resourceTypeIdx, handle);
 }
 
-export function borrowResourceLoader(plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
+export function loadBorrowResource(plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
     return ctx.resources.get(plan.resourceTypeIdx, handle);
 }
 
-export function borrowResourceDirectLoader(_plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): number {
+export function loadBorrowResourceDirect(_plan: OwnResourceLoaderPlan, ctx: MarshalingContext, ptr: number): number {
     return ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
 }
 
 // --- Stream/Future/ErrorContext memory loaders ---
 
-export function streamLoader(ctx: MarshalingContext, ptr: number): unknown {
+export function loadStream(ctx: MarshalingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
     return ctx.streams.removeReadable(0, handle);
 }
 
-export function futureLoader(ctx: MarshalingContext, ptr: number): unknown {
+export function loadFuture(ctx: MarshalingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
     return ctx.futures.removeReadable(0, handle);
 }
 
-export function errorContextLoader(ctx: MarshalingContext, ptr: number): unknown {
+export function loadErrorContext(ctx: MarshalingContext, ptr: number): unknown {
     const handle = ctx.memory.getView(ptr as WasmPointer, 4 as WasmSize).getInt32(0, true);
     return ctx.errorContexts.remove(handle);
 }

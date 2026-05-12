@@ -12,7 +12,7 @@ import { createNodeSocketsTypes, createNodeIpNameLookup } from './sockets';
 import { addNodeMounts } from './filesystem-node';
 import { initFilesystem, createPreopens, createFilesystemTypes } from '../filesystem';
 import { nodeStdioDefaults } from './stdio-node';
-import { serve as serveImpl } from './http-server';
+import { serve as serveImpl, linkHandler as linkHandlerImpl } from './http-server';
 import type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
 import { JsImports } from '../../../resolver/api-types';
 import { makeRegister } from '../../_shared/resource-table';
@@ -77,4 +77,16 @@ export async function serve(
     return serveImpl(handler, config);
 }
 
+/**
+ * Wire one component instance's `wasi:http/handler` export as another
+ * instance's import. See {@link linkHandlerImpl} for details.
+ */
+export function linkHandler(
+    provider: { exports: Record<string, unknown> },
+    opts?: { as?: string },
+): Record<string, WasiHttpHandlerExport> {
+    return linkHandlerImpl(provider, opts);
+}
+
 export type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
+export { WASI_HTTP_HANDLER_INTERFACE } from './http-server';

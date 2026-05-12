@@ -21,7 +21,7 @@ import { ModelTag } from '../parser/model/tags';
 import { ComponentType, ComponentTypeFunc, ComponentTypeInstance, InstanceTypeDeclaration, ComponentTypeDefinedOwn, ComponentTypeDefinedBorrow } from '../parser/model/types';
 import { debugStack, withDebugTrace, jsco_assert, LogLevel } from '../utils/assert';
 import { createFunctionLowering, createLowering, createMemoryLoader } from '../binder';
-import { flatCount, deepResolveType, resolveValType } from './calling-convention';
+import { flattenTypeCount, deepResolveType, resolveValType } from './calling-convention';
 import { MAX_FLAT_PARAMS } from './model/calling-convention';
 import { JsFunction } from '../marshal/model/types';
 import type { MarshalingContext } from '../marshal/model/types';
@@ -35,7 +35,7 @@ import { createAllocator } from '../runtime';
 import { getComponentFunction, getComponentType, getCoreFunction } from './indices';
 import type { TCabiRealloc } from '../marshal/model/types';
 import { Resolver, BinderRes, ResolverRes, ResolvedContext, ResolverContext, resolveCanonicalOptions, StringEncoding } from './types';
-import { stringLiftingUtf8, stringLiftingUtf16 } from '../marshal/lift';
+import { liftStringUtf8, liftStringUtf16 } from '../marshal/lift';
 import { SubtaskState } from '../runtime/model/types';
 import type { WasmPointer, WasmSize, WasmValue } from '../marshal/model/types';
 
@@ -185,6 +185,13 @@ export const resolveCanonicalFunctionLower: Resolver<CanonicalFunctionLower> = (
                 const asyncLowerTrampoline = (...wasmArgs: unknown[]): number => {
                     const result = wasmFunction(...wasmArgs);
                     if (result instanceof Promise) {
+                        // Enforce concurrent subtask limit
+                        const cap = effectivemctx.maxConcurrentSubtasks;
+                        if (cap && effectivemctx.subtasks.size() >= cap) {
+                            throw new WebAssembly.RuntimeError(
+                                `async-lower: exceeded max concurrent subtasks (${cap})`,
+                            );
+                        }
                         // Async: create a subtask, return packed state|handle
                         const handle = effectivemctx.subtasks.create(result);
                         return SubtaskState.STARTED | (handle << 4);
@@ -935,9 +942,9 @@ function decodeErrorContextString(mctx: MarshalingContext, encoding: StringEncod
 function encodeErrorContextString(mctx: MarshalingContext, encoding: StringEncoding, value: string, descPtr: number): void {
     const tmp: WasmValue[] = [0, 0];
     if (encoding === StringEncoding.Utf8) {
-        stringLiftingUtf8(mctx, value, tmp, 0);
+        liftStringUtf8(mctx, value, tmp, 0);
     } else if (encoding === StringEncoding.Utf16) {
-        stringLiftingUtf16(mctx, value, tmp, 0);
+        liftStringUtf16(mctx, value, tmp, 0);
     } else {
         throw new Error(`error-context: string encoding ${encoding} not implemented`);
     }
@@ -1091,7 +1098,7 @@ const resolveCanonicalFunctionTaskReturn: Resolver<CoreFunction> = (rctx, rargs)
         // Deep-resolve aliases so flatCountForValType / lift plans see a
         // concrete type (raw ComponentValTypeType aliases throw).
         const resolvedResult = deepResolveType(rctx.resolved, resolveValType(rctx.resolved, resultValType));
-        const flat = flatCount(resolvedResult);
+        const flat = flattenTypeCount(resolvedResult);
         if (flat === 0) {
             // void payload
         } else if (flat <= MAX_FLAT_PARAMS) {
@@ -1142,8 +1149,9 @@ const resolveCanonicalFunctionWaitableSetNew: Resolver<CoreFunction> = (rctx, ra
     };
 };
 
-const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, rargs) => {
+const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (rctx, rargs) => {
     const elem = rargs.element;
+    const wrapLower = rctx.resolved.wrapLower;
     return {
         callerElement: rargs.callerElement,
         element: elem,
@@ -1162,7 +1170,12 @@ const resolveCanonicalFunctionWaitableSetWait: Resolver<CoreFunction> = (_rctx, 
                 }
                 return r;
             };
-            return { result: fn };
+            // waitable-set.wait is the only canonical built-in that can return
+            // a Promise (to block for events). It MUST be wrapped with
+            // WebAssembly.Suspending so JSPI suspends the wasm stack when
+            // no events are immediately ready.
+            const result = wrapLower ? wrapLower(fn) : fn;
+            return { result };
         }, `waitable-set.wait:${elem.selfSortIndex}`)
     };
 };

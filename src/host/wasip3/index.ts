@@ -126,8 +126,8 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
     register('cli/terminal-stdin', createTerminalStdin());
     register('cli/terminal-stdout', createTerminalStdout());
     register('cli/types', createCliTypes());
-    register('clocks/monotonic-clock', createMonotonicClock());
-    register('clocks/system-clock', createSystemClock());
+    register('clocks/monotonic-clock', createMonotonicClock(config?.monotonicNow));
+    register('clocks/system-clock', createSystemClock(config?.wallClockNow));
     register('clocks/timezone', createTimezone());
     register('clocks/types', createClocksTypes());
     register('filesystem/preopens', createPreopens(fsState));

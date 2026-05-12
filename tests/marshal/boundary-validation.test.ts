@@ -6,19 +6,21 @@ initializeAsserts();
 import type { WasmPointer, WasmSize, WasmValue } from '../../src/marshal/model/types';
 import type { MarshalingContext } from '../../src/resolver/types';
 import {
-    stringLiftingUtf8, stringLiftingUtf16, listLifting,
+    liftStringUtf8, liftStringUtf16, liftList,
 } from '../../src/marshal/lift';
 import {
-    stringLoweringUtf8, stringLoweringUtf16, listLowering,
+    lowerStringUtf8, lowerStringUtf16, lowerList,
 } from '../../src/marshal/lower';
 import {
-    stringLoaderUtf8, stringLoaderUtf16, listLoader,
+    loadStringUtf8,
+    loadStringUtf16,
+    loadList,
 } from '../../src/marshal/memory-load';
-import { listStorer } from '../../src/marshal/memory-store';
+import { storeList } from '../../src/marshal/memory-store';
 import { validateBoundarySize } from '../../src/marshal/validation';
-import { u8Lifting } from '../../src/marshal/lift';
-import { u8Loader } from '../../src/marshal/memory-load';
-import { u8Storer } from '../../src/marshal/memory-store';
+import { liftU8 } from '../../src/marshal/lift';
+import { loadU8 } from '../../src/marshal/memory-load';
+import { storeU8 } from '../../src/marshal/memory-store';
 
 function makeCtx(bufferSize: number, maxAllocationSize?: number): MarshalingContext {
     const buffer = new ArrayBuffer(bufferSize);
@@ -86,38 +88,38 @@ describe('lift boundary validation (JS → WASM)', () => {
     test('stringLiftingUtf8 rejects strings exceeding maxAllocationSize', () => {
         const ctx = makeCtx(4096, 8);
         const out: WasmValue[] = [0, 0];
-        expect(() => stringLiftingUtf8(ctx, 'hello world!', out, 0))
+        expect(() => liftStringUtf8(ctx, 'hello world!', out, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
     test('stringLiftingUtf8 accepts string at boundary', () => {
         const ctx = makeCtx(4096, 5);
         const out: WasmValue[] = [0, 0];
-        expect(() => stringLiftingUtf8(ctx, 'hello', out, 0)).not.toThrow();
+        expect(() => liftStringUtf8(ctx, 'hello', out, 0)).not.toThrow();
     });
 
     test('stringLiftingUtf16 rejects strings exceeding maxAllocationSize', () => {
         // UTF-16 = 2 bytes per code unit; limit=8 bytes = 4 code units max
         const ctx = makeCtx(4096, 8);
         const out: WasmValue[] = [0, 0];
-        expect(() => stringLiftingUtf16(ctx, 'hello', out, 0))
+        expect(() => liftStringUtf16(ctx, 'hello', out, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
     test('listLifting rejects lists exceeding maxAllocationSize', () => {
         const ctx = makeCtx(4096, 8);
         const out: WasmValue[] = [0, 0];
-        const plan = { elemSize: 1, elemAlign: 1, elemStorer: u8Storer } as any;
+        const plan = { elemSize: 1, elemAlign: 1, elemStorer: storeU8 } as any;
         const big = new Array(100).fill(0);
-        expect(() => listLifting(plan, ctx, big, out, 0))
+        expect(() => liftList(plan, ctx, big, out, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
     test('listLifting accepts empty list with cap of 0 elements', () => {
         const ctx = makeCtx(4096, 0); // cap 0 = disabled
         const out: WasmValue[] = [0, 0];
-        const plan = { elemSize: 1, elemAlign: 1, elemStorer: u8Storer } as any;
-        expect(() => listLifting(plan, ctx, [], out, 0)).not.toThrow();
+        const plan = { elemSize: 1, elemAlign: 1, elemStorer: storeU8 } as any;
+        expect(() => liftList(plan, ctx, [], out, 0)).not.toThrow();
     });
 });
 
@@ -125,14 +127,14 @@ describe('lower boundary validation (WASM → JS)', () => {
     test('stringLoweringUtf8 rejects guest-supplied len exceeding maxAllocationSize', () => {
         const ctx = makeCtx(1_000_000, 100);
         // pretend WASM passes a (ptr, len) = (0, 200). Should reject before reading memory.
-        expect(() => stringLoweringUtf8(ctx, 0, 200))
+        expect(() => lowerStringUtf8(ctx, 0, 200))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
     test('stringLoweringUtf16 rejects guest-supplied codeUnits whose byteLen exceeds cap', () => {
         const ctx = makeCtx(1_000_000, 100);
         // 60 code units × 2 = 120 bytes > 100
-        expect(() => stringLoweringUtf16(ctx, 0, 60))
+        expect(() => lowerStringUtf16(ctx, 0, 60))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
@@ -140,7 +142,7 @@ describe('lower boundary validation (WASM → JS)', () => {
         const ctx = makeCtx(1_000_000, 100);
         const plan = { elemSize: 4, elemAlign: 4, elemLowerer: () => 0 } as any;
         // 30 elements × 4 = 120 bytes > 100
-        expect(() => listLowering(plan, ctx, 0, 30))
+        expect(() => lowerList(plan, ctx, 0, 30))
             .toThrow(/exceeds maxAllocationSize/);
     });
 });
@@ -152,7 +154,7 @@ describe('memory-load boundary validation (WASM → JS, structured)', () => {
         const dv = ctx.memory.getView(0 as WasmPointer, 8 as WasmSize);
         dv.setUint32(0, 16, true);
         dv.setUint32(4, 200, true);
-        expect(() => stringLoaderUtf8(ctx, 0))
+        expect(() => loadStringUtf8(ctx, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
@@ -161,7 +163,7 @@ describe('memory-load boundary validation (WASM → JS, structured)', () => {
         const dv = ctx.memory.getView(0 as WasmPointer, 8 as WasmSize);
         dv.setUint32(0, 16, true);
         dv.setUint32(4, 60, true); // 60 × 2 = 120 > 100
-        expect(() => stringLoaderUtf16(ctx, 0))
+        expect(() => loadStringUtf16(ctx, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
@@ -170,8 +172,8 @@ describe('memory-load boundary validation (WASM → JS, structured)', () => {
         const dv = ctx.memory.getView(0 as WasmPointer, 8 as WasmSize);
         dv.setUint32(0, 16, true);
         dv.setUint32(4, 30, true);
-        const plan = { elemSize: 4, elemAlign: 4, elemLoader: u8Loader } as any;
-        expect(() => listLoader(plan, ctx, 0))
+        const plan = { elemSize: 4, elemAlign: 4, elemLoader: loadU8 } as any;
+        expect(() => loadList(plan, ctx, 0))
             .toThrow(/exceeds maxAllocationSize/);
     });
 });
@@ -179,9 +181,9 @@ describe('memory-load boundary validation (WASM → JS, structured)', () => {
 describe('memory-store boundary validation (JS → WASM, structured)', () => {
     test('listStorer rejects JS arrays whose totalBytes exceed cap', () => {
         const ctx = makeCtx(4096, 100);
-        const plan = { elemSize: 4, elemAlign: 4, elemStorer: u8Storer } as any;
+        const plan = { elemSize: 4, elemAlign: 4, elemStorer: storeU8 } as any;
         const big = new Array(30).fill(0); // 30 × 4 = 120 > 100
-        expect(() => listStorer(plan, ctx, 0, big))
+        expect(() => storeList(plan, ctx, 0, big))
             .toThrow(/exceeds maxAllocationSize/);
     });
 
@@ -189,12 +191,12 @@ describe('memory-store boundary validation (JS → WASM, structured)', () => {
         const ctx = makeCtx(4096, 120);
         const plan = { elemSize: 4, elemAlign: 4, elemStorer: (_c: any, _p: number, _v: any) => { /* noop */ } } as any;
         const list = new Array(30).fill(0);
-        expect(() => listStorer(plan, ctx, 0, list)).not.toThrow();
+        expect(() => storeList(plan, ctx, 0, list)).not.toThrow();
     });
 });
 
 // Reference imports to avoid unused-import lint
-void u8Lifting;
+void liftU8;
 
 // Deterministic xorshift32 PRNG so failures reproduce exactly from the seed.
 function makeRng(seed: number): () => number {
@@ -226,7 +228,7 @@ describe('boundary validation fuzz (log-scale length sweep)', () => {
             const len = sampleLogScaleLen(rng);
             const str = 'a'.repeat(Math.min(len, 100_000)); // bounded to keep allocation finite
             try {
-                stringLiftingUtf8(ctx, str, out, 0);
+                liftStringUtf8(ctx, str, out, 0);
                 succeeded++;
                 expect(str.length).toBeLessThanOrEqual(CAP);
             } catch (e) {
@@ -248,7 +250,7 @@ describe('boundary validation fuzz (log-scale length sweep)', () => {
             const len = Math.min(sampleLogScaleLen(rng), 10_000);
             const arr = new Array(len).fill(0);
             try {
-                listLifting(plan, ctx, arr, out, 0);
+                liftList(plan, ctx, arr, out, 0);
                 succeeded++;
                 expect(len * 4).toBeLessThanOrEqual(CAP);
             } catch (e) {
@@ -268,7 +270,7 @@ describe('boundary validation fuzz (log-scale length sweep)', () => {
         for (let i = 0; i < ITERATIONS; i++) {
             const len = sampleLogScaleLen(rng);
             try {
-                stringLoweringUtf8(ctx, 0, len);
+                lowerStringUtf8(ctx, 0, len);
                 succeeded++;
                 expect(len).toBeLessThanOrEqual(CAP);
             } catch (e) {
@@ -287,7 +289,7 @@ describe('boundary validation fuzz (log-scale length sweep)', () => {
         for (let i = 0; i < ITERATIONS; i++) {
             const len = sampleLogScaleLen(rng);
             try {
-                listLowering(plan, ctx, 0, len);
+                lowerList(plan, ctx, 0, len);
                 succeeded++;
                 expect(len * 4).toBeLessThanOrEqual(CAP);
             } catch (e) {
@@ -311,7 +313,7 @@ describe('boundary validation fuzz (log-scale length sweep)', () => {
             for (let i = 0; i < ITERATIONS; i++) {
                 const len = sampleLogScaleLen(rng);
                 const str = 'a'.repeat(Math.min(len, 100_000));
-                try { stringLiftingUtf8(ctx, str, out, 0); } catch { /* expected */ }
+                try { liftStringUtf8(ctx, str, out, 0); } catch { /* expected */ }
             }
             // Yield once so any pending microtasks complete.
             await new Promise(r => setImmediate(r));

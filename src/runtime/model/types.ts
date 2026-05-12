@@ -91,6 +91,12 @@ export type StreamEntry = {
     readableDropped?: boolean;
     /** True after dropWritable has fired; second drop traps. */
     writableDropped?: boolean;
+    /** Content-length limit: max bytes accepted via write(). */
+    maxWriteBytes?: number;
+    /** Total bytes accepted via write() (when maxWriteBytes is set). */
+    totalWritten?: number;
+    /** When a write overruns maxWriteBytes: totalWritten + attempted len. */
+    rejectedWriteTotal?: number;
 };
 
 export interface FutureTable {
@@ -133,6 +139,8 @@ export interface SubtaskTable {
     cancel(handle: number): number;
     /** Drop a completed subtask. */
     drop(handle: number): void;
+    /** Number of live (not yet dropped) subtask entries. */
+    size(): number;
     /** Dispose all subtasks: clear onResolve, clear entries. */
     dispose(): void;
 }
@@ -214,6 +222,14 @@ export interface NetworkConfig {
     httpHeadersTimeoutMs?: number;
     /** HTTP server keepAliveTimeout in ms. Default: 5_000 */
     httpKeepAliveTimeoutMs?: number;
+    /**
+     * Maximum aggregate bytes flowing through the HTTP boundary of a single
+     * request across a `linkHandler` chain. Counts request body bytes read
+     * by `serve()` plus response body bytes written back. Exceeding the cap
+     * aborts the response with an error. Default: 16_777_216 (16 MiB).
+     * 0 disables.
+     */
+    maxAggregateInflightBytes?: number;
 }
 
 export const NETWORK_DEFAULTS = {
@@ -229,6 +245,7 @@ export const NETWORK_DEFAULTS = {
     maxRequestUrlBytes: 8_192,
     httpHeadersTimeoutMs: 60_000,
     httpKeepAliveTimeoutMs: 5_000,
+    maxAggregateInflightBytes: 16_777_216,
 } as const;
 
 /** Allocation and size limits. */
@@ -279,6 +296,13 @@ export interface AllocationLimits {
      * Default: 1_048_576 (1 MiB).
      */
     maxNetworkBufferSize?: number;
+    /**
+     * Maximum number of concurrently in-flight async-lower subtasks per
+     * component instance. When exceeded, the instance traps with a
+     * WebAssembly.RuntimeError. Mirrors wasmtime's `max_concurrent_tasks`.
+     * Default: 100. 0 disables.
+     */
+    maxConcurrentSubtasks?: number;
 }
 
 export const LIMIT_DEFAULTS = {
@@ -290,6 +314,7 @@ export const LIMIT_DEFAULTS = {
     maxBlockingTimeMs: 0,
     maxHeapGrowthPerYield: 0,
     maxNetworkBufferSize: 1_048_576,
+    maxConcurrentSubtasks: 100,
 } as const;
 
 /** WASI-specific host configuration. */
@@ -319,6 +344,12 @@ export interface HostConfig {
      * Default: all interfaces enabled. When set, only matching prefixes are registered.
      */
     enabledInterfaces?: string[];
+    /** When true, the VFS root preopen is read-only (writes/creates/renames/removes fail). */
+    fsReadOnly?: boolean;
+    /** Override monotonic clock `now()`. Returns nanoseconds since an arbitrary epoch. */
+    monotonicNow?: () => bigint;
+    /** Override wall clock `now()`. Returns `{ seconds, nanoseconds }`. */
+    wallClockNow?: () => { seconds: bigint; nanoseconds: number };
 }
 
 /** Runtime configuration extending host config with runtime-generic fields. */

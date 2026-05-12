@@ -58,7 +58,7 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                     if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
                         logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait → ready immediately: ${eventTag(ev.eventCode, ev.handle)}`);
                     }
-                    return writeEvents(ptr, [ev]);
+                    return writeEvent(ptr, ev);
                 }
             }
 
@@ -102,7 +102,7 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                                     if (isDebug && (verbose?.executor ?? 0) >= LogLevel.Detailed) {
                                         logger!('executor', LogLevel.Detailed, `[wait-set#${setId}] wait resolved: ${eventTag(ev.eventCode, ev.handle)}`);
                                     }
-                                    resolve(writeEvents(ptr, [ev]));
+                                    resolve(writeEvent(ptr, ev));
                                     return;
                                 }
                             }
@@ -126,11 +126,12 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
                 const waitable = pendingWaitables.get(handle);
                 if (waitable && waitable.ready) {
                     waitable.ready = false;
-                    return writeEvents(ptr, [{
+                    const ev = {
                         eventCode: waitable.eventCode,
                         handle,
                         returnCode: returnCodeFor(handle, waitable.eventCode),
-                    }]);
+                    };
+                    return writeEvent(ptr, ev);
                 }
             }
             return 0;
@@ -336,16 +337,17 @@ export function createWaitableSetTable(memory: MemoryView, streamTable: StreamTa
         },
     };
 
-    function writeEvents(ptr: number, events: { eventCode: number, handle: number, returnCode: number }[]): number {
-        if (events.length === 0) return 0;
-        const view = memory.getView(ptr, events.length * 12);
-        for (let i = 0; i < events.length; i++) {
-            const e = events[i]!;
-            view.setInt32(i * 12, e.eventCode, true);
-            view.setInt32(i * 12 + 4, e.handle, true);
-            view.setInt32(i * 12 + 8, e.returnCode, true);
-        }
-        return events.length;
+    /**
+     * Write a single event's payload (handle, returnCode) to linear memory
+     * and return the event_code. Per the canonical ABI, waitable-set.wait
+     * and waitable-set.poll return the event_code as the i32 result and
+     * write only (handle, return_code) to the pointer — NOT the event_code.
+     */
+    function writeEvent(ptr: number, ev: { eventCode: number, handle: number, returnCode: number }): number {
+        const view = memory.getView(ptr, 8);
+        view.setInt32(0, ev.handle, true);
+        view.setInt32(4, ev.returnCode, true);
+        return ev.eventCode;
     }
 
     function returnCodeFor(handle: number, eventCode: number): number {

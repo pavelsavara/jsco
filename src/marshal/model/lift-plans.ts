@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
-import type { MarshalingContext, LiftingFromJs, MemoryStorer } from './types';
+import type { LiftingFromJs, MemoryStorer } from './types';
 import type { MemoryLoader } from '../../binder/to-js';
 import type { LoweringToJs } from './types';
 import type { FlatType } from '../../resolver/calling-convention';
@@ -25,8 +25,6 @@ export type VariantLiftPlan = {
     totalSize: number, payloadJoined: FlatType[],
     nameToCase: Map<string, VariantCaseLiftPlan>,
 };
-export type FutureLiftPlan = { storer?: (ctx: MarshalingContext, ptr: number, value: unknown, rejected?: boolean) => void };
-export type StreamLiftPlan = { elementStorer?: (ctx: MarshalingContext, ptr: number, value: unknown) => void, elementSize?: number };
 
 export type FunctionLiftPlan = {
     paramLifters: LiftingFromJs[],

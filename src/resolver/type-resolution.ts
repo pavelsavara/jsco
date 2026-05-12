@@ -114,7 +114,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
             if (!instanceLocalMaps.has(instanceIdx)) {
                 const instance = rctx.indexes.componentInstances[instanceIdx];
                 if (instance?.tag === ModelTag.ComponentTypeInstance) {
-                    instanceLocalMaps.set(instanceIdx, buildInstanceLocalTypeMap(instance));
+                    instanceLocalMaps.set(instanceIdx, buildInstanceLocalTypeMap(instance, map));
                 }
             }
             const localMap = instanceLocalMaps.get(instanceIdx);
@@ -172,7 +172,7 @@ export function buildResolvedTypeMap(rctx: ResolverContext): Map<ComponentTypeIn
  * Instance declarations (InstanceTypeDeclarationType and InstanceTypeDeclarationExport
  * with TypeBoundsEq) each create a local type entry.
  */
-function buildInstanceLocalTypeMap(instance: ComponentTypeInstance): Map<ComponentTypeIndex, ResolvedType> {
+function buildInstanceLocalTypeMap(instance: ComponentTypeInstance, globalMap: Map<ComponentTypeIndex, ResolvedType>): Map<ComponentTypeIndex, ResolvedType> {
     const localMap = new Map<ComponentTypeIndex, ResolvedType>();
     const localTypes: (ResolvedType | undefined)[] = [];
     let localTypeIdx = 0;
@@ -194,7 +194,10 @@ function buildInstanceLocalTypeMap(instance: ComponentTypeInstance): Map<Compone
             // TypeBoundsSubResource creates a type entry but no resolved type
         } else if (decl.tag === ModelTag.InstanceTypeDeclarationAlias) {
             isTypeCreating = true;
-            // Alias handling would require outer scope context — skip value
+            const alias = decl.value;
+            if (alias.tag === ModelTag.ComponentAliasOuter) {
+                resolved = globalMap.get(alias.index as ComponentTypeIndex);
+            }
         }
 
         if (!isTypeCreating) continue;

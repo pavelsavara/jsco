@@ -2,8 +2,8 @@
 
 import type { MarshalingContext } from '../resolver/types';
 import type { WasmPointer, WasmSize, WasmValue, JsValue } from './model/types';
-import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan } from './model/lower-plans';
-export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan } from './model/lower-plans';
+import type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantLowerPlan, StreamLowerPlan, FutureLowerPlan } from './model/lower-plans';
+export type { ResourceLowerPlan, EnumLowerPlan, FlagsLowerPlan, RecordLowerPlan, TupleLowerPlan, ListLowerPlan, OptionLowerPlan, ResultLowerPlan, VariantCaseLowerPlan, VariantLowerPlan, StreamLowerPlan, FutureLowerPlan } from './model/lower-plans';
 import { FlatType } from '../resolver/calling-convention';
 import { canonicalNaN32, canonicalNaN64, _f32, _i32, _f64, _i64, _i32_64 } from '../utils/shared';
 import { validateUtf16, validatePointerAlignment, validateBoundarySize } from './validation';
@@ -13,79 +13,79 @@ import { OK, ERR } from './constants';
 // These are stateless top-level functions with no captured state.
 // Signature: (ctx: MarshalingContext, ...args: WasmValue[]) => JsValue
 
-export function boolLowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerBool(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0] !== 0;
 }
 
-export function s8Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerS8(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return (num << 24) >> 24;
 }
 
-export function u8Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerU8(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num & 0xFF;
 }
 
-export function s16Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerS16(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return (num << 16) >> 16;
 }
 
-export function u16Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerU16(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num & 0xFFFF;
 }
 
-export function s32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerS32(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num | 0;
 }
 
-export function u32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerU32(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const num = args[0] as number;
     return num >>> 0;
 }
 
-export function s64LoweringBigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerS64BigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0];
 }
 
-export function s64LoweringNumber(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerS64Number(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return Number(args[0] as bigint);
 }
 
-export function u64LoweringBigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerU64BigInt(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     // WASM returns i64 as signed BigInt — reinterpret as unsigned
     return BigInt.asUintN(64, args[0] as bigint);
 }
 
-export function u64LoweringNumber(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerU64Number(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     return Number(args[0] as bigint);
 }
 
-export function f32Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerF32(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const v = Math.fround(args[0] as number);
     // Spec: canonicalize_nan32 — replace any NaN with canonical NaN
     if (v !== v) return canonicalNaN32;
     return v;
 }
 
-export function f64Lowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerF64(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const v = +(args[0] as number);
     // Spec: canonicalize_nan64 — replace any NaN with canonical NaN
     if (v !== v) return canonicalNaN64;
     return v;
 }
 
-export function charLowering(_: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerChar(_: MarshalingContext, ...args: WasmValue[]): JsValue {
     const i = args[0] as number;
     if (i >= 0x110000) throw new Error(`Invalid char codepoint: ${i} >= 0x110000`);
     if (i >= 0xD800 && i <= 0xDFFF) throw new Error(`Invalid char codepoint: surrogate ${i}`);
     return String.fromCodePoint(i);
 }
 
-export function stringLoweringUtf8(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerStringUtf8(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const pointer = (args[0] as number) >>> 0 as WasmPointer;
     const len = (args[1] as number) >>> 0 as WasmSize;
     if (len as number > 0) {
@@ -102,7 +102,7 @@ export function stringLoweringUtf8(ctx: MarshalingContext, ...args: WasmValue[])
     return res;
 }
 
-export function stringLoweringUtf16(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerStringUtf16(ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const pointer = (args[0] as number) >>> 0 as WasmPointer;
     const codeUnits = (args[1] as number) >>> 0 as WasmSize;
     if (codeUnits as number > 0) {
@@ -127,23 +127,23 @@ export function stringLoweringUtf16(ctx: MarshalingContext, ...args: WasmValue[]
 
 // --- Resource lowering functions ---
 
-export function ownLowering(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerOwn(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const handle = args[0] as number;
     return ctx.resources.remove(plan.resourceTypeIdx, handle);
 }
 
-export function borrowLowering(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerBorrow(plan: ResourceLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const handle = args[0] as number;
     return ctx.resources.get(plan.resourceTypeIdx, handle);
 }
 
-export function borrowLoweringDirect(_plan: ResourceLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerBorrowDirect(_plan: ResourceLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     return args[0];
 }
 
 // --- Enum lowering ---
 
-export function enumLowering(plan: EnumLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerEnum(plan: EnumLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;
     if (disc >= plan.members.length) throw new Error(`Invalid enum discriminant: ${disc} >= ${plan.members.length}`);
     return plan.members[disc];
@@ -151,7 +151,7 @@ export function enumLowering(plan: EnumLowerPlan, _ctx: MarshalingContext, ...ar
 
 // --- Flags lowering ---
 
-export function flagsLowering(plan: FlagsLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerFlags(plan: FlagsLowerPlan, _ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, boolean> = {};
     for (let i = 0; i < plan.memberNames.length; i++) {
         const word = args[i >>> 5] as number;
@@ -162,7 +162,7 @@ export function flagsLowering(plan: FlagsLowerPlan, _ctx: MarshalingContext, ...
 
 // --- Record lowering ---
 
-export function recordLowering(plan: RecordLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerRecord(plan: RecordLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result: Record<string, unknown> = {};
     let offset = 0;
     for (let i = 0; i < plan.fields.length; i++) {
@@ -175,7 +175,7 @@ export function recordLowering(plan: RecordLowerPlan, ctx: MarshalingContext, ..
 
 // --- Tuple lowering ---
 
-export function tupleLowering(plan: TupleLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerTuple(plan: TupleLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const result = new Array(plan.elements.length);
     let offset = 0;
     for (let i = 0; i < plan.elements.length; i++) {
@@ -188,7 +188,7 @@ export function tupleLowering(plan: TupleLowerPlan, ctx: MarshalingContext, ...a
 
 // --- List lowering ---
 
-export function listLowering(plan: ListLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerList(plan: ListLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const ptr = (args[0] as number) >>> 0;
     const len = (args[1] as number) >>> 0;
     if (len > 0) {
@@ -211,7 +211,7 @@ export function listLowering(plan: ListLowerPlan, ctx: MarshalingContext, ...arg
 
 // --- Option lowering ---
 
-export function optionLowering(plan: OptionLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerOption(plan: OptionLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid option discriminant: ${discriminant}`);
     if (discriminant === 0) return null;
@@ -221,7 +221,7 @@ export function optionLowering(plan: OptionLowerPlan, ctx: MarshalingContext, ..
 
 // --- Result lowering ---
 
-export function resultLowering(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerResult(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
@@ -234,7 +234,7 @@ export function resultLowering(plan: ResultLowerPlan, ctx: MarshalingContext, ..
     }
 }
 
-export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerResultCoerced(plan: ResultLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const discriminant = args[0] as number;
     if (discriminant > 1) throw new Error(`Invalid result discriminant: ${discriminant}`);
     const payload = args.slice(1, 1 + plan.payloadJoined.length);
@@ -243,7 +243,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: MarshalingCont
             const joinedFT = plan.payloadJoined[i];
             const okFT = plan.okFlatTypes[i];
             if (joinedFT !== undefined && okFT !== undefined && joinedFT !== okFT) {
-                payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, okFT);
+                payload[i] = lowerFlatCoerce(payload[i] as WasmValue, joinedFT, okFT);
             }
         }
         const val = plan.okLowerer ? plan.okLowerer(ctx, ...payload.slice(0, plan.okFlatTypes.length)) : undefined;
@@ -253,7 +253,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: MarshalingCont
             const joinedFT = plan.payloadJoined[i];
             const errFT = plan.errFlatTypes[i];
             if (joinedFT !== undefined && errFT !== undefined && joinedFT !== errFT) {
-                payload[i] = coerceFlatLower(payload[i] as WasmValue, joinedFT, errFT);
+                payload[i] = lowerFlatCoerce(payload[i] as WasmValue, joinedFT, errFT);
             }
         }
         const val = plan.errLowerer ? plan.errLowerer(ctx, ...payload.slice(0, plan.errFlatTypes.length)) : undefined;
@@ -263,7 +263,7 @@ export function resultLoweringCoerced(plan: ResultLowerPlan, ctx: MarshalingCont
 
 // --- Variant lowering ---
 
-export function variantLowering(plan: VariantLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
+export function lowerVariant(plan: VariantLowerPlan, ctx: MarshalingContext, ...args: WasmValue[]): JsValue {
     const disc = args[0] as number;
     const c = plan.cases[disc];
     if (!c) throw new Error(`Invalid variant discriminant: ${disc}`);
@@ -275,7 +275,7 @@ export function variantLowering(plan: VariantLowerPlan, ctx: MarshalingContext, 
                 const have = plan.payloadJoined[i];
                 const want = c.caseFlatTypes[i];
                 if (have !== undefined && want !== undefined && have !== want) {
-                    payload[i] = coerceFlatLower(payload[i] as WasmValue, have, want);
+                    payload[i] = lowerFlatCoerce(payload[i] as WasmValue, have, want);
                 }
             }
         }
@@ -284,25 +284,25 @@ export function variantLowering(plan: VariantLowerPlan, ctx: MarshalingContext, 
     return { tag: c.name };
 }
 
-// --- Stream lowering (i32 handle → JS AsyncIterable) ---
+// --- Stream lowering (JS AsyncIterable → i32 handle) ---
 
-export function streamLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.streams.removeReadable(0, handle);
+export function lowerStream(plan: StreamLowerPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.streams.addReadable(0, srcJsValue, plan.elementStorer, plan.elementSize, ctx);
+    return 1;
 }
 
-// --- Future lowering (i32 handle → JS Promise) ---
+// --- Future lowering (JS Promise → i32 handle) ---
 
-export function futureLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.futures.removeReadable(0, handle);
+export function lowerFuture(plan: FutureLowerPlan, ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.futures.addReadable(0, srcJsValue, plan.storer);
+    return 1;
 }
 
-// --- Error-context lowering (i32 handle → JS Error) ---
+// --- Error-context lowering (JS Error → i32 handle) ---
 
-export function errorContextLowering(ctx: MarshalingContext, ...args: WasmValue[]): unknown {
-    const handle = args[0] as number;
-    return ctx.errorContexts.remove(handle);
+export function lowerErrorContext(ctx: MarshalingContext, srcJsValue: JsValue, out: WasmValue[], offset: number): number {
+    out[offset] = ctx.errorContexts.add(srcJsValue);
+    return 1;
 }
 
 /**
@@ -310,7 +310,7 @@ export function errorContextLowering(ctx: MarshalingContext, ...args: WasmValue[
  * Follows the spec's lift_flat_variant CoerceValueIter (definitions.py L1894).
  * Reinterpret-as-float results are passed through canonicalize_nan{32,64}.
  */
-export function coerceFlatLower(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
+export function lowerFlatCoerce(value: WasmValue, have: FlatType, want: FlatType): WasmValue {
     // (i32, f32): decode_i32_as_float = canonicalize_nan32(reinterpret)
     if (have === FlatType.I32 && want === FlatType.F32) {
         _i32[0] = value as number;
