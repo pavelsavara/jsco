@@ -7,6 +7,7 @@
 import type { WasiP3Imports } from '../../../wit/wasip3/types/index';
 import { createStreamPair } from '../../../src/host/wasip3/streams';
 import type { WasiStreamReadable } from '../../../src/host/wasip3/streams';
+import { createHttpTypes, createHttpClient } from '../../../src/host/wasip3/http';
 
 /**
  * Build a minimal mock P3 host with all required interfaces.
@@ -94,13 +95,11 @@ export function createMockP3(overrides?: Partial<Record<string, unknown>>): Wasi
             getDirectories: () => [],
         },
         'wasi:filesystem/types': {},
-        'wasi:http/client': {
-            send: () => { throw new Error('not implemented'); },
-        },
+        'wasi:http/client': createHttpClient(),
         'wasi:http/handler': {
             handle: () => { throw new Error('not implemented'); },
         },
-        'wasi:http/types': {},
+        'wasi:http/types': createHttpTypes(),
         'wasi:random/random': {
             getRandomBytes: (len: bigint) => {
                 const n = Number(len);

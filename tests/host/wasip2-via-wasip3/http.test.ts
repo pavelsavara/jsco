@@ -576,33 +576,45 @@ describe('AdapterFutureIncomingResponse', () => {
     });
 });
 
-// ─── Outgoing Handler (stub) ───
+// ─── Outgoing Handler ───
 
 describe('wasi:http/outgoing-handler (via P3 adapter)', () => {
-    test('handle returns err (stub not fully implemented)', () => {
-        const { handler, createFields, createReq } = getHttp();
+    test('handle returns ok with future', () => {
+        const { types, handler, createFields, createReq } = getHttp();
         const req = createReq(createFields());
+        // P2 requires scheme, authority, and path to be set
+        (types['[method]outgoing-request.set-scheme'] as any)(req, { tag: 'HTTP' });
+        (types['[method]outgoing-request.set-authority'] as any)(req, 'example.com');
+        (types['[method]outgoing-request.set-path-with-query'] as any)(req, '/');
         const result = handler['handle']!(req) as { tag: string; val: unknown };
-        expect(result.tag).toBe('err');
+        expect(result.tag).toBe('ok');
     });
 
-    test('handle with options returns err (stub)', () => {
-        const { handler, createFields, createReq, createOpts } = getHttp();
+    test('handle with options returns ok with future', () => {
+        const { types, handler, createFields, createReq, createOpts } = getHttp();
         const req = createReq(createFields());
+        (types['[method]outgoing-request.set-scheme'] as any)(req, { tag: 'HTTP' });
+        (types['[method]outgoing-request.set-authority'] as any)(req, 'example.com');
+        (types['[method]outgoing-request.set-path-with-query'] as any)(req, '/');
         const opts = createOpts();
         opts.setConnectTimeout(1_000_000_000n);
         const result = handler['handle']!(req, opts) as { tag: string; val: unknown };
-        expect(result.tag).toBe('err');
+        expect(result.tag).toBe('ok');
     });
 });
 
 // ─── Forbidden method validation (Step 11) ───
 
 import { adaptOutgoingHandler, AdapterOutgoingRequest, AdapterFields } from '../../../src/host/wasip2-via-wasip3/http';
+import { createHttpTypes, createHttpClient } from '../../../src/host/wasip3/http';
 
 describe('adaptOutgoingHandler — forbidden method validation', () => {
-    // Use a minimal mock P3 object (adaptOutgoingHandler doesn't use it for forbidden methods).
-    const handler = adaptOutgoingHandler({} as any);
+    // Use real P3 types/client so the handler can construct P3 objects.
+    const p3 = {
+        'wasi:http/types': createHttpTypes(),
+        'wasi:http/client': createHttpClient(),
+    };
+    const handler = adaptOutgoingHandler(p3 as any);
 
     function makeRequest(method: { tag: string; val?: string }): AdapterOutgoingRequest {
         const headers = new AdapterFields();

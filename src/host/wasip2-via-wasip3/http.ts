@@ -447,96 +447,6 @@ export class AdapterFutureIncomingResponse {
 
 // ─── Adapter factory functions ───
 
-/** Map a P3 HttpMethod tag to the HTTP method string used by fetch. */
-function methodTagToString(m: HttpMethod): string {
-    if (m.tag === 'other') return m.val;
-    return m.tag.toUpperCase();
-}
-
-/** Build absolute URL from a P2-adapter outgoing request. */
-function buildAdapterUrl(req: AdapterOutgoingRequest): { url: string } | { err: HttpErrorCode } {
-    const scheme = req.scheme();
-    const authority = req.authority();
-    const pathWithQuery = req.pathWithQuery();
-    if (!scheme || !authority) {
-        return { err: { tag: 'HTTP-request-URI-invalid', val: 'missing scheme or authority' } };
-    }
-    if (pathWithQuery === undefined) {
-        return { err: { tag: 'HTTP-request-URI-invalid', val: 'missing path-with-query' } };
-    }
-    let schemeStr: string;
-    if (scheme.tag === 'HTTP') schemeStr = 'http';
-    else if (scheme.tag === 'HTTPS') schemeStr = 'https';
-    else schemeStr = scheme.val;
-    if (schemeStr !== 'http' && schemeStr !== 'https') {
-        return { err: { tag: 'HTTP-protocol-error' } };
-    }
-    return { url: `${schemeStr}://${authority}${pathWithQuery}` };
-}
-
-/** Convert AdapterFields to a fetch-compatible Headers object. */
-function adapterFieldsToFetchHeaders(fields: AdapterFields): globalThis.Headers {
-    const h = new globalThis.Headers();
-    const dec = new TextDecoder();
-    for (const [name, value] of fields.entries()) {
-        // `content-length` is a fetch-forbidden header — undici rejects it
-        // and the body length is computed by fetch itself anyway.
-        if (name.toLowerCase() === 'content-length') continue;
-        const bytes = value instanceof Uint8Array ? value : Uint8Array.from(value as ArrayLike<number>);
-        h.append(name, dec.decode(bytes));
-    }
-    return h;
-}
-
-/** Convert fetch response Headers to AdapterFields. */
-async function fetchHeadersToAdapterFields(headers: globalThis.Headers): Promise<AdapterFields> {
-    const enc = new TextEncoder();
-    const entries: [string, Uint8Array][] = [];
-    headers.forEach((value, name) => { entries.push([name, enc.encode(value)]); });
-    return new AdapterFields(entries);
-}
-
-/** Map fetch errors to a P2-adapter HttpErrorCode. */
-function adapterMapFetchError(e: unknown): HttpErrorCode {
-    const errName = e && typeof e === 'object' ? (e as { name?: string }).name : undefined;
-    if (errName === 'AbortError' || errName === 'TimeoutError') {
-        return { tag: 'connection-timeout' };
-    }
-    if (errName === 'TypeError' || e instanceof TypeError) {
-        const msg = String((e as Error).message ?? '').toLowerCase();
-        if (msg.includes('abort') || msg.includes('timeout')) return { tag: 'connection-timeout' };
-        // Node's fetch surfaces DNS failures and other network errors as
-        // TypeError("fetch failed") with a `.cause` from undici. Inspect
-        // both the cause chain and its message text since some failures
-        // (DNS) only carry the diagnostic text.
-        const cause = (e as { cause?: unknown }).cause;
-        if (cause && typeof cause === 'object') {
-            const code = (cause as { code?: string }).code;
-            if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_FAIL') {
-                return { tag: 'DNS-error', val: { rcode: code } };
-            }
-            if (code === 'ECONNREFUSED') return { tag: 'connection-refused' };
-            if (code === 'ECONNRESET') return { tag: 'connection-terminated' };
-            if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') return { tag: 'connection-timeout' };
-            const causeMsg = String((cause as { message?: unknown }).message ?? '').toLowerCase();
-            if (causeMsg.includes('getaddrinfo') || causeMsg.includes('enotfound') || causeMsg.includes('dns')) {
-                return { tag: 'DNS-error', val: {} };
-            }
-            if (causeMsg.includes('refused')) return { tag: 'connection-refused' };
-            if (causeMsg.includes('timeout')) return { tag: 'connection-timeout' };
-        }
-        if (msg.includes('getaddrinfo') || msg.includes('enotfound') || msg.includes('dns')) {
-            return { tag: 'DNS-error', val: {} };
-        }
-        if (msg.includes('refused')) return { tag: 'connection-refused' };
-        // Generic "fetch failed" from Node without a recognisable cause is
-        // most often a DNS-resolution failure on a syntactically-valid host.
-        if (msg === 'fetch failed') return { tag: 'DNS-error', val: {} };
-        if (msg.includes('network') || msg.includes('fetch')) return { tag: 'destination-not-found' };
-    }
-    return { tag: 'internal-error', val: e instanceof Error ? e.message : String(e) };
-}
-
 export function adaptHttpTypes(maxBufferSize?: number): AdaptedHttpTypes {
     return {
         createFields: (): AdapterFields => new AdapterFields(),
@@ -551,77 +461,165 @@ export function adaptHttpTypes(maxBufferSize?: number): AdaptedHttpTypes {
 }
 
 /**
- * Adapt P2 `wasi:http/outgoing-handler.handle` to fetch.
+ * Adapt P2 `wasi:http/outgoing-handler.handle` via P3's public API.
  *
- * The P2 adapter has already buffered the request body bytes synchronously
- * via `AdapterOutgoingBody` (an OutputStream-backed collector), so we have
- * a complete `Uint8Array` body at the moment `handle()` is called. We
- * therefore bypass P3 streaming entirely and just issue a plain `fetch()`
- * with `body: Uint8Array`. This avoids the back-and-forth WASM scheduling
- * that would otherwise be required to drain a P3 stream while the guest is
- * suspended awaiting `future-incoming-response.get()`.
+ * Constructs a P3 `HttpRequest` from the adapter's `AdapterOutgoingRequest`,
+ * delegates to P3's `client.send()` for fetch, validation, and error mapping,
+ * then converts the P3 `HttpResponse` back to an `AdapterIncomingResponse`.
  */
-export function adaptOutgoingHandler(_p3: WasiP3Imports, _maxBufferSize?: number): {
+export function adaptOutgoingHandler(p3: WasiP3Imports, _maxBufferSize?: number): {
     handle(request: AdapterOutgoingRequest, options?: AdapterRequestOptions): HttpResult<AdapterFutureIncomingResponse>;
 } {
+    // At runtime, `WasiP3Imports` holds the actual P3 class constructors
+    // returned by createHttpTypes/createHttpClient under unversioned WIT keys.
+    const httpTypes = p3['wasi:http/types'] as unknown as P3HttpTypes;
+    const httpClient = p3['wasi:http/client'] as unknown as P3HttpClient;
+
     return {
         handle(request: AdapterOutgoingRequest, options?: AdapterRequestOptions): HttpResult<AdapterFutureIncomingResponse> {
-            let url: string;
-            let method: string;
-            let fetchHeaders: globalThis.Headers;
-            try {
-                const built = buildAdapterUrl(request);
-                if ('err' in built) return err(built.err);
-                url = built.url;
-                method = methodTagToString(request.method());
-                // CONNECT, TRACE, and TRACK are forbidden methods per the Fetch
-                // spec and cannot be used with outgoing-handler. Return
-                // HTTP-protocol-error per the WASI HTTP contract.
-                if (method === 'CONNECT' || method === 'TRACE' || method === 'TRACK') {
-                    return err({ tag: 'HTTP-protocol-error' });
-                }
-                fetchHeaders = adapterFieldsToFetchHeaders(request.headers());
-            } catch (e) {
-                return err({ tag: 'HTTP-request-URI-invalid', val: e instanceof Error ? e.message : String(e) });
+            // P2 guests expect structural validation errors in the outer result
+            // (not via the future). These are minimal pre-checks — full validation
+            // (URL length, body-size, error mapping) is delegated to P3's send().
+            const scheme = request.scheme();
+            const authority = request.authority();
+            if (!scheme || !authority) return err({ tag: 'HTTP-request-URI-invalid' });
+            if (request.pathWithQuery() === undefined) return err({ tag: 'HTTP-request-URI-invalid' });
+            if (scheme.tag === 'other') {
+                const s = scheme.val.toLowerCase();
+                if (s !== 'http' && s !== 'https') return err({ tag: 'HTTP-protocol-error' });
             }
-
-            const init: RequestInit = {
-                method,
-                headers: fetchHeaders,
-            };
-
-            // Apply timeout (most-restrictive of connect / first-byte timeouts).
-            // option<u64> lifts to null for None, so use loose equality.
-            if (options) {
-                const candidates: number[] = [];
-                const ct = options.connectTimeout();
-                const fbt = options.firstByteTimeout();
-                if (ct != null) candidates.push(Number(ct) / 1_000_000);
-                if (fbt != null) candidates.push(Number(fbt) / 1_000_000);
-                if (candidates.length > 0) {
-                    init.signal = AbortSignal.timeout(Math.min(...candidates));
-                }
+            const m = request.method();
+            const upper = (m.tag === 'other' ? m.val : m.tag).toUpperCase();
+            if (upper === 'CONNECT' || upper === 'TRACE' || upper === 'TRACK') {
+                return err({ tag: 'HTTP-protocol-error' });
             }
 
             const promise = (async (): Promise<AdapterIncomingResponse> => {
-                // Wait for the guest to call outgoing-body.finish() before snapshotting bytes.
+                // 1. Build P3 Fields from P2 AdapterFields entries
+                const p3Headers = httpTypes.Fields.fromList(request.headers().entries());
+
+                // 2. Wait for body finish, create one-shot body stream
                 await request.whenBodyFinished();
                 const bodyBytes = request.getBodyBytes();
-                if (bodyBytes.length > 0 && method !== 'GET' && method !== 'HEAD') {
-                    init.body = bodyBytes as unknown as BodyInit;
+                const bodyStream: AsyncIterable<Uint8Array> | undefined =
+                    bodyBytes.length > 0
+                        ? { async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> { yield bodyBytes; } }
+                        : undefined;
+
+                // 3. Build P3 RequestOptions from P2 options
+                let p3Options: P3RequestOptions | undefined;
+                if (options) {
+                    p3Options = new httpTypes.RequestOptions();
+                    const ct = options.connectTimeout();
+                    if (ct != null) p3Options.setConnectTimeout(ct);
+                    const fbt = options.firstByteTimeout();
+                    if (fbt != null) p3Options.setFirstByteTimeout(fbt);
+                    const bbt = options.betweenBytesTimeout();
+                    if (bbt != null) p3Options.setBetweenBytesTimeout(bbt);
                 }
-                let resp: globalThis.Response;
-                try {
-                    resp = await fetch(url, init);
-                } catch (e) {
-                    throw adapterMapFetchError(e);
+
+                // 4. Construct P3 Request
+                const noTrailers = Promise.resolve({ tag: 'ok' as const, val: undefined });
+                const [p3Request, completionFuture] = httpTypes.Request.new(
+                    p3Headers, bodyStream, noTrailers, p3Options,
+                );
+                // Absorb completion future rejection to prevent unhandled rejection
+                (completionFuture as Promise<unknown>).catch(() => { /* absorbed by adapter */ });
+
+                // 5. Set method, scheme, authority, path — P3 setters validate per RFC
+                p3Request.setMethod(request.method());
+                p3Request.setScheme(request.scheme());
+                p3Request.setAuthority(request.authority());
+                p3Request.setPathWithQuery(request.pathWithQuery());
+
+                // 6. Send via P3 client — handles fetch, error mapping, content-length
+                const result = await httpClient.send(p3Request);
+                if (result.tag === 'err') throw result.val;
+                const p3Response = result.val;
+
+                // 7. Extract status and headers
+                const status = p3Response.getStatusCode();
+                const respHeaders = new AdapterFields(p3Response.getHeaders().copyAll());
+
+                // 8. Drain response body via P3's consumeBody API
+                const noRes = Promise.resolve({ tag: 'ok' as const, val: undefined });
+                const [bodyReadable] = httpTypes.Response.consumeBody(p3Response, noRes);
+                const chunks: Uint8Array[] = [];
+                for await (const chunk of bodyReadable) {
+                    chunks.push(chunk);
                 }
-                const respHeaders = await fetchHeadersToAdapterFields(resp.headers);
-                const respBody = new Uint8Array(await resp.arrayBuffer());
-                return new AdapterIncomingResponse(resp.status, respHeaders, respBody);
+                let respBody: Uint8Array;
+                if (chunks.length === 0) {
+                    respBody = new Uint8Array(0);
+                } else if (chunks.length === 1) {
+                    respBody = chunks[0]!;
+                } else {
+                    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+                    respBody = new Uint8Array(totalLen);
+                    let offset = 0;
+                    for (const c of chunks) {
+                        respBody.set(c, offset);
+                        offset += c.length;
+                    }
+                }
+
+                return new AdapterIncomingResponse(status, respHeaders, respBody);
             })();
 
             return ok(new AdapterFutureIncomingResponse(promise));
         },
     };
+}
+
+// ─── P3 type shapes used by the adapter ───
+//
+// At runtime the `WasiP3Imports` record holds class objects from
+// `createHttpTypes` / `createHttpClient`. These interfaces describe
+// only the subset of methods the adapter needs.
+
+interface P3Fields {
+    copyAll(): [string, Uint8Array][];
+}
+
+interface P3RequestOptions {
+    setConnectTimeout(d: bigint): void;
+    setFirstByteTimeout(d: bigint): void;
+    setBetweenBytesTimeout(d: bigint): void;
+}
+
+interface P3Request {
+    setMethod(m: HttpMethod): void;
+    setScheme(s: HttpScheme | undefined): void;
+    setAuthority(a: string | undefined): void;
+    setPathWithQuery(p: string | undefined): void;
+}
+
+interface P3Response {
+    getStatusCode(): number;
+    getHeaders(): P3Fields;
+}
+
+interface P3HttpTypes {
+    Fields: {
+        fromList(entries: [string, Uint8Array][]): P3Fields;
+    };
+    Request: {
+        'new'(
+            headers: P3Fields,
+            contents: AsyncIterable<Uint8Array> | undefined,
+            trailers: Promise<unknown>,
+            options: P3RequestOptions | undefined,
+        ): [P3Request, Promise<unknown>];
+    };
+    Response: {
+        consumeBody(
+            this_: P3Response,
+            res: Promise<unknown>,
+        ): [AsyncIterable<Uint8Array>, Promise<unknown>];
+    };
+    RequestOptions: new () => P3RequestOptions;
+}
+
+interface P3HttpClient {
+    send(request: P3Request): Promise<{ tag: 'ok'; val: P3Response } | { tag: 'err'; val: HttpErrorCode }>;
 }

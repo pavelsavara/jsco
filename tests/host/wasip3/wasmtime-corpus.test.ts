@@ -54,6 +54,11 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
     // ── HTTP service exports: proxy makes outbound requests (JSPI deadlock).
     ['p3_http_proxy.component.wasm', 'service export proxying outbound — blocked by JSPI deadlock in client::send body streaming'],
 
+    // ── UDP connect: JSPI event-loop starvation (see node-event-loop-problem.md).
+    //    test_udp_connect_local_address_change asserts on local-address after connect,
+    //    but the async send future hangs because JSPI cannot yield during sync wasm.
+    ['p3_sockets_udp_connect.component.wasm', 'JSPI event-loop starvation: async send hangs (node-event-loop-problem.md)'],
+
 ]);
 
 /** Create merged P2+P3 hosts. Mirror integration.test.ts. */
@@ -509,7 +514,6 @@ const P3_SOCKETS: ReadonlyArray<[string]> = [
     ['p3_sockets_tcp_streams.component.wasm'],
     ['p3_sockets_tcp_sockopts.component.wasm'],
     ['p3_sockets_udp_bind.component.wasm'],
-    ['p3_sockets_udp_connect.component.wasm'],
     ['p3_sockets_udp_send.component.wasm'],
     ['p3_sockets_udp_receive.component.wasm'],
     ['p3_sockets_udp_sample_application.component.wasm'],
