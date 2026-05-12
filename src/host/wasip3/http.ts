@@ -560,6 +560,9 @@ class HttpRequest {
             async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> { /* empty body */ },
         };
 
+        // Transfer ownership: null out so drop() won't cancel a consumed stream
+        this_._contents = undefined;
+
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
     }
 
@@ -658,6 +661,9 @@ class HttpResponse {
         const bodyStream: WasiStreamReadable<Uint8Array> = this_._contents ?? {
             async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> { /* empty body */ },
         };
+
+        // Transfer ownership: null out so drop() won't cancel a consumed stream
+        this_._contents = undefined;
 
         return [bodyStream, this_._trailers as Promise<Result<Trailers | undefined, ErrorCode>>];
     }
