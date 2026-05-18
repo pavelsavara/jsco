@@ -2,8 +2,6 @@
 
 import type { AdapterContext } from '../../../src/host/wasip1-via-wasip3/adapter-context';
 import { FdTable } from '../../../src/host/wasip1-via-wasip3/fd-table';
-import type { FdEntry } from '../../../src/host/wasip1-via-wasip3/fd-table';
-import { FdKind } from '../../../src/host/wasip1-via-wasip3/fd-table';
 import { createWasiP3Host } from '../../../src/host/wasip3';
 import { initStdio, initPreopens } from '../../../src/host/wasip1-via-wasip3/stdio';
 import {
