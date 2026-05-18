@@ -61,17 +61,26 @@ const KNOWN_UNSUPPORTED: ReadonlyMap<string, string> = new Map([
 
 ]);
 
+/** Discard stream — suppresses console noise from guest stdout/stderr in tests. */
+function discardStream(): WritableStream<Uint8Array> {
+    return new WritableStream<Uint8Array>({ write() { /* discard */ } });
+}
+
 /** Create merged P2+P3 hosts. Mirror integration.test.ts. */
 function createMergedHosts(config?: Parameters<typeof createP3Host>[0]): Record<string, unknown> {
-    const p3 = createP3Host(config);
-    const p2 = createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+    const withDefaults = {
+        stdout: discardStream(),
+        stderr: discardStream(),
+        ...config,
+    };
+    const p3 = createP3Host(withDefaults);
+    const p2 = createWasiP2ViaP3Adapter(p3, { limits: withDefaults?.limits });
     return { ...p2, ...p3 };
 }
 
 /** Create merged P2+P3 hosts with Node.js sockets (for P2 socket tests). */
 function createNodeMergedHosts(): Record<string, unknown> {
-    const noop = () => new WritableStream<Uint8Array>({ write() { /* suppress */ } });
-    const p3 = createNodeP3Host({ stdout: noop(), stderr: noop() });
+    const p3 = createNodeP3Host({ stdout: discardStream(), stderr: discardStream() });
     const p2 = createWasiP2ViaP3Adapter(p3 as unknown as Record<string, unknown>);
     return { ...p2, ...p3 as unknown as Record<string, unknown> };
 }
