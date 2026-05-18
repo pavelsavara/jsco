@@ -421,14 +421,14 @@ describe('filesystem — Descriptor', () => {
             await expect(dir.openAt(
                 { symlinkFollow: false }, '../../etc/passwd',
                 {}, { read: true },
-            )).rejects.toBeDefined();
+            )).rejects.toEqual({ tag: 'not-permitted' });
         });
 
         test('rejects null byte in path', async () => {
             const root = getRoot();
             await expect(root.statAt(
                 { symlinkFollow: false }, 'test\0hidden',
-            )).rejects.toBeDefined();
+            )).rejects.toEqual({ tag: 'invalid' });
         });
     });
 
@@ -548,7 +548,7 @@ describe('filesystem — Descriptor', () => {
 
         test('createDirectoryAt rejects null byte in path', async () => {
             const root = getRoot();
-            await expect(root.createDirectoryAt('dir\x00hidden')).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('dir\x00hidden')).rejects.toEqual({ tag: 'invalid' });
         });
 
         test('openAt rejects absolute path', async () => {
@@ -594,22 +594,22 @@ describe('filesystem — Descriptor', () => {
 
         test('createDirectoryAt with empty string name fails', async () => {
             const root = getRoot();
-            await expect(root.createDirectoryAt('')).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('')).rejects.toEqual({ tag: 'exist' });
         });
 
         test('createDirectoryAt with . as name fails', async () => {
             const root = getRoot();
-            await expect(root.createDirectoryAt('.')).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('.')).rejects.toEqual({ tag: 'exist' });
         });
 
         test('createDirectoryAt with .. as name fails', async () => {
             const root = getRoot();
-            await expect(root.createDirectoryAt('..')).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('..')).rejects.toEqual({ tag: 'not-permitted' });
         });
 
         test('createDirectoryAt with very long name rejects', async () => {
             const root = getRoot();
-            await expect(root.createDirectoryAt('a'.repeat(10000))).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('a'.repeat(10000))).rejects.toEqual({ tag: 'name-too-long' });
         });
 
         test('renameAt to same path is no-op or succeeds', async () => {
@@ -662,12 +662,12 @@ describe('filesystem — Descriptor', () => {
             await expect(root.openAt(
                 { symlinkFollow: true }, 'evil-link',
                 {}, { read: true },
-            )).rejects.toBeDefined();
+            )).rejects.toEqual({ tag: 'not-permitted' });
         });
 
         test('readlinkAt on non-symlink throws', async () => {
             const root = getRoot({ fs: new Map([['regular.txt', 'data']]) });
-            await expect(root.readlinkAt('regular.txt')).rejects.toBeDefined();
+            await expect(root.readlinkAt('regular.txt')).rejects.toEqual({ tag: 'invalid' });
         });
 
         test('openAt with path containing %2e%2e is NOT decoded (treated literally)', async () => {
@@ -733,45 +733,103 @@ describe('filesystem — Descriptor', () => {
             expect(() => file.writeViaStream(readableFrom(encoder.encode('late')), 0n)).toThrow();
         });
 
-        test('openAt with directory flag on regular file throws', async () => {
+        test('openAt with directory flag on regular file throws not-directory', async () => {
             const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
             await expect(root.openAt(
                 { symlinkFollow: false }, 'f.txt',
                 { directory: true }, { read: true },
-            )).rejects.toBeDefined();
+            )).rejects.toEqual({ tag: 'not-directory' });
         });
 
         test('unlinkFileAt on directory throws', async () => {
             const root = getRoot();
             await root.createDirectoryAt('mydir');
-            await expect(root.unlinkFileAt('mydir')).rejects.toBeDefined();
+            await expect(root.unlinkFileAt('mydir')).rejects.toEqual({ tag: 'is-directory' });
         });
 
         test('createDirectoryAt that already exists throws', async () => {
             const root = getRoot();
             await root.createDirectoryAt('existing');
-            await expect(root.createDirectoryAt('existing')).rejects.toBeDefined();
+            await expect(root.createDirectoryAt('existing')).rejects.toEqual({ tag: 'exist' });
         });
 
         test('removeDirectoryAt on non-existent throws', async () => {
             const root = getRoot();
-            await expect(root.removeDirectoryAt('nope')).rejects.toBeDefined();
+            await expect(root.removeDirectoryAt('nope')).rejects.toEqual({ tag: 'no-entry' });
         });
 
         test('renameAt with missing source throws', async () => {
             const root = getRoot();
-            await expect(root.renameAt('nonexistent', root, 'dest')).rejects.toBeDefined();
+            await expect(root.renameAt('nonexistent', root, 'dest')).rejects.toEqual({ tag: 'no-entry' });
         });
 
         test('statAt on non-existent path throws', async () => {
             const root = getRoot();
-            await expect(root.statAt({ symlinkFollow: false }, 'no-such-file')).rejects.toBeDefined();
+            await expect(root.statAt({ symlinkFollow: false }, 'no-such-file')).rejects.toEqual({ tag: 'no-entry' });
         });
 
         test('setSize on read-only descriptor throws', async () => {
             const root = getRoot({ fs: new Map([['ro.txt', 'data']]) });
             const file = await root.openAt({ symlinkFollow: false }, 'ro.txt', {}, { read: true });
-            await expect(file.setSize(0n)).rejects.toBeDefined();
+            await expect(file.setSize(0n)).rejects.toEqual({ tag: 'not-permitted' });
+        });
+
+        test('read from write-only descriptor throws access', async () => {
+            const root = getRoot();
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'wo.txt',
+                { create: true }, { write: true, mutateDirectory: true },
+            );
+            expect(() => file.readViaStream(0n)).toThrow();
+        });
+
+        test('write to directory descriptor rejects', async () => {
+            const root = getRoot();
+            await root.createDirectoryAt('dir');
+            const dir = await root.openAt(
+                { symlinkFollow: false }, 'dir',
+                {}, { read: true, write: true, mutateDirectory: true },
+            );
+            const writeFuture = dir.writeViaStream(readableFrom(encoder.encode('data')), 0n);
+            await expect(writeFuture).rejects.toEqual({ tag: 'is-directory' });
+        });
+
+        test('stat on dropped descriptor throws bad-descriptor', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            const file = await root.openAt({ symlinkFollow: false }, 'f.txt', {}, { read: true });
+            file.drop();
+            await expect(file.stat()).rejects.toEqual({ tag: 'bad-descriptor' });
+        });
+
+        test('symlink cycle rejects', async () => {
+            const root = getRoot();
+            // Create two symlinks pointing to each other
+            await root.symlinkAt('b-link', 'a-link');
+            await root.symlinkAt('a-link', 'b-link');
+            // Cycle causes stack overflow, caught as io error
+            await expect(root.openAt(
+                { symlinkFollow: true }, 'a-link',
+                {}, { read: true },
+            )).rejects.toBeDefined();
+        });
+
+        test('write exceeding maxAllocationSize throws insufficient-space', async () => {
+            const root = getRoot({ limits: { maxAllocationSize: 10 } });
+            const file = await root.openAt(
+                { symlinkFollow: false }, 'big.txt',
+                { create: true }, { read: true, write: true, mutateDirectory: true },
+            );
+            const bigData = encoder.encode('a'.repeat(20));
+            const writeFuture = file.writeViaStream(readableFrom(bigData), 0n);
+            await expect(writeFuture).rejects.toEqual({ tag: 'insufficient-space' });
+        });
+
+        test('traverse through file as directory throws not-directory', async () => {
+            const root = getRoot({ fs: new Map([['f.txt', 'data']]) });
+            await expect(root.openAt(
+                { symlinkFollow: false }, 'f.txt/child',
+                {}, { read: true },
+            )).rejects.toEqual({ tag: 'not-directory' });
         });
     });
 

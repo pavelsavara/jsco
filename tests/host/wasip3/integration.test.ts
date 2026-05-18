@@ -19,10 +19,20 @@ initializeAsserts();
 const WASM_DIR = './integration-tests/wasmtime/';
 const RUN_EXPORT = 'wasi:cli/run@0.3.0-rc-2026-03-15';
 
+/** Discard stream — suppresses console noise from guest stdout/stderr in tests. */
+function discardStream(): WritableStream<Uint8Array> {
+    return new WritableStream<Uint8Array>({ write() { /* discard */ } });
+}
+
 /** Create merged P2+P3 hosts. Creates a P3 host with the given config,
  *  wraps it through the P2-via-P3 adapter for P2 keys, then merges both. */
 function createMergedHosts(config?: Parameters<typeof createP3Host>[0]): Record<string, unknown> {
-    const p3 = createP3Host(config);
+    const withDefaults = {
+        stdout: discardStream(),
+        stderr: discardStream(),
+        ...config,
+    };
+    const p3 = createP3Host(withDefaults);
     const p2 = createWasiP2ViaP3Adapter(p3);
     return { ...p2, ...p3 };
 }

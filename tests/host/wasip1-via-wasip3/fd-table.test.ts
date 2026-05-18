@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
-import { FdTable, FdKind, createDefaultFdTable, ALL_RIGHTS } from '../../../src/host/wasip1-via-wasip3/fd-table';
+import { FdTable, FdKind, ALL_RIGHTS } from '../../../src/host/wasip1-via-wasip3/fd-table';
 import { Filetype, Fdflags, Rights } from '../../../src/host/wasip1-via-wasip3/types/wasi-snapshot-preview1';
 
 describe('WASI P1 FD table', () => {
@@ -18,7 +18,7 @@ describe('WASI P1 FD table', () => {
 
         test('get returns entry for valid FD', () => {
             const table = new FdTable();
-            const entry = { kind: FdKind.File, filetype: Filetype.RegularFile, flags: 0 as Fdflags, rightsBase: Rights.FdRead, rightsInheriting: 0 as Rights, position: 42n, vfsPath: ['test.txt'] };
+            const entry = { kind: FdKind.File, filetype: Filetype.RegularFile, flags: 0 as Fdflags, rightsBase: Rights.FdRead, rightsInheriting: 0 as Rights, position: 42n };
             const fd = table.allocate(entry);
             const got = table.get(fd);
             expect(got).toBe(entry);
@@ -73,7 +73,7 @@ describe('WASI P1 FD table', () => {
             table.allocate({ kind: FdKind.Stdin, filetype: Filetype.CharacterDevice, flags: 0 as Fdflags, rightsBase: 0 as Rights, rightsInheriting: 0 as Rights, position: 0n });
             table.allocate({ kind: FdKind.Stdout, filetype: Filetype.CharacterDevice, flags: 0 as Fdflags, rightsBase: 0 as Rights, rightsInheriting: 0 as Rights, position: 0n });
             table.allocate({ kind: FdKind.Stderr, filetype: Filetype.CharacterDevice, flags: 0 as Fdflags, rightsBase: 0 as Rights, rightsInheriting: 0 as Rights, position: 0n });
-            table.allocate({ kind: FdKind.PreopenDir, filetype: Filetype.Directory, flags: 0 as Fdflags, rightsBase: ALL_RIGHTS, rightsInheriting: ALL_RIGHTS, preopenPath: '/', vfsPath: [], position: 0n });
+            table.allocate({ kind: FdKind.PreopenDir, filetype: Filetype.Directory, flags: 0 as Fdflags, rightsBase: ALL_RIGHTS, rightsInheriting: ALL_RIGHTS, preopenPath: '/', position: 0n });
 
             const preopens = table.preopens();
             expect(preopens.length).toBe(1);
@@ -83,51 +83,5 @@ describe('WASI P1 FD table', () => {
         });
     });
 
-    describe('createDefaultFdTable', () => {
-        test('creates table with stdin(0), stdout(1), stderr(2), preopen(3)', () => {
-            const table = createDefaultFdTable();
-            const stdin = table.get(0);
-            expect(stdin).toBeDefined();
-            expect(stdin!.kind).toBe(FdKind.Stdin);
-            expect(stdin!.filetype).toBe(Filetype.CharacterDevice);
 
-            const stdout = table.get(1);
-            expect(stdout).toBeDefined();
-            expect(stdout!.kind).toBe(FdKind.Stdout);
-            expect(stdout!.flags).toBe(Fdflags.Append);
-
-            const stderr = table.get(2);
-            expect(stderr).toBeDefined();
-            expect(stderr!.kind).toBe(FdKind.Stderr);
-            expect(stderr!.flags).toBe(Fdflags.Append);
-
-            const preopen = table.get(3);
-            expect(preopen).toBeDefined();
-            expect(preopen!.kind).toBe(FdKind.PreopenDir);
-            expect(preopen!.filetype).toBe(Filetype.Directory);
-            expect(preopen!.preopenPath).toBe('/');
-            expect(preopen!.rightsBase).toBe(ALL_RIGHTS);
-        });
-
-        test('stdin has read + poll rights', () => {
-            const table = createDefaultFdTable();
-            const stdin = table.get(0)!;
-            expect(stdin.rightsBase & Rights.FdRead).toBeTruthy();
-            expect(stdin.rightsBase & Rights.PollFdReadwrite).toBeTruthy();
-            expect(stdin.rightsBase & Rights.FdWrite).toBeFalsy();
-        });
-
-        test('stdout has write + poll rights', () => {
-            const table = createDefaultFdTable();
-            const stdout = table.get(1)!;
-            expect(stdout.rightsBase & Rights.FdWrite).toBeTruthy();
-            expect(stdout.rightsBase & Rights.PollFdReadwrite).toBeTruthy();
-            expect(stdout.rightsBase & Rights.FdRead).toBeFalsy();
-        });
-
-        test('no entry at fd 4', () => {
-            const table = createDefaultFdTable();
-            expect(table.get(4)).toBeUndefined();
-        });
-    });
 });

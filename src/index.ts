@@ -71,8 +71,17 @@ async function instantiateCoreWasiModule<TJSExports>(
     }
 
     const { createWasiP1ViaP3Adapter } = await loadWasiP1ViaP3Adapter();
-    const adapter = createWasiP1ViaP3Adapter(config);
-    const instance = await WebAssembly.instantiate(module, adapter.imports as unknown as WebAssembly.Imports);
+    const { createWasiP3Host } = await import('./host/wasip3');
+    const p3 = createWasiP3Host(config);
+    const adapter = createWasiP1ViaP3Adapter(p3);
+
+    // Wrap all P1 import functions with WebAssembly.Suspending so async
+    // functions (filesystem, poll) can suspend the WASM stack via JSPI.
+    const wrappedP1: WebAssembly.ModuleImports = {};
+    for (const [name, fn] of Object.entries(adapter.imports.wasi_snapshot_preview1)) {
+        wrappedP1[name] = new (WebAssembly as any).Suspending(fn as (...args: unknown[]) => unknown);
+    }
+    const instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: wrappedP1 });
 
     // Bind the module's memory so adapter functions can access linear memory
     const wasmMemory = instance.exports['memory'] as WebAssembly.Memory | undefined;
@@ -87,21 +96,18 @@ async function instantiateCoreWasiModule<TJSExports>(
 
     // For reactor modules, call _initialize if present
     if (!hasStart && hasInitialize) {
-        (instance.exports['_initialize'] as Function)();
+        await ((WebAssembly as any).promising(instance.exports['_initialize'] as Function))();
     }
 
-    // Build exports map: expose all exported functions
+    // Build exports map: expose all exported functions, wrapping with promising for JSPI
     const exports: Record<string, unknown> = {};
     for (const exp of moduleExports) {
         if (exp.kind === 'function') {
-            exports[exp.name] = instance.exports[exp.name];
+            exports[exp.name] = (WebAssembly as any).promising(instance.exports[exp.name] as Function);
         }
     }
 
-    // If this is a command module, expose _start under a run-like interface
-    if (hasStart) {
-        exports['_start'] = instance.exports['_start'];
-    }
+    // If this is a command module, _start is already wrapped above
 
     return {
         exports: exports as TJSExports & Record<string, Record<string, Function>>,

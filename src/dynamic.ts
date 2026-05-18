@@ -22,6 +22,6 @@ export async function loadWasiP3Serve(): Promise<{ serve(handler: WasiHttpHandle
     return import('./host/wasip3/node/wasip3');
 }
 
-export async function loadWasiP1ViaP3Adapter(): Promise<{ createWasiP1ViaP3Adapter(config?: HostConfig): WasiP1Adapter }> {
+export async function loadWasiP1ViaP3Adapter(): Promise<{ createWasiP1ViaP3Adapter(p3: WasiP3Imports): WasiP1Adapter }> {
     return import('./host/wasip1-via-wasip3');
 }

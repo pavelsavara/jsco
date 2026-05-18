@@ -56,9 +56,19 @@ const fullWasiConfig = {
     cwd: '/test/cwd',
 };
 
+/** Discard stream — suppresses console noise from guest stdout/stderr in tests. */
+function discardStream(): WritableStream<Uint8Array> {
+    return new WritableStream<Uint8Array>({ write() { /* discard */ } });
+}
+
 /** Create merged P2+P3 WASI host imports. */
 function createMergedHosts(config?: Parameters<typeof createWasiP3Host>[0]): ImportsMap {
-    const p3 = createWasiP3Host(config);
+    const withDefaults = {
+        stdout: discardStream(),
+        stderr: discardStream(),
+        ...config,
+    };
+    const p3 = createWasiP3Host(withDefaults);
     const p2 = createWasiP2ViaP3Adapter(p3);
     return { ...p2, ...p3 } as unknown as ImportsMap;
 }
