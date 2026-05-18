@@ -3,7 +3,7 @@
 import type { AdapterContext } from './adapter-context';
 import { Errno, Preopentype, PrestatLayout } from './types/wasi-snapshot-preview1';
 import { getView } from './memory';
-import { WasiExit } from '../wasip3/cli';
+import { FdKind } from './fd-table';
 
 export function args_get(ctx: AdapterContext, argv: number, argv_buf: number): number {
     const mem = ctx.getMemory();
@@ -56,7 +56,7 @@ export function environ_sizes_get(ctx: AdapterContext, retptr0: number, retptr1:
 
 export function fd_prestat_get(ctx: AdapterContext, fd: number, retptr0: number): number {
     const entry = ctx.fdTable.get(fd);
-    if (!entry || entry.kind !== 3 /* FdKind.PreopenDir */) return Errno.Badf;
+    if (!entry || entry.kind !== FdKind.PreopenDir) return Errno.Badf;
     const view = getView(ctx.getMemory());
     view.setUint8(retptr0 + PrestatLayout.tag.offset, Preopentype.Dir);
     const pathBytes = ctx.encoder.encode(entry.preopenPath ?? '/');
@@ -66,7 +66,7 @@ export function fd_prestat_get(ctx: AdapterContext, fd: number, retptr0: number)
 
 export function fd_prestat_dir_name(ctx: AdapterContext, fd: number, path: number, path_len: number): number {
     const entry = ctx.fdTable.get(fd);
-    if (!entry || entry.kind !== 3 /* FdKind.PreopenDir */) return Errno.Badf;
+    if (!entry || entry.kind !== FdKind.PreopenDir) return Errno.Badf;
     const mem = ctx.getMemory();
     const pathBytes = ctx.encoder.encode(entry.preopenPath ?? '/');
     const writeLen = Math.min(pathBytes.length, path_len);
@@ -74,8 +74,8 @@ export function fd_prestat_dir_name(ctx: AdapterContext, fd: number, path: numbe
     return Errno.Success;
 }
 
-export function proc_exit(rval: number): void {
-    throw new WasiExit(rval);
+export function proc_exit(ctx: AdapterContext, rval: number): void {
+    ctx.p3['wasi:cli/exit'].exitWithCode(rval);
 }
 
 export function sched_yield(): number {

@@ -5,12 +5,50 @@ import { createWasiP3Host, WasiExit } from '../src/host/wasip3/wasip3';
 import { createWasiP2ViaP3Adapter } from '../src/host/wasip2-via-wasip3';
 import { detectWasiType, WasiType, isCoreModule } from '../src/wasi-auto';
 import { createWasiP1ViaP3Adapter } from '../src/host/wasip1-via-wasip3';
+import type { HostConfig } from '../src/host/wasip3';
 import { parse } from '../src/parser';
 import isDebug from 'env:isDebug';
 import { initializeAsserts } from '../src/utils/assert';
 import { useVerboseOnFailure, verboseOptions, runWithVerbose } from './test-utils/verbose-logger';
 
 initializeAsserts();
+
+/** Helper: create P3 host then wrap with P1 adapter, capturing stdout */
+function createP1Adapter(config?: HostConfig) {
+    const stdoutChunks: Uint8Array[] = [];
+    const stdout = config?.stdout ?? new WritableStream<Uint8Array>({
+        write(chunk) { stdoutChunks.push(new Uint8Array(chunk)); },
+    });
+    const p3 = createWasiP3Host({ ...config, stdout });
+    const adapter = createWasiP1ViaP3Adapter(p3);
+    return Object.assign(adapter, { stdoutChunks });
+}
+
+/** Helper: create a ReadableStream from an array of chunks */
+function stdinFromChunks(chunks: Uint8Array[]) {
+    return new ReadableStream<Uint8Array>({
+        start(controller) {
+            for (const chunk of chunks) controller.enqueue(chunk);
+            controller.close();
+        },
+    });
+}
+
+/** Helper: instantiate a core WASM module with JSPI-wrapped P1 adapter imports */
+async function instantiateP1WithJspi(wasmBytes: Uint8Array, config?: HostConfig) {
+    const { stdoutChunks, imports, bindMemory } = createP1Adapter(config);
+    const wrappedP1: Record<string, WebAssembly.Suspending> = {};
+    for (const [name, fn] of Object.entries(imports.wasi_snapshot_preview1)) {
+        wrappedP1[name] = new WebAssembly.Suspending(fn as (...args: unknown[]) => unknown);
+    }
+    const module = await WebAssembly.compile(wasmBytes as BufferSource);
+    const instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: wrappedP1 });
+    const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
+    bindMemory(wasmMemory);
+    const start = instance.exports['_start'] as Function | undefined;
+    const promisingStart = start ? WebAssembly.promising(start) as (...args: unknown[]) => Promise<unknown> : undefined;
+    return { instance, stdoutChunks, wasmMemory, start: promisingStart };
+}
 
 const echoReactorWatWasm = './integration-tests/echo-reactor-wat/echo.wasm';
 const helloWorldWatWasm = './integration-tests/hello-p2-world-wat/hello.wasm';
@@ -466,7 +504,7 @@ describe('WASI P1 detection', () => {
 
 describe('WASI P1 adapter', () => {
     test('createWasiP1ViaP3Adapter returns adapter with all 45 functions', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         expect(adapter).toBeDefined();
         expect(adapter.imports.wasi_snapshot_preview1).toBeDefined();
         expect(typeof adapter.imports.wasi_snapshot_preview1.fd_write).toBe('function');
@@ -480,27 +518,20 @@ describe('WASI P1 adapter', () => {
     });
 
     test('hello-p1-world-wat prints hello via fd_write', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(helloP1WorldWatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-
-        const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
-        adapter.bindMemory(wasmMemory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes);
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         // Check that adapter captured stdout
-        const adapterAny = adapter as any;
-        const chunks: Uint8Array[] = adapterAny.stdoutChunks;
-        expect(chunks.length).toBeGreaterThan(0);
+        expect(stdoutChunks.length).toBeGreaterThan(0);
         const text = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
         );
         expect(text).toContain('hello from jsco');
     });
@@ -530,35 +561,28 @@ describe('instantiateWasiComponent with P1 module', () => {
 
 describe('WASI P1 file I/O', () => {
     test('file-io-p1-wat: write file, read back, output to stdout', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
-            fs: new Map(), // empty VFS
-        });
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(fileIoP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-
-        const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
-        adapter.bindMemory(wasmMemory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
+            fs: new Map(), // empty VFS
+        });
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         // Stdout should contain "hello from file\n" (read back from VFS file)
-        const adapterAny = adapter as any;
-        const chunks: Uint8Array[] = adapterAny.stdoutChunks;
-        expect(chunks.length).toBeGreaterThan(0);
+        expect(stdoutChunks.length).toBeGreaterThan(0);
         const text = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
         );
         expect(text).toBe('hello from file\n');
     });
 
     test('path_open with create, fd_write, fd_read round-trip', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([['existing.txt', 'pre-existing content']]),
         });
         // Use a minimal module that just needs memory
@@ -582,7 +606,7 @@ describe('WASI P1 file I/O', () => {
     });
 
     test('path_create_directory and path_remove_directory', async () => {
-        const adapter = createWasiP1ViaP3Adapter({ fs: new Map() });
+        const adapter = createP1Adapter({ fs: new Map() });
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(fileIoP1WatWasm);
         const module = await WebAssembly.compile(wasmBytes);
@@ -598,25 +622,25 @@ describe('WASI P1 file I/O', () => {
         new Uint8Array(wasmMemory.buffer, 900, dirName.length).set(dirName);
 
         // Create directory
-        const mkdirErr = p1.path_create_directory(3, 900, dirName.length);
+        const mkdirErr = await p1.path_create_directory(3, 900, dirName.length);
         expect(mkdirErr).toBe(0); // Success
 
         // Creating same directory again should fail with Exist(20)
-        const mkdirErr2 = p1.path_create_directory(3, 900, dirName.length);
+        const mkdirErr2 = await p1.path_create_directory(3, 900, dirName.length);
         expect(mkdirErr2).toBe(20); // Exist
 
         // Remove directory
-        const rmdirErr = p1.path_remove_directory(3, 900, dirName.length);
+        const rmdirErr = await p1.path_remove_directory(3, 900, dirName.length);
         expect(rmdirErr).toBe(0); // Success
 
         // Removing again should fail with Noent(44)
-        const rmdirErr2 = p1.path_remove_directory(3, 900, dirName.length);
+        const rmdirErr2 = await p1.path_remove_directory(3, 900, dirName.length);
         expect(rmdirErr2).toBe(44); // Noent
     });
 
     test('path_filestat_get returns file metadata', async () => {
         const content = 'hello world';
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([['info.txt', content]]),
         });
         const fs = await import('node:fs');
@@ -634,7 +658,7 @@ describe('WASI P1 file I/O', () => {
         new Uint8Array(wasmMemory.buffer, 900, fileName.length).set(fileName);
 
         // Get file stat at offset 1000 (64 bytes for filestat)
-        const err = p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
+        const err = await p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
         expect(err).toBe(0);
 
         const view = new DataView(wasmMemory.buffer);
@@ -645,7 +669,7 @@ describe('WASI P1 file I/O', () => {
     });
 
     test('fd_seek and fd_tell', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([['seek-test.txt', 'abcdefghij']]),
         });
         const fs = await import('node:fs');
@@ -662,12 +686,12 @@ describe('WASI P1 file I/O', () => {
         // Open the file
         const fileName = enc.encode('seek-test.txt');
         new Uint8Array(wasmMemory.buffer, 900, fileName.length).set(fileName);
-        const openErr = p1.path_open(3, 0, 900, fileName.length, 0, -1n, -1n, 0, 600);
+        const openErr = await p1.path_open(3, 0, 900, fileName.length, 0, -1n, -1n, 0, 600);
         expect(openErr).toBe(0);
         const fileFd = view.getUint32(600, true);
 
         // Seek to offset 5 (Set)
-        const seekErr = p1.fd_seek(fileFd, 5n, 0, 700); // Whence.Set = 0
+        const seekErr = await p1.fd_seek(fileFd, 5n, 0, 700); // Whence.Set = 0
         expect(seekErr).toBe(0);
         expect(view.getBigUint64(700, true)).toBe(5n);
 
@@ -677,13 +701,13 @@ describe('WASI P1 file I/O', () => {
         expect(view.getBigUint64(700, true)).toBe(5n);
 
         // Seek to end
-        const seekEndErr = p1.fd_seek(fileFd, 0n, 2, 700); // Whence.End = 2
+        const seekEndErr = await p1.fd_seek(fileFd, 0n, 2, 700); // Whence.End = 2
         expect(seekEndErr).toBe(0);
         expect(view.getBigUint64(700, true)).toBe(10n); // file is 10 bytes
     });
 
     test('fd_readdir lists directory entries', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([
                 ['a.txt', 'aaa'],
                 ['b.txt', 'bbb'],
@@ -701,7 +725,7 @@ describe('WASI P1 file I/O', () => {
 
         // fd_readdir on root preopen (fd 3)
         // buf=1000, buf_len=512, cookie=0, bufused_ptr=200
-        const err = p1.fd_readdir(3, 1000, 512, 0n, 200);
+        const err = await p1.fd_readdir(3, 1000, 512, 0n, 200);
         expect(err).toBe(0);
         const bufUsed = view.getUint32(200, true);
         // Should have some bytes used (at least 2 entries * 24 header + names)
@@ -713,7 +737,7 @@ describe('WASI P1 file I/O', () => {
     });
 
     test('path_unlink_file removes a file', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([['to-delete.txt', 'content']]),
         });
         const fs = await import('node:fs');
@@ -730,20 +754,20 @@ describe('WASI P1 file I/O', () => {
         new Uint8Array(wasmMemory.buffer, 900, fileName.length).set(fileName);
 
         // File should exist — stat returns success
-        const statErr = p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
+        const statErr = await p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
         expect(statErr).toBe(0);
 
         // Unlink the file
-        const unlinkErr = p1.path_unlink_file(3, 900, fileName.length);
+        const unlinkErr = await p1.path_unlink_file(3, 900, fileName.length);
         expect(unlinkErr).toBe(0);
 
         // File should not exist — stat returns Noent(44)
-        const statErr2 = p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
+        const statErr2 = await p1.path_filestat_get(3, 0, 900, fileName.length, 1000);
         expect(statErr2).toBe(44);
     });
 
     test('path_rename moves a file', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             fs: new Map([['old-name.txt', 'rename me']]),
         });
         const fs = await import('node:fs');
@@ -762,15 +786,15 @@ describe('WASI P1 file I/O', () => {
         new Uint8Array(wasmMemory.buffer, 950, newName.length).set(newName);
 
         // Rename: fd=3, old_path=900, old_len=12, new_fd=3, new_path=950, new_len=12
-        const renameErr = p1.path_rename(3, 900, oldName.length, 3, 950, newName.length);
+        const renameErr = await p1.path_rename(3, 900, oldName.length, 3, 950, newName.length);
         expect(renameErr).toBe(0);
 
         // Old name should be gone
-        const statOld = p1.path_filestat_get(3, 0, 900, oldName.length, 1000);
+        const statOld = await p1.path_filestat_get(3, 0, 900, oldName.length, 1000);
         expect(statOld).toBe(44); // Noent
 
         // New name should exist
-        const statNew = p1.path_filestat_get(3, 0, 950, newName.length, 1000);
+        const statNew = await p1.path_filestat_get(3, 0, 950, newName.length, 1000);
         expect(statNew).toBe(0);
     });
 
@@ -792,34 +816,27 @@ describe('WASI P1 file I/O', () => {
 
 describe('WASI P1 environment and args', () => {
     test('env-p1-wat: args and environ round-trip', async () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const fs = await import('node:fs');
+        const wasmBytes = fs.readFileSync(envP1WatWasm);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
             args: ['program', 'hello-arg'],
             env: [['MY_VAR', 'my_value']],
         });
-        const fs = await import('node:fs');
-        const wasmBytes = fs.readFileSync(envP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-
-        const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
-        adapter.bindMemory(wasmMemory);
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
-        const adapterAny = adapter as any;
-        const chunks: Uint8Array[] = adapterAny.stdoutChunks;
         const text = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
         );
         expect(text).toBe('hello-arg\nMY_VAR=my_value\n');
     });
 
     test('args_sizes_get returns correct counts', () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             args: ['a', 'bb', 'ccc'],
         });
         const memory = new WebAssembly.Memory({ initial: 1 });
@@ -836,7 +853,7 @@ describe('WASI P1 environment and args', () => {
     });
 
     test('environ_sizes_get returns correct counts', () => {
-        const adapter = createWasiP1ViaP3Adapter({
+        const adapter = createP1Adapter({
             env: [['K1', 'V1'], ['KEY2', 'VALUE2']],
         });
         const memory = new WebAssembly.Memory({ initial: 1 });
@@ -853,7 +870,7 @@ describe('WASI P1 environment and args', () => {
     });
 
     test('empty args and env return zero counts', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -872,122 +889,106 @@ describe('WASI P1 environment and args', () => {
 
 describe('WASI P1 echo (stdin & argv)', () => {
     test('echo-stdin-p1-wat: empty stdin → no output, exit 0', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes);
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
-        expect(adapter.stdoutChunks.length).toBe(0);
+        expect(stdoutChunks.length).toBe(0);
     });
 
     test('echo-stdin-p1-wat: piped stdin echoed verbatim to stdout', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const input = 'hello\nworld\n';
-        adapter.stdinChunks.push(new TextEncoder().encode(input));
-
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
+            stdin: stdinFromChunks([new TextEncoder().encode(input)]),
+        });
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         const text = new TextDecoder().decode(
-            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
         );
         expect(text).toBe(input);
     });
 
     test('echo-stdin-p1-wat: multi-chunk stdin concatenated to stdout', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const enc = new TextEncoder();
-        adapter.stdinChunks.push(enc.encode('first '));
-        adapter.stdinChunks.push(enc.encode('second '));
-        adapter.stdinChunks.push(enc.encode('third'));
-
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoStdinP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
+            stdin: stdinFromChunks([enc.encode('first '), enc.encode('second '), enc.encode('third')]),
+        });
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         const text = new TextDecoder().decode(
-            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
         );
         expect(text).toBe('first second third');
     });
 
     test('echo-args-p1-wat: empty argv → no output, exit 0', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes);
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
-        expect(adapter.stdoutChunks.length).toBe(0);
+        expect(stdoutChunks.length).toBe(0);
     });
 
     test('echo-args-p1-wat: prints each argv entry on its own line', async () => {
-        const adapter = createWasiP1ViaP3Adapter({ args: ['hello', 'world', 'jsco'] });
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
+            args: ['hello', 'world', 'jsco'],
+        });
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         const text = new TextDecoder().decode(
-            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
         );
         expect(text).toBe('hello\nworld\njsco\n');
     });
 
     test('echo-args-p1-wat: UTF-8 args round-trip', async () => {
-        const adapter = createWasiP1ViaP3Adapter({ args: ['unicode', '日本語', 'café'] });
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(echoArgsP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-        adapter.bindMemory(instance.exports['memory'] as WebAssembly.Memory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes, {
+            args: ['unicode', '日本語', 'café'],
+        });
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit' && (e as any).exitCode === 0)) throw e;
         }
 
         const text = new TextDecoder().decode(
-            new Uint8Array(adapter.stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((a, c) => [...a, ...c], []))
         );
         expect(text).toBe('unicode\n日本語\ncafé\n');
     });
@@ -995,7 +996,7 @@ describe('WASI P1 echo (stdin & argv)', () => {
 
 describe('WASI P1 clocks', () => {
     test('clock_res_get returns non-zero resolution for realtime and monotonic', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1014,7 +1015,7 @@ describe('WASI P1 clocks', () => {
     });
 
     test('clock_res_get returns Notsup for process/thread CPU time', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1026,7 +1027,7 @@ describe('WASI P1 clocks', () => {
     });
 
     test('clock_time_get returns non-zero time for realtime', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1041,7 +1042,7 @@ describe('WASI P1 clocks', () => {
     });
 
     test('clock_time_get returns non-zero time for monotonic', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1057,7 +1058,7 @@ describe('WASI P1 clocks', () => {
 
 describe('WASI P1 random', () => {
     test('random_get fills buffer with random bytes', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1076,7 +1077,7 @@ describe('WASI P1 random', () => {
     });
 
     test('random_get with zero length succeeds', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1086,8 +1087,8 @@ describe('WASI P1 random', () => {
 });
 
 describe('WASI P1 poll', () => {
-    test('poll_oneoff with clock subscription returns immediately', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+    test('poll_oneoff with clock subscription returns immediately', async () => {
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1109,7 +1110,7 @@ describe('WASI P1 poll', () => {
         view.setUint16(40, 0, true);
 
         // Event output at offset 100 (32 bytes), nevents at offset 200
-        const err = p1.poll_oneoff(0, 100, 1, 200);
+        const err = await p1.poll_oneoff(0, 100, 1, 200);
         expect(err).toBe(0);
         expect(view.getUint32(200, true)).toBe(1); // 1 event
         expect(view.getBigUint64(100, true)).toBe(99n); // userdata preserved
@@ -1117,8 +1118,8 @@ describe('WASI P1 poll', () => {
         expect(view.getUint8(110)).toBe(0); // type = Clock
     });
 
-    test('poll_oneoff with fd_read subscription returns ready', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+    test('poll_oneoff with fd_read subscription returns ready', async () => {
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1133,15 +1134,15 @@ describe('WASI P1 poll', () => {
         // u.fd_read.file_descriptor = 0 (stdin) at offset 16
         view.setUint32(16, 0, true);
 
-        const err = p1.poll_oneoff(0, 100, 1, 200);
+        const err = await p1.poll_oneoff(0, 100, 1, 200);
         expect(err).toBe(0);
         expect(view.getUint32(200, true)).toBe(1);
         expect(view.getBigUint64(100, true)).toBe(7n); // userdata
         expect(view.getUint8(110)).toBe(1); // type = FdRead
     });
 
-    test('poll_oneoff with multiple subscriptions', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+    test('poll_oneoff with multiple subscriptions', async () => {
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
 
@@ -1162,7 +1163,7 @@ describe('WASI P1 poll', () => {
         view.setUint32(64, 1, true); // stdout
 
         // Events at 200, nevents at 300
-        const err = p1.poll_oneoff(0, 200, 2, 300);
+        const err = await p1.poll_oneoff(0, 200, 2, 300);
         expect(err).toBe(0);
         expect(view.getUint32(300, true)).toBe(2); // 2 events
     });
@@ -1170,33 +1171,33 @@ describe('WASI P1 poll', () => {
 
 describe('WASI P1 sched_yield and sockets', () => {
     test('sched_yield returns Success', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         expect(adapter.imports.wasi_snapshot_preview1.sched_yield()).toBe(0);
     });
 
     test('sock_accept returns Notsup', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
         expect(adapter.imports.wasi_snapshot_preview1.sock_accept(0, 0, 0)).toBe(58);
     });
 
     test('sock_recv returns Notsup', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
         expect(adapter.imports.wasi_snapshot_preview1.sock_recv(0, 0, 0, 0, 0, 0)).toBe(58);
     });
 
     test('sock_send returns Notsup', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
         expect(adapter.imports.wasi_snapshot_preview1.sock_send(0, 0, 0, 0, 0)).toBe(58);
     });
 
     test('sock_shutdown returns Notsup', () => {
-        const adapter = createWasiP1ViaP3Adapter();
+        const adapter = createP1Adapter();
         const memory = new WebAssembly.Memory({ initial: 1 });
         adapter.bindMemory(memory);
         expect(adapter.imports.wasi_snapshot_preview1.sock_shutdown(0, 0)).toBe(58);
@@ -1205,17 +1206,12 @@ describe('WASI P1 sched_yield and sockets', () => {
 
 describe('WASI P1 clocks/random/poll integration (WAT)', () => {
     test('clock-random-poll-p1-wat: all Phase 3 functions pass', async () => {
-        const adapter = createWasiP1ViaP3Adapter();
         const fs = await import('node:fs');
         const wasmBytes = fs.readFileSync(clockRandomPollP1WatWasm);
-        const module = await WebAssembly.compile(wasmBytes);
-        const instance = await WebAssembly.instantiate(module, adapter.imports);
-
-        const wasmMemory = instance.exports['memory'] as WebAssembly.Memory;
-        adapter.bindMemory(wasmMemory);
+        const { stdoutChunks, start } = await instantiateP1WithJspi(wasmBytes);
 
         try {
-            (instance.exports['_start'] as Function)();
+            await start!();
         } catch (e: unknown) {
             if (!(e instanceof Error && e.name === 'WasiExit')) throw e;
             const exitCode = (e as any).exitCode;
@@ -1224,10 +1220,8 @@ describe('WASI P1 clocks/random/poll integration (WAT)', () => {
             }
         }
 
-        const adapterAny = adapter as any;
-        const chunks: Uint8Array[] = adapterAny.stdoutChunks;
         const text = new TextDecoder().decode(
-            new Uint8Array(chunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
+            new Uint8Array(stdoutChunks.reduce<number[]>((acc, c) => [...acc, ...c], []))
         );
         expect(text).toBe('ok\n');
     });

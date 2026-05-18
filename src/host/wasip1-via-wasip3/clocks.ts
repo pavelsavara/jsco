@@ -7,12 +7,16 @@ import { getView } from './memory';
 export function clock_res_get(ctx: AdapterContext, id: number, retptr0: number): number {
     const view = getView(ctx.getMemory());
     switch (id) {
-        case Clockid.Realtime:
-            view.setBigUint64(retptr0, 1_000n, true);
+        case Clockid.Realtime: {
+            const res = ctx.p3['wasi:clocks/system-clock'].getResolution();
+            view.setBigUint64(retptr0, res, true);
             return Errno.Success;
-        case Clockid.Monotonic:
-            view.setBigUint64(retptr0, 1n, true);
+        }
+        case Clockid.Monotonic: {
+            const res = ctx.p3['wasi:clocks/monotonic-clock'].getResolution();
+            view.setBigUint64(retptr0, res, true);
             return Errno.Success;
+        }
         case Clockid.ProcessCputimeId:
         case Clockid.ThreadCputimeId:
             return Errno.Notsup;
@@ -25,13 +29,14 @@ export function clock_time_get(ctx: AdapterContext, id: number, _precision: bigi
     const view = getView(ctx.getMemory());
     switch (id) {
         case Clockid.Realtime: {
-            const nowMs = Date.now();
-            view.setBigUint64(retptr0, BigInt(nowMs) * 1_000_000n, true);
+            const instant = ctx.p3['wasi:clocks/system-clock'].now();
+            const ns = instant.seconds * 1_000_000_000n + BigInt(instant.nanoseconds);
+            view.setBigUint64(retptr0, ns, true);
             return Errno.Success;
         }
         case Clockid.Monotonic: {
-            const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-            view.setBigUint64(retptr0, BigInt(Math.round(nowMs * 1_000_000)), true);
+            const ns = ctx.p3['wasi:clocks/monotonic-clock'].now();
+            view.setBigUint64(retptr0, ns, true);
             return Errno.Success;
         }
         case Clockid.ProcessCputimeId:

@@ -65,15 +65,24 @@ export async function main({ command, componentUrl, options }: CliParseResult): 
             }
             const module = await WebAssembly.compile(bytes as BufferSource);
             const { createWasiP1ViaP3Adapter } = await loadWasiP1ViaP3Adapter();
-            const adapter = createWasiP1ViaP3Adapter(config);
-            const instance = await WebAssembly.instantiate(module, adapter.imports as unknown as WebAssembly.Imports);
+            const { loadWasiP3Host } = await import('./dynamic');
+            const { createWasiP3Host } = await loadWasiP3Host();
+            const p3 = createWasiP3Host(config);
+            const adapter = createWasiP1ViaP3Adapter(p3);
+
+            // Wrap all P1 imports with WebAssembly.Suspending for JSPI
+            const wrappedP1: WebAssembly.ModuleImports = {};
+            for (const [name, fn] of Object.entries(adapter.imports.wasi_snapshot_preview1)) {
+                wrappedP1[name] = new (WebAssembly as any).Suspending(fn as (...args: unknown[]) => unknown);
+            }
+            const instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: wrappedP1 });
             const wasmMemory = instance.exports['memory'] as WebAssembly.Memory | undefined;
             if (wasmMemory) {
                 adapter.bindMemory(wasmMemory);
             }
             const start = instance.exports['_start'] as Function | undefined;
             if (start) {
-                start();
+                await ((WebAssembly as any).promising(start))();
             }
             return;
         }

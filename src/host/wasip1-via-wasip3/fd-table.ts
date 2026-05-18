@@ -1,6 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
 import { Filetype, Fdflags, Rights } from './types/wasi-snapshot-preview1';
+import type { StreamPair } from '../wasip3/streams';
 
 export const enum FdKind {
     Stdin = 0,
@@ -17,12 +18,18 @@ export type FdEntry = {
     flags: Fdflags
     rightsBase: Rights
     rightsInheriting: Rights
-    /** For preopened directories: the guest-visible path */
-    preopenPath?: string
-    /** VFS path components for file/directory FDs */
-    vfsPath?: string[]
     /** Current file position for seekable FDs */
     position: bigint
+    /** P3 Descriptor for file/directory/preopen FDs */
+    desc?: unknown
+    /** For preopened directories: the guest-visible path */
+    preopenPath?: string
+    /** Stdout/Stderr: stream pair writer */
+    writer?: StreamPair<Uint8Array>
+    /** Stdin: async iterator from P3 stdin stream */
+    stdinIterator?: AsyncIterableIterator<Uint8Array>
+    /** Stdin: buffered partial chunk from previous read */
+    stdinBuf?: Uint8Array | null
 }
 
 export class FdTable {
@@ -72,54 +79,3 @@ export const ALL_RIGHTS = Rights.FdDatasync | Rights.FdRead | Rights.FdSeek | Ri
     | Rights.FdFilestatSetSize | Rights.FdFilestatSetTimes | Rights.PathSymlink
     | Rights.PathRemoveDirectory | Rights.PathUnlinkFile | Rights.PollFdReadwrite
     | Rights.SockShutdown | Rights.SockAccept;
-
-/**
- * Create a pre-populated FD table with stdin(0), stdout(1), stderr(2), and root preopen(3).
- */
-export function createDefaultFdTable(): FdTable {
-    const table = new FdTable();
-
-    // fd 0 = stdin
-    table.allocate({
-        kind: FdKind.Stdin,
-        filetype: Filetype.CharacterDevice,
-        flags: 0 as Fdflags,
-        rightsBase: Rights.FdRead | Rights.PollFdReadwrite,
-        rightsInheriting: 0 as Rights,
-        position: 0n,
-    });
-
-    // fd 1 = stdout
-    table.allocate({
-        kind: FdKind.Stdout,
-        filetype: Filetype.CharacterDevice,
-        flags: Fdflags.Append,
-        rightsBase: Rights.FdWrite | Rights.PollFdReadwrite,
-        rightsInheriting: 0 as Rights,
-        position: 0n,
-    });
-
-    // fd 2 = stderr
-    table.allocate({
-        kind: FdKind.Stderr,
-        filetype: Filetype.CharacterDevice,
-        flags: Fdflags.Append,
-        rightsBase: Rights.FdWrite | Rights.PollFdReadwrite,
-        rightsInheriting: 0 as Rights,
-        position: 0n,
-    });
-
-    // fd 3 = preopened root directory '/'
-    table.allocate({
-        kind: FdKind.PreopenDir,
-        filetype: Filetype.Directory,
-        flags: 0 as Fdflags,
-        rightsBase: ALL_RIGHTS,
-        rightsInheriting: ALL_RIGHTS,
-        preopenPath: '/',
-        vfsPath: [],
-        position: 0n,
-    });
-
-    return table;
-}

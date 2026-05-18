@@ -102,6 +102,25 @@ describe('WASI P1 memory utilities', () => {
             expect(totalLen).toBe(0);
             expect(data.length).toBe(0);
         });
+
+        test('handles zero-length iovecs interspersed', () => {
+            const mem = makeMemory();
+            const view = getView(mem);
+            // iovec[0] at 100: buf=200, len=2 → "AB"
+            new Uint8Array(mem.buffer, 200, 2).set([65, 66]);
+            view.setUint32(100, 200, true);
+            view.setUint32(104, 2, true);
+            // iovec[1] at 108: buf=300, len=0 (zero-length)
+            view.setUint32(108, 300, true);
+            view.setUint32(112, 0, true);
+            // iovec[2] at 116: buf=400, len=3 → "CDE"
+            new Uint8Array(mem.buffer, 400, 3).set([67, 68, 69]);
+            view.setUint32(116, 400, true);
+            view.setUint32(120, 3, true);
+            const { data, totalLen } = gatherBytes(mem, 100, 3);
+            expect(totalLen).toBe(5);
+            expect(data).toEqual(new Uint8Array([65, 66, 67, 68, 69]));
+        });
     });
 
     describe('scatterBytes', () => {
@@ -151,6 +170,64 @@ describe('WASI P1 memory utilities', () => {
             view.setUint32(104, 10, true);
             const written = scatterBytes(mem, 100, 1, new Uint8Array(0));
             expect(written).toBe(0);
+        });
+
+        test('returns zero for zero iovecs', () => {
+            const mem = makeMemory();
+            const src = new Uint8Array([1, 2, 3]);
+            const written = scatterBytes(mem, 0, 0, src);
+            expect(written).toBe(0);
+        });
+
+        test('skips zero-length iovecs and writes to subsequent', () => {
+            const mem = makeMemory();
+            const view = getView(mem);
+            // iovec[0] at 100: buf=200, len=0 (zero-length)
+            view.setUint32(100, 200, true);
+            view.setUint32(104, 0, true);
+            // iovec[1] at 108: buf=300, len=5
+            view.setUint32(108, 300, true);
+            view.setUint32(112, 5, true);
+            const src = new Uint8Array([10, 20, 30]);
+            const written = scatterBytes(mem, 100, 2, src);
+            expect(written).toBe(3);
+            expect(new Uint8Array(mem.buffer, 300, 3)).toEqual(new Uint8Array([10, 20, 30]));
+        });
+
+        test('partial EOF across multiple iovecs', () => {
+            const mem = makeMemory();
+            const view = getView(mem);
+            // iovec[0] at 100: buf=200, len=4
+            view.setUint32(100, 200, true);
+            view.setUint32(104, 4, true);
+            // iovec[1] at 108: buf=300, len=4
+            view.setUint32(108, 300, true);
+            view.setUint32(112, 4, true);
+            // iovec[2] at 116: buf=400, len=4
+            view.setUint32(116, 400, true);
+            view.setUint32(120, 4, true);
+            // Only 6 bytes of data — fills iovec[0] fully, iovec[1] partially, iovec[2] not at all
+            const src = new Uint8Array([1, 2, 3, 4, 5, 6]);
+            const written = scatterBytes(mem, 100, 3, src);
+            expect(written).toBe(6);
+            expect(new Uint8Array(mem.buffer, 200, 4)).toEqual(new Uint8Array([1, 2, 3, 4]));
+            expect(new Uint8Array(mem.buffer, 300, 2)).toEqual(new Uint8Array([5, 6]));
+        });
+
+        test('exact fit across multiple iovecs', () => {
+            const mem = makeMemory();
+            const view = getView(mem);
+            // iovec[0] at 100: buf=200, len=3
+            view.setUint32(100, 200, true);
+            view.setUint32(104, 3, true);
+            // iovec[1] at 108: buf=300, len=2
+            view.setUint32(108, 300, true);
+            view.setUint32(112, 2, true);
+            const src = new Uint8Array([10, 20, 30, 40, 50]);
+            const written = scatterBytes(mem, 100, 2, src);
+            expect(written).toBe(5);
+            expect(new Uint8Array(mem.buffer, 200, 3)).toEqual(new Uint8Array([10, 20, 30]));
+            expect(new Uint8Array(mem.buffer, 300, 2)).toEqual(new Uint8Array([40, 50]));
         });
     });
 

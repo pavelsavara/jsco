@@ -5,7 +5,7 @@ import { Errno } from './types/wasi-snapshot-preview1';
 
 export function random_get(ctx: AdapterContext, buf: number, buf_len: number): number {
     const mem = ctx.getMemory();
-    const buffer = new Uint8Array(mem.buffer, buf, buf_len);
-    crypto.getRandomValues(buffer);
+    const bytes = ctx.p3['wasi:random/random'].getRandomBytes(BigInt(buf_len));
+    new Uint8Array(mem.buffer, buf, buf_len).set(bytes);
     return Errno.Success;
 }

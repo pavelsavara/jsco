@@ -4,7 +4,7 @@ import type { AdapterContext } from './adapter-context';
 import { Errno, Clockid, Eventtype, EventLayout, SubscriptionLayout } from './types/wasi-snapshot-preview1';
 import { getView } from './memory';
 
-export function poll_oneoff(ctx: AdapterContext, in_: number, out_: number, nsubscriptions: number, retptr0: number): number {
+export async function poll_oneoff(ctx: AdapterContext, in_: number, out_: number, nsubscriptions: number, retptr0: number): Promise<number> {
     const mem = ctx.getMemory();
     const view = getView(mem);
     let eventsWritten = 0;
@@ -20,6 +20,11 @@ export function poll_oneoff(ctx: AdapterContext, in_: number, out_: number, nsub
         if (tag === Eventtype.Clock) {
             const clockId = view.getUint32(subPtr + SubscriptionLayout.u.offset + 8, true);
             if (clockId === Clockid.Realtime || clockId === Clockid.Monotonic) {
+                // Read timeout from subscription and wait via P3 monotonic-clock
+                const timeout = view.getBigUint64(subPtr + SubscriptionLayout.u.offset + 16, true);
+                if (timeout > 0n) {
+                    await ctx.p3['wasi:clocks/monotonic-clock'].waitFor(timeout);
+                }
                 view.setUint16(outPtr + EventLayout.error.offset, Errno.Success, true);
             } else {
                 view.setUint16(outPtr + EventLayout.error.offset, Errno.Notsup, true);
