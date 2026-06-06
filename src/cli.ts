@@ -53,7 +53,7 @@ export async function cliMain(): Promise<void> {
 
 export async function main({ command, componentUrl, options }: CliParseResult): Promise<void> {
     try {
-        const config = createConfig(options);
+        const config = createConfig(options, componentUrl, command);
 
         // Read bytes to detect core module vs component
         const bytes = await readComponentBytes(componentUrl!);
@@ -158,7 +158,38 @@ export async function main({ command, componentUrl, options }: CliParseResult): 
     }
 }
 
-export function createConfig(options: CliOptions): HostConfig {
+function getArgv0FromComponentUrl(componentUrl: string): string {
+    // Prefer a stable basename (wasmtime-like argv[0]) over full absolute path.
+    // Handles both file paths and URLs.
+    const normalized = componentUrl.replace(/\\/g, '/');
+    const slash = normalized.lastIndexOf('/');
+    const base = slash >= 0 ? normalized.slice(slash + 1) : normalized;
+    return base.length > 0 ? base : componentUrl;
+}
+
+function buildComponentArgs(options: CliOptions, componentUrl?: string, command?: 'run' | 'serve'): string[] | undefined {
+    if (command !== 'run') {
+        return options.componentArgs.length > 0 ? options.componentArgs : undefined;
+    }
+
+    if (!componentUrl) {
+        return options.componentArgs.length > 0 ? options.componentArgs : undefined;
+    }
+
+    const argv0 = getArgv0FromComponentUrl(componentUrl);
+    if (options.componentArgs.length === 0) {
+        return [argv0];
+    }
+
+    const first = options.componentArgs[0];
+    if (first === argv0 || first === componentUrl) {
+        return options.componentArgs;
+    }
+
+    return [argv0, ...options.componentArgs];
+}
+
+export function createConfig(options: CliOptions, componentUrl?: string, command?: 'run' | 'serve'): HostConfig {
     // Build env pairs: explicit values + inherited names + inherit-all
     const envRecord: Record<string, string> = {};
     if (options.envInheritAll) {
@@ -180,7 +211,7 @@ export function createConfig(options: CliOptions): HostConfig {
         env: envPairs,
         mounts: options.mounts.length > 0 ? options.mounts : undefined,
         cwd: options.cwd,
-        args: options.componentArgs.length > 0 ? options.componentArgs : undefined,
+        args: buildComponentArgs(options, componentUrl, command),
     };
 }
 
