@@ -35,6 +35,7 @@
 - update `Demo scope` in readme
 
 # Other
+- "use components"
 - pass CLI args to wasi:cli
 - OCI download
 - explore webidl2wit

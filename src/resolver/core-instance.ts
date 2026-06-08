@@ -7,10 +7,87 @@ import { CoreInstance, CoreInstanceFromExports, CoreInstanceInstantiate, Instant
 import { ModelTag, TaggedElement } from '../parser/model/tags';
 import { debugStack, withDebugTrace, jsco_assert } from '../utils/assert';
 import { TCabiRealloc } from '../marshal/model/types';
+import { hasJspi } from '../utils/jspi';
 import { resolveCoreFunction } from './core-functions';
 import { resolveCoreModule } from './core-module';
 import { getCoreInstance, getCoreModule } from './indices';
 import { Resolver, ResolverRes, BinderRes, BinderArgs } from './types';
+
+interface StartShimWrap {
+    imports: Record<string, WebAssembly.ModuleImports>;
+    /** Flip out of instantiate mode and await any suspended `_initialize`. */
+    settle(): Promise<void>;
+}
+
+/**
+ * A wit-component reactor "start-shim" is a synthetic module whose `(start)`
+ * calls the main module's exported `_initialize`. The start runs synchronously
+ * inside `WebAssembly.instantiate` (not a JSPI `promising` frame), so touching a
+ * `Suspending`-wrapped host import would throw "trying to suspend without
+ * WebAssembly.promising". We wrap the shim's single function import with
+ * `WebAssembly.promising` for the duration of instantiation, capture the
+ * promise(s) start produces, and await them before any export runs.
+ *
+ * Detection requires ZERO exports AND EXACTLY ONE function import: a zero-export
+ * module can still be invoked at runtime via a shared function table (componentize-js
+ * helpers), and wrapping a runtime-invoked import leaves a JS frame that breaks JSPI
+ * suspension. The shim's lone import is only ever called during its own start.
+ */
+function wrapStartShimImports(module: WebAssembly.Module, wasmImports: Record<string, WebAssembly.ModuleImports>): StartShimWrap {
+    const promising = (WebAssembly as unknown as { promising?: (fn: Function) => (...a: unknown[]) => Promise<unknown> }).promising;
+    const moduleExports = WebAssembly.Module.exports(module);
+    const functionImports = WebAssembly.Module.imports(module).filter((i) => i.kind === 'function');
+    const looksLikeStartShim = moduleExports.length === 0 && functionImports.length === 1;
+    if (!hasJspi() || typeof promising !== 'function' || !looksLikeStartShim) {
+        return { imports: wasmImports, settle: async (): Promise<void> => { } };
+    }
+
+    const initPromises: Promise<unknown>[] = [];
+    let duringInstantiate = true;
+    const wrapped: Record<string, WebAssembly.ModuleImports> = {};
+    for (const [ns, group] of Object.entries(wasmImports)) {
+        if (group && typeof group === 'object') {
+            const wrappedGroup: Record<string, unknown> = {};
+            for (const [name, value] of Object.entries(group)) {
+                if (typeof value === 'function') {
+                    // `promising` only accepts genuine WebAssembly-exported functions; the only
+                    // plain-function import a `(start)` invokes is a reactor `_initialize` (a real
+                    // wasm export). Wrap lazily and fall back to a direct call if `promising` refuses.
+                    let promisingFn: ((...a: unknown[]) => Promise<unknown>) | undefined;
+                    wrappedGroup[name] = (...callArgs: unknown[]): unknown => {
+                        // After settle the start has run; `_initialize` is `[] -> []`, so
+                        // returning undefined from the suspend path is ABI-correct.
+                        if (duringInstantiate) {
+                            if (promisingFn === undefined) {
+                                try {
+                                    promisingFn = promising(value as Function);
+                                } catch {
+                                    return (value as Function)(...callArgs);
+                                }
+                            }
+                            initPromises.push(promisingFn(...callArgs));
+                            return undefined;
+                        }
+                        return (value as Function)(...callArgs);
+                    };
+                } else {
+                    wrappedGroup[name] = value;
+                }
+            }
+            wrapped[ns] = wrappedGroup as WebAssembly.ModuleImports;
+        } else {
+            wrapped[ns] = group;
+        }
+    }
+
+    return {
+        imports: wrapped,
+        settle: async (): Promise<void> => {
+            duringInstantiate = false;
+            if (initPromises.length) await Promise.all(initPromises);
+        },
+    };
+}
 
 export const resolveCoreInstance: Resolver<CoreInstance> = (rctx, rargs) => {
     const cached = rctx.coreInstanceCache.get(rargs.element);
@@ -178,7 +255,10 @@ export const resolveCoreInstanceInstantiate: Resolver<CoreInstanceInstantiate> =
             };
             const moduleResult = await coreModuleResolution.binder(mctx, args);
             const module = moduleResult.result as WebAssembly.Module;
-            const instance = await rctx.wasmInstantiate(module, wasmImports);
+
+            const startShim = wrapStartShimImports(module, wasmImports);
+            const instance = await rctx.wasmInstantiate(module, startShim.imports);
+            await startShim.settle();
             // console.log('rctx.wasmInstantiate ' + coreInstanceIndex, Object.keys(instance.exports));
             const exports = instance.exports;
 

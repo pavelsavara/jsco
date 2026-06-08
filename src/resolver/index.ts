@@ -14,24 +14,37 @@ import { resolveCoreInstance } from './core-instance';
 import { ComponentFactoryInput, ComponentFactoryOptions, ResolverContext } from './types';
 import type { RuntimeConfig } from '../runtime/model/types';
 
+/**
+ * True only when `input` is ALREADY a parsed WIT model — i.e. an array of
+ * section objects (each carrying a `tag`). Raw component sources (a Uint8Array,
+ * ArrayBuffer, string/URL, Response, or numeric byte array) are NOT parsed
+ * models and must go through `parse`. The previous `typeof input === 'object'`
+ * check wrongly treated a `Uint8Array` (an object, not an array) as parsed and
+ * skipped parsing, so the resolver then iterated the raw bytes as sections.
+ */
+function isParsedModel(input: unknown): boolean {
+    return Array.isArray(input)
+        && (input.length === 0
+            || (typeof input[0] === 'object' && input[0] !== null && 'tag' in input[0]));
+}
+
+/** Return `input` as a parsed WIT model, parsing raw component sources on demand. */
+async function ensureParsed(input: ComponentFactoryInput, options?: ParserOptions): Promise<any> {
+    return isParsedModel(input) ? input : await parse(input as any, options ?? {});
+}
+
 export async function instantiateComponent<TJSExports>(
     componentBytesOrUrl: ComponentFactoryInput,
     imports?: JsImports,
     options?: ComponentFactoryOptions & ParserOptions,
 ): Promise<WasmComponentInstance<TJSExports>> {
-    let input = componentBytesOrUrl as any;
-    if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
-        input = await parse(input, options ?? {});
-    }
+    const input = await ensureParsed(componentBytesOrUrl, options);
     const component = await createComponent<TJSExports>(input, options);
     return component.instantiate(imports);
 }
 
 export async function createComponent<TJSExports>(componentBytesOrUrl: ComponentFactoryInput, options?: ComponentFactoryOptions & ParserOptions): Promise<WasmComponent<TJSExports>> {
-    let input = componentBytesOrUrl as any;
-    if (typeof input !== 'object' || (Array.isArray(input) && input.length != 0 && typeof input[0] !== 'object')) {
-        input = await parse(input, options ?? {});
-    }
+    const input = await ensureParsed(componentBytesOrUrl, options);
 
     const rctx: ResolverContext = createResolverContext(input, options ?? {});
 

@@ -1,6 +1,7 @@
 // Copyright (c) 2023 Pavel Savara. Licensed under the Apache-2.0 license with LLVM exception. See LICENSE for details.
 
-import { getBuildInfo, createComponent, instantiateWasiComponent, LogLevel } from '../src/index';
+import * as fs from 'node:fs';
+import { getBuildInfo, createComponent, instantiateComponent, instantiateWasiComponent, LogLevel } from '../src/index';
 import { createWasiP3Host, WasiExit } from '../src/host/wasip3/wasip3';
 import { createWasiP2ViaP3Adapter } from '../src/host/wasip2-via-wasip3';
 import { detectWasiType, WasiType, isCoreModule } from '../src/wasi-auto';
@@ -97,6 +98,42 @@ describe('public API', () => {
                 expect(typeof ns.echoBool).toBe('function');
                 expect(typeof ns.echoU8).toBe('function');
                 expect(typeof ns.echoString).toBe('function');
+            } finally {
+                instance.dispose();
+            }
+        }));
+    });
+
+    describe('input detection', () => {
+        test('createComponent accepts raw Uint8Array bytes (regression: was treated as parsed model)', () => runWithVerbose(verbose, async () => {
+            const bytes = new Uint8Array(fs.readFileSync(echoReactorWatWasm));
+            const component = await createComponent(bytes, verboseOptions(verbose));
+            const instance = await component.instantiate();
+            try {
+                expect(Object.keys(instance.exports)).toContain('jsco:test/echo-primitives@0.1.0');
+            } finally {
+                instance.dispose();
+            }
+        }));
+
+        test('createComponent accepts a plain number[] byte array', () => runWithVerbose(verbose, async () => {
+            const bytes = [...new Uint8Array(fs.readFileSync(echoReactorWatWasm))];
+            const component = await createComponent(bytes, verboseOptions(verbose));
+            expect(typeof component.instantiate).toBe('function');
+        }));
+
+        test('createComponent accepts an already-parsed model (array of tagged sections)', () => runWithVerbose(verbose, async () => {
+            const model = await parse(echoReactorWatWasm, {});
+            const component = await createComponent(model as never, verboseOptions(verbose));
+            expect(typeof component.instantiate).toBe('function');
+        }));
+
+        test('instantiateComponent works end-to-end from raw bytes', () => runWithVerbose(verbose, async () => {
+            const bytes = new Uint8Array(fs.readFileSync(echoReactorWatWasm));
+            const instance = await instantiateComponent(bytes, undefined, verboseOptions(verbose));
+            try {
+                expect(instance.exports).toBeDefined();
+                expect(Object.keys(instance.exports)).toContain('jsco:test/echo-primitives@0.1.0');
             } finally {
                 instance.dispose();
             }
