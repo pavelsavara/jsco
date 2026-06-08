@@ -2,55 +2,55 @@
   "version": "1.0.0",
   "configurations": [
     {
-      "name": "jsco",
-      "program": "${workspaceFolder}/dist/debug/index.js",
-      "args": [
-        "--experimental-wasm-jspi",
-        "help"
-      ],
+      "type": "node",
       "request": "launch",
+      "name": "jsco: AppBundle WasmTestRunner 2",
+      "sourceMaps": true,
+      "showAsyncStacks": true,
+      "smartStep": true,
+      "sourceMapPathOverrides": {
+        "file:///*": "*"
+      },
+      "runtimeArgs": [
+        "--experimental-wasm-jspi"
+      ],
+      "program": "${workspaceFolder}/dist/debug/cli.js",
+      "args": [
+        "run",
+        "--dir",
+        "D:\\runtime2\\artifacts\\bin\\System.Net.Http.Functional.Tests\\Debug\\net11.0-wasi\\wasi-wasm\\AppBundle\\::/",
+        "--cwd",
+        "/",
+        "--env=MONO_LOG_LEVEL=debug",
+        "--env=MONO_LOG_MASK=all",
+        "D:\\runtime2\\artifacts\\bin\\System.Net.Http.Functional.Tests\\Debug\\net11.0-wasi\\wasi-wasm\\AppBundle\\dotnet.wasm",
+        "--",
+        "WasmTestRunner",
+        "managed/System.Net.Http.Functional.Tests.dll",
+        "-notrait",
+        "category=OuterLoop",
+        "-notrait",
+        "category=failing"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
       "skipFiles": [
         "<node_internals>/**"
-      ],
-      "type": "node"
+      ]
     },
     {
-      "type": "node",
+      "type": "chrome",
       "request": "launch",
-      "name": "Jest: current file",
-      "env": {
-        "NODE_OPTIONS": "--no-warnings=ExperimentalWarning --experimental-vm-modules"
+      "name": "jsco: Browser AppBundle WasmTestRunner 2",
+      "url": "http://127.0.0.1:8080/runtime2/artifacts/bin/System.Net.Http.Functional.Tests/Release/net11.0-wasi/wasi-wasm/AppBundle/index.html",
+      "webRoot": "D:/",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "file:///*": "*"
       },
-      "program": "${workspaceFolder}/node_modules/.bin/jest",
-      "args": [
-        "${fileBasenameNoExtension}",
-        "--config",
-        "jest.config.js"
-      ],
-      "console": "integratedTerminal",
-      "disableOptimisticBPs": true,
-      "windows": {
-        "program": "${workspaceFolder}/node_modules/jest/bin/jest"
-      }
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
     },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "Jest: src/resolver/hello.test.ts",
-      "env": {
-        "NODE_OPTIONS": "--no-warnings=ExperimentalWarning --experimental-vm-modules"
-      },
-      "program": "${workspaceFolder}/node_modules/.bin/jest",
-      "args": [
-        "hello.test",
-        "--config",
-        "jest.config.js"
-      ],
-      "console": "integratedTerminal",
-      "disableOptimisticBPs": true,
-      "windows": {
-        "program": "${workspaceFolder}/node_modules/jest/bin/jest"
-      }
-    }
   ]
 }

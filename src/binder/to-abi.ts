@@ -166,8 +166,10 @@ export function createLifting(rctx: ResolvedContext, typeModel: ComponentValType
                 }
             case ModelTag.ComponentValTypeType: {
                 const resolved = rctx.resolvedTypes.get(typeModel.value as ComponentTypeIndex);
-                jsco_assert(resolved !== undefined, () => `Unresolved type at index ${typeModel.value}`);
-                return createLifting(rctx, resolved!);
+                if (resolved === undefined) {
+                    throw new Error(`Unresolved type at index ${typeModel.value}`);
+                }
+                return createLifting(rctx, resolved);
             }
             case ModelTag.ComponentValTypeResolved:
                 return createLifting(rctx, typeModel.resolved as ResolvedType);

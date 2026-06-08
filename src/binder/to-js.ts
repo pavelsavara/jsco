@@ -152,8 +152,10 @@ export function createLowering(rctx: ResolvedContext, typeModel: ComponentValTyp
                 }
             case ModelTag.ComponentValTypeType: {
                 const resolved = rctx.resolvedTypes.get(typeModel.value as ComponentTypeIndex);
-                jsco_assert(resolved !== undefined, () => `Unresolved type at index ${typeModel.value}`);
-                return createLowering(rctx, resolved!);
+                if (resolved === undefined) {
+                    throw new Error(`Unresolved type at index ${typeModel.value}`);
+                }
+                return createLowering(rctx, resolved);
             }
             case ModelTag.ComponentValTypeResolved:
                 return createLowering(rctx, typeModel.resolved as ResolvedType);
