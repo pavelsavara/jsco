@@ -104,11 +104,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/pavelsavara/jsco-browser-tests:playwright-1.59.1-node-24
+      options: --user root
       credentials:
         username: ${{ github.actor }}
         password: ${{ github.token }}
     env:
       NODE_OPTIONS: --experimental-vm-modules
+      HOME: /root
 
     steps:
     - uses: actions/checkout@v6
