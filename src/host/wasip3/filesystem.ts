@@ -584,7 +584,11 @@ export interface FilesystemState {
  * Initialize the filesystem from config, returning shared state.
  */
 export function initFilesystem(config?: HostConfig): FilesystemState {
-    const backend = new MemoryVfsBackend({ limits: config?.limits });
+    const backend = new MemoryVfsBackend({
+        limits: config?.limits,
+        maxTotalSize: config?.vfsLimits?.maxTotalSize,
+        maxFileSize: config?.vfsLimits?.maxFileSize,
+    });
     const maxPathLength = config?.limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
 
     // Populate from config.fs

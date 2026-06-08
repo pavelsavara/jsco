@@ -3,6 +3,7 @@
 import type { HostConfig } from './host/wasip3';
 import type { JsImports } from './resolver/api-types';
 import { loadWasiP3Host, loadWasiP2ViaP3Adapter } from './dynamic';
+import { applyEnabledInterfaces } from './host/_shared/enabled-interfaces';
 
 export const enum WasiType {
     None = 0,
@@ -57,9 +58,13 @@ export async function createWasiImports(wasiType: WasiType, config?: HostConfig)
     const { createWasiP3Host } = await loadWasiP3Host();
     const p3 = createWasiP3Host(config);
     if (wasiType === WasiType.P2) {
-        return (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+        const p2 = (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+        applyEnabledInterfaces(p2 as Record<string, unknown>, config?.enabledInterfaces);
+        return p2;
     }
     // P3: merge with P2 adapter so reactor-adapted components still resolve their wasi:cli/etc 0.2 imports.
     const p2 = (await loadWasiP2ViaP3Adapter()).createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
-    return { ...p2, ...p3 } as JsImports;
+    const merged = { ...p2, ...p3 } as Record<string, unknown>;
+    applyEnabledInterfaces(merged, config?.enabledInterfaces);
+    return merged as JsImports;
 }

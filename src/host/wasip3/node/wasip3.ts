@@ -16,6 +16,7 @@ import { serve as serveImpl, linkHandler as linkHandlerImpl } from './http-serve
 import type { WasiHttpHandlerExport, ServeConfig, ServeHandle } from './http-server';
 import { JsImports } from '../../../resolver/api-types';
 import { makeRegister } from '../../_shared/resource-table';
+import { applyEnabledInterfaces } from '../../_shared/enabled-interfaces';
 
 const P3_VERSIONS = ['0.3.0-rc-2026-03-15'] as const;
 
@@ -61,6 +62,11 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
         override('filesystem/preopens', createPreopens(fsState));
         override('filesystem/types', createFilesystemTypes(fsState));
     }
+
+    // Re-apply the enabledInterfaces whitelist: the browser host already
+    // filtered, but the Node overrides above replace some interfaces with real
+    // implementations, which must be re-trapped if they are disabled.
+    applyEnabledInterfaces(host, config?.enabledInterfaces);
 
     return host as unknown as WasiP3Imports & JsImports;
 }
