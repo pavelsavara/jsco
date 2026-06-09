@@ -16,7 +16,14 @@ function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWa
         result = plan.resultLowerers[0]!(ctx, rawWasm);
     }
     if (ctx.postReturnFn) {
-        ctx.postReturnFn();
+        // Canonical ABI: post-return receives the same core return value(s) the
+        // function produced, so the guest can free memory it owns (e.g. lowered
+        // strings). Multi-value flat returns arrive as an array → spread them.
+        if (Array.isArray(rawWasm)) {
+            ctx.postReturnFn(...rawWasm);
+        } else {
+            ctx.postReturnFn(rawWasm);
+        }
         ctx.postReturnFn = undefined;
     }
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
@@ -28,7 +35,10 @@ function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWa
 function processSpilledResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWasm: any): any {
     const result = plan.resultLoader!(ctx, rawWasm as number);
     if (ctx.postReturnFn) {
-        ctx.postReturnFn();
+        // Canonical ABI: post-return receives the same core return value the
+        // function produced — here the spilled return-area pointer — so the
+        // guest's cabi_post can free the memory it allocated for the result.
+        ctx.postReturnFn(rawWasm);
         ctx.postReturnFn = undefined;
     }
     if (isDebug && (ctx.verbose?.executor ?? 0) >= LogLevel.Summary) {
