@@ -58,7 +58,7 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
     // Wire real filesystem mounts
     if (config?.mounts && config.mounts.length > 0) {
         const fsState = initFilesystem(config);
-        addNodeMounts(fsState, config.mounts, config.limits);
+        addNodeMounts(fsState, config.mounts, config.limits, config.vfsLimits);
         override('filesystem/preopens', createPreopens(fsState));
         override('filesystem/types', createFilesystemTypes(fsState));
     }

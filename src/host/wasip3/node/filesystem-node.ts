@@ -30,10 +30,18 @@ import type {
     VfsDescriptorFlags,
 } from '../vfs';
 import { VfsNodeType, VfsError, resolvePathComponents, createFileNode, createDirectoryNode } from '../vfs';
-import type { AllocationLimits, MountConfig } from '../types';
+import type { AllocationLimits, MountConfig, VfsLimits } from '../types';
 import { LIMIT_DEFAULTS } from '../types';
 import { _FsDescriptor as FsDescriptor } from '../filesystem';
 import type { FilesystemState } from '../filesystem';
+
+/**
+ * Reserved file name placed at the root of a Node.js mount to persist the
+ * tracked aggregate size when `vfsLimits.maxTotalSize` is enforced. It is
+ * excluded from quota accounting, hidden from `readDirectory` at the mount
+ * root, and rejected for any guest access so the guest cannot tamper with it.
+ */
+const QUOTA_FILENAME = '.jsco-quota.json';
 
 // ──────────────────── Error mapping ────────────────────
 
@@ -155,20 +163,134 @@ export class NodeFsBackend implements IVfsBackend {
     readonly readOnly: boolean;
     private readonly maxPathLength: number;
     private readonly maxAllocationSize: number;
+    private readonly maxFileSize: number | undefined;
+    private readonly maxTotalSize: number | undefined;
+    /** Real (symlink-resolved) mount root, set only when maxTotalSize is enforced. */
+    private readonly realRoot: string | undefined;
+    /** Absolute host path of the quota file, set only when maxTotalSize is enforced. */
+    private readonly quotaFilePath: string | undefined;
+    /** Running aggregate of all file bytes under the mount (quota file excluded). */
+    private totalSize = 0;
 
-    constructor(hostRoot: string, readOnly: boolean, limits?: AllocationLimits) {
+    constructor(hostRoot: string, readOnly: boolean, limits?: AllocationLimits, vfsLimits?: VfsLimits) {
         this.hostRoot = nodePath.resolve(hostRoot);
         this.readOnly = readOnly;
         this.maxPathLength = limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
         this.maxAllocationSize = limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
+        this.maxFileSize = vfsLimits?.maxFileSize;
+        this.maxTotalSize = vfsLimits?.maxTotalSize;
+        if (this.maxTotalSize !== undefined) {
+            this.realRoot = fs.realpathSync(this.hostRoot);
+            this.quotaFilePath = nodePath.join(this.realRoot, QUOTA_FILENAME);
+            this.totalSize = this.loadQuota();
+        } else {
+            this.realRoot = undefined;
+            this.quotaFilePath = undefined;
+        }
     }
 
     private resolve(parts: string[]): string {
-        return safeResolve(this.hostRoot, parts);
+        const hostPath = safeResolve(this.hostRoot, parts);
+        this.guardQuotaFile(hostPath);
+        return hostPath;
     }
 
     private ensureWrite(): void {
         if (this.readOnly) throw new VfsError('read-only');
+    }
+
+    // ──── Quota tracking (only active when maxTotalSize is set) ────
+
+    /** Load the persisted total from the quota file, or compute it by walking the mount. */
+    private loadQuota(): number {
+        if (this.quotaFilePath === undefined) return 0;
+        try {
+            const raw = fs.readFileSync(this.quotaFilePath, 'utf8');
+            const parsed = JSON.parse(raw) as { totalSize?: unknown };
+            if (typeof parsed.totalSize === 'number' && Number.isFinite(parsed.totalSize) && parsed.totalSize >= 0) {
+                return parsed.totalSize;
+            }
+        } catch {
+            // Missing or corrupt quota file — recompute below.
+        }
+        const total = this.computeTotalSize(this.realRoot ?? this.hostRoot);
+        this.persistQuota(total);
+        return total;
+    }
+
+    /** Recursively sum regular-file sizes under `dir`, excluding the quota file. */
+    private computeTotalSize(dir: string): number {
+        let sum = 0;
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return 0;
+        }
+        for (const entry of entries) {
+            const full = nodePath.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                sum += this.computeTotalSize(full);
+            } else if (entry.isFile()) {
+                if (full === this.quotaFilePath) continue;
+                try { sum += fs.statSync(full).size; } catch { /* race: ignore */ }
+            }
+            // Symlinks and special files are not counted.
+        }
+        return sum;
+    }
+
+    /** Best-effort write of the current total to the quota file. */
+    private persistQuota(total: number): void {
+        if (this.quotaFilePath === undefined) return;
+        try {
+            fs.writeFileSync(this.quotaFilePath, JSON.stringify({ totalSize: total }));
+        } catch { /* best-effort persistence */ }
+    }
+
+    /** Size of `hostPath` if it is a regular file, else 0. */
+    private fileSizeOrZero(hostPath: string): number {
+        try {
+            const st = fs.statSync(hostPath);
+            return st.isFile() ? st.size : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
+     * Reject any guest operation that targets the reserved quota file.
+     * Throws `VfsError('access')`, which the descriptor layer surfaces to the
+     * guest as a graceful `access` error code (not a trap). Combined with the
+     * `readDirectory` filter, this keeps the quota file invisible and immutable.
+     */
+    private guardQuotaFile(hostPath: string): void {
+        if (this.quotaFilePath !== undefined && hostPath === this.quotaFilePath) {
+            throw new VfsError('access', 'reserved quota file');
+        }
+    }
+
+    /** Enforce the per-file size cap. */
+    private checkFileSize(newSize: number): void {
+        if (this.maxFileSize !== undefined && newSize > this.maxFileSize) {
+            throw new VfsError('insufficient-space', 'file size exceeds max file size');
+        }
+    }
+
+    /** Enforce the aggregate size cap for a positive growth `delta` (before the write). */
+    private reserveTotal(delta: number): void {
+        if (this.maxTotalSize === undefined) return;
+        if (delta > 0 && this.totalSize + delta > this.maxTotalSize) {
+            throw new VfsError('insufficient-space', 'VFS total size exceeded');
+        }
+    }
+
+    /** Apply a committed size `delta` and persist the new total. */
+    private commitTotal(delta: number): void {
+        if (this.maxTotalSize === undefined || delta === 0) return;
+        this.totalSize += delta;
+        if (this.totalSize < 0) this.totalSize = 0;
+        this.persistQuota(this.totalSize);
     }
 
     // ──── IVfsBackend ────
@@ -198,12 +320,17 @@ export class NodeFsBackend implements IVfsBackend {
         this.ensureWrite();
         try {
             const hostPath = this.resolve(path);
+            const oldSize = this.fileSizeOrZero(hostPath);
+            const newSize = Math.max(oldSize, Number(offset) + data.length);
+            this.checkFileSize(newSize);
+            this.reserveTotal(newSize - oldSize);
             const fd = fs.openSync(hostPath, 'r+');
             try {
                 fs.writeSync(fd, data, 0, data.length, Number(offset));
             } finally {
                 fs.closeSync(fd);
             }
+            this.commitTotal(newSize - oldSize);
         } catch (e) { mapNodeError(e); }
     }
 
@@ -211,7 +338,12 @@ export class NodeFsBackend implements IVfsBackend {
         this.ensureWrite();
         try {
             const hostPath = this.resolve(path);
+            const oldSize = this.fileSizeOrZero(hostPath);
+            const newSize = oldSize + data.length;
+            this.checkFileSize(newSize);
+            this.reserveTotal(data.length);
             fs.appendFileSync(hostPath, data);
+            this.commitTotal(data.length);
         } catch (e) { mapNodeError(e); }
     }
 
@@ -219,7 +351,12 @@ export class NodeFsBackend implements IVfsBackend {
         this.ensureWrite();
         try {
             const hostPath = this.resolve(path);
-            fs.truncateSync(hostPath, Number(size));
+            const oldSize = this.fileSizeOrZero(hostPath);
+            const newSize = Number(size);
+            this.checkFileSize(newSize);
+            this.reserveTotal(newSize - oldSize);
+            fs.truncateSync(hostPath, newSize);
+            this.commitTotal(newSize - oldSize);
         } catch (e) { mapNodeError(e); }
     }
 
@@ -251,6 +388,7 @@ export class NodeFsBackend implements IVfsBackend {
         const fullParts = resolvePathComponents(dirPath, relativePath);
         try {
             const hostPath = safeResolve(this.hostRoot, fullParts);
+            this.guardQuotaFile(hostPath);
 
             let stats: fs.Stats | null = null;
             try {
@@ -264,7 +402,9 @@ export class NodeFsBackend implements IVfsBackend {
                 if (openFlags.directory && !stats.isDirectory()) throw new VfsError('not-directory');
                 if (openFlags.truncate && stats.isFile()) {
                     this.ensureWrite();
+                    const oldSize = stats.size;
                     fs.truncateSync(hostPath, 0);
+                    this.commitTotal(-oldSize);
                 }
             } else {
                 if (!openFlags.create) throw new VfsError('no-entry');
@@ -288,10 +428,13 @@ export class NodeFsBackend implements IVfsBackend {
         try {
             const hostPath = this.resolve(path);
             const entries = fs.readdirSync(hostPath, { withFileTypes: true });
-            return entries.map(e => ({
-                type: direntType(e),
-                name: e.name,
-            }));
+            const atRoot = this.realRoot !== undefined && hostPath === this.realRoot;
+            return entries
+                .filter(e => !(atRoot && e.name === QUOTA_FILENAME))
+                .map(e => ({
+                    type: direntType(e),
+                    name: e.name,
+                }));
         } catch (e) { mapNodeError(e); }
     }
 
@@ -300,6 +443,7 @@ export class NodeFsBackend implements IVfsBackend {
         try {
             const parentHost = this.resolve(dirPath);
             const targetPath = nodePath.join(parentHost, name);
+            this.guardQuotaFile(targetPath);
             // Re-verify containment after join
             safeResolve(this.hostRoot, [...dirPath, name]);
             fs.mkdirSync(targetPath);
@@ -320,7 +464,9 @@ export class NodeFsBackend implements IVfsBackend {
             const hostPath = this.resolve([...dirPath, name]);
             const stats = fs.statSync(hostPath);
             if (stats.isDirectory()) throw new VfsError('is-directory');
+            const size = stats.isFile() ? stats.size : 0;
             fs.unlinkSync(hostPath);
+            this.commitTotal(-size);
         } catch (e) { mapNodeError(e); }
     }
 
@@ -329,7 +475,11 @@ export class NodeFsBackend implements IVfsBackend {
         try {
             const oldPath = this.resolve([...oldDirPath, oldName]);
             const newPath = this.resolve([...newDirPath, newName]);
+            // A rename within the mount preserves the source bytes; only an
+            // overwritten destination file frees its bytes from the total.
+            const destFreed = this.fileSizeOrZero(newPath);
             fs.renameSync(oldPath, newPath);
+            if (destFreed) this.commitTotal(-destFreed);
         } catch (e) { mapNodeError(e); }
     }
 
@@ -349,6 +499,7 @@ export class NodeFsBackend implements IVfsBackend {
         try {
             const hostDir = this.resolve(dirPath);
             const linkPath = nodePath.join(hostDir, linkName);
+            this.guardQuotaFile(linkPath);
             // Verify the link path stays in bounds
             safeResolve(this.hostRoot, [...dirPath, linkName]);
             fs.symlinkSync(target, linkPath);
@@ -362,6 +513,7 @@ export class NodeFsBackend implements IVfsBackend {
             // would resolve to the target and cause EINVAL when readlinkSync is called.
             const hostDir = this.resolve(dirPath);
             const hostPath = nodePath.join(hostDir, name);
+            this.guardQuotaFile(hostPath);
             // Verify containment lexically
             const normalizedRoot = nodePath.resolve(this.hostRoot);
             if (!hostPath.startsWith(normalizedRoot + nodePath.sep) && hostPath !== normalizedRoot) {
@@ -391,7 +543,9 @@ export class NodeFsBackend implements IVfsBackend {
                 lower: BigInt(stats.dev),
                 upper: BigInt(stats.ino),
             };
-        } catch {
+        } catch (e) {
+            // Never mask a guard/containment rejection with the path-hash fallback.
+            if (e instanceof VfsError) throw e;
             // Fallback: hash the path string
             let h = 0n;
             const str = path.join('/');
@@ -414,11 +568,13 @@ export class NodeFsBackend implements IVfsBackend {
  * @param state The filesystem state from `initFilesystem()`.
  * @param mounts Mount configurations.
  * @param limits Allocation limits.
+ * @param vfsLimits Aggregate/per-file size limits (maxTotalSize, maxFileSize).
  */
 export function addNodeMounts(
     state: FilesystemState,
     mounts: MountConfig[],
     limits?: AllocationLimits,
+    vfsLimits?: VfsLimits,
 ): void {
     const maxPathLength = limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
 
@@ -433,7 +589,7 @@ export function addNodeMounts(
         }
 
         const readOnly = mount.readOnly ?? false;
-        const backend = new NodeFsBackend(hostAbsolute, readOnly, limits);
+        const backend = new NodeFsBackend(hostAbsolute, readOnly, limits, vfsLimits);
         const guestPath = mount.guestPath.endsWith('/')
             ? mount.guestPath.slice(0, -1) || '/'
             : mount.guestPath;

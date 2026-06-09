@@ -317,19 +317,22 @@ export const LIMIT_DEFAULTS = {
     maxConcurrentSubtasks: 100,
 } as const;
 
-/** In-memory virtual filesystem size limits. */
+/** Virtual filesystem size limits (in-memory VFS and Node.js mounts). */
 export interface VfsLimits {
     /**
-     * Maximum total size in bytes of all files in the in-memory VFS.
-     * Enforced on write/append/truncate and on initial population.
-     * Default: 268_435_456 (256 MB).
+     * Maximum total size in bytes of all files.
+     * Enforced on write/append/truncate and on initial population. For the
+     * in-memory VFS the default is 268_435_456 (256 MB); for Node.js mounts
+     * the aggregate is tracked in a `.jsco-quota.json` file at the mount root
+     * and only enforced when this value is set.
      */
     maxTotalSize?: number;
     /**
-     * Maximum size in bytes of any single file in the in-memory VFS.
+     * Maximum size in bytes of any single file.
      * Enforced on write/append/truncate, in addition to
      * `limits.maxAllocationSize`. Default: undefined (no extra per-file cap
-     * beyond `maxAllocationSize`).
+     * beyond `maxAllocationSize`). Applies to both the in-memory VFS and
+     * Node.js mounts.
      */
     maxFileSize?: number;
 }

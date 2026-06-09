@@ -756,3 +756,319 @@ describe('FsDescriptor with NodeFsBackend', () => {
             .toBe('deep content');
     });
 });
+
+// ──────────────────── vfsLimits quota enforcement ────────────────────
+
+const QUOTA_FILE = '.jsco-quota.json';
+
+function readQuota(dir: string): number {
+    const raw = fs.readFileSync(path.join(dir, QUOTA_FILE), 'utf-8');
+    return (JSON.parse(raw) as { totalSize: number }).totalSize;
+}
+
+describe('NodeFsBackend — maxFileSize enforcement', () => {
+    let tempDir: string;
+    let backend: NodeFsBackend;
+
+    beforeEach(() => {
+        tempDir = createTempDir();
+        backend = new NodeFsBackend(tempDir, false, undefined, { maxFileSize: 10 });
+        fs.writeFileSync(path.join(tempDir, 'f.txt'), '');
+    });
+
+    afterEach(() => cleanupTempDir(tempDir));
+
+    test('write within the cap succeeds', () => {
+        backend.write(['f.txt'], enc.encode('0123456789'), 0n);
+        expect(fs.statSync(path.join(tempDir, 'f.txt')).size).toBe(10);
+    });
+
+    test('write exceeding the cap throws insufficient-space and does not write', () => {
+        try {
+            backend.write(['f.txt'], enc.encode('01234567890'), 0n);
+            throw new Error('expected throw');
+        } catch (e) {
+            expect((e as VfsError).code).toBe('insufficient-space');
+        }
+        expect(fs.statSync(path.join(tempDir, 'f.txt')).size).toBe(0);
+    });
+
+    test('write at an offset beyond the cap throws', () => {
+        expect(() => backend.write(['f.txt'], enc.encode('ab'), 9n))
+            .toThrow(VfsError);
+    });
+
+    test('append exceeding the cap throws', () => {
+        backend.append(['f.txt'], enc.encode('12345'));
+        expect(() => backend.append(['f.txt'], enc.encode('678901')))
+            .toThrow(VfsError);
+        expect(fs.statSync(path.join(tempDir, 'f.txt')).size).toBe(5);
+    });
+
+    test('setSize exceeding the cap throws', () => {
+        expect(() => backend.setSize(['f.txt'], 11n)).toThrow(VfsError);
+        backend.setSize(['f.txt'], 10n);
+        expect(fs.statSync(path.join(tempDir, 'f.txt')).size).toBe(10);
+    });
+});
+
+describe('NodeFsBackend — maxTotalSize quota', () => {
+    let tempDir: string;
+
+    beforeEach(() => { tempDir = createTempDir(); });
+    afterEach(() => cleanupTempDir(tempDir));
+
+    test('a quota file is created at the mount root on construction', () => {
+        new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        expect(fs.existsSync(path.join(tempDir, QUOTA_FILE))).toBe(true);
+        expect(readQuota(tempDir)).toBe(0);
+    });
+
+    test('the aggregate total is enforced across multiple files', () => {
+        const backend = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 20 });
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '');
+        fs.writeFileSync(path.join(tempDir, 'b.txt'), '');
+        backend.write(['a.txt'], enc.encode('0123456789'), 0n); // 10
+        backend.write(['b.txt'], enc.encode('0123456789'), 0n); // 20 total
+        expect(readQuota(tempDir)).toBe(20);
+        expect(() => backend.append(['b.txt'], enc.encode('x'))).toThrow(VfsError);
+    });
+
+    test('the total decreases when a file is truncated', () => {
+        const backend = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '');
+        backend.write(['a.txt'], enc.encode('0123456789'), 0n);
+        expect(readQuota(tempDir)).toBe(10);
+        backend.setSize(['a.txt'], 4n);
+        expect(readQuota(tempDir)).toBe(4);
+    });
+
+    test('the total decreases when a file is deleted', () => {
+        const backend = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '');
+        backend.write(['a.txt'], enc.encode('0123456789'), 0n);
+        expect(readQuota(tempDir)).toBe(10);
+        backend.unlinkFile([], 'a.txt');
+        expect(readQuota(tempDir)).toBe(0);
+    });
+
+    test('a truncate-on-open frees the previous file bytes', () => {
+        const backend = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '');
+        backend.write(['a.txt'], enc.encode('0123456789'), 0n);
+        backend.openAt([], 'a.txt', { truncate: true }, { read: true, write: true }, false);
+        expect(readQuota(tempDir)).toBe(0);
+    });
+
+    test('the persisted total is reloaded without rescanning', () => {
+        const first = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '');
+        first.write(['a.txt'], enc.encode('01234'), 0n); // 5
+        // Add a file on the host AFTER the quota was persisted; a reload that
+        // trusts the quota file must NOT re-count it.
+        fs.writeFileSync(path.join(tempDir, 'sneaky.txt'), 'this is 17 bytes!');
+        const second = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        // Reserve enough headroom so only the trusted (5-byte) total fits.
+        second.write(['a.txt'], enc.encode('x'.repeat(95)), 0n);
+        expect(fs.statSync(path.join(tempDir, 'a.txt')).size).toBe(95);
+    });
+
+    test('an existing tree is counted when no quota file is present', () => {
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '12345'); // 5
+        fs.mkdirSync(path.join(tempDir, 'sub'));
+        fs.writeFileSync(path.join(tempDir, 'sub', 'b.txt'), '123'); // 3
+        new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        expect(readQuota(tempDir)).toBe(8);
+    });
+
+    test('a corrupt quota file is rebuilt from a directory scan', () => {
+        fs.writeFileSync(path.join(tempDir, 'a.txt'), '12345');
+        fs.writeFileSync(path.join(tempDir, QUOTA_FILE), 'not json {');
+        new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+        expect(readQuota(tempDir)).toBe(5);
+    });
+});
+
+describe('NodeFsBackend — quota file is protected', () => {
+    let tempDir: string;
+    let backend: NodeFsBackend;
+
+    beforeEach(() => {
+        tempDir = createTempDir();
+        backend = new NodeFsBackend(tempDir, false, undefined, { maxTotalSize: 100 });
+    });
+
+    afterEach(() => cleanupTempDir(tempDir));
+
+    /** Assert `fn` rejects the quota file with a graceful `access` error code (no trap). */
+    function expectAccess(fn: () => unknown): void {
+        try {
+            fn();
+            throw new Error('expected an access VfsError');
+        } catch (e) {
+            expect(e).toBeInstanceOf(VfsError);
+            expect((e as VfsError).code).toBe('access');
+        }
+    }
+
+    test('the quota file is hidden from readDirectory at the root', () => {
+        fs.writeFileSync(path.join(tempDir, 'visible.txt'), 'x');
+        const names = backend.readDirectory([]).map(e => e.name);
+        expect(names).toContain('visible.txt');
+        expect(names).not.toContain(QUOTA_FILE);
+    });
+
+    test('the guest cannot stat the quota file', () => {
+        expectAccess(() => backend.stat([QUOTA_FILE]));
+    });
+
+    test('the guest cannot read the quota file', () => {
+        expectAccess(() => backend.read([QUOTA_FILE], 0n, 64));
+    });
+
+    test('the guest cannot open the quota file', () => {
+        expectAccess(() => backend.openAt([], QUOTA_FILE, {}, { read: true }, false));
+    });
+
+    test('the guest cannot create (open with create) the quota file', () => {
+        expectAccess(() => backend.openAt([], QUOTA_FILE, { create: true }, { read: true, write: true }, false));
+    });
+
+    test('the guest cannot write the quota file', () => {
+        expectAccess(() => backend.write([QUOTA_FILE], enc.encode('hack'), 0n));
+    });
+
+    test('the guest cannot append to the quota file', () => {
+        expectAccess(() => backend.append([QUOTA_FILE], enc.encode('hack')));
+    });
+
+    test('the guest cannot truncate (setSize) the quota file', () => {
+        expectAccess(() => backend.setSize([QUOTA_FILE], 0n));
+    });
+
+    test('the guest cannot setTimes on the quota file', () => {
+        expectAccess(() => backend.setTimes([QUOTA_FILE], 0n, 0n));
+    });
+
+    test('the guest cannot unlink the quota file', () => {
+        expectAccess(() => backend.unlinkFile([], QUOTA_FILE));
+        expect(fs.existsSync(path.join(tempDir, QUOTA_FILE))).toBe(true);
+    });
+
+    test('the guest cannot rename the quota file away', () => {
+        expectAccess(() => backend.rename([], QUOTA_FILE, [], 'stolen.json'));
+        expect(fs.existsSync(path.join(tempDir, QUOTA_FILE))).toBe(true);
+    });
+
+    test('the guest cannot rename another file onto the quota file', () => {
+        fs.writeFileSync(path.join(tempDir, 'src.txt'), 'x');
+        expectAccess(() => backend.rename([], 'src.txt', [], QUOTA_FILE));
+    });
+
+    test('the guest cannot hard-link onto the quota file name', () => {
+        fs.writeFileSync(path.join(tempDir, 'src.txt'), 'x');
+        expectAccess(() => backend.linkAt(['src.txt'], [], QUOTA_FILE));
+    });
+
+    test('the guest cannot create a directory named like the quota file', () => {
+        expectAccess(() => backend.createDirectory([], QUOTA_FILE));
+    });
+
+    test('the guest cannot metadataHash the quota file (no path-hash leak)', () => {
+        expectAccess(() => backend.metadataHash([QUOTA_FILE]));
+    });
+
+    test('isSameNode never matches the quota file', () => {
+        fs.writeFileSync(path.join(tempDir, 'other.txt'), 'x');
+        expect(backend.isSameNode([QUOTA_FILE], [QUOTA_FILE])).toBe(false);
+        expect(backend.isSameNode([QUOTA_FILE], ['other.txt'])).toBe(false);
+    });
+});
+
+// ──────────────────── vfsLimits via addNodeMounts + descriptor ────────────────────
+
+describe('vfsLimits via addNodeMounts (descriptor integration)', () => {
+    let tempDir: string;
+
+    beforeEach(() => { tempDir = createTempDir(); });
+    afterEach(() => cleanupTempDir(tempDir));
+
+    function getMountRoot(vfsLimits: { maxTotalSize?: number; maxFileSize?: number }): any {
+        const state = initFilesystem();
+        addNodeMounts(state, [{ hostPath: tempDir, guestPath: '/' }], undefined, vfsLimits);
+        return state.preopens[state.preopens.length - 1]![0];
+    }
+
+    test('maxFileSize is enforced through the descriptor write path', async () => {
+        const root = getMountRoot({ maxFileSize: 8 });
+        const file = await root.openAt(
+            { symlinkFollow: false }, 'big.txt',
+            { create: true }, { read: true, write: true, mutateDirectory: true },
+        );
+        await expect(file.writeViaStream(readableFrom(enc.encode('123456789')), 0n))
+            .rejects.toMatchObject({ tag: 'insufficient-space' });
+    });
+
+    test('maxTotalSize is enforced through the descriptor and persisted', async () => {
+        const root = getMountRoot({ maxTotalSize: 12 });
+        const a = await root.openAt(
+            { symlinkFollow: false }, 'a.txt',
+            { create: true }, { read: true, write: true, mutateDirectory: true },
+        );
+        await a.writeViaStream(readableFrom(enc.encode('0123456789')), 0n); // 10
+        expect(readQuota(tempDir)).toBe(10);
+
+        const b = await root.openAt(
+            { symlinkFollow: false }, 'b.txt',
+            { create: true }, { read: true, write: true, mutateDirectory: true },
+        );
+        await expect(b.writeViaStream(readableFrom(enc.encode('xyz')), 0n))
+            .rejects.toMatchObject({ tag: 'insufficient-space' });
+    });
+
+    test('the quota file is not listed through the descriptor readDirectory', async () => {
+        fs.writeFileSync(path.join(tempDir, 'keep.txt'), 'x');
+        const root = getMountRoot({ maxTotalSize: 100 });
+        const [stream, future] = root.readDirectory();
+        const names: string[] = [];
+        for await (const entry of stream) names.push(entry.name);
+        await future;
+        expect(names).toContain('keep.txt');
+        expect(names).not.toContain(QUOTA_FILE);
+    });
+
+    test('statAt on the quota file returns a graceful access error code', async () => {
+        const root = getMountRoot({ maxTotalSize: 100 });
+        await expect(root.statAt({ symlinkFollow: true }, QUOTA_FILE))
+            .rejects.toMatchObject({ tag: 'access' });
+    });
+
+    test('openAt on the quota file returns a graceful access error code', async () => {
+        const root = getMountRoot({ maxTotalSize: 100 });
+        await expect(root.openAt(
+            { symlinkFollow: false }, QUOTA_FILE,
+            {}, { read: true },
+        )).rejects.toMatchObject({ tag: 'access' });
+    });
+
+    test('creating the quota file via openAt returns a graceful access error code', async () => {
+        const root = getMountRoot({ maxTotalSize: 100 });
+        await expect(root.openAt(
+            { symlinkFollow: false }, QUOTA_FILE,
+            { create: true }, { read: true, write: true, mutateDirectory: true },
+        )).rejects.toMatchObject({ tag: 'access' });
+    });
+
+    test('unlinkFileAt on the quota file returns a graceful access error code', async () => {
+        const root = getMountRoot({ maxTotalSize: 100 });
+        await expect(root.unlinkFileAt(QUOTA_FILE))
+            .rejects.toMatchObject({ tag: 'access' });
+        expect(fs.existsSync(path.join(tempDir, QUOTA_FILE))).toBe(true);
+    });
+
+    test('metadataHashAt on the quota file returns a graceful access error code', async () => {
+        const root = getMountRoot({ maxTotalSize: 100 });
+        await expect(root.metadataHashAt({ symlinkFollow: true }, QUOTA_FILE))
+            .rejects.toMatchObject({ tag: 'access' });
+    });
+});
