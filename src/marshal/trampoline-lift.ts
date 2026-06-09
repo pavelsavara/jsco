@@ -15,7 +15,7 @@ function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWa
     if (plan.resultLowerers.length === 1) {
         result = plan.resultLowerers[0]!(ctx, rawWasm);
     }
-    if (isDebug && ctx.postReturnFn) {
+    if (ctx.postReturnFn) {
         ctx.postReturnFn();
         ctx.postReturnFn = undefined;
     }
@@ -27,7 +27,7 @@ function processFlatResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWa
 
 function processSpilledResult(plan: FunctionLiftPlan, ctx: MarshalingContext, rawWasm: any): any {
     const result = plan.resultLoader!(ctx, rawWasm as number);
-    if (isDebug && ctx.postReturnFn) {
+    if (ctx.postReturnFn) {
         ctx.postReturnFn();
         ctx.postReturnFn = undefined;
     }

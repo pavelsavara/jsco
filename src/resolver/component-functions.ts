@@ -113,14 +113,21 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
         callerElement: rargs.callerElement,
         element: canonicalFunctionLift,
         binder: withDebugTrace(async (mctx, bargs) => {
-            // Wire up post-return function from canonical options
+            // Resolve THIS function's own post-return (cabi_post). It is applied
+            // per-call (below) rather than stored once on the shared per-instance
+            // mctx: sibling exports would otherwise clobber each other at bind
+            // time (last-writer-wins), so every method after the first would run
+            // the wrong cabi_post — or none, once the slot is consumed-and-cleared
+            // by the first lift. That corrupts guests which track call/post-call
+            // pairing (e.g. StarlingMonkey: "post_call was not called after last
+            // call").
+            let postReturnWasm: Function | undefined;
             if (postReturnResolution) {
                 const postReturnResult = await postReturnResolution.binder(mctx, {
                     callerArgs: bargs,
                     debugStack: bargs.debugStack,
                 });
-                const postReturnWasm = postReturnResult.result as Function;
-                mctx.postReturnFn = postReturnWasm;
+                postReturnWasm = postReturnResult.result as Function;
             }
 
             const args = {
@@ -156,6 +163,22 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
             }
 
             const jsFunction = liftingBinder(mctx, coreFn);
+
+            // Select this function's post-return immediately before each call so
+            // the sync lift trampoline runs the correct cabi_post for the result
+            // it just lifted, then clears it. JS is single-threaded and guests
+            // with post-return are single-task, so setting the shared slot
+            // per-call is sufficient and keeps siblings isolated.
+            if (postReturnWasm) {
+                const liftFn = jsFunction as (...callArgs: unknown[]) => unknown;
+                const postReturnFn = postReturnWasm;
+                return {
+                    result: (...callArgs: unknown[]): unknown => {
+                        mctx.postReturnFn = postReturnFn;
+                        return liftFn(...callArgs);
+                    },
+                };
+            }
 
             const binderResult = {
                 result: jsFunction
