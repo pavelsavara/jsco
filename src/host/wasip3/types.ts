@@ -4,5 +4,5 @@
  * WASIp3 Host — Configuration types re-exported from runtime.
  */
 
-export type { MountConfig, NetworkConfig, AllocationLimits, HostConfig } from '../../runtime/model/types';
+export type { MountConfig, NetworkConfig, AllocationLimits, VfsLimits, HostConfig } from '../../runtime/model/types';
 export { NETWORK_DEFAULTS, LIMIT_DEFAULTS } from '../../runtime/model/types';

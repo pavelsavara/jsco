@@ -20,6 +20,7 @@ import type { IncomingHandlerFn, NetworkConfig, WasiHttpServer, HttpServerConfig
 import { createWasiP3Host } from '../../wasip3/node/wasip3';
 import { createWasiP2ViaP3Adapter } from '../index';
 import { createHttpServer as createLocalHttpServer } from './http-server';
+import { applyEnabledInterfaces } from '../../_shared/enabled-interfaces';
 
 // Re-export the browser adapter
 export { createWasiP2ViaP3Adapter } from '../index';
@@ -49,7 +50,9 @@ export function createWasiP2ViaP3NodeHost(
     },
 ): WasiP2Imports & JsImports {
     const p3 = createWasiP3Host(config);
-    return createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+    const p2 = createWasiP2ViaP3Adapter(p3, { limits: config?.limits });
+    applyEnabledInterfaces(p2 as Record<string, unknown>, config?.enabledInterfaces);
+    return p2;
 }
 
 /**

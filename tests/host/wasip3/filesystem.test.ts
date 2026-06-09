@@ -46,6 +46,21 @@ describe('filesystem — preopens', () => {
     });
 });
 
+describe('filesystem — vfsLimits wiring', () => {
+    test('config.vfsLimits.maxFileSize is enforced by the backend', () => {
+        const state = initFilesystem({ vfsLimits: { maxFileSize: 100 }, fs: new Map([['f.txt', '']]) });
+        expect(() => state.backend.write(['f.txt'], new Uint8Array(200), 0n)).toThrow();
+        // Under the limit succeeds.
+        state.backend.write(['f.txt'], new Uint8Array(100), 0n);
+        expect(state.backend.stat(['f.txt']).size).toBe(100n);
+    });
+
+    test('config.vfsLimits.maxTotalSize is enforced by the backend', () => {
+        const state = initFilesystem({ vfsLimits: { maxTotalSize: 50 }, fs: new Map([['f.txt', '']]) });
+        expect(() => state.backend.write(['f.txt'], new Uint8Array(100), 0n)).toThrow();
+    });
+});
+
 describe('filesystem — Descriptor', () => {
     function getRoot(config?: Parameters<typeof initFilesystem>[0]) {
         const state = initFilesystem(config);

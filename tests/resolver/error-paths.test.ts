@@ -39,10 +39,11 @@ describe('error paths', () => {
             await expect(parse(corrupt)).rejects.toThrow();
         });
 
-        test('createComponent with truncated binary rejects', async () => {
-            const truncated = new Uint8Array([...WIT_MAGIC, ...WIT_VERSION, ...WIT_LAYER]);
-            // Preamble only with no sections — resolver rejects with section error
-            await expect(createComponent(truncated)).rejects.toThrow();
+        test('createComponent with corrupt binary rejects', async () => {
+            // Valid preamble + invalid section id 0xFF — createComponent must
+            // route raw bytes through the parser, which rejects the bad section.
+            const corrupt = new Uint8Array([...WIT_MAGIC, ...WIT_VERSION, ...WIT_LAYER, 0xFF, 0x00]);
+            await expect(createComponent(corrupt)).rejects.toThrow();
         });
     });
 

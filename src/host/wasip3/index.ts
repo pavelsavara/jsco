@@ -59,6 +59,7 @@ import { createHttpTypes, createHttpClient, createHttpHandler } from './http';
 import { createSocketsTypes, createIpNameLookup } from './sockets';
 import { JsImports } from '../../resolver/api-types';
 import { makeRegister } from '../_shared/resource-table';
+import { applyEnabledInterfaces } from '../_shared/enabled-interfaces';
 
 const P3_VERSIONS = ['0.3.0-rc-2026-03-15'] as const;
 export { WasiExit } from './cli';
@@ -140,6 +141,8 @@ export function createWasiP3Host(config?: HostConfig): WasiP3Imports & JsImports
     register('random/random', createRandom(config?.limits));
     register('sockets/ip-name-lookup', createIpNameLookup());
     register('sockets/types', createSocketsTypes());
+
+    applyEnabledInterfaces(result, config?.enabledInterfaces);
 
     return result as unknown as WasiP3Imports & JsImports;
 }

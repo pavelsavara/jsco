@@ -317,6 +317,26 @@ export const LIMIT_DEFAULTS = {
     maxConcurrentSubtasks: 100,
 } as const;
 
+/** Virtual filesystem size limits (in-memory VFS and Node.js mounts). */
+export interface VfsLimits {
+    /**
+     * Maximum total size in bytes of all files.
+     * Enforced on write/append/truncate and on initial population. For the
+     * in-memory VFS the default is 268_435_456 (256 MB); for Node.js mounts
+     * the aggregate is tracked in a `.jsco-quota.json` file at the mount root
+     * and only enforced when this value is set.
+     */
+    maxTotalSize?: number;
+    /**
+     * Maximum size in bytes of any single file.
+     * Enforced on write/append/truncate, in addition to
+     * `limits.maxAllocationSize`. Default: undefined (no extra per-file cap
+     * beyond `maxAllocationSize`). Applies to both the in-memory VFS and
+     * Node.js mounts.
+     */
+    maxFileSize?: number;
+}
+
 /** WASI-specific host configuration. */
 export interface HostConfig {
     /** Environment variables as [key, value] pairs */
@@ -339,9 +359,14 @@ export interface HostConfig {
     network?: NetworkConfig;
     /** Allocation and size limits */
     limits?: AllocationLimits;
+    /** In-memory VFS size limits (maxTotalSize, maxFileSize). */
+    vfsLimits?: VfsLimits;
     /**
      * WASI interface prefixes to enable (e.g. ['wasi:cli', 'wasi:http']).
-     * Default: all interfaces enabled. When set, only matching prefixes are registered.
+     * Default: all interfaces enabled. When set, any imported interface whose
+     * key does not start with one of these prefixes is replaced by a trapping
+     * stub: the component still instantiates, but calling a disabled interface
+     * throws at runtime.
      */
     enabledInterfaces?: string[];
     /** When true, the VFS root preopen is read-only (writes/creates/renames/removes fail). */

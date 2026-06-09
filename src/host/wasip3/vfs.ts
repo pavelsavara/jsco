@@ -235,6 +235,8 @@ export interface MemoryVfsConfig {
     limits?: AllocationLimits;
     /** Maximum total VFS size in bytes. Default: 256MB */
     maxTotalSize?: number;
+    /** Maximum single file size in bytes. Default: undefined (no extra cap beyond maxAllocationSize). */
+    maxFileSize?: number;
 }
 
 const DEFAULT_MAX_TOTAL_SIZE = 268_435_456; // 256MB
@@ -247,6 +249,7 @@ export class MemoryVfsBackend implements IVfsBackend {
     private readonly maxPathLength: number;
     private readonly maxAllocationSize: number;
     private readonly maxTotalSize: number;
+    private readonly maxFileSize: number | undefined;
     private totalSize: number;
 
     constructor(config?: MemoryVfsConfig) {
@@ -254,6 +257,7 @@ export class MemoryVfsBackend implements IVfsBackend {
         this.maxPathLength = config?.limits?.maxPathLength ?? LIMIT_DEFAULTS.maxPathLength;
         this.maxAllocationSize = config?.limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize;
         this.maxTotalSize = config?.maxTotalSize ?? DEFAULT_MAX_TOTAL_SIZE;
+        this.maxFileSize = config?.maxFileSize;
         this.totalSize = 0;
     }
 
@@ -405,6 +409,7 @@ export class MemoryVfsBackend implements IVfsBackend {
         const off = Number(offset);
         const needed = off + data.length;
         if (needed > this.maxAllocationSize) throw new VfsError('insufficient-space', 'file size exceeds allocation limit');
+        if (this.maxFileSize !== undefined && needed > this.maxFileSize) throw new VfsError('insufficient-space', 'file size exceeds max file size');
         const oldLen = node.content?.length ?? 0;
         const newLen = Math.max(oldLen, needed);
         const sizeDelta = newLen - oldLen;
@@ -429,6 +434,7 @@ export class MemoryVfsBackend implements IVfsBackend {
         const oldLen = node.content?.length ?? 0;
         const newLen = oldLen + data.length;
         if (newLen > this.maxAllocationSize) throw new VfsError('insufficient-space', 'file size exceeds allocation limit');
+        if (this.maxFileSize !== undefined && newLen > this.maxFileSize) throw new VfsError('insufficient-space', 'file size exceeds max file size');
         if (this.totalSize + data.length > this.maxTotalSize) throw new VfsError('insufficient-space', 'VFS total size exceeded');
 
         const newContent = new Uint8Array(newLen);
@@ -447,6 +453,7 @@ export class MemoryVfsBackend implements IVfsBackend {
         if (node.type !== VfsNodeType.File) throw new VfsError('invalid');
         const newSize = Number(size);
         if (newSize > this.maxAllocationSize) throw new VfsError('insufficient-space');
+        if (this.maxFileSize !== undefined && newSize > this.maxFileSize) throw new VfsError('insufficient-space', 'file size exceeds max file size');
         const oldLen = node.content?.length ?? 0;
         const sizeDelta = newSize - oldLen;
         if (sizeDelta > 0 && this.totalSize + sizeDelta > this.maxTotalSize) throw new VfsError('insufficient-space');

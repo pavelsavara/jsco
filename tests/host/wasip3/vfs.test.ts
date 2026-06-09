@@ -505,5 +505,43 @@ describe('MemoryVfsBackend', () => {
             try { tinyVfs.write(['f.txt'], new Uint8Array(100), 0n); fail(); }
             catch (e) { expect((e as VfsError).code).toBe('insufficient-space'); }
         });
+
+        test('rejects write exceeding maxFileSize', () => {
+            const vfs = new MemoryVfsBackend({ maxFileSize: 100 });
+            vfs.populateFromMap(new Map([['f.txt', '']]));
+            try { vfs.write(['f.txt'], new Uint8Array(200), 0n); fail(); }
+            catch (e) { expect((e as VfsError).code).toBe('insufficient-space'); }
+        });
+
+        test('allows write up to maxFileSize', () => {
+            const vfs = new MemoryVfsBackend({ maxFileSize: 100 });
+            vfs.populateFromMap(new Map([['f.txt', '']]));
+            vfs.write(['f.txt'], new Uint8Array(100), 0n);
+            expect(vfs.stat(['f.txt']).size).toBe(100n);
+        });
+
+        test('rejects append exceeding maxFileSize', () => {
+            const vfs = new MemoryVfsBackend({ maxFileSize: 100 });
+            vfs.populateFromMap(new Map([['f.txt', 'x'.repeat(80)]]));
+            try { vfs.append(['f.txt'], new Uint8Array(40)); fail(); }
+            catch (e) { expect((e as VfsError).code).toBe('insufficient-space'); }
+        });
+
+        test('rejects setSize exceeding maxFileSize', () => {
+            const vfs = new MemoryVfsBackend({ maxFileSize: 100 });
+            vfs.populateFromMap(new Map([['f.txt', '']]));
+            try { vfs.setSize(['f.txt'], 200n); fail(); }
+            catch (e) { expect((e as VfsError).code).toBe('insufficient-space'); }
+        });
+
+        test('maxFileSize is independent of maxTotalSize', () => {
+            // Per-file cap of 100, but plenty of total room.
+            const vfs = new MemoryVfsBackend({ maxFileSize: 100, maxTotalSize: 1_000_000 });
+            vfs.populateFromMap(new Map([['a.txt', ''], ['b.txt', '']]));
+            vfs.write(['a.txt'], new Uint8Array(100), 0n);
+            vfs.write(['b.txt'], new Uint8Array(100), 0n);
+            try { vfs.write(['a.txt'], new Uint8Array(101), 0n); fail(); }
+            catch (e) { expect((e as VfsError).code).toBe('insufficient-space'); }
+        });
     });
 });
