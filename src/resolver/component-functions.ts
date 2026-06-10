@@ -164,6 +164,20 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
 
             const jsFunction = liftingBinder(mctx, coreFn);
 
+            // After a sync-lift export returns, flush any in-flight fire-and-forget
+            // host output writes (stdout/stderr) so a host reading captured output
+            // immediately after the call sees the complete output, not a truncated
+            // tail. Mirrors the drain the async-lift wrapper already performs.
+            const flushPendingOutput = (value: unknown): unknown => {
+                const pending = mctx.pendingBackgroundTasks;
+                if (pending.length === 0) return value;
+                const toAwait = pending.slice();
+                pending.length = 0;
+                return Promise.allSettled(toAwait).then(() => value);
+            };
+            const withOutputFlush = (raw: unknown): unknown =>
+                raw instanceof Promise ? raw.then(flushPendingOutput) : flushPendingOutput(raw);
+
             // Select this function's post-return immediately before each call so
             // the sync lift trampoline runs the correct cabi_post for the result
             // it just lifted, then clears it. JS is single-threaded and guests
@@ -175,13 +189,14 @@ export const resolveCanonicalFunctionLift: Resolver<CanonicalFunctionLift> = (rc
                 return {
                     result: (...callArgs: unknown[]): unknown => {
                         mctx.postReturnFn = postReturnFn;
-                        return liftFn(...callArgs);
+                        return withOutputFlush(liftFn(...callArgs));
                     },
                 };
             }
 
+            const liftFn = jsFunction as (...callArgs: unknown[]) => unknown;
             const binderResult = {
-                result: jsFunction
+                result: (...callArgs: unknown[]): unknown => withOutputFlush(liftFn(...callArgs))
             };
             return binderResult;
         }, rargs.element.tag + ':' + rargs.element.selfSortIndex)

@@ -105,8 +105,17 @@ export function createStreamPair<T>(): StreamPair<T> {
                 const item = await dequeue();
                 if (item.tag === 'done') return;
                 if (item.tag === 'error') throw item.error;
-                item.resolve();
                 yield item.value;
+                // Resolve the producer's write() promise only AFTER the consumer
+                // has pulled the next item. For a `for await` consumer that awaits
+                // its body (e.g. `await writer.write(chunk)` in pumpToWritable),
+                // the next .next() call — which resumes us past this yield — does
+                // not happen until that body has finished. Resolving before the
+                // yield would let a blocking-write-and-flush guest resume before
+                // its bytes actually reached the sink, dropping the tail of
+                // stdout/stderr when the caller reads it synchronously right after
+                // the guest call returns.
+                item.resolve();
             }
         },
     };

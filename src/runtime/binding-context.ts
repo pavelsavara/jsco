@@ -40,6 +40,13 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
     const subtaskTable = createSubtaskTable(allocHandle);
     const waitableSetTable = createWaitableSetTable(memory, streamTable, futureTable, subtaskTable, abortController.signal, resolved.verbose, resolved.logger);
 
+    // Share the host adapter's pending fire-and-forget output-write registry
+    // (if present) so the export-call boundary flushes buffered stdout/stderr
+    // before returning to the host. Falls back to a fresh array.
+    const pendingBackgroundTasks =
+        (componentImports as Record<symbol, unknown>)[Symbol.for('jsco.pendingHostWrites')] as Promise<unknown>[] | undefined
+        ?? [];
+
     const ctx: MarshalingContext = {
         componentImports,
         instances,
@@ -57,7 +64,7 @@ export function createMarshalingContext(componentImports: JsImports, resolved: R
         logger: resolved.logger,
         currentTask: { slots: [0, 0] },
         backpressure: 0,
-        pendingBackgroundTasks: [],
+        pendingBackgroundTasks,
         opsSinceYield: resolved.yieldThrottle !== undefined ? 0 : undefined,
         maxMemoryBytes: config?.limits?.maxMemoryBytes,
         maxAllocationSize: config?.limits?.maxAllocationSize ?? LIMIT_DEFAULTS.maxAllocationSize,
