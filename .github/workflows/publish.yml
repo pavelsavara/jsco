@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -25,6 +26,10 @@ jobs:
         node-version: 24
         registry-url: https://registry.npmjs.org
 
+    # Trusted Publishing (OIDC) requires npm >= 11.5.1.
+    - name: Update npm
+      run: npm install -g npm@latest
+
     - name: Install npm dependencies
       run: npm ci
 
@@ -37,11 +42,13 @@ jobs:
         cd dist/release
         npm version "$VERSION" --no-git-tag-version
 
+    # Authentication is via OIDC Trusted Publishing — no NPM_TOKEN needed.
+    # Configure the trusted publisher for @pavelsavara/jsco on npmjs.com:
+    # Package settings -> Publishing access -> Trusted publisher (GitHub Actions),
+    # repo pavelsavara/jsco, workflow .github/workflows/publish.yml.
     - name: Publish to npm
       run: npm publish --access public
       working-directory: dist/release
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     - name: Create GitHub release
       uses: softprops/action-gh-release@v2
@@ -50,7 +57,14 @@ jobs:
         files: |
           dist/release/index.js
           dist/release/index.d.ts
-          dist/release/wasip2.js
-          dist/release/wasip2.d.ts
-          dist/release/wasip2-node.js
-          dist/release/wasip2-node.d.ts
+          dist/release/cli.js
+          dist/release/wasip1-via-wasip3.js
+          dist/release/wasip1-via-wasip3.d.ts
+          dist/release/wasip2-via-wasip3.js
+          dist/release/wasip2-via-wasip3.d.ts
+          dist/release/wasip2-via-wasip3-node.js
+          dist/release/wasip2-via-wasip3-node.d.ts
+          dist/release/wasip3.js
+          dist/release/wasip3.d.ts
+          dist/release/wasip3-node.js
+          dist/release/wasip3-node.d.ts
