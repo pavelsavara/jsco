@@ -41,13 +41,12 @@ jobs:
         VERSION="${GITHUB_REF_NAME#v}"
         cd dist/release
         npm version "$VERSION" --no-git-tag-version --allow-same-version
-        # Prerelease versions (containing a '-', e.g. 0.2.0-preview.0) publish to
-        # the 'next' dist-tag so they don't become the default 'latest'. Stable
-        # versions publish to 'latest'.
+        # Always publish to 'latest' so `npm install @pavelsavara/jsco`
+        # resolves to this release. Prerelease versions (containing a '-',
+        # e.g. 0.2.0-preview.0) additionally get the 'next' dist-tag.
+        echo "NPM_DIST_TAG=latest" >> "$GITHUB_ENV"
         if [[ "$VERSION" == *-* ]]; then
-          echo "NPM_DIST_TAG=next" >> "$GITHUB_ENV"
-        else
-          echo "NPM_DIST_TAG=latest" >> "$GITHUB_ENV"
+          echo "NPM_PRERELEASE_TAG=next" >> "$GITHUB_ENV"
         fi
 
     # Authentication is via OIDC Trusted Publishing — no NPM_TOKEN needed.
@@ -56,6 +55,11 @@ jobs:
     # repo pavelsavara/jsco, workflow .github/workflows/publish.yml.
     - name: Publish to npm
       run: npm publish --access public --tag "$NPM_DIST_TAG"
+      working-directory: dist/release
+
+    - name: Tag prerelease as 'next'
+      if: env.NPM_PRERELEASE_TAG != ''
+      run: npm dist-tag add "@pavelsavara/jsco@${GITHUB_REF_NAME#v}" "$NPM_PRERELEASE_TAG"
       working-directory: dist/release
 
     - name: Create GitHub release

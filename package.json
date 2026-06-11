@@ -1,6 +1,6 @@
 {
     "name": "@pavelsavara/jsco",
-    "version": "0.2.0-preview.2",
+    "version": "0.2.0-preview.3",
     "description": "browser polyfill for running WASM components",
     "main": "index.js",
     "type": "module",
