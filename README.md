@@ -202,11 +202,17 @@ HTTP/socket budgets enforced by the host. Run `jsco run --help` for the full lis
 - TypeScript, RollupJS, rust as dev time dependencies
 
 ## Status
-🚧 Work in progress 🚧
+🚧 Preview quality 🚧
+
+The WASIp1/p2/p3 hosts are implemented and pass an extensive
+test suite, but the API surface is not yet stable and behavior may change
+between preview releases. Not recommended for production use yet.
+Also this is one man + 🤖 show, come and help with testing.
 
 [![test](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml/badge.svg)](https://github.com/pavelsavara/jsco/actions/workflows/jest.yml)
 
-See [./TODO.md](./TODO.md), contributors are welcome!
+See [./CHANGELOG.md](./CHANGELOG.md) for release notes and [./TODO.md](./TODO.md)
+for the roadmap. Contributors are welcome!
 
 ## JSPI
 
