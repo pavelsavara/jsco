@@ -1,6 +1,6 @@
 {
     "name": "@pavelsavara/jsco",
-    "version": "0.2.0-preview.0",
+    "version": "0.2.0-preview.1",
     "description": "WebAssembly Component Model runtime for browsers and Node.js, with WASIp1/p2/p3 hosts",
     "main": "index.js",
     "type": "module",
