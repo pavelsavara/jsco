@@ -56,33 +56,37 @@ export function adaptStdin(p3: WasiP3Imports): { getStdin(): WasiInputStream } {
     };
 }
 
-export function adaptStdout(p3: WasiP3Imports, maxBufferSize?: number): { getStdout(): WasiOutputStream } {
+export function adaptStdout(p3: WasiP3Imports, maxBufferSize?: number, pending?: Promise<unknown>[]): { getStdout(): WasiOutputStream } {
     const p3stdout = p3['wasi:cli/stdout'];
     let cached: WasiOutputStream | null = null;
 
     return {
         getStdout(): WasiOutputStream {
             if (!cached) {
-                const pair = createStreamPair<Uint8Array>();
+                // resolveOnConsume so each fire-and-forget write() resolves only
+                // after the pump has delivered the chunk to the sink, letting the
+                // export-call boundary flush the full output (no truncated tail).
+                const pair = createStreamPair<Uint8Array>({ resolveOnConsume: true });
                 // Hand readable end to P3 host, keep writable end for P2 guest
                 p3stdout.writeViaStream(pair.readable);
-                cached = createOutputStreamFromP3(pair, maxBufferSize);
+                cached = createOutputStreamFromP3(pair, maxBufferSize, pending);
             }
             return cached;
         },
     };
 }
 
-export function adaptStderr(p3: WasiP3Imports, maxBufferSize?: number): { getStderr(): WasiOutputStream } {
+export function adaptStderr(p3: WasiP3Imports, maxBufferSize?: number, pending?: Promise<unknown>[]): { getStderr(): WasiOutputStream } {
     const p3stderr = p3['wasi:cli/stderr'];
     let cached: WasiOutputStream | null = null;
 
     return {
         getStderr(): WasiOutputStream {
             if (!cached) {
-                const pair = createStreamPair<Uint8Array>();
+                // resolveOnConsume — see adaptStdout above.
+                const pair = createStreamPair<Uint8Array>({ resolveOnConsume: true });
                 p3stderr.writeViaStream(pair.readable);
-                cached = createOutputStreamFromP3(pair, maxBufferSize);
+                cached = createOutputStreamFromP3(pair, maxBufferSize, pending);
             }
             return cached;
         },

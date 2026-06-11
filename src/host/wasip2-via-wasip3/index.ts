@@ -58,6 +58,13 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const register = makeRegister(result, 'wasi:', P2_VERSIONS);
     const syncPollable = (): WasiPollable => createSyncPollable(() => true);
 
+    // Registry of in-flight fire-and-forget guest output writes (stdout/stderr).
+    // The export-call boundary awaits these so a host reading captured output
+    // immediately after a guest call sees the full output, not a truncated tail.
+    // Shared with the MarshalingContext via the well-known symbol below.
+    const pendingHostWrites: Promise<unknown>[] = [];
+    (result as Record<symbol, unknown>)[Symbol.for('jsco.pendingHostWrites')] = pendingHostWrites;
+
     // ─── wasi:random/* ───
 
     const random = adaptRandom(p3);
@@ -132,8 +139,8 @@ export function createWasiP2ViaP3Adapter(p3: WasiP3Imports, options?: { limits?:
     const env = adaptEnvironment(p3);
     const exit = adaptExit(p3);
     const stdin = adaptStdin(p3);
-    const stdout = adaptStdout(p3, maxBufferSize);
-    const stderr = adaptStderr(p3, maxBufferSize);
+    const stdout = adaptStdout(p3, maxBufferSize, pendingHostWrites);
+    const stderr = adaptStderr(p3, maxBufferSize, pendingHostWrites);
     const terminalInput = adaptTerminalInput(p3);
     const terminalStdout = adaptTerminalStdout(p3);
     const terminalStderr = adaptTerminalStderr(p3);

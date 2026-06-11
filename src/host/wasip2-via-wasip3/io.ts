@@ -307,9 +307,21 @@ export function createInputStreamFromP3(
 export function createOutputStreamFromP3(
     pair: StreamPair<Uint8Array>,
     bufferCapacity: number = 1024 * 1024,
+    pending?: Promise<unknown>[],
 ): WasiOutputStream {
     let closed = false;
     const CAPACITY = bufferCapacity;
+
+    // Track a fire-and-forget write so a caller can await it later. The pair's
+    // write() promise resolves once the consumer (e.g. the stdout/stderr pump)
+    // has fully delivered the chunk to its sink; registering it in `pending`
+    // lets the export-call boundary flush all buffered output before returning
+    // to the host, so a host that reads captured stdout/stderr right after the
+    // guest call sees the complete output (not a truncated tail).
+    function track(p: Promise<unknown>): void {
+        if (!pending) return;
+        pending.push(p);
+    }
 
     return {
         checkWrite(): StreamResult<bigint> {
@@ -322,7 +334,7 @@ export function createOutputStreamFromP3(
             // Lowering trampoline may provide a plain Array for list<u8>; ensure Uint8Array for P3
             const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents);
             // Fire-and-forget the write — P2 write is non-blocking
-            pair.write(bytes).catch(() => { closed = true; });
+            track(pair.write(bytes).catch(() => { closed = true; }));
             return streamOk(undefined);
         },
 
@@ -347,7 +359,7 @@ export function createOutputStreamFromP3(
         writeZeroes(len: bigint): StreamResult<void> {
             if (closed) return streamClosed();
             const zeroes = new Uint8Array(Number(len));
-            pair.write(zeroes).catch(() => { closed = true; });
+            track(pair.write(zeroes).catch(() => { closed = true; }));
             return streamOk(undefined);
         },
 
