@@ -83,12 +83,12 @@ jobs:
           fi
         }
         fail=0
-        check_size dist/release/index.js                122880  "index.js (120 KB)"                || fail=1
-        check_size dist/release/wasip1-via-wasip3.js     23552  "wasip1-via-wasip3.js (23 KB)"     || fail=1
-        check_size dist/release/wasip2-via-wasip3.js     35840  "wasip2-via-wasip3.js (35 KB)"     || fail=1
-        check_size dist/release/wasip2-via-wasip3-node.js 45056 "wasip2-via-wasip3-node.js (44 KB)" || fail=1
-        check_size dist/release/wasip3.js                 38912  "wasip3.js (38 KB)"                || fail=1
-        check_size dist/release/wasip3-node.js            64512  "wasip3-node.js (63 KB)"           || fail=1
+        check_size dist/release/index.js                135168  "index.js (132 KB)"                || fail=1
+        check_size dist/release/wasip1-via-wasip3.js     17408  "wasip1-via-wasip3.js (17 KB)"     || fail=1
+        check_size dist/release/wasip2-via-wasip3.js     36864  "wasip2-via-wasip3.js (36 KB)"     || fail=1
+        check_size dist/release/wasip2-via-wasip3-node.js 47104 "wasip2-via-wasip3-node.js (46 KB)" || fail=1
+        check_size dist/release/wasip3.js                 44032  "wasip3.js (43 KB)"                || fail=1
+        check_size dist/release/wasip3-node.js            73728  "wasip3-node.js (72 KB)"           || fail=1
         if [ "$fail" -eq 1 ]; then exit 1; fi
         echo "✓ All bundle sizes OK"
 

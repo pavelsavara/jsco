@@ -8,7 +8,6 @@ import virtual from '@rollup/plugin-virtual';
 import * as path from 'path';
 import dts from 'rollup-plugin-dts';
 import gitCommitInfo from 'git-commit-info';
-import reservedProps from './scripts/reserved-props.cjs';
 import reservedWitNames from './scripts/reserved-wit-names.cjs';
 
 const configuration = process.env.Configuration ?? 'Debug';
@@ -140,16 +139,6 @@ const plugins = isDebug ? [] : (() => {
         mangle: {
             module: true,
             toplevel: true,
-            properties: {
-                // keep_quoted: true means any property accessed via `obj['name']`
-                // syntax anywhere in source is auto-reserved. With `builtins:false`
-                // (default), terser also reserves the DOM/built-in property list.
-                keep_quoted: true,
-                reserved: [
-                    ...reservedProps,
-                    ...reservedWitNames,
-                ],
-            },
         },
     })];
 })();
