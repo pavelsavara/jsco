@@ -41,13 +41,21 @@ jobs:
         VERSION="${GITHUB_REF_NAME#v}"
         cd dist/release
         npm version "$VERSION" --no-git-tag-version
+        # Prerelease versions (containing a '-', e.g. 0.2.0-preview.0) publish to
+        # the 'next' dist-tag so they don't become the default 'latest'. Stable
+        # versions publish to 'latest'.
+        if [[ "$VERSION" == *-* ]]; then
+          echo "NPM_DIST_TAG=next" >> "$GITHUB_ENV"
+        else
+          echo "NPM_DIST_TAG=latest" >> "$GITHUB_ENV"
+        fi
 
     # Authentication is via OIDC Trusted Publishing — no NPM_TOKEN needed.
     # Configure the trusted publisher for @pavelsavara/jsco on npmjs.com:
     # Package settings -> Publishing access -> Trusted publisher (GitHub Actions),
     # repo pavelsavara/jsco, workflow .github/workflows/publish.yml.
     - name: Publish to npm
-      run: npm publish --access public
+      run: npm publish --access public --tag "$NPM_DIST_TAG"
       working-directory: dist/release
 
     - name: Create GitHub release
