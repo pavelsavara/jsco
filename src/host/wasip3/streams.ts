@@ -68,8 +68,20 @@ export interface StreamPair<T> {
  *
  * The producer calls `write(value)` which returns a Promise that resolves
  * when the consumer has consumed the value (pull-based backpressure).
+ *
+ * By default `write()` resolves as soon as the consumer *pulls* the value
+ * (the `.next()` that returns it). Pass `resolveOnConsume: true` to instead
+ * resolve only after the consumer pulls the *following* item — i.e. once a
+ * `for await` body that awaits the value (e.g. `await writer.write(chunk)` in
+ * the stdout/stderr pump) has finished. This lets a caller flush buffered
+ * output by awaiting all in-flight `write()` promises and be sure every chunk
+ * has reached the sink, instead of seeing a truncated tail. It must stay
+ * opt-in: single-pull consumers (input-stream pumps, `iterator.next()` in
+ * tests) only call `.next()` once and would otherwise hang waiting for a
+ * second pull that never comes.
  */
-export function createStreamPair<T>(): StreamPair<T> {
+export function createStreamPair<T>(options?: { resolveOnConsume?: boolean }): StreamPair<T> {
+    const resolveOnConsume = options?.resolveOnConsume ?? false;
     // Queue of pending values and a way to signal the consumer
     type QueueItem =
         | { tag: 'value'; value: T; resolve: () => void }
@@ -105,17 +117,25 @@ export function createStreamPair<T>(): StreamPair<T> {
                 const item = await dequeue();
                 if (item.tag === 'done') return;
                 if (item.tag === 'error') throw item.error;
-                yield item.value;
-                // Resolve the producer's write() promise only AFTER the consumer
-                // has pulled the next item. For a `for await` consumer that awaits
-                // its body (e.g. `await writer.write(chunk)` in pumpToWritable),
-                // the next .next() call — which resumes us past this yield — does
-                // not happen until that body has finished. Resolving before the
-                // yield would let a blocking-write-and-flush guest resume before
-                // its bytes actually reached the sink, dropping the tail of
-                // stdout/stderr when the caller reads it synchronously right after
-                // the guest call returns.
-                item.resolve();
+                if (resolveOnConsume) {
+                    // Resolve the producer's write() promise only AFTER the
+                    // consumer pulls the next item. For a `for await` consumer
+                    // that awaits its body (e.g. `await writer.write(chunk)` in
+                    // pumpToWritable), the next .next() call — which resumes us
+                    // past this yield — does not happen until that body has
+                    // finished. This guarantees that awaiting the write() promise
+                    // means the chunk has reached the sink, so a blocking flush
+                    // before a sync-lift export returns captures the full tail of
+                    // stdout/stderr instead of a truncated one.
+                    yield item.value;
+                    item.resolve();
+                } else {
+                    // Default: resolve as soon as the value is pulled. Required by
+                    // single-pull consumers (input-stream pumps, plain
+                    // `iterator.next()`) that only call .next() once per chunk.
+                    item.resolve();
+                    yield item.value;
+                }
             }
         },
     };
